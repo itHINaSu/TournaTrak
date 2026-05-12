@@ -1,0 +1,2 @@
+chmod -R o+r ~/tournament/frontend
+chmod o+x ~/tournament/frontend

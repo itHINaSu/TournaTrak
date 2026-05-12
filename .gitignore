@@ -1,0 +1,16 @@
+# Runtime data — never commit live results or secrets
+files/results.json
+files/schedule.json
+
+# Keep the example for reference
+!files/schedule.example.json
+
+# Docker and system noise
+.env
+*.log
+node_modules/
+
+# Editor/OS noise
+.DS_Store
+.vscode/
+*.swp

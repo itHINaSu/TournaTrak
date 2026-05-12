@@ -1,0 +1,25 @@
+{
+  "_comment": "This is an example schedule.json showing the format. Copy to schedule.json to use.",
+  "_note": "All games are defined here. GAMES in bracket-data.js starts empty and is built from this file.",
+  "R1.L.1": {
+    "label":   "G1",
+    "time":    "Sun 11:30",
+    "t1name":  "Team Name Here",
+    "t2name":  "Other Team Here"
+  },
+  "R2.L.1": {
+    "label":   "G7",
+    "time":    "Mon 6:00",
+    "t1name":  "Bye Team",
+    "t2type":  "loser",
+    "t2slot":  "R1.L.1"
+  },
+  "QF.L.1": {
+    "label":   "G15",
+    "time":    "Wed 9:20",
+    "t1type":  "winner",
+    "t1slot":  "R2.L.1",
+    "t2type":  "winner",
+    "t2slot":  "R2.L.2"
+  }
+}

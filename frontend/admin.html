@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Dedham Tournament 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="bracket.css">
+<style>
+  .admin-tab-bar {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.2em;
+  }
+  .admin-tab {
+    flex: 1;
+    text-align: center;
+    padding: 0.85em 0.3em;
+    font-family: 'Oswald', sans-serif;
+    font-size: clamp(0.78rem, 1.5vw, 0.95rem);
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 0.18em solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .admin-tab.active { color: var(--blue-lt); border-bottom-color: var(--blue-lt); }
+  .admin-tab-panel { display: none; }
+  .admin-tab-panel.active { display: block; }
+  .empty-slot-card {
+    border: 0.07em dashed var(--border);
+    border-radius: 0.4em;
+    overflow: hidden;
+    margin-bottom: 0.75em;
+    background: var(--surface);
+    opacity: 0.7;
+  }
+  .empty-slot-card:hover { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <h1>Tournament Admin</h1>
+  <div class="header-controls">
+    <a href="/" style="font-size:0.8rem;color:var(--text-dim);text-decoration:none;letter-spacing:0.07em;min-height:2.75em;display:flex;align-items:center;padding:0 0.5em">← Public</a>
+    <button class="theme-toggle" id="themeToggle">☀ Light</button>
+  </div>
+</header>
+
+<div class="admin-wrap">
+
+  <div class="admin-tab-bar">
+    <div class="admin-tab active" data-tab="results">Game Results</div>
+    <div class="admin-tab" data-tab="schedule">Schedule &amp; Teams</div>
+  </div>
+
+  <!-- ── RESULTS TAB ── -->
+  <div class="admin-tab-panel active" id="tab-results">
+    <div class="admin-subtitle">Select a winner for each completed game. Clear removes a result without confirmation.</div>
+    <div id="adminGames"></div>
+  </div>
+
+  <!-- ── SCHEDULE TAB ── -->
+  <div class="admin-tab-panel" id="tab-schedule">
+    <div class="admin-subtitle">
+      Edit game labels, times, team names, slot positions, and team sources.
+      Empty slots can be filled to create new games. Save All writes to schedule.json — public page picks up on reload.
+    </div>
+    <div style="margin-bottom:1em;display:flex;align-items:center;gap:0.6em">
+      <button class="sched-save-btn" id="schedSaveBtn" onclick="saveAllSchedule()">Save All Changes</button>
+      <span class="sched-status" id="schedStatus"></span>
+    </div>
+    <div id="scheduleEditor"></div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="bracket-data.js"></script>
+<script>
+var results = {}, schedule = {};
+
+// ── Theme ──────────────────────────────────────────────────────────────
+document.getElementById('themeToggle').addEventListener('click', function(){
+  document.body.classList.toggle('light');
+  document.getElementById('themeToggle').textContent =
+    document.body.classList.contains('light') ? '🌙 Dark' : '☀ Light';
+});
+
+// ── Tabs ───────────────────────────────────────────────────────────────
+document.querySelectorAll('.admin-tab').forEach(function(tab){
+  tab.addEventListener('click', function(){
+    document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
+    tab.classList.add('active');
+    document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+  });
+});
+
+// ── Toast ──────────────────────────────────────────────────────────────
+function showToast(msg, err) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast' + (err ? ' error' : '');
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+
+// ── Fetch ──────────────────────────────────────────────────────────────
+async function fetchAll() {
+  try {
+    var rr = await fetch('/api/results'), sr = await fetch('/api/schedule');
+    results = await rr.json();
+    schedule = await sr.json();
+    if (typeof applySchedule === 'function') applySchedule(schedule);
+  } catch(e) { results = {}; schedule = {}; }
+  renderAdmin();
+  renderScheduleEditor();
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+function gameLabel(sid) {
+  return (GAMES[sid] && GAMES[sid].label) ? GAMES[sid].label : sid;
+}
+function esc(str) {
+  return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+}
+
+// ── Results editor ─────────────────────────────────────────────────────
+function renderAdmin() {
+  var wrap = document.getElementById('adminGames');
+  var html = '';
+
+  ROUND_ORDER.forEach(function(round){
+    var sids = Object.keys(GAMES)
+      .filter(function(s){ return GAMES[s].round === round; })
+      .sort(function(a,b){ return GAMES[a].num - GAMES[b].num; });
+    if (!sids.length) return;
+
+    html += '<div class="admin-round-hdr">' + ROUND_LABELS[round] + '</div>';
+
+    sids.forEach(function(sid){
+      var g    = GAMES[sid];
+      var t1   = resolveSlot(g.t1, results);
+      var t2   = resolveSlot(g.t2, results);
+      var l1   = slotLabel(g.t1);
+      var l2   = slotLabel(g.t2);
+      var r    = results[sid] || {};
+      var set  = !!r.winner;
+      var both = t1 && t2;
+      var lbl  = g.label || sid;
+
+      if (set) {
+        html += '<div class="admin-game-row">'
+          + '<span class="admin-game-id">' + lbl + '</span>'
+          + '<span class="admin-game-time-display">' + g.time + '</span>'
+          + '<span class="admin-game-teams">' + t1 + ' vs ' + t2 + '</span>'
+          + '<span class="admin-set-label">✓ ' + r.winner + '</span>'
+          + '<button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button>'
+          + '</div>';
+      } else if (both) {
+        html += '<div class="admin-game-row">'
+          + '<span class="admin-game-id">' + lbl + '</span>'
+          + '<span class="admin-game-time-display">' + g.time + '</span>'
+          + '<span class="admin-game-teams" style="color:var(--text)">' + t1 + ' vs ' + t2 + '</span>'
+          + '<select class="admin-winner-sel" id="sel-' + sid + '">'
+          + '<option value="">— winner —</option>'
+          + '<option value="' + esc(t1) + '">' + t1 + '</option>'
+          + '<option value="' + esc(t2) + '">' + t2 + '</option>'
+          + '</select>'
+          + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Save</button>'
+          + '</div>';
+      } else {
+        var missing = [!t1&&l1, !t2&&l2].filter(Boolean);
+        html += '<div class="admin-game-row" style="opacity:0.4">'
+          + '<span class="admin-game-id">' + lbl + '</span>'
+          + '<span class="admin-game-time-display">' + g.time + '</span>'
+          + '<span class="admin-game-teams admin-locked">Waiting: ' + missing.join(', ') + '</span>'
+          + '</div>';
+      }
+    });
+  });
+
+  wrap.innerHTML = html;
+}
+
+async function saveResult(sid) {
+  var sel = document.getElementById('sel-' + sid);
+  var winner = sel && sel.value;
+  if (!winner) { showToast('Select a winner first', true); return; }
+  var g  = GAMES[sid];
+  var t1 = resolveSlot(g.t1, results);
+  var t2 = resolveSlot(g.t2, results);
+  var loser = winner === t1 ? t2 : t1;
+  try {
+    var r = await fetch('/api/results', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ game: sid, winner: winner, loser: loser })
+    });
+    if (!r.ok) throw new Error();
+    results[sid] = { winner: winner, loser: loser };
+    showToast(gameLabel(sid) + ' saved — ' + winner + ' wins');
+    renderAdmin();
+  } catch(e) { showToast('Save failed', true); }
+}
+
+async function clearResult(sid) {
+  try {
+    var r = await fetch('/api/results/' + encodeURIComponent(sid), { method:'DELETE' });
+    if (!r.ok) throw new Error();
+    results[sid] = { winner: null, loser: null };
+    showToast(gameLabel(sid) + ' cleared');
+    renderAdmin();
+  } catch(e) { showToast('Clear failed', true); }
+}
+
+// ── Schedule editor ────────────────────────────────────────────────────
+
+// Slot number dropdown — all defined slots for round/side, marks occupied ones
+function slotNumDropdown(id, round, side, currentNum) {
+  var defs = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
+  var opts = defs.map(function(n){
+    var s2  = round + '.' + side + '.' + n;
+    var occ = !!GAMES[s2];
+    var lbl = side + n + (occ ? ' (' + (GAMES[s2].label||s2) + ')' : ' — empty');
+    return '<option value="' + n + '"' + (n===currentNum?' selected':'') + '>' + lbl + '</option>';
+  }).join('');
+  return '<select class="admin-winner-sel" id="' + id + '" style="min-width:9em">' + opts + '</select>';
+}
+
+// Team source dropdown — all occupied slots across all rounds
+function sourceDropdown(idBase, currentType, currentSlot) {
+  var typeOpts = ['winner','loser'].map(function(t){
+    return '<option value="' + t + '"' + (t===currentType?' selected':'') + '>' + t + '</option>';
+  }).join('');
+
+  var slotOpts = '<option value="">— select —</option>';
+  ROUND_ORDER.forEach(function(round){
+    var sids = Object.keys(GAMES)
+      .filter(function(s){ return GAMES[s].round===round; })
+      .sort(function(a,b){ return GAMES[a].num - GAMES[b].num; });
+    if (!sids.length) return;
+    slotOpts += '<optgroup label="' + ROUND_LABELS[round] + '">';
+    sids.forEach(function(s){
+      var g  = GAMES[s];
+      var p1 = resolveSlot(g.t1, results) || slotLabel(g.t1);
+      var p2 = resolveSlot(g.t2, results) || slotLabel(g.t2);
+      var disp = (g.label||s) + ': ' + shortName(p1) + ' / ' + shortName(p2);
+      slotOpts += '<option value="' + s + '"' + (s===currentSlot?' selected':'') + '>' + disp + '</option>';
+    });
+    slotOpts += '</optgroup>';
+  });
+
+  return '<div style="display:flex;gap:0.4em;align-items:center;flex-wrap:wrap">'
+    + '<select class="admin-winner-sel" id="' + idBase + '-type" style="min-width:5.5em">' + typeOpts + '</select>'
+    + '<span style="font-size:0.75em;color:var(--text-mute)">of</span>'
+    + '<select class="admin-winner-sel" id="' + idBase + '-slot" style="min-width:12em">' + slotOpts + '</select>'
+    + '</div>';
+}
+
+// Build a collapsible schedule card for an occupied slot
+function occupiedCard(sid) {
+  var g    = GAMES[sid];
+  var over = schedule[sid] || {};
+  var lbl  = over.label || g.label || sid;
+  var time = over.time  || g.time;
+  var t1f  = g.t1.type === 'fixed';
+  var t2f  = g.t2.type === 'fixed';
+  var t1disp = t1f ? (over.t1name||g.t1.team) : slotLabel(g.t1);
+  var t2disp = t2f ? (over.t2name||g.t2.team) : slotLabel(g.t2);
+
+  var h = '<div class="sched-game-card">';
+  h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
+    + '<span class="sched-game-hdr-id">' + lbl + '</span>'
+    + '<span class="sched-game-hdr-id" style="color:var(--text-mute);font-size:0.65em">' + sid + '</span>'
+    + '<span class="sched-game-hdr-time">' + time + '</span>'
+    + '<span class="sched-game-hdr-teams">' + t1disp + ' vs ' + t2disp + '</span>'
+    + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
+    + '</div>';
+
+  h += '<div class="sched-game-body" id="sbody-' + sid + '">';
+
+  // Label
+  h += '<div class="sched-field"><label>Game Label</label>'
+    + '<input type="text" id="slabel-' + sid + '" value="' + esc(lbl) + '" placeholder="' + esc(g.label||sid) + '"></div>';
+
+  // Time
+  h += '<div class="sched-field"><label>Game Time</label>'
+    + '<input type="text" id="stime-' + sid + '" value="' + esc(time) + '" placeholder="e.g. Sun 11:30"></div>';
+
+  // Slot num
+  h += '<div class="sched-field"><label>Bracket Slot (' + g.round + ' ' + g.side + ')</label>'
+    + slotNumDropdown('sslot-' + sid, g.round, g.side, over.num||g.num)
+    + '</div>';
+
+  // Team 1
+  h += '<div class="sched-field"><label>Team 1</label>';
+  if (t1f) {
+    h += '<input type="text" id="st1-' + sid + '" value="' + esc(over.t1name||g.t1.team) + '" placeholder="Team 1 name">';
+  } else {
+    h += sourceDropdown('st1-'+sid, over.t1type||g.t1.type, over.t1slot||g.t1.slot);
+  }
+  h += '</div>';
+
+  // Team 2
+  h += '<div class="sched-field"><label>Team 2</label>';
+  if (t2f) {
+    h += '<input type="text" id="st2-' + sid + '" value="' + esc(over.t2name||g.t2.team) + '" placeholder="Team 2 name">';
+  } else {
+    h += sourceDropdown('st2-'+sid, over.t2type||g.t2.type, over.t2slot||g.t2.slot);
+  }
+  h += '</div>';
+
+  // Clear slot button
+  h += '<div style="margin-top:0.6em;padding-top:0.6em;border-top:0.07em solid var(--border)">'
+    + '<button class="admin-clear-btn" onclick="clearSlot(\'' + sid + '\')" '
+    + 'style="border-color:var(--clear-border);color:var(--clear-color)">'
+    + 'Clear Slot</button>'
+    + '<span style="font-size:0.65em;color:var(--text-mute);margin-left:0.6em">Removes all overrides for this slot</span>'
+    + '</div>';
+
+  h += '</div></div>';
+  return h;
+}
+
+// Build a collapsible card for an empty slot
+function emptyCard(sid) {
+  var parsed = parseSlotId(sid);
+  var over   = schedule[sid] || {};
+
+  var h = '<div class="empty-slot-card">';
+  h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
+    + '<span class="sched-game-hdr-id" style="color:var(--text-mute)">' + sid + '</span>'
+    + '<span class="sched-game-hdr-teams" style="color:var(--text-mute);font-style:italic">— empty slot —</span>'
+    + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
+    + '</div>';
+
+  h += '<div class="sched-game-body" id="sbody-' + sid + '">';
+  h += '<div style="font-size:0.72em;color:var(--text-mute);margin-bottom:0.6em;font-style:italic">'
+    + 'Fill this slot to create a new game. Requires at least a label, time, and both teams. Save All to apply.</div>';
+
+  h += '<div class="sched-field"><label>Game Label</label>'
+    + '<input type="text" id="slabel-' + sid + '" value="' + esc(over.label||'') + '" placeholder="e.g. G22"></div>';
+
+  h += '<div class="sched-field"><label>Game Time</label>'
+    + '<input type="text" id="stime-' + sid + '" value="' + esc(over.time||'') + '" placeholder="e.g. Sun 11:30"></div>';
+
+  h += '<div class="sched-field"><label>Team 1 (name or source)</label>'
+    + '<input type="text" id="st1-' + sid + '" value="' + esc(over.t1name||'') + '" placeholder="Team name (or use source below)"></div>';
+
+  h += '<div class="sched-field"><label>Team 1 Source (if not fixed)</label>'
+    + sourceDropdown('st1-'+sid, over.t1type||'winner', over.t1slot||'')
+    + '</div>';
+
+  h += '<div class="sched-field"><label>Team 2 (name or source)</label>'
+    + '<input type="text" id="st2-' + sid + '" value="' + esc(over.t2name||'') + '" placeholder="Team name (or use source below)"></div>';
+
+  h += '<div class="sched-field"><label>Team 2 Source (if not fixed)</label>'
+    + sourceDropdown('st2-'+sid, over.t2type||'winner', over.t2slot||'')
+    + '</div>';
+
+  h += '</div></div>';
+  return h;
+}
+
+// Clear all overrides for a slot (sends { clear: true } to schedule)
+async function clearSlot(sid) {
+  var out = Object.assign({}, schedule);
+  out[sid] = { clear: true };
+  try {
+    var r = await fetch('/api/schedule', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(out)
+    });
+    if (!r.ok) throw new Error();
+    schedule = out;
+    if (typeof applySchedule === 'function') applySchedule(schedule);
+    showToast('Slot ' + sid + ' cleared');
+    renderAdmin();
+    renderScheduleEditor();
+  } catch(e) { showToast('Clear failed', true); }
+}
+
+function renderScheduleEditor() {
+  var wrap = document.getElementById('scheduleEditor');
+  var html = '';
+
+  ROUND_ORDER.forEach(function(round){
+    var sides = Object.keys(SLOT_DEFS[round]||{}).sort();
+    var hasAny = sides.some(function(side){
+      return Object.keys(GAMES).some(function(s){ return GAMES[s].round===round && GAMES[s].side===side; })
+        || (SLOT_DEFS[round][side]||[]).length > 0;
+    });
+    if (!hasAny) return;
+
+    html += '<div class="admin-round-hdr">' + ROUND_LABELS[round] + '</div>';
+
+    sides.forEach(function(side){
+      var defs = SLOT_DEFS[round][side] || [];
+      if (!defs.length) return;
+
+      // Section label for side (skip for CHAMP which has no side distinction)
+      if (sides.length > 1) {
+        html += '<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.1em;text-transform:uppercase;color:var(--blue-lt);padding:0.4em 0 0.2em">'
+          + (side==='L' ? 'Left Side' : side==='R' ? 'Right Side' : side) + '</div>';
+      }
+
+      defs.forEach(function(n){
+        var sid = round + '.' + side + '.' + n;
+        if (GAMES[sid]) {
+          html += occupiedCard(sid);
+        } else {
+          html += emptyCard(sid);
+        }
+      });
+    });
+  });
+
+  wrap.innerHTML = html;
+}
+
+function toggleSched(sid) {
+  var body  = document.getElementById('sbody-' + sid);
+  var arrow = document.getElementById('sarrow-' + sid);
+  if (!body) return;
+  body.classList.toggle('open');
+  arrow.textContent = body.classList.contains('open') ? '▲' : '▼';
+}
+
+async function saveAllSchedule() {
+  var btn    = document.getElementById('schedSaveBtn');
+  var status = document.getElementById('schedStatus');
+  btn.disabled = true;
+  var out = {};
+
+  // Collect from all slots — occupied and empty
+  allSlotIds().forEach(function(sid){
+    var g      = GAMES[sid]; // may be null for empty slots
+    var parsed = parseSlotId(sid);
+    var entry  = {};
+
+    var labelEl   = document.getElementById('slabel-' + sid);
+    var timeEl    = document.getElementById('stime-'  + sid);
+    var slotEl    = document.getElementById('sslot-'  + sid);
+    var t1El      = document.getElementById('st1-'    + sid);
+    var t2El      = document.getElementById('st2-'    + sid);
+    var st1typeEl = document.getElementById('st1-' + sid + '-type');
+    var st1srcEl  = document.getElementById('st1-' + sid + '-slot');
+    var st2typeEl = document.getElementById('st2-' + sid + '-type');
+    var st2srcEl  = document.getElementById('st2-' + sid + '-slot');
+
+    if (labelEl && labelEl.value.trim()) entry.label = labelEl.value.trim();
+    if (timeEl  && timeEl.value.trim())  entry.time  = timeEl.value.trim();
+    if (slotEl  && slotEl.value)         entry.num   = parseInt(slotEl.value);
+    if (t1El    && t1El.value.trim())    entry.t1name = t1El.value.trim();
+    if (t2El    && t2El.value.trim())    entry.t2name = t2El.value.trim();
+    if (st1typeEl && st1srcEl && st1srcEl.value) {
+      entry.t1type = st1typeEl.value;
+      entry.t1slot = st1srcEl.value;
+    }
+    if (st2typeEl && st2srcEl && st2srcEl.value) {
+      entry.t2type = st2typeEl.value;
+      entry.t2slot = st2srcEl.value;
+    }
+
+    // Only save if there's meaningful data beyond just a label
+    var hasRealData = entry.time || entry.t1name || entry.t2name || entry.t1slot || entry.t2slot;
+    if (hasRealData) out[sid] = entry;
+    else if (entry.label && GAMES[sid]) {
+      // Label-only update for existing game is OK
+      out[sid] = entry;
+    }
+  });
+
+  try {
+    var r = await fetch('/api/schedule', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(out)
+    });
+    if (!r.ok) throw new Error();
+    schedule = out;
+    if (typeof applySchedule === 'function') applySchedule(schedule);
+    showToast('Schedule saved');
+    status.textContent = '✓ Saved';
+    setTimeout(function(){ status.textContent=''; }, 3000);
+    renderAdmin();
+    renderScheduleEditor();
+  } catch(e) {
+    showToast('Save failed', true);
+    status.textContent = '✗ Error';
+  }
+  btn.disabled = false;
+}
+
+fetchAll();
+</script>
+</body>
+</html>
