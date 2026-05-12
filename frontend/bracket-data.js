@@ -1,12 +1,9 @@
 // bracket-data.js
+// GAMES is empty by default — all games are defined via schedule.json / applySchedule()
 // Primary key: slot ID e.g. 'R1.L.1', 'R2.R.3', 'QF.L.1', 'SF.R.1', 'CHAMP.C.1'
 // Slot ID format: {ROUND}.{SIDE}.{NUM}  SIDE = L|R|C, NUM = 1-based
 // Team source: { type:'winner'|'loser', slot:'R1.L.1' } or { type:'fixed', team:'...' }
-//
-// Time format: ISO local datetime string 'YYYY-MM-DDTHH:MM'
-// All game data (teams, times, structure) lives in schedule.json and is applied
-// via applySchedule() on page load. Nothing is hardcoded here.
-// formatTime(t) → 'm/d Day H:MM AM/PM'   parseTimeVal(t) → ms for sorting
+// Time format: ISO local datetime 'YYYY-MM-DDTHH:MM' — set via admin panel
 
 const SLOT_DEFS = {
   R1:    { L:[1,2,3,4,5,6,7,8], R:[1,2,3,4,5,6,7,8] },
@@ -21,9 +18,12 @@ const ROUND_LABELS = {
   R1:'Round 1', R2:'Round 2', QF:'Quarter Finals', SF:'Semi Finals', CHAMP:'Championship'
 };
 
+// GAMES starts empty — populated by applySchedule() on load
+const GAMES = {};
+
 // ── Time helpers ──────────────────────────────────────────────────────
-// t should be 'YYYY-MM-DDTHH:MM' (ISO local, no timezone)
-// Returns sortable ms; empty/invalid times sort to end.
+// t: 'YYYY-MM-DDTHH:MM' (ISO local, no timezone)
+// Returns ms for sorting; empty/unparseable times sort to end.
 function parseTimeVal(t) {
   if (!t) return Infinity;
   var d = new Date(t);
@@ -48,7 +48,6 @@ function formatTime(t) {
   return m + '/' + day + ' ' + dow + ' ' + h12 + ':' + ms + ' ' + ampm;
 }
 
-// ── Slot ID helpers ───────────────────────────────────────────────────
 function parseSlotId(sid) {
   const p = sid.split('.');
   return { round:p[0], side:p[1], num:parseInt(p[2]) };
@@ -81,22 +80,18 @@ function occupiedSlots() {
   });
 }
 
-// ── GAMES — live working object, fully populated by applySchedule() ───
-// Starts empty. All game data comes from schedule.json via the admin panel.
-const GAMES = {};
-
 // ── Core helpers ──────────────────────────────────────────────────────
 function resolveSlot(teamSlot, results) {
   if (!teamSlot) return null;
-  if (teamSlot.type==='fixed')  return teamSlot.team;
+  if (teamSlot.type==='fixed')  return teamSlot.team || null;
   if (teamSlot.type==='winner') return (results[teamSlot.slot]||{}).winner || null;
   if (teamSlot.type==='loser')  return (results[teamSlot.slot]||{}).loser  || null;
   return null;
 }
 
 function slotLabel(teamSlot) {
-  if (!teamSlot) return '';
-  if (teamSlot.type==='fixed') return teamSlot.team;
+  if (!teamSlot) return '?';
+  if (teamSlot.type==='fixed') return teamSlot.team || '?';
   const g = GAMES[teamSlot.slot];
   const lbl = g ? (g.label || teamSlot.slot) : teamSlot.slot;
   return (teamSlot.type==='winner' ? 'Winner of ' : 'Loser of ') + lbl;
@@ -108,10 +103,10 @@ function shortName(name) {
 }
 
 function smartLabel(teamSlot, results) {
-  if (!teamSlot) return '';
   const resolved = resolveSlot(teamSlot, results);
   if (resolved) return resolved;
-  if (teamSlot.type==='fixed') return teamSlot.team;
+  if (!teamSlot) return '?';
+  if (teamSlot.type==='fixed') return teamSlot.team || '?';
   const sourceG = GAMES[teamSlot.slot];
   if (!sourceG) return slotLabel(teamSlot);
   const p1 = resolveSlot(sourceG.t1, results);
@@ -125,8 +120,8 @@ function smartLabel(teamSlot, results) {
 
 function findNextSlot(sid, type) {
   for (const [nsid, ng] of Object.entries(GAMES)) {
-    if (ng.t1.type===type && ng.t1.slot===sid) return nsid;
-    if (ng.t2.type===type && ng.t2.slot===sid) return nsid;
+    if (ng.t1 && ng.t1.type===type && ng.t1.slot===sid) return nsid;
+    if (ng.t2 && ng.t2.type===type && ng.t2.slot===sid) return nsid;
   }
   return null;
 }
@@ -140,31 +135,27 @@ function isEliminated(teamName, results) {
   return losses>=2;
 }
 
-// ── Schedule overrides ────────────────────────────────────────────────
+// ── applySchedule ─────────────────────────────────────────────────────
 // Rebuilds GAMES from scratch on every call — idempotent, no stale state.
-// Entries with { clear: true } are skipped (slot remains empty).
+// { clear: true } entries are skipped so cleared slots stay empty.
+// Time is NOT required to create a game — teams + label are sufficient.
 function applySchedule(schedule) {
-  // Wipe live object
+  // Wipe live object entirely before rebuilding
   Object.keys(GAMES).forEach(k => delete GAMES[k]);
 
   for (const [sid, ov] of Object.entries(schedule)) {
-    // { clear: true } means the slot should be empty — skip it
+    if (!ov || typeof ov !== 'object') continue;
+
+    // { clear: true } — slot intentionally empty, skip
     if (ov.clear) continue;
 
     const parsed = parseSlotId(sid);
     if (!parsed.round || !parsed.side || isNaN(parsed.num)) continue;
 
-    // Require at minimum a label and at least one team to create a game
-    if (!ov.label) continue;
-
-    const t1 = ov.t1name
-      ? { type:'fixed', team:ov.t1name }
-      : (ov.t1slot ? { type:(ov.t1type||'winner'), slot:ov.t1slot } : null);
-    const t2 = ov.t2name
-      ? { type:'fixed', team:ov.t2name }
-      : (ov.t2slot ? { type:(ov.t2type||'winner'), slot:ov.t2slot } : null);
-
-    if (!t1 || !t2) continue; // both teams required
+    // Require at minimum a label and both teams to create a game
+    const hasT1 = ov.t1name || ov.t1slot;
+    const hasT2 = ov.t2name || ov.t2slot;
+    if (!ov.label || !hasT1 || !hasT2) continue;
 
     GAMES[sid] = {
       label: ov.label,
@@ -172,8 +163,12 @@ function applySchedule(schedule) {
       side:  parsed.side,
       num:   ov.num != null ? parseInt(ov.num) : parsed.num,
       time:  ov.time || '',
-      t1:    t1,
-      t2:    t2,
+      t1: ov.t1name
+        ? { type:'fixed', team:ov.t1name }
+        : { type:(ov.t1type||'winner'), slot:ov.t1slot },
+      t2: ov.t2name
+        ? { type:'fixed', team:ov.t2name }
+        : { type:(ov.t2type||'winner'), slot:ov.t2slot },
     };
   }
 }

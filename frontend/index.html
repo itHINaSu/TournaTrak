@@ -101,6 +101,7 @@ async function fetchAll(){
     results=await rr.json(); schedule=await sr.json();
     if(typeof applySchedule==='function') applySchedule(schedule);
   }catch(e){results={};schedule={};}
+  populateTeamSelect();
   renderActive();
 }
 var resizeTimer;
@@ -160,20 +161,13 @@ function cardMidVh(round,slot,slotVh){
 function getDims(){
   var hdrH  = document.getElementById('siteHeader').getBoundingClientRect().height;
   var tabsH = document.getElementById('viewTabs').getBoundingClientRect().height;
-  var availPx = window.innerHeight - hdrH - tabsH - 16; // small padding
+  var availPx = window.innerHeight - hdrH - tabsH - 16;
   var vh = window.innerHeight / 100;
-
-  // Convert available px to vh
   var availVh = availPx / vh;
-
-  // 8 slots fill the available height, each slot = availVh/8 vh
   var slotVh = availVh / 8;
   var cardVh = slotVh * CARD_RATIO;
-
-  // Row height = cardVh / 3 (three equal rows)
   var rowVh = cardVh / 3;
 
-  // Minimum row height: 2vh so text never becomes unreadable
   if(rowVh < 2){
     rowVh = 2;
     cardVh = rowVh * 3;
@@ -182,30 +176,23 @@ function getDims(){
 
   var isMobile = window.innerWidth < 900;
 
-  // ── Width: total bracket = 85vw, centered ──────────────────
-  // Layout: sides*(4*colVw + 3*gapVw) + champVw = 85vw
-  // gapVw = colVw * gapRatio
-  var TARGET_VW  = isMobile ? 85 : 85;
+  var TARGET_VW  = 85;
   var champVw    = isMobile ? 10 : 12;
   var numCols    = 4;
   var numGaps    = 3;
   var sides      = 2;
-  var gapRatio   = 0.20; // gap = 20% of colVw
-  // colVw * (sides*(numCols + numGaps*gapRatio) + champVw/colVw) = TARGET_VW
-  // Solve: colVw = (TARGET_VW - champVw) / (sides*(numCols + numGaps*gapRatio))
+  var gapRatio   = 0.20;
   var colVw  = (TARGET_VW - champVw) / (sides * (numCols + numGaps * gapRatio));
   var gapVw  = colVw * gapRatio;
 
-  // ── Height: derive from card aspect ratio ───────────────────
   var vwPx   = window.innerWidth / 100;
   var vhPx   = window.innerHeight / 100;
   var cardPx = colVw * vwPx / CARD_ASPECT;
   cardVh     = cardPx / vhPx;
   rowVh      = cardVh / 3;
 
-  // Floor: row must be at least 1.6vh so text is readable
-  if(rowVh < 1.6){ rowVh = 1.6; cardVh = rowVh * 3; }
-  // Ceil: if cards are taller than availVh/8 allows, shrink to fit height
+  var MIN_ROW_VH = 2.4;
+  if(rowVh < MIN_ROW_VH){ rowVh = MIN_ROW_VH; cardVh = rowVh * 3; }
   var maxCardVh = (availVh / 8) * CARD_RATIO;
   if(cardVh > maxCardVh){ cardVh = maxCardVh; rowVh = cardVh / 3; }
   slotVh = cardVh / CARD_RATIO;
@@ -222,7 +209,6 @@ function getDims(){
   };
 }
 
-// Set CSS variables from dims
 function applyCSSVars(dims){
   var r=document.documentElement.style;
   r.setProperty('--slot-h', dims.slotVh+'vh');
@@ -237,6 +223,8 @@ function applyCSSVars(dims){
 // ══════════════════════════════════════════════════════════
 function cardHTML(gid){
   var g=GAMES[gid];
+  if(!g) return '<div class="bc-hdr"><span class="bc-id">'+gid+'</span></div>'
+    +'<div class="bc-team tbd">TBD</div><div class="bc-team tbd">TBD</div>';
   var t1=disp(gid,g.t1), t2=disp(gid,g.t2);
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
@@ -253,17 +241,14 @@ function cardHTML(gid){
 // ══════════════════════════════════════════════════════════
 function connLines(conns,wVw,hVh,lc,mirror){
   if(!conns.length) return '';
-  // We work in percentage coordinates within the SVG viewBox
-  // SVG viewBox="0 0 100 100" → x in % of width, y in % of height
   var s='<svg viewBox="0 0 100 100" preserveAspectRatio="none" '
     +'style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible">';
-  var lw='0.15'; // thin line, scales with SVG
+  var lw='0.15';
 
   function fx(x){ return mirror?(100-x):x; }
 
   var byDest={};
   conns.forEach(function(c){
-    // Convert vh to percentage of total column height
     var k=c.dstPct.toFixed(2);
     if(!byDest[k]) byDest[k]=[];
     byDest[k].push(c);
@@ -295,12 +280,11 @@ function connLines(conns,wVw,hVh,lc,mirror){
 function buildSideColumns(side){
   var rounds=['R1','R2','QF','SF'];
   return rounds.map(function(round){
-    var games=Object.keys(GAMES).filter(function(sid){
-      var p=parseSlotId(sid);
-      return p.side===side && p.round===round;
-    }).map(function(sid){return {gid:sid, slot:GAMES[sid].num};})
+    var games=Object.keys(GAMES).filter(function(gid){
+      return GAMES[gid].side===side&&GAMES[gid].round===round;
+    }).map(function(gid){return {gid:gid,slot:GAMES[gid].num};})
       .sort(function(a,b){return a.slot-b.slot;});
-    return {round:round, games:games};
+    return {round:round,games:games};
   });
 }
 
@@ -313,9 +297,9 @@ function buildConnPcts(srcCol,dstCol,slotVh){
     var dstPct=dstMid/totalVh*100;
     var dstG=GAMES[dstEntry.gid];
     [dstG.t1,dstG.t2].forEach(function(slotDef){
-      if(slotDef.type!=='winner'&&slotDef.type!=='loser') return;
-      if(!GAMES[slotDef.slot]) return;
-      var srcEntry=srcCol.games.find(function(g){return g.gid===slotDef.slot;});
+      if(!slotDef||slotDef.type!=='winner'&&slotDef.type!=='loser') return;
+      if(!GAMES[slotDef.slot]) return;                               // FIX: .slot not .game
+      var srcEntry=srcCol.games.find(function(g){return g.gid===slotDef.slot;}); // FIX: .slot not .game
       if(!srcEntry) return;
       var srcMid=cardMidVh(srcCol.round,srcEntry.slot,slotVh);
       var srcPct=srcMid/totalVh*100;
@@ -341,25 +325,17 @@ function renderDesktopBracket(root,dims){
   var colVw=dims.colVw, gapVw=dims.gapVw, champVw=dims.champVw;
   var totalVh=dims.totalVh;
   var lc='var(--line-color)';
-  var hdrVh=1.8; // header row height in vh
+  var hdrVh=1.8;
 
-  // Build one side's HTML
-  // isRight=false → left side (R1 outer, SF inner, cols in DOM order R1→R2→QF→SF)
-  // isRight=true  → right side (SF inner, R1 outer, cols in DOM order SF→QF→R2→R1)
   function sideHTML(side,label,isRight){
     var cols=buildSideColumns(side);
-    // Left: DOM order R1→R2→QF→SF, CSS justifies right (SF nearest champ)
-    // Right: DOM order SF→QF→R2→R1, CSS justifies left (SF nearest champ)
     var ordCols=isRight?cols.slice().reverse():cols;
 
     var html='';
     for(var ci=0;ci<ordCols.length;ci++){
       var col=ordCols[ci];
-
-      // Round header
       var hdrHTML='<div class="round-col-hdr">'+ROUND_LABELS[col.round]+'</div>';
 
-      // Cards
       var cardsHTML='';
       col.games.forEach(function(entry){
         var topVh=slotTopVh(col.round,entry.slot,slotVh);
@@ -370,25 +346,16 @@ function renderDesktopBracket(root,dims){
       html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
         +hdrHTML+cardsHTML+'</div>';
 
-      // Gap + connector lines (not after last column)
       if(ci<ordCols.length-1){
-        // srcCol = earlier round (feeds into dstCol)
-        // Left: ordCols[ci]=R1, ordCols[ci+1]=R2 → src=R1, dst=R2
-        // Right: ordCols[ci]=SF, ordCols[ci+1]=QF → src=QF, dst=SF
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
         var conns=buildConnPcts(srcCol,dstCol,slotVh);
-        // Mirror: left bracket lines go right→left (toward champ on right)
-        //         right bracket lines go left→right (toward champ on left)  
         var mirror=!isRight;
         html+='<div style="position:relative;flex-shrink:0;width:'+gapVw+'vw;height:'+totalVh+'vh">'
           +connLines(conns,gapVw,totalVh,lc,mirror)+'</div>';
       }
     }
 
-    // Outer label positioned above Round 1 column (outermost)
-    // For left side: R1 is first in DOM (leftmost) → label at left
-    // For right side: R1 is last in DOM (rightmost) → label at right
     var labelAlign=isRight?'right:0':'left:0';
     return '<div style="position:relative;flex:1;min-width:0;display:flex;'
       +(isRight?'justify-content:flex-start':'justify-content:flex-end')+'">'
@@ -398,55 +365,54 @@ function renderDesktopBracket(root,dims){
       +'</div></div>';
   }
 
-  // Championship center
-  var champSid='CHAMP.C.1';
-  var cr=results[champSid]||{};
-  var ct1=disp(champSid,GAMES[champSid].t1), ct2=disp(champSid,GAMES[champSid].t2);
-  var cc1=!ct1.actual?'tbd':ct1.won?'won':'';
-  var cc2=!ct2.actual?'tbd':ct2.won?'won':'';
-  var sfTopVh=slotTopVh('SF',1,slotVh);
-  var champLbl=gameLabel(champSid);
+  var champG = GAMES['CHAMP.C.1'];
+  var cr = results['CHAMP.C.1']||{};
+  var sfTopVh = slotTopVh('SF',1,slotVh);
 
-  var champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;'
-    +'align-items:flex-start;justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
-    +'<div style="width:100%;margin-top:'+sfTopVh+'vh">'
-    +'<div style="text-align:center;margin-bottom:0.3vh">'
-    +'<div style="font-size:clamp(1rem,1.5vw,1.6rem)">🏆</div>'
-    +'<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:0.15em">Championship</div>'
-    +'<div style="font-size:0.62em;color:var(--gold-lt);font-weight:600;margin-bottom:0.3em">'+formatTime(GAMES[champSid].time)+'</div>'
-    +'</div>'
-    +'<div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML(champSid)+'</div>'
-    +(cr.winner?'<div style="font-family:Oswald,sans-serif;font-size:0.85em;color:var(--gold-lt);text-align:center;margin-top:0.4em;letter-spacing:0.07em">'+cr.winner+'</div>':'')
-    +'</div></div>';
+  var champHTML;
+  if(!champG){
+    champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;'
+      +'align-items:center;justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
+      +'<div style="text-align:center;opacity:0.3">'
+      +'<div style="font-size:clamp(1rem,1.5vw,1.6rem)">🏆</div>'
+      +'<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold)">Championship</div>'
+      +'</div></div>';
+  } else {
+    var ct1=disp('CHAMP.C.1',champG.t1), ct2=disp('CHAMP.C.1',champG.t2);
+    champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;'
+      +'align-items:flex-start;justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
+      +'<div style="width:100%;margin-top:'+sfTopVh+'vh">'
+      +'<div style="text-align:center;margin-bottom:0.3vh">'
+      +'<div style="font-size:clamp(1rem,1.5vw,1.6rem)">🏆</div>'
+      +'<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:0.15em">Championship</div>'
+      +'<div style="font-size:0.62em;color:var(--gold-lt);font-weight:600;margin-bottom:0.3em">'+formatTime(champG.time)+'</div>'
+      +'</div>'
+      +'<div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP.C.1')+'</div>'
+      +(cr.winner?'<div style="font-family:Oswald,sans-serif;font-size:0.85em;color:var(--gold-lt);text-align:center;margin-top:0.4em;letter-spacing:0.07em">'+cr.winner+'</div>':'')
+      +'</div></div>';
+  }
 
   root.innerHTML='<div style="display:flex;align-items:flex-start;width:85vw;margin:0 auto;box-sizing:border-box;padding:calc(var(--col-hdr-h) * 2.5) 0 1em;">'
-    +sideHTML('left','Left Bracket',false)
+    +sideHTML('L','Left Bracket',false)
     +champHTML
-    +sideHTML('right','Right Bracket',true)
+    +sideHTML('R','Right Bracket',true)
     +'</div>';
 }
 
 // ── MOBILE ─────────────────────────────────────────────────
-// Snap-scroll layout: each round is a 49vw column, two visible at a time.
-// Cards sized to fill 49vw width maintaining CARD_ASPECT ratio.
-// No height constraint — readability is master.
 function renderMobileBracket(root,dims){
-  // ── Card sizing from width ──────────────────────────────
-  // Each round column = 49vw. Card fills column width.
-  var colVw   = 49;                          // each round column width
-  var gapVw   = 1;                           // small gap between rounds (just for breathing)
+  var colVw   = 49;
+  var gapVw   = 1;
   var vwPx    = window.innerWidth  / 100;
   var vhPx    = window.innerHeight / 100;
-  var cardPx  = colVw * vwPx / CARD_ASPECT;  // card height in px from aspect ratio
-  var cardVh  = cardPx / vhPx;              // convert to vh
-  var slotVh  = cardVh / CARD_RATIO;         // slot height (card + gap)
-  var totalVh = slotVh * 8;                  // total column height
+  var cardPx  = colVw * vwPx / CARD_ASPECT;
+  var cardVh  = cardPx / vhPx;
+  var slotVh  = cardVh / CARD_RATIO;
+  var totalVh = slotVh * 8;
 
-  // ── Build one bracket side ──────────────────────────────
   function mobileSide(side, label) {
-    var cols = buildSideColumns(side); // [R1, R2, QF, SF]
+    var cols = buildSideColumns(side);
 
-    // Outer snap container — horizontal scroll with snap
     var snapWrap = '<div style="'
       + 'display:flex;'
       + 'overflow-x:scroll;'
@@ -458,7 +424,6 @@ function renderMobileBracket(root,dims){
       + '">';
 
     cols.forEach(function(col) {
-      // Each round column snaps to start
       var roundDiv = '<div style="'
         + 'flex:0 0 ' + colVw + 'vw;'
         + 'width:' + colVw + 'vw;'
@@ -468,7 +433,6 @@ function renderMobileBracket(root,dims){
         + 'scroll-snap-stop:always;'
         + '">';
 
-      // Round label at top of column
       roundDiv += '<div style="'
         + 'font-family:Oswald,sans-serif;'
         + 'font-size:0.62em;'
@@ -480,7 +444,6 @@ function renderMobileBracket(root,dims){
         + 'padding:0.3em 0 0.4em;'
         + '">' + ROUND_LABELS[col.round] + '</div>';
 
-      // Cards absolutely positioned by slot
       col.games.forEach(function(entry) {
         var topVh = slotTopVh(col.round, entry.slot, slotVh);
         roundDiv += '<div class="bc" style="'
@@ -492,11 +455,11 @@ function renderMobileBracket(root,dims){
           + '">' + cardHTML(entry.gid) + '</div>';
       });
 
-      roundDiv += '</div>'; // end round col
+      roundDiv += '</div>';
       snapWrap += roundDiv;
     });
 
-    snapWrap += '</div>'; // end snap container
+    snapWrap += '</div>';
 
     return '<div style="margin-bottom:1em;">'
       + '<div style="'
@@ -507,41 +470,54 @@ function renderMobileBracket(root,dims){
       + '</div>';
   }
 
-  var champSid = 'CHAMP.C.1';
-  var champG   = GAMES[champSid] || {};
-  var cr  = results[champSid] || {};
-  var ct1 = resolveSlot(champG.t1, results) || smartLabel(champG.t1, results);
-  var ct2 = resolveSlot(champG.t2, results) || smartLabel(champG.t2, results);
+  var cg  = GAMES['CHAMP.C.1'];
+  var cr  = results['CHAMP.C.1'] || {};
+  var champBar;
+  if (!cg) {
+    champBar = '<div class="champ-bar"><div class="champ-bar-label">🏆 Championship</div>'
+      + '<div style="font-size:0.75em;color:var(--text-mute);font-style:italic">Not yet scheduled</div></div>';
+  } else {
+    var ct1 = resolveSlot(cg.t1, results) || smartLabel(cg.t1, results);
+    var ct2 = resolveSlot(cg.t2, results) || smartLabel(cg.t2, results);
+    champBar = '<div class="champ-bar">'
+      + '<div class="champ-bar-label">🏆 Championship' + (cg.time ? ' · ' + formatTime(cg.time) : '') + '</div>'
+      + '<div class="champ-bar-teams">'
+      + '<div class="champ-team-slot ' + (resolveSlot(cg.t1, results) ? '' : 'tbd') + '">' + ct1 + '</div>'
+      + '<div style="font-size:0.8em;color:var(--text-mute);flex-shrink:0">vs</div>'
+      + '<div class="champ-team-slot ' + (resolveSlot(cg.t2, results) ? '' : 'tbd') + '">' + ct2 + '</div>'
+      + '</div>'
+      + (cr.winner ? '<div class="champ-winner-display">🏆 ' + cr.winner + '</div>' : '')
+      + '</div>';
+  }
 
   root.innerHTML = '<div style="width:98vw;margin:0 auto;">'
-    + mobileSide('left',  'Left Bracket')
+    + mobileSide('L', 'Left Bracket')
     + '<div class="mobile-bracket-divider"></div>'
-    + mobileSide('right', 'Right Bracket')
-    + '<div class="champ-bar">'
-    + '<div class="champ-bar-label">🏆 Championship' + (champG.time ? ' · ' + formatTime(champG.time) : '') + '</div>'
-    + '<div class="champ-bar-teams">'
-    + '<div class="champ-team-slot ' + (resolveSlot(champG.t1, results) ? '' : 'tbd') + '">' + ct1 + '</div>'
-    + '<div style="font-size:0.8em;color:var(--text-mute);flex-shrink:0">vs</div>'
-    + '<div class="champ-team-slot ' + (resolveSlot(champG.t2, results) ? '' : 'tbd') + '">' + ct2 + '</div>'
-    + '</div>'
-    + (cr.winner ? '<div class="champ-winner-display">🏆 ' + cr.winner + '</div>' : '')
-    + '</div></div>';
+    + mobileSide('R', 'Right Bracket')
+    + champBar
+    + '</div>';
 }
 
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW
+// Uses parseTimeVal (ISO-aware) for correct cross-day sorting.
+// formatTime() renders the display string from the stored ISO value.
 // ══════════════════════════════════════════════════════════
 document.getElementById('roundSelect').addEventListener('change',renderRoundView);
 function renderRoundView(){
   var round=document.getElementById('roundSelect').value;
-  var sids=Object.keys(GAMES).filter(function(s){ return GAMES[s].round===round; })
-    .slice().sort(function(a,b){ return parseTimeVal(GAMES[a].time)-parseTimeVal(GAMES[b].time); });
+  var sids=Object.keys(GAMES)
+    .filter(function(sid){ return GAMES[sid].round===round; })
+    .sort(function(a,b){ return parseTimeVal(GAMES[a].time)-parseTimeVal(GAMES[b].time); });
+
   document.getElementById('roundGames').innerHTML=sids.map(function(sid){
-    var g=GAMES[sid], t1=disp(sid,g.t1), t2=disp(sid,g.t2), r=results[sid]||{};
+    var g=GAMES[sid]; if(!g) return '';
+    var t1=disp(sid,g.t1), t2=disp(sid,g.t2), r=results[sid]||{};
     var ft=formatTime(g.time);
-    var timeParts=ft.match(/^(\S+\s+\S+)\s+(.+)$/); // 'm/d Day' + 'H:MM AM/PM'
-    var dayStr=timeParts?timeParts[1]:'';
-    var timeStr=timeParts?timeParts[2]:(ft||'');
+    // Split 'm/d Day H:MM AM' into date portion and time portion for big display
+    var ftParts=ft.match(/^(\S+\s+\S+)\s+(.+)$/);
+    var dayStr=ftParts?ftParts[1]:(ft||'');
+    var timeStr=ftParts?ftParts[2]:'';
     var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
     var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
     var lbl=gameLabel(sid);
@@ -567,26 +543,23 @@ function renderRoundView(){
 // TEAM VIEW
 // ══════════════════════════════════════════════════════════
 var teamSel=document.getElementById('teamSelect');
-(function(){
-  var seen={};
-  Object.keys(GAMES).forEach(function(sid){
-    var g=GAMES[sid];
-    [g.t1,g.t2].forEach(function(slot){
-      if(slot.type==='fixed'&&slot.team&&!seen[slot.team]){
-        seen[slot.team]=true;
-        var o=document.createElement('option');
-        o.value=slot.team; o.textContent=slot.team; teamSel.appendChild(o);
-      }
-    });
-  });
-  var opts=Array.from(teamSel.options).slice(1).sort(function(a,b){return a.text.localeCompare(b.text);});
-  while(teamSel.options.length>1) teamSel.remove(1);
-  opts.forEach(function(o){teamSel.appendChild(o);});
-})();
 teamSel.addEventListener('change',renderTeamView);
 
-function buildWinChain(sid){
-  var chain=[sid], cur=sid;
+function populateTeamSelect(){
+  while(teamSel.options.length > 1) teamSel.remove(1);
+  var teams={};
+  Object.values(GAMES).forEach(function(g){
+    if(g.t1&&g.t1.type==='fixed'&&g.t1.team) teams[g.t1.team]=1;
+    if(g.t2&&g.t2.type==='fixed'&&g.t2.team) teams[g.t2.team]=1;
+  });
+  Object.keys(teams).sort().forEach(function(name){
+    var o=document.createElement('option');
+    o.value=name; o.textContent=name; teamSel.appendChild(o);
+  });
+}
+
+function buildWinChain(gid){
+  var chain=[gid], cur=gid;
   for(var i=0;i<6;i++){var n=findNextSlot(cur,'winner');if(!n)break;chain.push(n);cur=n;}
   return chain;
 }
@@ -599,7 +572,6 @@ function makeVerticalChain(chain,team,isLosePath){
   var VGAPvh=1.2;
   var lc=isLosePath?'#c05050':'var(--line-color)';
   var lda=isLosePath?'4,3':null;
-  var lw='1.5';
   var n=chain.length;
 
   var html='<div style="position:relative;width:'+CWvw+'vw;height:'+((CHvh+VGAPvh)*n+4)+'vh;overflow:visible">';
@@ -623,16 +595,13 @@ function makeVerticalChain(chain,team,isLosePath){
       +'<div class="bc-team '+c2+'">'+t2n+'</div>'
       +'</div>';
 
-    // Vertical connector
     if(i<chain.length-1){
       html+='<div style="position:absolute;left:calc('+CWvw+'vw/2);top:'+(topVh+CHvh)+'vh;width:0.07em;height:'+VGAPvh+'vh;background:'+lc+';'+(lda?'border-left:0.07em dashed '+lc+';background:none;':'')+'"></div>';
     }
-    // Lose indicator
     if(!played||teamWon){
       var ln=findNextSlot(gid,'loser'), ll=ln?'LOSE → '+gameLabel(ln):'LOSE → OUT';
       html+='<div style="position:absolute;top:'+midVh+'vh;left:calc('+CWvw+'vw + 0.3em);font-size:0.6em;color:rgba(192,80,80,0.8);white-space:nowrap;transform:translateY(-50%);font-family:Oswald,sans-serif;font-weight:600;letter-spacing:0.05em">'+ll+'</div>';
     }
-    // Win terminal
     if(i===chain.length-1&&(!played||teamWon)){
       var wn=findNextSlot(gid,'winner'), wl=wn?'WIN → '+gameLabel(wn):'WIN → CHAMP 🏆';
       var wc=wn?'var(--line-color)':'var(--gold-lt)';
@@ -646,29 +615,54 @@ function makeVerticalChain(chain,team,isLosePath){
 function renderTeamView(){
   var team=teamSel.value, out=document.getElementById('teamOut');
   if(!team){out.innerHTML='';return;}
+
   var firstGid=null;
   Object.keys(GAMES).forEach(function(gid){
     if(firstGid) return;
     if(resolveSlot(GAMES[gid].t1,results)===team||resolveSlot(GAMES[gid].t2,results)===team) firstGid=gid;
   });
   if(!firstGid){out.innerHTML='<div style="padding:1em;color:var(--text-mute);font-style:italic">No games found.</div>';return;}
-  var r1r=results[firstGid]||{}, wonR1=r1r.winner===team, lostR1=r1r.loser===team, played=!!r1r.winner;
+
+  var r1r=results[firstGid]||{};
+  var wonR1=r1r.winner===team, lostR1=r1r.loser===team, playedR1=!!r1r.winner;
+
   var html='<div style="padding:0.5em 0 0.25em;font-family:Oswald,sans-serif;font-size:0.78em;font-weight:600;color:var(--text-dim);letter-spacing:0.13em;text-transform:uppercase">'+team+'</div>';
-  if(!played||wonR1){
+
+  if(!playedR1||wonR1){
     html+='<div class="team-path-label win-label">Win path</div>';
     html+='<div style="padding:0.25em 0 0.75em;overflow-x:auto">'+makeVerticalChain(buildWinChain(firstGid),team,false)+'</div>';
   }
-  if(!played||lostR1){
-    var ln=findNextSlot(firstGid,'loser');
+
+  if(!playedR1||lostR1){
+    var loseR1next=findNextSlot(firstGid,'loser');
     html+='<div class="team-path-divider"></div>';
-    if(ln){
-      html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(firstGid)+')</div>';
-      html+='<div style="padding:0.25em 0 0.75em;overflow-x:auto">'+makeVerticalChain(buildWinChain(ln),team,true)+'</div>';
+    if(loseR1next){
+      var loseR2next=findNextSlot(loseR1next,'loser');
+      var loseGameResult=results[loseR1next]||{};
+      var wonLoseGame=loseGameResult.winner===team;
+      var lostLoseGame=loseGameResult.loser===team;
+      var playedLoseGame=!!loseGameResult.winner;
+
+      if(!playedR1||lostR1){
+        if(!playedLoseGame||wonLoseGame){
+          html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(firstGid)+')</div>';
+          html+='<div style="padding:0.25em 0 0.75em;overflow-x:auto">'+makeVerticalChain(buildWinChain(loseR1next),team,true)+'</div>';
+        }
+        if(loseR2next && (!playedLoseGame||lostLoseGame)){
+          html+='<div class="team-path-divider"></div>';
+          html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(loseR1next)+')</div>';
+          html+='<div style="padding:0.25em 0 0.75em;overflow-x:auto">'+makeVerticalChain(buildWinChain(loseR2next),team,true)+'</div>';
+        } else if(!loseR2next && playedLoseGame && lostLoseGame){
+          html+='<div class="team-path-divider"></div>';
+          html+='<div style="padding:0.5em 0;color:var(--lose-color);font-size:0.85em;font-style:italic">Loss in '+gameLabel(loseR1next)+' → Eliminated</div>';
+        }
+      }
     } else {
       html+='<div class="team-path-label lose-label">Lose path</div>';
       html+='<div style="padding:0.5em 0;color:var(--lose-color);font-size:0.85em;font-style:italic">Loss in '+gameLabel(firstGid)+' → Eliminated</div>';
     }
   }
+
   if(isEliminated(team,results)){
     html+='<div style="margin:0.25em 0 1em;padding:0.5em 0.75em;border-radius:0.25em;background:var(--elim-bg);color:var(--elim-text);font-size:0.8em">Tournament run complete.</div>';
   }
