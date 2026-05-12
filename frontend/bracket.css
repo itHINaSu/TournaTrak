@@ -568,7 +568,333 @@ input[type="time"]:focus {
 .settings-field input:focus { outline: 0.13em solid var(--blue-lt); }
 .settings-field .field-hint { font-size: 0.65em; color: var(--text-mute); margin-top: 0.2em; }
 
-@media print {
+/* ════════════════════════════════════════════════════════════
+   TABLET LAYOUT (768px - 1024px)
+   
+   Vertical stack with championship at far right:
+   - Left bracket (full width, no snap, wider cards)
+   - Right bracket (full width, no snap, wider cards)
+   - Championship displayed at the end
+   - NO snap behavior (smooth horizontal scroll only)
+   ════════════════════════════════════════════════════════════ */
+
+@media (max-width: 1024px) and (min-width: 768px) {
+  .bracket-outer {
+    display: none;
+  }
+
+  .bracket-side {
+    width: 100%;
+    flex: unset;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    margin-bottom: 2em;
+  }
+
+  .bracket-side.left-side,
+  .bracket-side.right-side {
+    justify-content: unset;
+  }
+
+  .bracket-side-label {
+    position: static;
+    margin-bottom: 0.75em;
+    display: inline-block;
+  }
+
+  /* Horizontal scroll without snap behavior */
+  .rounds-wrap {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    padding: 0 0.5em 0.5em 0.5em;
+    scroll-snap-type: none;
+  }
+
+  .round-col {
+    flex-shrink: 0;
+    width: 28vw;
+    height: auto;
+    min-height: auto;
+    position: relative;
+    padding-right: 1em;
+  }
+
+  .round-col:last-child {
+    padding-right: 1.5em;
+  }
+
+  .round-col-hdr {
+    position: static;
+    text-align: center;
+    font-size: 0.80rem;
+    color: var(--gold-lt);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.5em 0.3em;
+    margin-bottom: 0.6em;
+  }
+
+  .round-gap {
+    display: none;
+  }
+
+  .bc {
+    position: relative;
+    margin-bottom: 0.7em;
+    border-radius: 0.4em;
+    min-height: auto;
+  }
+
+  .bc-hdr {
+    padding: 0.4em 0.4em;
+    font-size: 0.68rem;
+  }
+
+  .bc-id {
+    font-size: 0.63rem;
+  }
+
+  .bc-time {
+    font-size: 0.63rem;
+  }
+
+  .bc-team {
+    padding: 0.25em 0.4em;
+    font-size: 0.72rem;
+    min-height: 2.1em;
+    line-height: 1.2;
+  }
+
+  .champ-center {
+    position: relative;
+    width: auto;
+    height: auto;
+    padding: 1em 0.6em;
+    margin-top: 2em;
+    margin-bottom: 0;
+    border-left: none;
+    border-right: none;
+    border-top: 0.07em solid rgba(196,154,26,0.15);
+    border-bottom: none;
+  }
+
+  .champ-title {
+    font-size: 0.70rem;
+    margin-bottom: 0.3em;
+  }
+
+  .champ-gametime {
+    font-size: 0.75rem;
+    margin-bottom: 0.5em;
+  }
+
+  .champ-trophy {
+    font-size: 1.6em;
+    margin-bottom: 0.25em;
+  }
+
+  .champ-winner {
+    font-size: 0.90rem;
+    margin-top: 0.4em;
+  }
+
+  .champ-bc {
+    position: relative;
+    height: auto;
+    margin-bottom: 0;
+  }
+
+  .bracket-side-wrap {
+    position: static;
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE LAYOUT (max-width: 768px)
+   
+   Layout:
+   - Wrapper: 95vw (left ~2.5% margins)
+   - Left bracket + Right bracket side-by-side (each ~47.5vw)
+   - Championship as third column (right edge)
+   - Each bracket scrolls horizontally through rounds
+   
+   Slot centering:
+   - R1: full width (8 slots visible)
+   - R2: 50% R1 width (4 slots → centered between pairs)
+   - QF: 50% R2 width (2 slots → centered between pairs)
+   - SF: 50% QF width (1 slot → centered)
+   - CHAMP: full width (1 slot)
+   
+   Column widths set by JS based on this math.
+   ════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .bracket-outer {
+    display: none;
+  }
+
+  /* Mobile wrapper: 95vw total, horizontal layout for left/right/champ */
+  .bracket-side {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .bracket-side.left-side,
+  .bracket-side.right-side {
+    justify-content: unset;
+  }
+
+  .bracket-side-label {
+    position: static;
+    margin-bottom: 0.5em;
+    display: inline-block;
+    font-size: 0.72rem;
+  }
+
+  /* Horizontal carousel for each bracket side */
+  .rounds-wrap {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    padding: 0.5em 0.5em 0.5em 0;
+    -webkit-scroll-snap-type: x mandatory;
+  }
+
+  /* Round column with dynamic width (set by JS via --col-w) */
+  .round-col {
+    flex-shrink: 0;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    width: var(--col-w);
+    height: auto;
+    min-height: auto;
+    position: relative;
+    padding-right: 0.5em;
+  }
+
+  .round-col:last-child {
+    padding-right: 1.5em;
+  }
+
+  /* Round column header */
+  .round-col-hdr {
+    position: static;
+    text-align: center;
+    font-size: 0.70rem;
+    color: var(--gold-lt);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.4em 0.2em;
+    margin-bottom: 0.4em;
+  }
+
+  /* Hide connector lines on mobile */
+  .round-gap {
+    display: none;
+  }
+
+  /* Game cards on mobile */
+  .bc {
+    position: relative;
+    margin-bottom: 0.5em;
+    border-radius: 0.4em;
+    min-height: auto;
+  }
+
+  .bc-hdr {
+    padding: 0.33em 0.33em;
+    font-size: 0.62rem;
+  }
+
+  .bc-id {
+    font-size: 0.58rem;
+  }
+
+  .bc-time {
+    font-size: 0.58rem;
+  }
+
+  .bc-team {
+    padding: 0.18em 0.33em;
+    font-size: 0.65rem;
+    min-height: 1.9em;
+    line-height: 1.15;
+  }
+
+  /* Championship on right side */
+  .champ-center {
+    position: relative;
+    width: auto;
+    flex-shrink: 0;
+    padding: 0.6em 0.5em;
+    border-left: 0.07em solid rgba(196,154,26,0.15);
+    border-right: none;
+    border-top: none;
+    border-bottom: none;
+    margin: 0;
+  }
+
+  .champ-inner {
+    width: 100%;
+    text-align: center;
+  }
+
+  .champ-title {
+    font-size: 0.62rem;
+    margin-bottom: 0.2em;
+  }
+
+  .champ-gametime {
+    font-size: 0.65rem;
+    margin-bottom: 0.35em;
+  }
+
+  .champ-trophy {
+    font-size: 1.2em;
+    margin-bottom: 0.15em;
+  }
+
+  .champ-bc {
+    position: relative;
+    height: auto;
+    margin-bottom: 0;
+  }
+
+  .champ-winner {
+    font-size: 0.80rem;
+    margin-top: 0.3em;
+  }
+
+  .bracket-side-wrap {
+    position: static;
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+@print {
   .site-header, .view-tabs, .header-controls, .theme-toggle, .selector-row { display: none; }
   body { background: #fff; color: #000; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
