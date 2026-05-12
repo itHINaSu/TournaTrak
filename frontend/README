@@ -1,0 +1,6 @@
+# Usee the following commandst to fix permissions when
+# updating files in ~/tournament/frontend.
+
+
+chmod -R o+r ~/tournament/frontend
+chmod o+x ~/tournament/frontend
