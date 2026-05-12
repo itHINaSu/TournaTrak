@@ -3,14 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>2026 Dedham Tournament</title>
+<title>Tournament Bracket</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="bracket.css">
 </head>
 <body>
 
 <header class="site-header" id="siteHeader">
-  <h1>Dedham Tournament 2026</h1>
+  <div>
+    <h1 id="siteName">Tournament Bracket</h1>
+    <div id="siteSubtitle" style="display:none;font-size:0.65em;color:var(--gold);font-family:Oswald,sans-serif;letter-spacing:0.12em;margin-top:0.1em"></div>
+  </div>
   <div class="header-controls">
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
   </div>
@@ -57,7 +60,36 @@
 // ══════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════
-var results={}, schedule={};
+var results={}, schedule={}, settings={};
+
+var SETTING_DEFAULTS = {
+  tournamentName: 'Tournament Bracket',
+  pageTitle:      'Tournament Bracket',
+  adminName:      'Tournament Admin',
+  subtitle:       '',
+  leftLabel:      'Left Bracket',
+  rightLabel:     'Right Bracket',
+};
+
+function getSetting(key) {
+  return (settings[key] !== undefined && settings[key] !== '')
+    ? settings[key] : SETTING_DEFAULTS[key];
+}
+
+function applySettings() {
+  var name     = getSetting('tournamentName');
+  var title    = getSetting('pageTitle');
+  var subtitle = getSetting('subtitle');
+  document.title = title;
+  document.getElementById('siteName').textContent = name;
+  var subEl = document.getElementById('siteSubtitle');
+  if (subtitle) {
+    subEl.textContent = subtitle;
+    subEl.style.display = 'block';
+  } else {
+    subEl.style.display = 'none';
+  }
+}
 
 // ══════════════════════════════════════════════════════════
 // THEME
@@ -97,10 +129,17 @@ function renderActive(){
 // ══════════════════════════════════════════════════════════
 async function fetchAll(){
   try{
-    var rr=await fetch('/api/results'), sr=await fetch('/api/schedule');
-    results=await rr.json(); schedule=await sr.json();
+    var [rr, sr, str] = await Promise.all([
+      fetch('/api/results'),
+      fetch('/api/schedule'),
+      fetch('/api/settings'),
+    ]);
+    results  = await rr.json();
+    schedule = await sr.json();
+    settings = await str.json();
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){results={};schedule={};}
+  }catch(e){ results={}; schedule={}; settings={}; }
+  applySettings();
   populateTeamSelect();
   renderActive();
 }
@@ -113,34 +152,31 @@ window.addEventListener('resize',function(){
 // ══════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════
-function gameLabel(gid){
-  return GAMES[gid]&&GAMES[gid].label?GAMES[gid].label:gid;
+function gameLabel(sid){
+  return GAMES[sid]&&GAMES[sid].label?GAMES[sid].label:sid;
 }
-function disp(gid,slot){
-  var team=resolveSlot(slot,results), label=slotLabel(slot);
-  var r=results[gid]||{};
-  return {name:team||label,actual:!!team,won:!!(team&&r.winner===team),lost:!!(team&&r.loser===team)};
+
+// disp: resolves a team slot for display.
+// Falls back to smartLabel (not slotLabel) so "Winner of X / Y" appears
+// everywhere when both source teams are known.
+function disp(gid, slot){
+  var team  = resolveSlot(slot, results);
+  var label = team || smartLabel(slot, results);
+  var r     = results[gid]||{};
+  return {
+    name:   label,
+    actual: !!team,
+    won:    !!(team && r.winner===team),
+    lost:   !!(team && r.loser===team),
+  };
 }
 
 // ══════════════════════════════════════════════════════════
-// SLOT POSITIONING (all in vh/em via CSS vars set by JS)
-//
-// Slot model: 8 virtual slots per column.
-// Each slot = cardH + gapH.  totalH = 8 * slotH.
-// cardH = slotH * CARD_RATIO  (rows never clip)
-// gapH  = slotH * (1 - CARD_RATIO)
-//
-// Positions:
-//   R1  slot s: top = (s-1) * slotH
-//   R2  slot s: top = ((s-1)*2 + 0.5) * slotH   [midpoint between R1 s*2-1 and R1 s*2]
-//   QF  slot s: top = ((s-1)*4 + 1.5) * slotH
-//   SF  slot 1: top = 3.5 * slotH
+// SLOT POSITIONING
 // ══════════════════════════════════════════════════════════
-var CARD_RATIO = 0.82;
+var CARD_RATIO  = 0.82;
 var CARD_ASPECT = 2.6;
-var DESKTOP_MARGIN_VW = 1.5;
 var CHAMP_RATIO = 1.2;
-var GAP_RATIO = 0.05;
 
 function slotTopVh(round,slot,slotVh){
   if(round==='R1')    return (slot-1)*slotVh;
@@ -155,58 +191,33 @@ function cardMidVh(round,slot,slotVh){
 }
 
 // ══════════════════════════════════════════════════════════
-// SIZING — returns vh values for slot/card
-// All sizing in vh so CSS variables drive everything
+// SIZING
 // ══════════════════════════════════════════════════════════
 function getDims(){
-  var hdrH  = document.getElementById('siteHeader').getBoundingClientRect().height;
-  var tabsH = document.getElementById('viewTabs').getBoundingClientRect().height;
+  var hdrH    = document.getElementById('siteHeader').getBoundingClientRect().height;
+  var tabsH   = document.getElementById('viewTabs').getBoundingClientRect().height;
   var availPx = window.innerHeight - hdrH - tabsH - 16;
-  var vh = window.innerHeight / 100;
+  var vh      = window.innerHeight / 100;
   var availVh = availPx / vh;
-  var slotVh = availVh / 8;
-  var cardVh = slotVh * CARD_RATIO;
-  var rowVh = cardVh / 3;
-
-  if(rowVh < 2){
-    rowVh = 2;
-    cardVh = rowVh * 3;
-    slotVh = cardVh / CARD_RATIO;
-  }
-
   var isMobile = window.innerWidth < 900;
 
-  var TARGET_VW  = 85;
-  var champVw    = isMobile ? 10 : 12;
-  var numCols    = 4;
-  var numGaps    = 3;
-  var sides      = 2;
-  var gapRatio   = 0.20;
-  var colVw  = (TARGET_VW - champVw) / (sides * (numCols + numGaps * gapRatio));
-  var gapVw  = colVw * gapRatio;
+  var champVw = isMobile ? 10 : 12;
+  var numCols = 4, numGaps = 3, sides = 2, gapRatio = 0.20;
+  var colVw = (85 - champVw) / (sides * (numCols + numGaps * gapRatio));
+  var gapVw = colVw * gapRatio;
 
   var vwPx   = window.innerWidth / 100;
   var vhPx   = window.innerHeight / 100;
-  var cardPx = colVw * vwPx / CARD_ASPECT;
-  cardVh     = cardPx / vhPx;
-  rowVh      = cardVh / 3;
+  var cardVh = (colVw * vwPx / CARD_ASPECT) / vhPx;
+  var rowVh  = cardVh / 3;
 
-  var MIN_ROW_VH = 2.4;
-  if(rowVh < MIN_ROW_VH){ rowVh = MIN_ROW_VH; cardVh = rowVh * 3; }
+  if(rowVh < 2.4){ rowVh = 2.4; cardVh = rowVh * 3; }
   var maxCardVh = (availVh / 8) * CARD_RATIO;
   if(cardVh > maxCardVh){ cardVh = maxCardVh; rowVh = cardVh / 3; }
-  slotVh = cardVh / CARD_RATIO;
+  var slotVh = cardVh / CARD_RATIO;
 
-  return {
-    slotVh:  slotVh,
-    cardVh:  cardVh,
-    rowVh:   rowVh,
-    colVw:   colVw,
-    gapVw:   gapVw,
-    champVw: champVw,
-    totalVh: slotVh * 8,
-    isMobile: isMobile
-  };
+  return { slotVh, cardVh, rowVh, colVw, gapVw, champVw,
+           totalVh: slotVh*8, isMobile };
 }
 
 function applyCSSVars(dims){
@@ -228,32 +239,27 @@ function cardHTML(gid){
   var t1=disp(gid,g.t1), t2=disp(gid,g.t2);
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
-  var lbl=gameLabel(gid);
-  return '<div class="bc-hdr"><span class="bc-id">'+lbl+'</span><span class="bc-time">'+formatTime(g.time)+'</span></div>'
+  return '<div class="bc-hdr"><span class="bc-id">'+gameLabel(gid)+'</span>'
+    +'<span class="bc-time">'+formatTime(g.time)+'</span></div>'
     +'<div class="bc-team '+c1+'">'+t1.name+'</div>'
     +'<div class="bc-team '+c2+'">'+t2.name+'</div>';
 }
 
 // ══════════════════════════════════════════════════════════
-// CONNECTOR LINES SVG
-// mirror=true: lines run right→left (left bracket toward champ)
-// mirror=false: lines run left→right (right bracket toward champ)
+// CONNECTOR LINES
 // ══════════════════════════════════════════════════════════
 function connLines(conns,wVw,hVh,lc,mirror){
   if(!conns.length) return '';
   var s='<svg viewBox="0 0 100 100" preserveAspectRatio="none" '
     +'style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible">';
   var lw='0.15';
-
   function fx(x){ return mirror?(100-x):x; }
-
   var byDest={};
   conns.forEach(function(c){
     var k=c.dstPct.toFixed(2);
     if(!byDest[k]) byDest[k]=[];
     byDest[k].push(c);
   });
-
   Object.keys(byDest).forEach(function(dk){
     var srcs=byDest[dk], dst=parseFloat(dk), mx=50;
     if(srcs.length>=2){
@@ -281,14 +287,13 @@ function buildSideColumns(side){
   var rounds=['R1','R2','QF','SF'];
   return rounds.map(function(round){
     var games=Object.keys(GAMES).filter(function(gid){
-      return GAMES[gid].side===side&&GAMES[gid].round===round;
-    }).map(function(gid){return {gid:gid,slot:GAMES[gid].num};})
-      .sort(function(a,b){return a.slot-b.slot;});
-    return {round:round,games:games};
+      return GAMES[gid].side===side && GAMES[gid].round===round;
+    }).map(function(gid){ return {gid:gid, slot:GAMES[gid].num}; })
+      .sort(function(a,b){ return a.slot-b.slot; });
+    return {round:round, games:games};
   });
 }
 
-// Build connection midpoint percentages
 function buildConnPcts(srcCol,dstCol,slotVh){
   var totalVh=slotVh*8;
   var conns=[];
@@ -298,12 +303,11 @@ function buildConnPcts(srcCol,dstCol,slotVh){
     var dstG=GAMES[dstEntry.gid];
     [dstG.t1,dstG.t2].forEach(function(slotDef){
       if(!slotDef||slotDef.type!=='winner'&&slotDef.type!=='loser') return;
-      if(!GAMES[slotDef.slot]) return;                               // FIX: .slot not .game
-      var srcEntry=srcCol.games.find(function(g){return g.gid===slotDef.slot;}); // FIX: .slot not .game
+      if(!GAMES[slotDef.slot]) return;
+      var srcEntry=srcCol.games.find(function(g){ return g.gid===slotDef.slot; });
       if(!srcEntry) return;
       var srcMid=cardMidVh(srcCol.round,srcEntry.slot,slotVh);
-      var srcPct=srcMid/totalVh*100;
-      conns.push({srcPct:srcPct,dstPct:dstPct});
+      conns.push({srcPct:srcMid/totalVh*100, dstPct:dstPct});
     });
   });
   return conns;
@@ -319,7 +323,6 @@ function renderBracket(){
   dims.isMobile ? renderMobileBracket(root,dims) : renderDesktopBracket(root,dims);
 }
 
-// ── DESKTOP ────────────────────────────────────────────────
 function renderDesktopBracket(root,dims){
   var slotVh=dims.slotVh, cardVh=dims.cardVh;
   var colVw=dims.colVw, gapVw=dims.gapVw, champVw=dims.champVw;
@@ -330,32 +333,25 @@ function renderDesktopBracket(root,dims){
   function sideHTML(side,label,isRight){
     var cols=buildSideColumns(side);
     var ordCols=isRight?cols.slice().reverse():cols;
-
     var html='';
     for(var ci=0;ci<ordCols.length;ci++){
       var col=ordCols[ci];
-      var hdrHTML='<div class="round-col-hdr">'+ROUND_LABELS[col.round]+'</div>';
-
       var cardsHTML='';
       col.games.forEach(function(entry){
         var topVh=slotTopVh(col.round,entry.slot,slotVh);
-        cardsHTML+='<div class="bc" style="top:'+topVh+'vh">'
-          +cardHTML(entry.gid)+'</div>';
+        cardsHTML+='<div class="bc" style="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
       });
-
       html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
-        +hdrHTML+cardsHTML+'</div>';
-
+        +'<div class="round-col-hdr">'+ROUND_LABELS[col.round]+'</div>'
+        +cardsHTML+'</div>';
       if(ci<ordCols.length-1){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
         var conns=buildConnPcts(srcCol,dstCol,slotVh);
-        var mirror=!isRight;
         html+='<div style="position:relative;flex-shrink:0;width:'+gapVw+'vw;height:'+totalVh+'vh">'
-          +connLines(conns,gapVw,totalVh,lc,mirror)+'</div>';
+          +connLines(conns,gapVw,totalVh,lc,!isRight)+'</div>';
       }
     }
-
     var labelAlign=isRight?'right:0':'left:0';
     return '<div style="position:relative;flex:1;min-width:0;display:flex;'
       +(isRight?'justify-content:flex-start':'justify-content:flex-end')+'">'
@@ -365,22 +361,19 @@ function renderDesktopBracket(root,dims){
       +'</div></div>';
   }
 
-  var champG = GAMES['CHAMP.C.1'];
-  var cr = results['CHAMP.C.1']||{};
-  var sfTopVh = slotTopVh('SF',1,slotVh);
-
+  var champG=GAMES['CHAMP.C.1'], cr=results['CHAMP.C.1']||{};
+  var sfTopVh=slotTopVh('SF',1,slotVh);
   var champHTML;
   if(!champG){
-    champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;'
-      +'align-items:center;justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
+    champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;align-items:center;'
+      +'justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
       +'<div style="text-align:center;opacity:0.3">'
       +'<div style="font-size:clamp(1rem,1.5vw,1.6rem)">🏆</div>'
       +'<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold)">Championship</div>'
       +'</div></div>';
   } else {
-    var ct1=disp('CHAMP.C.1',champG.t1), ct2=disp('CHAMP.C.1',champG.t2);
-    champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;'
-      +'align-items:flex-start;justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
+    champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;align-items:flex-start;'
+      +'justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
       +'<div style="width:100%;margin-top:'+sfTopVh+'vh">'
       +'<div style="text-align:center;margin-bottom:0.3vh">'
       +'<div style="font-size:clamp(1rem,1.5vw,1.6rem)">🏆</div>'
@@ -392,116 +385,74 @@ function renderDesktopBracket(root,dims){
       +'</div></div>';
   }
 
-  root.innerHTML='<div style="display:flex;align-items:flex-start;width:85vw;margin:0 auto;box-sizing:border-box;padding:calc(var(--col-hdr-h) * 2.5) 0 1em;">'
-    +sideHTML('L','Left Bracket',false)
+  root.innerHTML='<div style="display:flex;align-items:flex-start;width:85vw;margin:0 auto;'
+    +'box-sizing:border-box;padding:calc(var(--col-hdr-h) * 2.5) 0 1em;">'
+    +sideHTML('L', getSetting('leftLabel'),  false)
     +champHTML
-    +sideHTML('R','Right Bracket',true)
+    +sideHTML('R', getSetting('rightLabel'), true)
     +'</div>';
 }
 
-// ── MOBILE ─────────────────────────────────────────────────
 function renderMobileBracket(root,dims){
-  var colVw   = 49;
-  var gapVw   = 1;
-  var vwPx    = window.innerWidth  / 100;
-  var vhPx    = window.innerHeight / 100;
-  var cardPx  = colVw * vwPx / CARD_ASPECT;
-  var cardVh  = cardPx / vhPx;
-  var slotVh  = cardVh / CARD_RATIO;
-  var totalVh = slotVh * 8;
+  var colVw=49, gapVw=1;
+  var vwPx=window.innerWidth/100, vhPx=window.innerHeight/100;
+  var cardVh=(colVw*vwPx/CARD_ASPECT)/vhPx;
+  var slotVh=cardVh/CARD_RATIO;
+  var totalVh=slotVh*8;
 
-  function mobileSide(side, label) {
-    var cols = buildSideColumns(side);
-
-    var snapWrap = '<div style="'
-      + 'display:flex;'
-      + 'overflow-x:scroll;'
-      + 'scroll-snap-type:x mandatory;'
-      + '-webkit-overflow-scrolling:touch;'
-      + 'gap:' + gapVw + 'vw;'
-      + 'width:100%;'
-      + 'padding-bottom:0.5em;'
-      + '">';
-
-    cols.forEach(function(col) {
-      var roundDiv = '<div style="'
-        + 'flex:0 0 ' + colVw + 'vw;'
-        + 'width:' + colVw + 'vw;'
-        + 'position:relative;'
-        + 'height:' + totalVh + 'vh;'
-        + 'scroll-snap-align:start;'
-        + 'scroll-snap-stop:always;'
-        + '">';
-
-      roundDiv += '<div style="'
-        + 'font-family:Oswald,sans-serif;'
-        + 'font-size:0.62em;'
-        + 'font-weight:500;'
-        + 'letter-spacing:0.12em;'
-        + 'text-transform:uppercase;'
-        + 'color:var(--text-mute);'
-        + 'text-align:center;'
-        + 'padding:0.3em 0 0.4em;'
-        + '">' + ROUND_LABELS[col.round] + '</div>';
-
-      col.games.forEach(function(entry) {
-        var topVh = slotTopVh(col.round, entry.slot, slotVh);
-        roundDiv += '<div class="bc" style="'
-          + 'position:absolute;'
-          + 'left:0;'
-          + 'right:0;'
-          + 'top:' + topVh + 'vh;'
-          + 'height:' + cardVh + 'vh;'
-          + '">' + cardHTML(entry.gid) + '</div>';
+  function mobileSide(side,label){
+    var cols=buildSideColumns(side);
+    var snapWrap='<div style="display:flex;overflow-x:scroll;scroll-snap-type:x mandatory;'
+      +'-webkit-overflow-scrolling:touch;gap:'+gapVw+'vw;width:100%;padding-bottom:0.5em;">';
+    cols.forEach(function(col){
+      var roundDiv='<div style="flex:0 0 '+colVw+'vw;width:'+colVw+'vw;position:relative;'
+        +'height:'+totalVh+'vh;scroll-snap-align:start;scroll-snap-stop:always;">';
+      roundDiv+='<div style="font-family:Oswald,sans-serif;font-size:0.62em;font-weight:500;'
+        +'letter-spacing:0.12em;text-transform:uppercase;color:var(--text-mute);'
+        +'text-align:center;padding:0.3em 0 0.4em;">'+ROUND_LABELS[col.round]+'</div>';
+      col.games.forEach(function(entry){
+        var topVh=slotTopVh(col.round,entry.slot,slotVh);
+        roundDiv+='<div class="bc" style="position:absolute;left:0;right:0;top:'+topVh+'vh;'
+          +'height:'+cardVh+'vh;">'+cardHTML(entry.gid)+'</div>';
       });
-
-      roundDiv += '</div>';
-      snapWrap += roundDiv;
+      roundDiv+='</div>';
+      snapWrap+=roundDiv;
     });
-
-    snapWrap += '</div>';
-
+    snapWrap+='</div>';
     return '<div style="margin-bottom:1em;">'
-      + '<div style="'
-      + 'font-family:Oswald,sans-serif;font-size:0.68em;font-weight:500;'
-      + 'color:var(--text-dim);letter-spacing:0.13em;text-transform:uppercase;'
-      + 'padding:0.5em 0 0.25em;">' + label + '</div>'
-      + snapWrap
-      + '</div>';
+      +'<div style="font-family:Oswald,sans-serif;font-size:0.68em;font-weight:500;'
+      +'color:var(--text-dim);letter-spacing:0.13em;text-transform:uppercase;'
+      +'padding:0.5em 0 0.25em;">'+label+'</div>'+snapWrap+'</div>';
   }
 
-  var cg  = GAMES['CHAMP.C.1'];
-  var cr  = results['CHAMP.C.1'] || {};
+  var cg=GAMES['CHAMP.C.1'], cr=results['CHAMP.C.1']||{};
   var champBar;
-  if (!cg) {
-    champBar = '<div class="champ-bar"><div class="champ-bar-label">🏆 Championship</div>'
-      + '<div style="font-size:0.75em;color:var(--text-mute);font-style:italic">Not yet scheduled</div></div>';
+  if(!cg){
+    champBar='<div class="champ-bar"><div class="champ-bar-label">🏆 Championship</div>'
+      +'<div style="font-size:0.75em;color:var(--text-mute);font-style:italic">Not yet scheduled</div></div>';
   } else {
-    var ct1 = resolveSlot(cg.t1, results) || smartLabel(cg.t1, results);
-    var ct2 = resolveSlot(cg.t2, results) || smartLabel(cg.t2, results);
-    champBar = '<div class="champ-bar">'
-      + '<div class="champ-bar-label">🏆 Championship' + (cg.time ? ' · ' + formatTime(cg.time) : '') + '</div>'
-      + '<div class="champ-bar-teams">'
-      + '<div class="champ-team-slot ' + (resolveSlot(cg.t1, results) ? '' : 'tbd') + '">' + ct1 + '</div>'
-      + '<div style="font-size:0.8em;color:var(--text-mute);flex-shrink:0">vs</div>'
-      + '<div class="champ-team-slot ' + (resolveSlot(cg.t2, results) ? '' : 'tbd') + '">' + ct2 + '</div>'
-      + '</div>'
-      + (cr.winner ? '<div class="champ-winner-display">🏆 ' + cr.winner + '</div>' : '')
-      + '</div>';
+    var ct1=resolveSlot(cg.t1,results)||smartLabel(cg.t1,results);
+    var ct2=resolveSlot(cg.t2,results)||smartLabel(cg.t2,results);
+    champBar='<div class="champ-bar">'
+      +'<div class="champ-bar-label">🏆 Championship'+(cg.time?' · '+formatTime(cg.time):'')+'</div>'
+      +'<div class="champ-bar-teams">'
+      +'<div class="champ-team-slot '+(resolveSlot(cg.t1,results)?'':'tbd')+'">'+ct1+'</div>'
+      +'<div style="font-size:0.8em;color:var(--text-mute);flex-shrink:0">vs</div>'
+      +'<div class="champ-team-slot '+(resolveSlot(cg.t2,results)?'':'tbd')+'">'+ct2+'</div>'
+      +'</div>'
+      +(cr.winner?'<div class="champ-winner-display">🏆 '+cr.winner+'</div>':'')
+      +'</div>';
   }
 
-  root.innerHTML = '<div style="width:98vw;margin:0 auto;">'
-    + mobileSide('L', 'Left Bracket')
-    + '<div class="mobile-bracket-divider"></div>'
-    + mobileSide('R', 'Right Bracket')
-    + champBar
-    + '</div>';
+  root.innerHTML='<div style="width:98vw;margin:0 auto;">'
+    +mobileSide('L', getSetting('leftLabel'))
+    +'<div class="mobile-bracket-divider"></div>'
+    +mobileSide('R', getSetting('rightLabel'))
+    +champBar+'</div>';
 }
 
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW
-// Uses parseTimeVal (ISO-aware) for correct cross-day sorting.
-// formatTime() renders the display string from the stored ISO value.
 // ══════════════════════════════════════════════════════════
 document.getElementById('roundSelect').addEventListener('change',renderRoundView);
 function renderRoundView(){
@@ -509,31 +460,26 @@ function renderRoundView(){
   var sids=Object.keys(GAMES)
     .filter(function(sid){ return GAMES[sid].round===round; })
     .sort(function(a,b){ return parseTimeVal(GAMES[a].time)-parseTimeVal(GAMES[b].time); });
-
   document.getElementById('roundGames').innerHTML=sids.map(function(sid){
     var g=GAMES[sid]; if(!g) return '';
     var t1=disp(sid,g.t1), t2=disp(sid,g.t2), r=results[sid]||{};
     var ft=formatTime(g.time);
-    // Split 'm/d Day H:MM AM' into date portion and time portion for big display
     var ftParts=ft.match(/^(\S+\s+\S+)\s+(.+)$/);
     var dayStr=ftParts?ftParts[1]:(ft||'');
     var timeStr=ftParts?ftParts[2]:'';
     var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
     var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
-    var lbl=gameLabel(sid);
     return '<div class="round-game-card">'
       +'<div class="round-game-header">'
-      +'<span class="round-game-id">'+lbl+'</span>'
+      +'<span class="round-game-id">'+gameLabel(sid)+'</span>'
       +'<div class="round-game-day-time">'
       +'<span class="round-game-day">'+dayStr+'</span>'
       +'<span class="round-game-time">'+timeStr+'</span>'
       +'</div></div>'
-      +'<div class="round-team-row">'
-      +'<span class="round-team-name '+c1+'">'+t1.name+'</span>'
+      +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+t1.name+'</span>'
       +(r.winner?'<span class="result-badge '+(t1.won?'w':'l')+'">'+(t1.won?'W':'L')+'</span>':'')
       +'</div>'
-      +'<div class="round-team-row">'
-      +'<span class="round-team-name '+c2+'">'+t2.name+'</span>'
+      +'<div class="round-team-row"><span class="round-team-name '+c2+'">'+t2.name+'</span>'
       +(r.winner?'<span class="result-badge '+(t2.won?'w':'l')+'">'+(t2.won?'W':'L')+'</span>':'')
       +'</div></div>';
   }).join('');
@@ -546,7 +492,7 @@ var teamSel=document.getElementById('teamSelect');
 teamSel.addEventListener('change',renderTeamView);
 
 function populateTeamSelect(){
-  while(teamSel.options.length > 1) teamSel.remove(1);
+  while(teamSel.options.length>1) teamSel.remove(1);
   var teams={};
   Object.values(GAMES).forEach(function(g){
     if(g.t1&&g.t1.type==='fixed'&&g.t1.team) teams[g.t1.team]=1;
@@ -558,114 +504,171 @@ function populateTeamSelect(){
   });
 }
 
-function buildWinChain(gid){
-  var chain=[gid], cur=gid;
-  for(var i=0;i<6;i++){var n=findNextSlot(cur,'winner');if(!n)break;chain.push(n);cur=n;}
+// Build the win chain from a starting game slot
+function buildWinChain(sid){
+  var chain=[sid], cur=sid;
+  for(var i=0;i<10;i++){
+    var n=findNextSlot(cur,'winner');
+    if(!n) break;
+    chain.push(n); cur=n;
+  }
   return chain;
 }
 
-function makeVerticalChain(chain,team,isLosePath){
+// Render a vertical chain of game cards.
+// isLosePath: styles the connector line dashed red.
+// For each card, the lose indicator is:
+//   green  — if losing this game feeds into another game (team survives)
+//   red    — if losing this game eliminates the team
+function makeVerticalChain(chain, team, isLosePath){
   var isMob=window.innerWidth<900;
   var cardVh=parseFloat(document.documentElement.style.getPropertyValue('--card-h'))||8;
   var CWvw=isMob?78:32;
   var CHvh=Math.max(cardVh,6);
   var VGAPvh=1.2;
-  var lc=isLosePath?'#c05050':'var(--line-color)';
-  var lda=isLosePath?'4,3':null;
+  var pathColor=isLosePath?'#c05050':'var(--line-color)';
   var n=chain.length;
 
   var html='<div style="position:relative;width:'+CWvw+'vw;height:'+((CHvh+VGAPvh)*n+4)+'vh;overflow:visible">';
+
   chain.forEach(function(gid,i){
     var g=GAMES[gid], r=results[gid]||{};
     var topVh=i*(CHvh+VGAPvh);
     var midVh=topVh+CHvh/2;
     var teamWon=r.winner===team, teamLost=r.loser===team, played=!!r.winner;
+
     var t1r=resolveSlot(g.t1,results), t2r=resolveSlot(g.t2,results);
     var t1n=t1r||smartLabel(g.t1,results), t2n=t2r||smartLabel(g.t2,results);
     var c1=!t1r?'tbd':(r.winner===t1r?'won':r.loser===t1r?'lost':'');
     var c2=!t2r?'tbd':(r.winner===t2r?'won':r.loser===t2r?'lost':'');
+
     var border='var(--border)';
-    if(played&&teamWon) border='var(--win-color)';
+    if(played&&teamWon)  border='var(--win-color)';
     if(played&&teamLost) border='var(--lose-color)';
     if(!played&&i===0&&!isLosePath) border='var(--blue-lt)';
-    var lbl=gameLabel(gid);
-    html+='<div class="bc" style="position:absolute;top:'+topVh+'vh;left:0;width:'+CWvw+'vw;height:'+CHvh+'vh;border-color:'+border+'">'
-      +'<div class="bc-hdr"><span class="bc-id">'+lbl+'</span><span class="bc-time">'+formatTime(g.time)+'</span></div>'
+
+    html+='<div class="bc" style="position:absolute;top:'+topVh+'vh;left:0;width:'+CWvw
+      +'vw;height:'+CHvh+'vh;border-color:'+border+'">'
+      +'<div class="bc-hdr"><span class="bc-id">'+gameLabel(gid)+'</span>'
+      +'<span class="bc-time">'+formatTime(g.time)+'</span></div>'
       +'<div class="bc-team '+c1+'">'+t1n+'</div>'
       +'<div class="bc-team '+c2+'">'+t2n+'</div>'
       +'</div>';
 
+    // Vertical connector to next card
     if(i<chain.length-1){
-      html+='<div style="position:absolute;left:calc('+CWvw+'vw/2);top:'+(topVh+CHvh)+'vh;width:0.07em;height:'+VGAPvh+'vh;background:'+lc+';'+(lda?'border-left:0.07em dashed '+lc+';background:none;':'')+'"></div>';
+      var lda=isLosePath?'border-left:0.07em dashed '+pathColor+';background:none;':'background:'+pathColor+';';
+      html+='<div style="position:absolute;left:calc('+CWvw+'vw/2);top:'+(topVh+CHvh)
+        +'vh;width:0.07em;height:'+VGAPvh+'vh;'+lda+'"></div>';
     }
+
+    // Lose indicator — shown if game not yet played or team won this one
+    // Color: green if losing continues the tournament, red if it eliminates
     if(!played||teamWon){
-      var ln=findNextSlot(gid,'loser'), ll=ln?'LOSE → '+gameLabel(ln):'LOSE → OUT';
-      html+='<div style="position:absolute;top:'+midVh+'vh;left:calc('+CWvw+'vw + 0.3em);font-size:0.6em;color:rgba(192,80,80,0.8);white-space:nowrap;transform:translateY(-50%);font-family:Oswald,sans-serif;font-weight:600;letter-spacing:0.05em">'+ll+'</div>';
+      var ln=findNextSlot(gid,'loser');
+      var ll=ln ? 'LOSE → '+gameLabel(ln) : 'LOSE → OUT';
+      // Green when a lose destination exists (team survives the loss), red when eliminated
+      var loseColor=ln ? 'rgba(74,154,74,0.9)' : 'rgba(192,80,80,0.8)';
+      html+='<div style="position:absolute;top:'+midVh+'vh;left:calc('+CWvw
+        +'vw + 0.3em);font-size:0.6em;color:'+loseColor
+        +';white-space:nowrap;transform:translateY(-50%);font-family:Oswald,sans-serif;'
+        +'font-weight:600;letter-spacing:0.05em">'+ll+'</div>';
     }
+
+    // Win terminal — shown on the last card if game not played or team won
     if(i===chain.length-1&&(!played||teamWon)){
-      var wn=findNextSlot(gid,'winner'), wl=wn?'WIN → '+gameLabel(wn):'WIN → CHAMP 🏆';
+      var wn=findNextSlot(gid,'winner');
+      var wl=wn?'WIN → '+gameLabel(wn):'WIN → CHAMP 🏆';
       var wc=wn?'var(--line-color)':'var(--gold-lt)';
-      html+='<div style="position:absolute;top:'+(topVh+CHvh+VGAPvh*0.1)+'vh;left:calc('+CWvw+'vw/2 - 3em);width:6em;text-align:center;font-size:0.6em;color:'+wc+';font-family:Oswald,sans-serif;font-weight:600;letter-spacing:0.05em">'+wl+'</div>';
+      html+='<div style="position:absolute;top:'+(topVh+CHvh+VGAPvh*0.1)
+        +'vh;left:calc('+CWvw+'vw/2 - 3em);width:6em;text-align:center;font-size:0.6em;'
+        +'color:'+wc+';font-family:Oswald,sans-serif;font-weight:600;letter-spacing:0.05em">'+wl+'</div>';
     }
   });
+
   html+='</div>';
   return html;
 }
 
 function renderTeamView(){
   var team=teamSel.value, out=document.getElementById('teamOut');
-  if(!team){out.innerHTML='';return;}
+  if(!team){ out.innerHTML=''; return; }
 
+  // Find first game for this team (earliest by round/slot order)
   var firstGid=null;
-  Object.keys(GAMES).forEach(function(gid){
+  occupiedSlots().forEach(function(sid){
     if(firstGid) return;
-    if(resolveSlot(GAMES[gid].t1,results)===team||resolveSlot(GAMES[gid].t2,results)===team) firstGid=gid;
+    if(resolveSlot(GAMES[sid].t1,results)===team||resolveSlot(GAMES[sid].t2,results)===team)
+      firstGid=sid;
   });
-  if(!firstGid){out.innerHTML='<div style="padding:1em;color:var(--text-mute);font-style:italic">No games found.</div>';return;}
-
-  var r1r=results[firstGid]||{};
-  var wonR1=r1r.winner===team, lostR1=r1r.loser===team, playedR1=!!r1r.winner;
-
-  var html='<div style="padding:0.5em 0 0.25em;font-family:Oswald,sans-serif;font-size:0.78em;font-weight:600;color:var(--text-dim);letter-spacing:0.13em;text-transform:uppercase">'+team+'</div>';
-
-  if(!playedR1||wonR1){
-    html+='<div class="team-path-label win-label">Win path</div>';
-    html+='<div style="padding:0.25em 0 0.75em;overflow-x:auto">'+makeVerticalChain(buildWinChain(firstGid),team,false)+'</div>';
+  if(!firstGid){
+    out.innerHTML='<div style="padding:1em;color:var(--text-mute);font-style:italic">No games found.</div>';
+    return;
   }
 
-  if(!playedR1||lostR1){
-    var loseR1next=findNextSlot(firstGid,'loser');
-    html+='<div class="team-path-divider"></div>';
-    if(loseR1next){
-      var loseR2next=findNextSlot(loseR1next,'loser');
-      var loseGameResult=results[loseR1next]||{};
-      var wonLoseGame=loseGameResult.winner===team;
-      var lostLoseGame=loseGameResult.loser===team;
-      var playedLoseGame=!!loseGameResult.winner;
+  var html='<div style="padding:0.5em 0 0.25em;font-family:Oswald,sans-serif;font-size:0.78em;'
+    +'font-weight:600;color:var(--text-dim);letter-spacing:0.13em;text-transform:uppercase">'
+    +team+'</div>';
 
-      if(!playedR1||lostR1){
-        if(!playedLoseGame||wonLoseGame){
-          html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(firstGid)+')</div>';
-          html+='<div style="padding:0.25em 0 0.75em;overflow-x:auto">'+makeVerticalChain(buildWinChain(loseR1next),team,true)+'</div>';
-        }
-        if(loseR2next && (!playedLoseGame||lostLoseGame)){
-          html+='<div class="team-path-divider"></div>';
-          html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(loseR1next)+')</div>';
-          html+='<div style="padding:0.25em 0 0.75em;overflow-x:auto">'+makeVerticalChain(buildWinChain(loseR2next),team,true)+'</div>';
-        } else if(!loseR2next && playedLoseGame && lostLoseGame){
-          html+='<div class="team-path-divider"></div>';
-          html+='<div style="padding:0.5em 0;color:var(--lose-color);font-size:0.85em;font-style:italic">Loss in '+gameLabel(loseR1next)+' → Eliminated</div>';
-        }
+  // Build the full win chain from the first game
+  var winChain=buildWinChain(firstGid);
+
+  // ── WIN PATH ──────────────────────────────────────────────────────────
+  // Show win path unless the team has already been eliminated in R1
+  var r0=results[firstGid]||{};
+  var lostR1=r0.loser===team;
+  if(!lostR1){
+    html+='<div class="team-path-label win-label">Win path</div>';
+    html+='<div style="padding:0.25em 0 0.75em;overflow-x:auto">'
+      +makeVerticalChain(winChain,team,false)+'</div>';
+  }
+
+  // ── LOSE PATHS ────────────────────────────────────────────────────────
+  // For every game in the win chain, if losing that game feeds somewhere,
+  // show that lose branch — but only if the team could reach that point
+  // (i.e. they haven't already lost before it in actual results).
+  var teamEliminated=false;
+  winChain.forEach(function(gid, i){
+    if(teamEliminated) return;
+
+    var r=results[gid]||{};
+    var played=!!r.winner;
+    var teamLostHere=r.loser===team;
+    var teamWonHere=r.winner===team;
+
+    // Skip if played and team won (they continue up the win chain — no branch to show yet)
+    // Skip if played and team lost somewhere earlier (can't reach this game)
+    if(played && !teamLostHere && !teamWonHere) return; // shouldn't happen but guard
+    if(played && teamWonHere && i < winChain.length-1) return; // still in win chain, keep going
+
+    var ln=findNextSlot(gid,'loser');
+
+    if(!ln){
+      // Loss here eliminates — only show if team actually lost here or game not played
+      if(!played || teamLostHere){
+        html+='<div class="team-path-divider"></div>';
+        html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(gid)+')</div>';
+        html+='<div style="padding:0.5em 0;color:var(--lose-color);font-size:0.85em;font-style:italic">'
+          +'Loss in '+gameLabel(gid)+' → Eliminated</div>';
+        if(teamLostHere) teamEliminated=true;
       }
     } else {
-      html+='<div class="team-path-label lose-label">Lose path</div>';
-      html+='<div style="padding:0.5em 0;color:var(--lose-color);font-size:0.85em;font-style:italic">Loss in '+gameLabel(firstGid)+' → Eliminated</div>';
+      // Loss feeds into another game — show the lose branch chain
+      if(!played || teamLostHere){
+        html+='<div class="team-path-divider"></div>';
+        html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(gid)+')</div>';
+        html+='<div style="padding:0.25em 0 0.75em;overflow-x:auto">'
+          +makeVerticalChain(buildWinChain(ln),team,true)+'</div>';
+        if(teamLostHere) teamEliminated=true;
+      }
     }
-  }
+  });
 
   if(isEliminated(team,results)){
-    html+='<div style="margin:0.25em 0 1em;padding:0.5em 0.75em;border-radius:0.25em;background:var(--elim-bg);color:var(--elim-text);font-size:0.8em">Tournament run complete.</div>';
+    html+='<div style="margin:0.25em 0 1em;padding:0.5em 0.75em;border-radius:0.25em;'
+      +'background:var(--elim-bg);color:var(--elim-text);font-size:0.8em">Tournament run complete.</div>';
   }
+
   out.innerHTML=html;
 }
 

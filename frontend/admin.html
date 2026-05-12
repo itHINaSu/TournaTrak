@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin — Dedham Tournament 2026</title>
+<title>Tournament Admin</title>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="bracket.css">
 <style>
@@ -40,8 +40,6 @@
     opacity: 0.7;
   }
   .empty-slot-card:hover { opacity: 1; }
-
-  /* Date+time pair layout */
   .datetime-pair {
     display: flex;
     gap: 0.5em;
@@ -58,10 +56,9 @@
     color: var(--text-mute);
     flex-shrink: 0;
   }
-  /* Style native date/time inputs to match the rest of the admin */
   input[type="date"],
   input[type="time"] {
-    background: var(--input-bg, var(--surface));
+    background: var(--surface2, var(--surface));
     color: var(--text);
     border: 0.07em solid var(--border);
     border-radius: 0.25em;
@@ -74,12 +71,57 @@
     outline: none;
     border-color: var(--blue-lt);
   }
+  /* Settings tab */
+  .settings-section {
+    margin-bottom: 1.6em;
+  }
+  .settings-section-hdr {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.68em;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 0.5em 0;
+    border-bottom: 0.07em solid var(--border);
+    margin-bottom: 0.75em;
+  }
+  .settings-field {
+    margin-bottom: 0.75em;
+  }
+  .settings-field label {
+    display: block;
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.62em;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 0.3em;
+  }
+  .settings-field input {
+    width: 100%;
+    font-family: 'Barlow', sans-serif;
+    font-size: 0.88em;
+    padding: 0.43em 0.62em;
+    border-radius: 0.25em;
+    border: 0.07em solid var(--border);
+    background: var(--surface2, var(--surface));
+    color: var(--text);
+  }
+  .settings-field input:focus { outline: 0.13em solid var(--blue-lt); }
+  .settings-field .field-hint {
+    font-size: 0.65em;
+    color: var(--text-mute);
+    margin-top: 0.2em;
+  }
 </style>
 </head>
 <body>
 
-<header class="site-header">
-  <h1>Tournament Admin</h1>
+<header class="site-header" id="siteHeader">
+  <div>
+    <h1 id="adminSiteName">Tournament Admin</h1>
+  </div>
   <div class="header-controls">
     <a href="/" style="font-size:0.8rem;color:var(--text-dim);text-decoration:none;letter-spacing:0.07em;min-height:2.75em;display:flex;align-items:center;padding:0 0.5em">← Public</a>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
@@ -89,8 +131,9 @@
 <div class="admin-wrap">
 
   <div class="admin-tab-bar">
-    <div class="admin-tab active" data-tab="results">Game Results</div>
-    <div class="admin-tab" data-tab="schedule">Schedule &amp; Teams</div>
+    <div class="admin-tab active" data-tab="results">Results</div>
+    <div class="admin-tab" data-tab="schedule">Schedule</div>
+    <div class="admin-tab" data-tab="settings">Settings</div>
   </div>
 
   <!-- ── RESULTS TAB ── -->
@@ -112,13 +155,79 @@
     <div id="scheduleEditor"></div>
   </div>
 
+  <!-- ── SETTINGS TAB ── -->
+  <div class="admin-tab-panel" id="tab-settings">
+    <div class="admin-subtitle">
+      Configure tournament identity and display labels. Changes take effect on the public page after reload.
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-hdr">Tournament Identity</div>
+
+      <div class="settings-field">
+        <label>Tournament Name <span style="color:var(--text-mute);font-size:0.85em">(public page header)</span></label>
+        <input type="text" id="set-tournamentName" placeholder="e.g. Dedham Tournament 2026">
+      </div>
+
+      <div class="settings-field">
+        <label>Page Title <span style="color:var(--text-mute);font-size:0.85em">(browser tab)</span></label>
+        <input type="text" id="set-pageTitle" placeholder="e.g. 2026 Dedham Tournament">
+      </div>
+
+      <div class="settings-field">
+        <label>Subtitle <span style="color:var(--text-mute);font-size:0.85em">(optional, below tournament name)</span></label>
+        <input type="text" id="set-subtitle" placeholder="e.g. 16&quot; Softball · Carroll County">
+      </div>
+
+      <div class="settings-field">
+        <label>Admin Panel Name <span style="color:var(--text-mute);font-size:0.85em">(this page's header)</span></label>
+        <input type="text" id="set-adminName" placeholder="Tournament Admin">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-hdr">Bracket Labels</div>
+
+      <div class="settings-field">
+        <label>Left Bracket Label</label>
+        <input type="text" id="set-leftLabel" placeholder="Left Bracket">
+        <div class="field-hint">Shown above the left side of the bracket and on mobile.</div>
+      </div>
+
+      <div class="settings-field">
+        <label>Right Bracket Label</label>
+        <input type="text" id="set-rightLabel" placeholder="Right Bracket">
+        <div class="field-hint">Shown above the right side of the bracket and on mobile.</div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:0.6em;margin-top:0.5em">
+      <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
+      <span class="sched-status" id="settingsStatus"></span>
+    </div>
+  </div>
+
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script src="bracket-data.js"></script>
 <script>
-var results = {}, schedule = {};
+var results = {}, schedule = {}, settings = {};
+
+var SETTING_DEFAULTS = {
+  tournamentName: 'Tournament Bracket',
+  pageTitle:      'Tournament Bracket',
+  adminName:      'Tournament Admin',
+  subtitle:       '',
+  leftLabel:      'Left Bracket',
+  rightLabel:     'Right Bracket',
+};
+
+function getSetting(key) {
+  return (settings[key] !== undefined && settings[key] !== '')
+    ? settings[key] : SETTING_DEFAULTS[key];
+}
 
 // ── Theme ──────────────────────────────────────────────────────────────
 document.getElementById('themeToggle').addEventListener('click', function(){
@@ -149,13 +258,59 @@ function showToast(msg, err) {
 // ── Fetch ──────────────────────────────────────────────────────────────
 async function fetchAll() {
   try {
-    var rr = await fetch('/api/results'), sr = await fetch('/api/schedule');
-    results = await rr.json();
+    var [rr, sr, str] = await Promise.all([
+      fetch('/api/results'),
+      fetch('/api/schedule'),
+      fetch('/api/settings'),
+    ]);
+    results  = await rr.json();
     schedule = await sr.json();
+    settings = await str.json();
     if (typeof applySchedule === 'function') applySchedule(schedule);
-  } catch(e) { results = {}; schedule = {}; }
+  } catch(e) { results = {}; schedule = {}; settings = {}; }
+  applySettingsToPage();
   renderAdmin();
   renderScheduleEditor();
+  populateSettingsFields();
+}
+
+// ── Apply settings to this page ────────────────────────────────────────
+function applySettingsToPage() {
+  document.title = getSetting('pageTitle') + ' — Admin';
+  document.getElementById('adminSiteName').textContent = getSetting('adminName');
+}
+
+// ── Populate settings form fields ──────────────────────────────────────
+function populateSettingsFields() {
+  Object.keys(SETTING_DEFAULTS).forEach(function(key) {
+    var el = document.getElementById('set-' + key);
+    if (el) el.value = settings[key] || '';
+  });
+}
+
+// ── Save settings ──────────────────────────────────────────────────────
+async function saveSettings() {
+  var status = document.getElementById('settingsStatus');
+  var out = {};
+  Object.keys(SETTING_DEFAULTS).forEach(function(key) {
+    var el = document.getElementById('set-' + key);
+    if (el) out[key] = el.value.trim();
+  });
+  try {
+    var r = await fetch('/api/settings', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(out)
+    });
+    if (!r.ok) throw new Error();
+    settings = out;
+    applySettingsToPage();
+    showToast('Settings saved');
+    status.textContent = '✓ Saved';
+    setTimeout(function(){ status.textContent = ''; }, 3000);
+  } catch(e) {
+    showToast('Save failed', true);
+    status.textContent = '✗ Error';
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -166,13 +321,10 @@ function esc(str) {
   return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
-// Split a stored ISO time string into date and time parts for the inputs.
-// Returns { date: 'YYYY-MM-DD', time: 'HH:MM' } or empty strings.
 function splitTime(iso) {
   if (!iso) return { date:'', time:'' };
   var m = iso.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/);
   if (m) return { date: m[1], time: m[2] };
-  // Fallback: try to parse a Date and reformat
   var d = new Date(iso);
   if (!isNaN(d.getTime())) {
     var pad = function(n){ return n < 10 ? '0'+n : ''+n; };
@@ -184,15 +336,11 @@ function splitTime(iso) {
   return { date:'', time:'' };
 }
 
-// Combine date input value (YYYY-MM-DD) and time input value (HH:MM)
-// into a stored ISO string. Returns '' if either is blank.
 function joinTime(dateVal, timeVal) {
   if (!dateVal || !timeVal) return '';
   return dateVal + 'T' + timeVal;
 }
 
-// Render a date+time pair of native inputs.
-// idBase: used as id prefix; existing: the stored ISO string (may be empty).
 function datetimePairHTML(idBase, existing) {
   var parts = splitTime(existing);
   return '<div class="datetime-pair">'
@@ -202,7 +350,6 @@ function datetimePairHTML(idBase, existing) {
     + '</div>';
 }
 
-// Read the combined ISO value from a date+time pair.
 function readDatetime(idBase) {
   var dEl = document.getElementById(idBase + '-date');
   var tEl = document.getElementById(idBase + '-time');
@@ -299,8 +446,6 @@ async function clearResult(sid) {
 }
 
 // ── Schedule editor ────────────────────────────────────────────────────
-
-// Slot number dropdown — all defined slots for round/side, marks occupied ones
 function slotNumDropdown(id, round, side, currentNum) {
   var defs = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
   var opts = defs.map(function(n){
@@ -312,7 +457,6 @@ function slotNumDropdown(id, round, side, currentNum) {
   return '<select class="admin-winner-sel" id="' + id + '" style="min-width:9em">' + opts + '</select>';
 }
 
-// Team source dropdown — all occupied slots across all rounds
 function sourceDropdown(idBase, currentType, currentSlot) {
   var typeOpts = ['winner','loser'].map(function(t){
     return '<option value="' + t + '"' + (t===currentType?' selected':'') + '>' + t + '</option>';
@@ -342,7 +486,6 @@ function sourceDropdown(idBase, currentType, currentSlot) {
     + '</div>';
 }
 
-// Build a collapsible schedule card for an occupied slot
 function occupiedCard(sid) {
   var g    = GAMES[sid];
   var over = schedule[sid] || {};
@@ -363,22 +506,13 @@ function occupiedCard(sid) {
     + '</div>';
 
   h += '<div class="sched-game-body" id="sbody-' + sid + '">';
-
-  // Label
   h += '<div class="sched-field"><label>Game Label</label>'
     + '<input type="text" id="slabel-' + sid + '" value="' + esc(lbl) + '" placeholder="' + esc(g.label||sid) + '"></div>';
-
-  // Date + Time (split inputs)
   h += '<div class="sched-field"><label>Date &amp; Time</label>'
-    + datetimePairHTML('stime-' + sid, time)
-    + '</div>';
-
-  // Slot num
+    + datetimePairHTML('stime-' + sid, time) + '</div>';
   h += '<div class="sched-field"><label>Bracket Slot (' + g.round + ' ' + g.side + ')</label>'
-    + slotNumDropdown('sslot-' + sid, g.round, g.side, over.num||g.num)
-    + '</div>';
+    + slotNumDropdown('sslot-' + sid, g.round, g.side, over.num||g.num) + '</div>';
 
-  // Team 1
   h += '<div class="sched-field"><label>Team 1</label>';
   if (t1f) {
     h += '<input type="text" id="st1-' + sid + '" value="' + esc(over.t1name||g.t1.team) + '" placeholder="Team 1 name">';
@@ -387,7 +521,6 @@ function occupiedCard(sid) {
   }
   h += '</div>';
 
-  // Team 2
   h += '<div class="sched-field"><label>Team 2</label>';
   if (t2f) {
     h += '<input type="text" id="st2-' + sid + '" value="' + esc(over.t2name||g.t2.team) + '" placeholder="Team 2 name">';
@@ -396,11 +529,9 @@ function occupiedCard(sid) {
   }
   h += '</div>';
 
-  // Clear slot button
   h += '<div style="margin-top:0.6em;padding-top:0.6em;border-top:0.07em solid var(--border)">'
     + '<button class="admin-clear-btn" onclick="clearSlot(\'' + sid + '\')" '
-    + 'style="border-color:var(--clear-border);color:var(--clear-color)">'
-    + 'Clear Slot</button>'
+    + 'style="border-color:var(--clear-border);color:var(--clear-color)">Clear Slot</button>'
     + '<span style="font-size:0.65em;color:var(--text-mute);margin-left:0.6em">Removes this game entirely — slot returns to empty</span>'
     + '</div>';
 
@@ -408,47 +539,33 @@ function occupiedCard(sid) {
   return h;
 }
 
-// Build a collapsible card for an empty slot
 function emptyCard(sid) {
   var over = schedule[sid] || {};
-
   var h = '<div class="empty-slot-card">';
   h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
     + '<span class="sched-game-hdr-id" style="color:var(--text-mute)">' + sid + '</span>'
     + '<span class="sched-game-hdr-teams" style="color:var(--text-mute);font-style:italic">— empty slot —</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
     + '</div>';
-
   h += '<div class="sched-game-body" id="sbody-' + sid + '">';
   h += '<div style="font-size:0.72em;color:var(--text-mute);margin-bottom:0.6em;font-style:italic">'
     + 'Fill this slot to create a new game. Requires a label and both teams. Save All to apply.</div>';
-
   h += '<div class="sched-field"><label>Game Label</label>'
-    + '<input type="text" id="slabel-' + sid + '" value="' + esc(over.label||'') + '" placeholder="e.g. G22"></div>';
-
+    + '<input type="text" id="slabel-' + sid + '" value="' + esc(over.label||'') + '" placeholder="e.g. G7"></div>';
   h += '<div class="sched-field"><label>Date &amp; Time</label>'
-    + datetimePairHTML('stime-' + sid, over.time||'')
-    + '</div>';
-
+    + datetimePairHTML('stime-' + sid, over.time||'') + '</div>';
   h += '<div class="sched-field"><label>Team 1 (fixed name)</label>'
     + '<input type="text" id="st1-' + sid + '" value="' + esc(over.t1name||'') + '" placeholder="Team name"></div>';
-
   h += '<div class="sched-field"><label>Team 1 Source (if not fixed)</label>'
-    + sourceDropdown('st1-'+sid, over.t1type||'winner', over.t1slot||'')
-    + '</div>';
-
+    + sourceDropdown('st1-'+sid, over.t1type||'winner', over.t1slot||'') + '</div>';
   h += '<div class="sched-field"><label>Team 2 (fixed name)</label>'
     + '<input type="text" id="st2-' + sid + '" value="' + esc(over.t2name||'') + '" placeholder="Team name"></div>';
-
   h += '<div class="sched-field"><label>Team 2 Source (if not fixed)</label>'
-    + sourceDropdown('st2-'+sid, over.t2type||'winner', over.t2slot||'')
-    + '</div>';
-
+    + sourceDropdown('st2-'+sid, over.t2type||'winner', over.t2slot||'') + '</div>';
   h += '</div></div>';
   return h;
 }
 
-// Clear a slot: save { clear: true } for this sid, re-save entire schedule
 async function clearSlot(sid) {
   var out = Object.assign({}, schedule);
   out[sid] = { clear: true };
@@ -469,7 +586,6 @@ async function clearSlot(sid) {
 function renderScheduleEditor() {
   var wrap = document.getElementById('scheduleEditor');
   var html = '';
-
   ROUND_ORDER.forEach(function(round){
     var sides = Object.keys(SLOT_DEFS[round]||{}).sort();
     var hasAny = sides.some(function(side){
@@ -477,25 +593,21 @@ function renderScheduleEditor() {
         || (SLOT_DEFS[round][side]||[]).length > 0;
     });
     if (!hasAny) return;
-
     html += '<div class="admin-round-hdr">' + ROUND_LABELS[round] + '</div>';
-
     sides.forEach(function(side){
       var defs = SLOT_DEFS[round][side] || [];
       if (!defs.length) return;
-
       if (sides.length > 1) {
-        html += '<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.1em;text-transform:uppercase;color:var(--blue-lt);padding:0.4em 0 0.2em">'
+        html += '<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.1em;'
+          +'text-transform:uppercase;color:var(--blue-lt);padding:0.4em 0 0.2em">'
           + (side==='L' ? 'Left Side' : side==='R' ? 'Right Side' : side) + '</div>';
       }
-
       defs.forEach(function(n){
         var sid = round + '.' + side + '.' + n;
         html += GAMES[sid] ? occupiedCard(sid) : emptyCard(sid);
       });
     });
   });
-
   wrap.innerHTML = html;
 }
 
@@ -513,19 +625,13 @@ async function saveAllSchedule() {
   btn.disabled = true;
   var out = {};
 
-  // Preserve any existing { clear: true } entries so cleared slots stay cleared
+  // Preserve cleared slots
   Object.keys(schedule).forEach(function(sid){
     if (schedule[sid] && schedule[sid].clear) out[sid] = { clear: true };
   });
 
   allSlotIds().forEach(function(sid){
-    // Don't overwrite a cleared slot unless it now has a label
-    var labelEl = document.getElementById('slabel-' + sid);
-    var newLabel = labelEl ? labelEl.value.trim() : '';
-    if (schedule[sid] && schedule[sid].clear && !newLabel) return;
-
-    var entry  = {};
-    var timeVal   = readDatetime('stime-' + sid);
+    var labelEl   = document.getElementById('slabel-' + sid);
     var slotEl    = document.getElementById('sslot-'  + sid);
     var t1El      = document.getElementById('st1-'    + sid);
     var t2El      = document.getElementById('st2-'    + sid);
@@ -533,12 +639,18 @@ async function saveAllSchedule() {
     var st1srcEl  = document.getElementById('st1-' + sid + '-slot');
     var st2typeEl = document.getElementById('st2-' + sid + '-type');
     var st2srcEl  = document.getElementById('st2-' + sid + '-slot');
+    var newLabel  = labelEl ? labelEl.value.trim() : '';
 
-    if (newLabel)               entry.label  = newLabel;
-    if (timeVal)                entry.time   = timeVal;
-    if (slotEl && slotEl.value) entry.num    = parseInt(slotEl.value);
-    if (t1El && t1El.value.trim())   entry.t1name = t1El.value.trim();
-    if (t2El && t2El.value.trim())   entry.t2name = t2El.value.trim();
+    // Don't overwrite a cleared slot unless it now has a label
+    if (schedule[sid] && schedule[sid].clear && !newLabel) return;
+
+    var entry  = {};
+    var timeVal = readDatetime('stime-' + sid);
+    if (newLabel)                  entry.label  = newLabel;
+    if (timeVal)                   entry.time   = timeVal;
+    if (slotEl && slotEl.value)    entry.num    = parseInt(slotEl.value);
+    if (t1El && t1El.value.trim()) entry.t1name = t1El.value.trim();
+    if (t2El && t2El.value.trim()) entry.t2name = t2El.value.trim();
     if (st1typeEl && st1srcEl && st1srcEl.value) {
       entry.t1type = st1typeEl.value;
       entry.t1slot = st1srcEl.value;
@@ -548,7 +660,6 @@ async function saveAllSchedule() {
       entry.t2slot = st2srcEl.value;
     }
 
-    // Only include if there's real data
     var hasRealData = entry.label || entry.time || entry.t1name || entry.t2name || entry.t1slot || entry.t2slot;
     if (hasRealData) out[sid] = entry;
   });

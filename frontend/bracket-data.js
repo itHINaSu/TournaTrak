@@ -48,6 +48,7 @@ function formatTime(t) {
   return m + '/' + day + ' ' + dow + ' ' + h12 + ':' + ms + ' ' + ampm;
 }
 
+// ── Slot ID helpers ───────────────────────────────────────────────────
 function parseSlotId(sid) {
   const p = sid.split('.');
   return { round:p[0], side:p[1], num:parseInt(p[2]) };
@@ -97,21 +98,33 @@ function slotLabel(teamSlot) {
   return (teamSlot.type==='winner' ? 'Winner of ' : 'Loser of ') + lbl;
 }
 
+// shortName: ONLY for use in "Team A / Team B" display inside smartLabel.
+// Truncates at "/" first (e.g. "Hoegeymeyer/Feld Fire" → "Hoegeymeyer"),
+// then keeps at most 2 words (e.g. "High Point Roofing" → "High Point").
+// Never call this when displaying a single team name on its own.
 function shortName(name) {
-  if (!name) return name;
-  return name.trim().split(/\s+/).slice(0,2).join(' ');
+  if (!name) return '';
+  var s = name.trim().split('/')[0].trim(); // drop everything from "/" onward
+  return s.split(/\s+/).slice(0, 2).join(' '); // max 2 words
 }
 
+// smartLabel: returns the best available label for a team slot.
+// When both source teams are known but the slot isn't resolved yet,
+// returns "Winner/Loser of ShortA / ShortB".
+// shortName is ONLY applied inside the "X / Y" composition here.
 function smartLabel(teamSlot, results) {
+  if (!teamSlot) return '?';
+  // If resolved, return full team name — no shortName here
   const resolved = resolveSlot(teamSlot, results);
   if (resolved) return resolved;
-  if (!teamSlot) return '?';
   if (teamSlot.type==='fixed') return teamSlot.team || '?';
   const sourceG = GAMES[teamSlot.slot];
   if (!sourceG) return slotLabel(teamSlot);
+  // Both source teams must be resolvable to use the smart format
   const p1 = resolveSlot(sourceG.t1, results);
   const p2 = resolveSlot(sourceG.t2, results);
   if (p1 && p2) {
+    // shortName only here — composing a two-team "X / Y" string
     return (teamSlot.type==='winner' ? 'Winner of ' : 'Loser of ')
       + shortName(p1) + ' / ' + shortName(p2);
   }
@@ -138,21 +151,18 @@ function isEliminated(teamName, results) {
 // ── applySchedule ─────────────────────────────────────────────────────
 // Rebuilds GAMES from scratch on every call — idempotent, no stale state.
 // { clear: true } entries are skipped so cleared slots stay empty.
-// Time is NOT required to create a game — teams + label are sufficient.
+// Time is NOT required to create a game — label + both teams are sufficient.
 function applySchedule(schedule) {
   // Wipe live object entirely before rebuilding
   Object.keys(GAMES).forEach(k => delete GAMES[k]);
 
   for (const [sid, ov] of Object.entries(schedule)) {
     if (!ov || typeof ov !== 'object') continue;
-
-    // { clear: true } — slot intentionally empty, skip
-    if (ov.clear) continue;
+    if (ov.clear) continue; // slot intentionally empty
 
     const parsed = parseSlotId(sid);
     if (!parsed.round || !parsed.side || isNaN(parsed.num)) continue;
 
-    // Require at minimum a label and both teams to create a game
     const hasT1 = ov.t1name || ov.t1slot;
     const hasT2 = ov.t2name || ov.t2slot;
     if (!ov.label || !hasT1 || !hasT2) continue;
