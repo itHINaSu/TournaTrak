@@ -4,8 +4,9 @@
 // Team source: { type:'winner'|'loser', slot:'R1.L.1' } or { type:'fixed', team:'...' }
 //
 // Time format: ISO local datetime string 'YYYY-MM-DDTHH:MM'
-// Set all game times via the admin panel → schedule.json.
-// formatTime(t) → '7/19 Sun 11:30'   parseTimeVal(t) → ms for sorting
+// All game data (teams, times, structure) lives in schedule.json and is applied
+// via applySchedule() on page load. Nothing is hardcoded here.
+// formatTime(t) → 'm/d Day H:MM AM/PM'   parseTimeVal(t) → ms for sorting
 
 const SLOT_DEFS = {
   R1:    { L:[1,2,3,4,5,6,7,8], R:[1,2,3,4,5,6,7,8] },
@@ -22,15 +23,15 @@ const ROUND_LABELS = {
 
 // ── Time helpers ──────────────────────────────────────────────────────
 // t should be 'YYYY-MM-DDTHH:MM' (ISO local, no timezone)
-// Returns sortable ms value; empty/invalid times sort to end.
+// Returns sortable ms; empty/invalid times sort to end.
 function parseTimeVal(t) {
   if (!t) return Infinity;
   var d = new Date(t);
   return isNaN(d.getTime()) ? Infinity : d.getTime();
 }
 
-// Formats 'YYYY-MM-DDTHH:MM' → 'm/d Day H:MM'  e.g. '7/19 Sun 11:30'
-// Returns raw string as-is if not parseable (graceful fallback).
+// Formats 'YYYY-MM-DDTHH:MM' → 'm/d Day H:MM AM/PM'  e.g. '7/19 Sun 11:30 AM'
+// Returns empty string for empty input; raw string as fallback if unparseable.
 function formatTime(t) {
   if (!t) return '';
   var d = new Date(t);
@@ -47,6 +48,7 @@ function formatTime(t) {
   return m + '/' + day + ' ' + dow + ' ' + h12 + ':' + ms + ' ' + ampm;
 }
 
+// ── Slot ID helpers ───────────────────────────────────────────────────
 function parseSlotId(sid) {
   const p = sid.split('.');
   return { round:p[0], side:p[1], num:parseInt(p[2]) };
@@ -79,71 +81,13 @@ function occupiedSlots() {
   });
 }
 
-// ── GAMES keyed by slot ID ────────────────────────────────────────────
-// Times are intentionally blank — set them via the admin panel.
-// Format: 'YYYY-MM-DDTHH:MM'
-const GAMES = {
-  // Round 1 Left
-  'R1.L.1': { label:'G1',  round:'R1', side:'L', num:1, time:'',
-    t1:{type:'fixed', team:'High Point Roofing'}, t2:{type:'fixed', team:'Dollys'} },
-  'R1.L.3': { label:'G3',  round:'R1', side:'L', num:3, time:'',
-    t1:{type:'fixed', team:'Brew Crew'}, t2:{type:'fixed', team:'Electric Motor Supply'} },
-  'R1.L.5': { label:'G5',  round:'R1', side:'L', num:5, time:'',
-    t1:{type:'fixed', team:'Hoegeymeyer Seeds/Feld Fire'}, t2:{type:'fixed', team:'Kerps/Budweiser'} },
-
-  // Round 1 Right
-  'R1.R.1': { label:'G2',  round:'R1', side:'R', num:1, time:'',
-    t1:{type:'fixed', team:'Shreck Bin Co Red'}, t2:{type:'fixed', team:'WP Trucking'} },
-  'R1.R.2': { label:'G4',  round:'R1', side:'R', num:2, time:'',
-    t1:{type:'fixed', team:'Michaels Shoes'}, t2:{type:'fixed', team:'Wittrock Electric/Weitl Auto'} },
-  'R1.R.3': { label:'G6',  round:'R1', side:'R', num:3, time:'',
-    t1:{type:'fixed', team:'Templeton Distillery'}, t2:{type:'fixed', team:'Tropics'} },
-
-  // Round 2 Left
-  'R2.L.1': { label:'G7',  round:'R2', side:'L', num:1, time:'',
-    t1:{type:'fixed',  team:'Wasted Grain'}, t2:{type:'loser',  slot:'R1.L.5'} },
-  'R2.L.2': { label:'G9',  round:'R2', side:'L', num:2, time:'',
-    t1:{type:'winner', slot:'R1.L.1'}, t2:{type:'winner', slot:'R1.L.3'} },
-  'R2.L.3': { label:'G11', round:'R2', side:'L', num:3, time:'',
-    t1:{type:'winner', slot:'R1.L.5'}, t2:{type:'loser',  slot:'R1.L.1'} },
-  'R2.L.4': { label:'G13', round:'R2', side:'L', num:4, time:'',
-    t1:{type:'loser',  slot:'R1.L.3'}, t2:{type:'loser',  slot:'R2.R.1'} },
-
-  // Round 2 Right
-  'R2.R.1': { label:'G8',  round:'R2', side:'R', num:1, time:'',
-    t1:{type:'fixed',  team:'Coors Light'}, t2:{type:'loser',  slot:'R1.R.3'} },
-  'R2.R.2': { label:'G10', round:'R2', side:'R', num:2, time:'',
-    t1:{type:'winner', slot:'R1.R.1'}, t2:{type:'winner', slot:'R1.R.2'} },
-  'R2.R.3': { label:'G12', round:'R2', side:'R', num:3, time:'',
-    t1:{type:'winner', slot:'R1.R.3'}, t2:{type:'loser',  slot:'R1.R.1'} },
-  'R2.R.4': { label:'G14', round:'R2', side:'R', num:4, time:'',
-    t1:{type:'loser',  slot:'R1.R.2'}, t2:{type:'loser',  slot:'R2.L.1'} },
-
-  // Quarter Finals Left
-  'QF.L.1': { label:'G15', round:'QF', side:'L', num:1, time:'',
-    t1:{type:'winner', slot:'R2.L.1'}, t2:{type:'winner', slot:'R2.L.2'} },
-  'QF.L.2': { label:'G17', round:'QF', side:'L', num:2, time:'',
-    t1:{type:'winner', slot:'R2.L.3'}, t2:{type:'winner', slot:'R2.L.4'} },
-
-  // Quarter Finals Right
-  'QF.R.1': { label:'G16', round:'QF', side:'R', num:1, time:'',
-    t1:{type:'winner', slot:'R2.R.1'}, t2:{type:'winner', slot:'R2.R.2'} },
-  'QF.R.2': { label:'G18', round:'QF', side:'R', num:2, time:'',
-    t1:{type:'winner', slot:'R2.R.3'}, t2:{type:'winner', slot:'R2.R.4'} },
-
-  // Semi Finals
-  'SF.L.1': { label:'G19', round:'SF', side:'L', num:1, time:'',
-    t1:{type:'winner', slot:'QF.L.1'}, t2:{type:'winner', slot:'QF.L.2'} },
-  'SF.R.1': { label:'G20', round:'SF', side:'R', num:1, time:'',
-    t1:{type:'winner', slot:'QF.R.1'}, t2:{type:'winner', slot:'QF.R.2'} },
-
-  // Championship
-  'CHAMP.C.1': { label:'G21', round:'CHAMP', side:'C', num:1, time:'',
-    t1:{type:'winner', slot:'SF.L.1'}, t2:{type:'winner', slot:'SF.R.1'} },
-};
+// ── GAMES — live working object, fully populated by applySchedule() ───
+// Starts empty. All game data comes from schedule.json via the admin panel.
+const GAMES = {};
 
 // ── Core helpers ──────────────────────────────────────────────────────
 function resolveSlot(teamSlot, results) {
+  if (!teamSlot) return null;
   if (teamSlot.type==='fixed')  return teamSlot.team;
   if (teamSlot.type==='winner') return (results[teamSlot.slot]||{}).winner || null;
   if (teamSlot.type==='loser')  return (results[teamSlot.slot]||{}).loser  || null;
@@ -151,6 +95,7 @@ function resolveSlot(teamSlot, results) {
 }
 
 function slotLabel(teamSlot) {
+  if (!teamSlot) return '';
   if (teamSlot.type==='fixed') return teamSlot.team;
   const g = GAMES[teamSlot.slot];
   const lbl = g ? (g.label || teamSlot.slot) : teamSlot.slot;
@@ -163,6 +108,7 @@ function shortName(name) {
 }
 
 function smartLabel(teamSlot, results) {
+  if (!teamSlot) return '';
   const resolved = resolveSlot(teamSlot, results);
   if (resolved) return resolved;
   if (teamSlot.type==='fixed') return teamSlot.team;
@@ -195,43 +141,40 @@ function isEliminated(teamName, results) {
 }
 
 // ── Schedule overrides ────────────────────────────────────────────────
+// Rebuilds GAMES from scratch on every call — idempotent, no stale state.
+// Entries with { clear: true } are skipped (slot remains empty).
 function applySchedule(schedule) {
+  // Wipe live object
+  Object.keys(GAMES).forEach(k => delete GAMES[k]);
+
   for (const [sid, ov] of Object.entries(schedule)) {
+    // { clear: true } means the slot should be empty — skip it
+    if (ov.clear) continue;
+
     const parsed = parseSlotId(sid);
-    if (!parsed.round || !parsed.side || !parsed.num) continue;
+    if (!parsed.round || !parsed.side || isNaN(parsed.num)) continue;
 
-    if (!GAMES[sid]) {
-      // Create new game from empty slot if enough info provided
-      if (!ov.label && !ov.time && !ov.t1name && !ov.t2name) continue;
-      GAMES[sid] = {
-        label: ov.label || sid,
-        round: parsed.round,
-        side:  parsed.side,
-        num:   parsed.num,
-        time:  ov.time || '',
-        t1: ov.t1name ? {type:'fixed', team:ov.t1name}
-          : (ov.t1slot ? {type:(ov.t1type||'winner'), slot:ov.t1slot} : {type:'fixed', team:'TBD'}),
-        t2: ov.t2name ? {type:'fixed', team:ov.t2name}
-          : (ov.t2slot ? {type:(ov.t2type||'winner'), slot:ov.t2slot} : {type:'fixed', team:'TBD'}),
-      };
-      continue;
-    }
+    // Require at minimum a label and at least one team to create a game
+    if (!ov.label) continue;
 
-    // Update existing game
-    if (ov.label)      GAMES[sid].label = ov.label;
-    if (ov.time)       GAMES[sid].time  = ov.time;
-    if (ov.num != null) GAMES[sid].num  = parseInt(ov.num);
+    const t1 = ov.t1name
+      ? { type:'fixed', team:ov.t1name }
+      : (ov.t1slot ? { type:(ov.t1type||'winner'), slot:ov.t1slot } : null);
+    const t2 = ov.t2name
+      ? { type:'fixed', team:ov.t2name }
+      : (ov.t2slot ? { type:(ov.t2type||'winner'), slot:ov.t2slot } : null);
 
-    for (const tk of ['t1','t2']) {
-      const nameKey=tk+'name', slotKey=tk+'slot', typeKey=tk+'type';
-      if (ov[nameKey] && GAMES[sid][tk].type==='fixed') GAMES[sid][tk].team = ov[nameKey];
-      if (ov[slotKey] || ov[typeKey]) {
-        if (GAMES[sid][tk].type!=='fixed') {
-          if (ov[slotKey])  GAMES[sid][tk].slot = ov[slotKey];
-          if (ov[typeKey])  GAMES[sid][tk].type = ov[typeKey];
-        }
-      }
-    }
+    if (!t1 || !t2) continue; // both teams required
+
+    GAMES[sid] = {
+      label: ov.label,
+      round: parsed.round,
+      side:  parsed.side,
+      num:   ov.num != null ? parseInt(ov.num) : parsed.num,
+      time:  ov.time || '',
+      t1:    t1,
+      t2:    t2,
+    };
   }
 }
 
