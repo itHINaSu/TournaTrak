@@ -10,9 +10,10 @@
 <body>
 
 <header class="site-header" id="siteHeader">
-  <div>
+  <div style="flex:1;min-width:0">
     <h1 id="siteName">Tournament Bracket</h1>
     <div id="siteSubtitle" style="display:none;font-size:0.65em;color:var(--gold);font-family:Oswald,sans-serif;letter-spacing:0.12em;margin-top:0.1em"></div>
+    <div id="resultsTimestamp" style="display:none" class="header-timestamp"></div>
   </div>
   <div class="header-controls">
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
@@ -83,12 +84,26 @@ function applySettings() {
   document.title = title;
   document.getElementById('siteName').textContent = name;
   var subEl = document.getElementById('siteSubtitle');
-  if (subtitle) {
-    subEl.textContent = subtitle;
-    subEl.style.display = 'block';
-  } else {
-    subEl.style.display = 'none';
-  }
+  if (subtitle) { subEl.textContent = subtitle; subEl.style.display = 'block'; }
+  else { subEl.style.display = 'none'; }
+}
+
+// ── Results timestamp ─────────────────────────────────────────────────
+// Shows end-justified in header below tournament name.
+// Hidden if no results have been recorded.
+function updateTimestamp() {
+  var el = document.getElementById('resultsTimestamp');
+  var hasResults = Object.values(results).some(function(r){ return r && r.winner; });
+  if (!hasResults) { el.style.display = 'none'; return; }
+  var now = new Date();
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var m = now.getMonth()+1, d = now.getDate(), dow = days[now.getDay()];
+  var h = now.getHours(), min = now.getMinutes();
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var h12 = h % 12 || 12;
+  var ms = min < 10 ? '0'+min : ''+min;
+  el.textContent = 'Results updated ' + m+'/'+d+' '+dow+' '+h12+':'+ms+' '+ampm;
+  el.style.display = 'block';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -129,17 +144,16 @@ function renderActive(){
 // ══════════════════════════════════════════════════════════
 async function fetchAll(){
   try{
-    var [rr, sr, str] = await Promise.all([
+    var [rr,sr,str]=await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
     ]);
-    results  = await rr.json();
-    schedule = await sr.json();
-    settings = await str.json();
+    results=await rr.json(); schedule=await sr.json(); settings=await str.json();
     if(typeof applySchedule==='function') applySchedule(schedule);
   }catch(e){ results={}; schedule={}; settings={}; }
   applySettings();
+  updateTimestamp();
   populateTeamSelect();
   renderActive();
 }
@@ -155,28 +169,17 @@ window.addEventListener('resize',function(){
 function gameLabel(sid){
   return GAMES[sid]&&GAMES[sid].label?GAMES[sid].label:sid;
 }
-
-// disp: resolves a team slot for display.
-// Falls back to smartLabel (not slotLabel) so "Winner of X / Y" appears
-// everywhere when both source teams are known.
-function disp(gid, slot){
-  var team  = resolveSlot(slot, results);
-  var label = team || smartLabel(slot, results);
-  var r     = results[gid]||{};
-  return {
-    name:   label,
-    actual: !!team,
-    won:    !!(team && r.winner===team),
-    lost:   !!(team && r.loser===team),
-  };
+function disp(gid,slot){
+  var team=resolveSlot(slot,results);
+  var label=team||smartLabel(slot,results);
+  var r=results[gid]||{};
+  return {name:label, actual:!!team, won:!!(team&&r.winner===team), lost:!!(team&&r.loser===team)};
 }
 
 // ══════════════════════════════════════════════════════════
 // SLOT POSITIONING
 // ══════════════════════════════════════════════════════════
-var CARD_RATIO  = 0.82;
-var CARD_ASPECT = 2.6;
-var CHAMP_RATIO = 1.2;
+var CARD_RATIO=0.82, CARD_ASPECT=2.6;
 
 function slotTopVh(round,slot,slotVh){
   if(round==='R1')    return (slot-1)*slotVh;
@@ -194,38 +197,29 @@ function cardMidVh(round,slot,slotVh){
 // SIZING
 // ══════════════════════════════════════════════════════════
 function getDims(){
-  var hdrH    = document.getElementById('siteHeader').getBoundingClientRect().height;
-  var tabsH   = document.getElementById('viewTabs').getBoundingClientRect().height;
-  var availPx = window.innerHeight - hdrH - tabsH - 16;
-  var vh      = window.innerHeight / 100;
-  var availVh = availPx / vh;
-  var isMobile = window.innerWidth < 900;
-
-  var champVw = isMobile ? 10 : 12;
-  var numCols = 4, numGaps = 3, sides = 2, gapRatio = 0.20;
-  var colVw = (85 - champVw) / (sides * (numCols + numGaps * gapRatio));
-  var gapVw = colVw * gapRatio;
-
-  var vwPx   = window.innerWidth / 100;
-  var vhPx   = window.innerHeight / 100;
-  var cardVh = (colVw * vwPx / CARD_ASPECT) / vhPx;
-  var rowVh  = cardVh / 3;
-
-  if(rowVh < 2.4){ rowVh = 2.4; cardVh = rowVh * 3; }
-  var maxCardVh = (availVh / 8) * CARD_RATIO;
-  if(cardVh > maxCardVh){ cardVh = maxCardVh; rowVh = cardVh / 3; }
-  var slotVh = cardVh / CARD_RATIO;
-
-  return { slotVh, cardVh, rowVh, colVw, gapVw, champVw,
-           totalVh: slotVh*8, isMobile };
+  var hdrH=document.getElementById('siteHeader').getBoundingClientRect().height;
+  var tabsH=document.getElementById('viewTabs').getBoundingClientRect().height;
+  var availPx=window.innerHeight-hdrH-tabsH-16;
+  var availVh=availPx/(window.innerHeight/100);
+  var isMobile=window.innerWidth<900;
+  var champVw=isMobile?10:12;
+  var colVw=(85-champVw)/(2*(4+3*0.20));
+  var gapVw=colVw*0.20;
+  var vwPx=window.innerWidth/100, vhPx=window.innerHeight/100;
+  var cardVh=(colVw*vwPx/CARD_ASPECT)/vhPx;
+  var rowVh=cardVh/3;
+  if(rowVh<2.4){ rowVh=2.4; cardVh=rowVh*3; }
+  var maxCardVh=(availVh/8)*CARD_RATIO;
+  if(cardVh>maxCardVh){ cardVh=maxCardVh; rowVh=cardVh/3; }
+  var slotVh=cardVh/CARD_RATIO;
+  return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*8,isMobile};
 }
-
 function applyCSSVars(dims){
   var r=document.documentElement.style;
-  r.setProperty('--slot-h', dims.slotVh+'vh');
-  r.setProperty('--card-h', dims.cardVh+'vh');
-  r.setProperty('--row-h',  dims.rowVh+'vh');
-  r.setProperty('--col-w',  dims.colVw+'vw');
+  r.setProperty('--slot-h',dims.slotVh+'vh');
+  r.setProperty('--card-h',dims.cardVh+'vh');
+  r.setProperty('--row-h', dims.rowVh+'vh');
+  r.setProperty('--col-w', dims.colVw+'vw');
   r.setProperty('--col-gap',dims.gapVw+'vw');
 }
 
@@ -287,16 +281,14 @@ function buildSideColumns(side){
   var rounds=['R1','R2','QF','SF'];
   return rounds.map(function(round){
     var games=Object.keys(GAMES).filter(function(gid){
-      return GAMES[gid].side===side && GAMES[gid].round===round;
-    }).map(function(gid){ return {gid:gid, slot:GAMES[gid].num}; })
+      return GAMES[gid].side===side&&GAMES[gid].round===round;
+    }).map(function(gid){ return {gid:gid,slot:GAMES[gid].num}; })
       .sort(function(a,b){ return a.slot-b.slot; });
-    return {round:round, games:games};
+    return {round:round,games:games};
   });
 }
-
 function buildConnPcts(srcCol,dstCol,slotVh){
-  var totalVh=slotVh*8;
-  var conns=[];
+  var totalVh=slotVh*8, conns=[];
   dstCol.games.forEach(function(dstEntry){
     var dstMid=cardMidVh(dstCol.round,dstEntry.slot,slotVh);
     var dstPct=dstMid/totalVh*100;
@@ -306,8 +298,7 @@ function buildConnPcts(srcCol,dstCol,slotVh){
       if(!GAMES[slotDef.slot]) return;
       var srcEntry=srcCol.games.find(function(g){ return g.gid===slotDef.slot; });
       if(!srcEntry) return;
-      var srcMid=cardMidVh(srcCol.round,srcEntry.slot,slotVh);
-      conns.push({srcPct:srcMid/totalVh*100, dstPct:dstPct});
+      conns.push({srcPct:cardMidVh(srcCol.round,srcEntry.slot,slotVh)/totalVh*100, dstPct:dstPct});
     });
   });
   return conns;
@@ -320,15 +311,13 @@ function renderBracket(){
   var root=document.getElementById('bracketRoot');
   var dims=getDims();
   applyCSSVars(dims);
-  dims.isMobile ? renderMobileBracket(root,dims) : renderDesktopBracket(root,dims);
+  dims.isMobile?renderMobileBracket(root,dims):renderDesktopBracket(root,dims);
 }
 
 function renderDesktopBracket(root,dims){
   var slotVh=dims.slotVh, cardVh=dims.cardVh;
   var colVw=dims.colVw, gapVw=dims.gapVw, champVw=dims.champVw;
-  var totalVh=dims.totalVh;
-  var lc='var(--line-color)';
-  var hdrVh=1.8;
+  var totalVh=dims.totalVh, lc='var(--line-color)', hdrVh=1.8;
 
   function sideHTML(side,label,isRight){
     var cols=buildSideColumns(side);
@@ -338,18 +327,15 @@ function renderDesktopBracket(root,dims){
       var col=ordCols[ci];
       var cardsHTML='';
       col.games.forEach(function(entry){
-        var topVh=slotTopVh(col.round,entry.slot,slotVh);
-        cardsHTML+='<div class="bc" style="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
+        cardsHTML+='<div class="bc" style="top:'+slotTopVh(col.round,entry.slot,slotVh)+'vh">'+cardHTML(entry.gid)+'</div>';
       });
       html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
-        +'<div class="round-col-hdr">'+ROUND_LABELS[col.round]+'</div>'
-        +cardsHTML+'</div>';
+        +'<div class="round-col-hdr">'+ROUND_LABELS[col.round]+'</div>'+cardsHTML+'</div>';
       if(ci<ordCols.length-1){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
-        var conns=buildConnPcts(srcCol,dstCol,slotVh);
         html+='<div style="position:relative;flex-shrink:0;width:'+gapVw+'vw;height:'+totalVh+'vh">'
-          +connLines(conns,gapVw,totalVh,lc,!isRight)+'</div>';
+          +connLines(buildConnPcts(srcCol,dstCol,slotVh),gapVw,totalVh,lc,!isRight)+'</div>';
       }
     }
     var labelAlign=isRight?'right:0':'left:0';
@@ -362,7 +348,6 @@ function renderDesktopBracket(root,dims){
   }
 
   var champG=GAMES['CHAMP.C.1'], cr=results['CHAMP.C.1']||{};
-  var sfTopVh=slotTopVh('SF',1,slotVh);
   var champHTML;
   if(!champG){
     champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;align-items:center;'
@@ -374,7 +359,7 @@ function renderDesktopBracket(root,dims){
   } else {
     champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;align-items:flex-start;'
       +'justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
-      +'<div style="width:100%;margin-top:'+sfTopVh+'vh">'
+      +'<div style="width:100%;margin-top:'+slotTopVh('SF',1,slotVh)+'vh">'
       +'<div style="text-align:center;margin-bottom:0.3vh">'
       +'<div style="font-size:clamp(1rem,1.5vw,1.6rem)">🏆</div>'
       +'<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:0.15em">Championship</div>'
@@ -386,10 +371,10 @@ function renderDesktopBracket(root,dims){
   }
 
   root.innerHTML='<div style="display:flex;align-items:flex-start;width:85vw;margin:0 auto;'
-    +'box-sizing:border-box;padding:calc(var(--col-hdr-h) * 2.5) 0 1em;">'
-    +sideHTML('L', getSetting('leftLabel'),  false)
+    +'box-sizing:border-box;padding:calc(var(--col-hdr-h)*2.5) 0 1em;">'
+    +sideHTML('L',getSetting('leftLabel'),false)
     +champHTML
-    +sideHTML('R', getSetting('rightLabel'), true)
+    +sideHTML('R',getSetting('rightLabel'),true)
     +'</div>';
 }
 
@@ -397,8 +382,7 @@ function renderMobileBracket(root,dims){
   var colVw=49, gapVw=1;
   var vwPx=window.innerWidth/100, vhPx=window.innerHeight/100;
   var cardVh=(colVw*vwPx/CARD_ASPECT)/vhPx;
-  var slotVh=cardVh/CARD_RATIO;
-  var totalVh=slotVh*8;
+  var slotVh=cardVh/CARD_RATIO, totalVh=slotVh*8;
 
   function mobileSide(side,label){
     var cols=buildSideColumns(side);
@@ -411,9 +395,8 @@ function renderMobileBracket(root,dims){
         +'letter-spacing:0.12em;text-transform:uppercase;color:var(--text-mute);'
         +'text-align:center;padding:0.3em 0 0.4em;">'+ROUND_LABELS[col.round]+'</div>';
       col.games.forEach(function(entry){
-        var topVh=slotTopVh(col.round,entry.slot,slotVh);
-        roundDiv+='<div class="bc" style="position:absolute;left:0;right:0;top:'+topVh+'vh;'
-          +'height:'+cardVh+'vh;">'+cardHTML(entry.gid)+'</div>';
+        roundDiv+='<div class="bc" style="position:absolute;left:0;right:0;top:'
+          +slotTopVh(col.round,entry.slot,slotVh)+'vh;height:'+cardVh+'vh;">'+cardHTML(entry.gid)+'</div>';
       });
       roundDiv+='</div>';
       snapWrap+=roundDiv;
@@ -445,14 +428,16 @@ function renderMobileBracket(root,dims){
   }
 
   root.innerHTML='<div style="width:98vw;margin:0 auto;">'
-    +mobileSide('L', getSetting('leftLabel'))
+    +mobileSide('L',getSetting('leftLabel'))
     +'<div class="mobile-bracket-divider"></div>'
-    +mobileSide('R', getSetting('rightLabel'))
+    +mobileSide('R',getSetting('rightLabel'))
     +champBar+'</div>';
 }
 
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW
+// formatTime now returns 'm/d Fullday H:MM AM' so split on
+// the space before the time portion (last two tokens).
 // ══════════════════════════════════════════════════════════
 document.getElementById('roundSelect').addEventListener('change',renderRoundView);
 function renderRoundView(){
@@ -464,9 +449,12 @@ function renderRoundView(){
     var g=GAMES[sid]; if(!g) return '';
     var t1=disp(sid,g.t1), t2=disp(sid,g.t2), r=results[sid]||{};
     var ft=formatTime(g.time);
-    var ftParts=ft.match(/^(\S+\s+\S+)\s+(.+)$/);
-    var dayStr=ftParts?ftParts[1]:(ft||'');
-    var timeStr=ftParts?ftParts[2]:'';
+    // formatTime produces: 'm/d Fullday H:MM AM'
+    // Split into date+day ("7/19 Sunday") and time ("11:30 AM")
+    // by splitting on last space-before-time: match up to the day name, then the rest
+    var dayStr='', timeStr=ft;
+    var m=ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
+    if(m){ dayStr=m[1]; timeStr=m[2]; }
     var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
     var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
     return '<div class="round-game-card">'
@@ -504,7 +492,6 @@ function populateTeamSelect(){
   });
 }
 
-// Build the win chain from a starting game slot
 function buildWinChain(sid){
   var chain=[sid], cur=sid;
   for(var i=0;i<10;i++){
@@ -515,78 +502,102 @@ function buildWinChain(sid){
   return chain;
 }
 
-// Render a vertical chain of game cards.
-// isLosePath: styles the connector line dashed red.
-// For each card, the lose indicator is:
-//   green  — if losing this game feeds into another game (team survives)
-//   red    — if losing this game eliminates the team
-function makeVerticalChain(chain, team, isLosePath){
-  var isMob=window.innerWidth<900;
-  var cardVh=parseFloat(document.documentElement.style.getPropertyValue('--card-h'))||8;
-  var CWvw=isMob?78:32;
-  var CHvh=Math.max(cardVh,6);
-  var VGAPvh=1.2;
-  var pathColor=isLosePath?'#c05050':'var(--line-color)';
-  var n=chain.length;
+function makeVerticalChain(chain, team, isLosePath) {
+  var RED   = 'var(--lose-color)';
+  var GREEN = 'var(--win-color)';
+  var GOLD  = 'var(--gold-lt)';
+  var LINECOLOR = 'var(--line-color)';
 
-  var html='<div style="position:relative;width:'+CWvw+'vw;height:'+((CHvh+VGAPvh)*n+4)+'vh;overflow:visible">';
+  var html = '';
 
-  chain.forEach(function(gid,i){
-    var g=GAMES[gid], r=results[gid]||{};
-    var topVh=i*(CHvh+VGAPvh);
-    var midVh=topVh+CHvh/2;
-    var teamWon=r.winner===team, teamLost=r.loser===team, played=!!r.winner;
+  chain.forEach(function(gid, i) {
+    var g = GAMES[gid], r = results[gid] || {};
+    var teamWon  = r.winner === team;
+    var teamLost = r.loser  === team;
+    var played   = !!r.winner;
 
-    var t1r=resolveSlot(g.t1,results), t2r=resolveSlot(g.t2,results);
-    var t1n=t1r||smartLabel(g.t1,results), t2n=t2r||smartLabel(g.t2,results);
-    var c1=!t1r?'tbd':(r.winner===t1r?'won':r.loser===t1r?'lost':'');
-    var c2=!t2r?'tbd':(r.winner===t2r?'won':r.loser===t2r?'lost':'');
+    var t1r = resolveSlot(g.t1, results), t2r = resolveSlot(g.t2, results);
+    var t1n = t1r || smartLabel(g.t1, results);
+    var t2n = t2r || smartLabel(g.t2, results);
+    var c1  = !t1r ? 'tbd' : (r.winner===t1r ? 'won' : r.loser===t1r ? 'lost' : '');
+    var c2  = !t2r ? 'tbd' : (r.winner===t2r ? 'won' : r.loser===t2r ? 'lost' : '');
 
-    var border='var(--border)';
-    if(played&&teamWon)  border='var(--win-color)';
-    if(played&&teamLost) border='var(--lose-color)';
-    if(!played&&i===0&&!isLosePath) border='var(--blue-lt)';
+    // Border color signals team result for this game
+    var borderColor = 'var(--border)';
+    if (played && teamWon)  borderColor = GREEN;
+    if (played && teamLost) borderColor = RED;
+    if (!played && i === 0 && !isLosePath) borderColor = 'var(--blue-lt)';
 
-    html+='<div class="bc" style="position:absolute;top:'+topVh+'vh;left:0;width:'+CWvw
-      +'vw;height:'+CHvh+'vh;border-color:'+border+'">'
-      +'<div class="bc-hdr"><span class="bc-id">'+gameLabel(gid)+'</span>'
-      +'<span class="bc-time">'+formatTime(g.time)+'</span></div>'
-      +'<div class="bc-team '+c1+'">'+t1n+'</div>'
-      +'<div class="bc-team '+c2+'">'+t2n+'</div>'
-      +'</div>';
+    // ── Card — matches By Round structure exactly ──────────────────────
+    // Header: game label LEFT, date/time RIGHT (user preference)
+    html += '<div class="round-game-card" style="border-color:' + borderColor + '">'
+      + '<div class="round-game-header">'
+      + '<div class="round-game-day-time">'  // date/time first so it's on the left in flow
+      + '<span class="round-game-day">' + (formatTime(g.time).match(/^(\d+\/\d+\s+\S+)/)||['',''])[1] + '</span>'
+      + '<span class="round-game-time">' + (formatTime(g.time).match(/\d+:\d+\s+[AP]M$/)||[''])[0] + '</span>'
+      + '</div>'
+      + '<span class="round-game-id" style="margin-left:auto;flex-shrink:0">' + gameLabel(gid) + '</span>'
+      + '</div>'
+      // Team 1 row
+      + '<div class="round-team-row">'
+      + '<span class="round-team-name ' + c1 + '">' + t1n + '</span>'
+      + (played ? '<span class="result-badge ' + (r.winner===t1r?'w':'l') + '">' + (r.winner===t1r?'W':'L') + '</span>' : '')
+      + '</div>'
+      // Team 2 row
+      + '<div class="round-team-row">'
+      + '<span class="round-team-name ' + c2 + '">' + t2n + '</span>'
+      + (played ? '<span class="result-badge ' + (r.winner===t2r?'w':'l') + '">' + (r.winner===t2r?'W':'L') + '</span>' : '')
+      + '</div>'
+      + '</div>'; // .round-game-card
 
-    // Vertical connector to next card
-    if(i<chain.length-1){
-      var lda=isLosePath?'border-left:0.07em dashed '+pathColor+';background:none;':'background:'+pathColor+';';
-      html+='<div style="position:absolute;left:calc('+CWvw+'vw/2);top:'+(topVh+CHvh)
-        +'vh;width:0.07em;height:'+VGAPvh+'vh;'+lda+'"></div>';
+    // ── Lose annotation — shown when game not yet played or team won ───
+    // "LOSE" always red · "→" and destination: green if continues, red if out
+    if (!played || teamWon) {
+      var ln = findNextSlot(gid, 'loser');
+      var arrowColor = ln ? GREEN : RED;
+      var destText   = ln ? gameLabel(ln) : 'OUT';
+      var destColor  = ln ? GREEN : RED;
+      html += '<div style="padding:0.18em 0 0 0.5em;font-family:Oswald,sans-serif;'
+        + 'font-size:0.72em;font-weight:600;letter-spacing:0.05em;display:flex;gap:0.25em;align-items:center">'
+        + '<span style="color:' + RED + '">LOSE</span>'
+        + '<span style="color:' + arrowColor + '">→</span>'
+        + '<span style="color:' + destColor + '">' + destText + '</span>'
+        + '</div>';
     }
 
-    // Lose indicator — shown if game not yet played or team won this one
-    // Color: green if losing continues the tournament, red if it eliminates
-    if(!played||teamWon){
-      var ln=findNextSlot(gid,'loser');
-      var ll=ln ? 'LOSE → '+gameLabel(ln) : 'LOSE → OUT';
-      // Green when a lose destination exists (team survives the loss), red when eliminated
-      var loseColor=ln ? 'rgba(74,154,74,0.9)' : 'rgba(192,80,80,0.8)';
-      html+='<div style="position:absolute;top:'+midVh+'vh;left:calc('+CWvw
-        +'vw + 0.3em);font-size:0.6em;color:'+loseColor
-        +';white-space:nowrap;transform:translateY(-50%);font-family:Oswald,sans-serif;'
-        +'font-weight:600;letter-spacing:0.05em">'+ll+'</div>';
+    // ── Connector to next card with WIN label ──────────────────────────
+    if (i < chain.length - 1) {
+      var connColor = isLosePath ? RED : LINECOLOR;
+      html += '<div style="display:flex;align-items:center;gap:0.4em;padding:0 0 0 0.5em;margin:0.1em 0">'
+        // Vertical line segment
+        + '<div style="display:flex;flex-direction:column;align-items:center;width:1em">'
+        + '<div style="width:0.07em;height:1.4em;background:' + GREEN + ';'
+        + (isLosePath ? 'border-left:0.07em dashed '+connColor+';background:none;' : '') + '"></div>'
+        + '</div>'
+        // WIN label
+        + '<span style="font-family:Oswald,sans-serif;font-size:0.72em;font-weight:600;'
+        + 'letter-spacing:0.05em;color:' + GREEN + '">WIN</span>'
+        + '</div>';
     }
 
-    // Win terminal — shown on the last card if game not played or team won
-    if(i===chain.length-1&&(!played||teamWon)){
-      var wn=findNextSlot(gid,'winner');
-      var wl=wn?'WIN → '+gameLabel(wn):'WIN → CHAMP 🏆';
-      var wc=wn?'var(--line-color)':'var(--gold-lt)';
-      html+='<div style="position:absolute;top:'+(topVh+CHvh+VGAPvh*0.1)
-        +'vh;left:calc('+CWvw+'vw/2 - 3em);width:6em;text-align:center;font-size:0.6em;'
-        +'color:'+wc+';font-family:Oswald,sans-serif;font-weight:600;letter-spacing:0.05em">'+wl+'</div>';
+    // ── Win terminal — last card, game not played or team won ──────────
+    if (i === chain.length - 1 && (!played || teamWon)) {
+      var wn = findNextSlot(gid, 'winner');
+      if (wn) {
+        html += '<div style="padding:0.18em 0 0.5em 0.5em;font-family:Oswald,sans-serif;'
+          + 'font-size:0.72em;font-weight:600;letter-spacing:0.05em;display:flex;gap:0.25em;align-items:center">'
+          + '<span style="color:' + GREEN + '">WIN</span>'
+          + '<span style="color:' + GREEN + '">→</span>'
+          + '<span style="color:' + GREEN + '">' + gameLabel(wn) + '</span>'
+          + '</div>';
+      } else {
+        html += '<div style="padding:0.18em 0 0.5em 0.5em;font-family:Oswald,sans-serif;'
+          + 'font-size:0.72em;font-weight:600;letter-spacing:0.05em;color:' + GOLD + '">'
+          + 'WIN → CHAMP 🏆</div>';
+      }
     }
   });
 
-  html+='</div>';
   return html;
 }
 
@@ -594,7 +605,6 @@ function renderTeamView(){
   var team=teamSel.value, out=document.getElementById('teamOut');
   if(!team){ out.innerHTML=''; return; }
 
-  // Find first game for this team (earliest by round/slot order)
   var firstGid=null;
   occupiedSlots().forEach(function(sid){
     if(firstGid) return;
@@ -610,25 +620,20 @@ function renderTeamView(){
     +'font-weight:600;color:var(--text-dim);letter-spacing:0.13em;text-transform:uppercase">'
     +team+'</div>';
 
-  // Build the full win chain from the first game
   var winChain=buildWinChain(firstGid);
-
-  // ── WIN PATH ──────────────────────────────────────────────────────────
-  // Show win path unless the team has already been eliminated in R1
   var r0=results[firstGid]||{};
   var lostR1=r0.loser===team;
+
+  // Win path — hide only if team already eliminated in their first game
   if(!lostR1){
-    html+='<div class="team-path-label win-label">Win path</div>';
-    html+='<div style="padding:0.25em 0 0.75em;overflow-x:auto">'
-      +makeVerticalChain(winChain,team,false)+'</div>';
+    html+='<div class="team-path-label win-label">Win path</div>'
+      +makeVerticalChain(winChain,team,false);
   }
 
-  // ── LOSE PATHS ────────────────────────────────────────────────────────
-  // For every game in the win chain, if losing that game feeds somewhere,
-  // show that lose branch — but only if the team could reach that point
-  // (i.e. they haven't already lost before it in actual results).
+  // Lose paths — one per game in the win chain where a lose destination exists.
+  // Skip if team is already known to have been eliminated before reaching that game.
   var teamEliminated=false;
-  winChain.forEach(function(gid, i){
+  winChain.forEach(function(gid,i){
     if(teamEliminated) return;
 
     var r=results[gid]||{};
@@ -636,29 +641,23 @@ function renderTeamView(){
     var teamLostHere=r.loser===team;
     var teamWonHere=r.winner===team;
 
-    // Skip if played and team won (they continue up the win chain — no branch to show yet)
-    // Skip if played and team lost somewhere earlier (can't reach this game)
-    if(played && !teamLostHere && !teamWonHere) return; // shouldn't happen but guard
-    if(played && teamWonHere && i < winChain.length-1) return; // still in win chain, keep going
+    // If team won this game and it's not the last in chain, continue — no branch yet
+    if(played && teamWonHere && i<winChain.length-1) return;
 
     var ln=findNextSlot(gid,'loser');
 
     if(!ln){
-      // Loss here eliminates — only show if team actually lost here or game not played
-      if(!played || teamLostHere){
-        html+='<div class="team-path-divider"></div>';
-        html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(gid)+')</div>';
-        html+='<div style="padding:0.5em 0;color:var(--lose-color);font-size:0.85em;font-style:italic">'
-          +'Loss in '+gameLabel(gid)+' → Eliminated</div>';
+      // Loss here eliminates — only show if team lost here or game not yet played
+      if(!played||teamLostHere){
+        // Don't show an "eliminated" block — user already sees LOSE → OUT indicator on the card
         if(teamLostHere) teamEliminated=true;
       }
     } else {
-      // Loss feeds into another game — show the lose branch chain
-      if(!played || teamLostHere){
+      // Loss feeds into another game — show the full lose branch
+      if(!played||teamLostHere){
         html+='<div class="team-path-divider"></div>';
         html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(gid)+')</div>';
-        html+='<div style="padding:0.25em 0 0.75em;overflow-x:auto">'
-          +makeVerticalChain(buildWinChain(ln),team,true)+'</div>';
+        html+=makeVerticalChain(buildWinChain(ln),team,true);
         if(teamLostHere) teamEliminated=true;
       }
     }

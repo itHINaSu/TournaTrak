@@ -40,80 +40,6 @@
     opacity: 0.7;
   }
   .empty-slot-card:hover { opacity: 1; }
-  .datetime-pair {
-    display: flex;
-    gap: 0.5em;
-    align-items: center;
-    flex-wrap: wrap;
-  }
-  .datetime-pair input[type="date"],
-  .datetime-pair input[type="time"] {
-    flex: 1;
-    min-width: 8em;
-  }
-  .datetime-pair .dt-sep {
-    font-size: 0.75em;
-    color: var(--text-mute);
-    flex-shrink: 0;
-  }
-  input[type="date"],
-  input[type="time"] {
-    background: var(--surface2, var(--surface));
-    color: var(--text);
-    border: 0.07em solid var(--border);
-    border-radius: 0.25em;
-    padding: 0.3em 0.45em;
-    font-family: 'Barlow', sans-serif;
-    font-size: 0.88em;
-  }
-  input[type="date"]:focus,
-  input[type="time"]:focus {
-    outline: none;
-    border-color: var(--blue-lt);
-  }
-  /* Settings tab */
-  .settings-section {
-    margin-bottom: 1.6em;
-  }
-  .settings-section-hdr {
-    font-family: 'Oswald', sans-serif;
-    font-size: 0.68em;
-    font-weight: 600;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    padding: 0.5em 0;
-    border-bottom: 0.07em solid var(--border);
-    margin-bottom: 0.75em;
-  }
-  .settings-field {
-    margin-bottom: 0.75em;
-  }
-  .settings-field label {
-    display: block;
-    font-family: 'Oswald', sans-serif;
-    font-size: 0.62em;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-    margin-bottom: 0.3em;
-  }
-  .settings-field input {
-    width: 100%;
-    font-family: 'Barlow', sans-serif;
-    font-size: 0.88em;
-    padding: 0.43em 0.62em;
-    border-radius: 0.25em;
-    border: 0.07em solid var(--border);
-    background: var(--surface2, var(--surface));
-    color: var(--text);
-  }
-  .settings-field input:focus { outline: 0.13em solid var(--blue-lt); }
-  .settings-field .field-hint {
-    font-size: 0.65em;
-    color: var(--text-mute);
-    margin-top: 0.2em;
-  }
 </style>
 </head>
 <body>
@@ -123,7 +49,7 @@
     <h1 id="adminSiteName">Tournament Admin</h1>
   </div>
   <div class="header-controls">
-    <a href="/" style="font-size:0.8rem;color:var(--text-dim);text-decoration:none;letter-spacing:0.07em;min-height:2.75em;display:flex;align-items:center;padding:0 0.5em">← Public</a>
+    <a href="/" class="admin-public-btn">← Public</a>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
   </div>
 </header>
@@ -148,11 +74,19 @@
       Edit game labels, times, team names, slot positions, and team sources.
       Empty slots can be filled to create new games. Save All writes to schedule.json — public page picks up on reload.
     </div>
-    <div style="margin-bottom:1em;display:flex;align-items:center;gap:0.6em">
+    <!-- Top action row -->
+    <div class="sched-action-row" style="margin-bottom:1em">
       <button class="sched-save-btn" id="schedSaveBtn" onclick="saveAllSchedule()">Save All Changes</button>
+      <a href="/" class="admin-public-btn">↗ Public Page</a>
       <span class="sched-status" id="schedStatus"></span>
     </div>
     <div id="scheduleEditor"></div>
+    <!-- Bottom action row (duplicated) -->
+    <div class="sched-action-row" style="margin-top:1.5em;padding-top:1em;border-top:0.07em solid var(--border)">
+      <button class="sched-save-btn" onclick="saveAllSchedule()">Save All Changes</button>
+      <a href="/" class="admin-public-btn">↗ Public Page</a>
+      <span class="sched-status" id="schedStatusBottom"></span>
+    </div>
   </div>
 
   <!-- ── SETTINGS TAB ── -->
@@ -163,22 +97,18 @@
 
     <div class="settings-section">
       <div class="settings-section-hdr">Tournament Identity</div>
-
       <div class="settings-field">
         <label>Tournament Name <span style="color:var(--text-mute);font-size:0.85em">(public page header)</span></label>
         <input type="text" id="set-tournamentName" placeholder="e.g. Dedham Tournament 2026">
       </div>
-
       <div class="settings-field">
         <label>Page Title <span style="color:var(--text-mute);font-size:0.85em">(browser tab)</span></label>
         <input type="text" id="set-pageTitle" placeholder="e.g. 2026 Dedham Tournament">
       </div>
-
       <div class="settings-field">
         <label>Subtitle <span style="color:var(--text-mute);font-size:0.85em">(optional, below tournament name)</span></label>
-        <input type="text" id="set-subtitle" placeholder="e.g. 16&quot; Softball · Carroll County">
+        <input type="text" id="set-subtitle" placeholder='e.g. 16" Softball · Carroll County'>
       </div>
-
       <div class="settings-field">
         <label>Admin Panel Name <span style="color:var(--text-mute);font-size:0.85em">(this page's header)</span></label>
         <input type="text" id="set-adminName" placeholder="Tournament Admin">
@@ -187,13 +117,11 @@
 
     <div class="settings-section">
       <div class="settings-section-hdr">Bracket Labels</div>
-
       <div class="settings-field">
         <label>Left Bracket Label</label>
         <input type="text" id="set-leftLabel" placeholder="Left Bracket">
         <div class="field-hint">Shown above the left side of the bracket and on mobile.</div>
       </div>
-
       <div class="settings-field">
         <label>Right Bracket Label</label>
         <input type="text" id="set-rightLabel" placeholder="Right Bracket">
@@ -274,13 +202,11 @@ async function fetchAll() {
   populateSettingsFields();
 }
 
-// ── Apply settings to this page ────────────────────────────────────────
 function applySettingsToPage() {
   document.title = getSetting('pageTitle') + ' — Admin';
   document.getElementById('adminSiteName').textContent = getSetting('adminName');
 }
 
-// ── Populate settings form fields ──────────────────────────────────────
 function populateSettingsFields() {
   Object.keys(SETTING_DEFAULTS).forEach(function(key) {
     var el = document.getElementById('set-' + key);
@@ -288,7 +214,6 @@ function populateSettingsFields() {
   });
 }
 
-// ── Save settings ──────────────────────────────────────────────────────
 async function saveSettings() {
   var status = document.getElementById('settingsStatus');
   var out = {};
@@ -321,6 +246,7 @@ function esc(str) {
   return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
+// Split stored ISO string into date and time parts for the two inputs
 function splitTime(iso) {
   if (!iso) return { date:'', time:'' };
   var m = iso.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/);
@@ -341,10 +267,13 @@ function joinTime(dateVal, timeVal) {
   return dateVal + 'T' + timeVal;
 }
 
+// Render a date + time input pair.
+// Date: type="date" with placeholder="mm/dd/yy" for keyboard entry guidance.
+// Time: type="time" (24h native input, not displayed in 24h — browser locale controls display).
 function datetimePairHTML(idBase, existing) {
   var parts = splitTime(existing);
   return '<div class="datetime-pair">'
-    + '<input type="date" id="' + idBase + '-date" value="' + esc(parts.date) + '">'
+    + '<input type="date" id="' + idBase + '-date" value="' + esc(parts.date) + '" placeholder="mm/dd/yy">'
     + '<span class="dt-sep">@</span>'
     + '<input type="time" id="' + idBase + '-time" value="' + esc(parts.time) + '">'
     + '</div>';
@@ -514,19 +443,13 @@ function occupiedCard(sid) {
     + slotNumDropdown('sslot-' + sid, g.round, g.side, over.num||g.num) + '</div>';
 
   h += '<div class="sched-field"><label>Team 1</label>';
-  if (t1f) {
-    h += '<input type="text" id="st1-' + sid + '" value="' + esc(over.t1name||g.t1.team) + '" placeholder="Team 1 name">';
-  } else {
-    h += sourceDropdown('st1-'+sid, over.t1type||g.t1.type, over.t1slot||g.t1.slot);
-  }
+  if (t1f) h += '<input type="text" id="st1-' + sid + '" value="' + esc(over.t1name||g.t1.team) + '" placeholder="Team 1 name">';
+  else h += sourceDropdown('st1-'+sid, over.t1type||g.t1.type, over.t1slot||g.t1.slot);
   h += '</div>';
 
   h += '<div class="sched-field"><label>Team 2</label>';
-  if (t2f) {
-    h += '<input type="text" id="st2-' + sid + '" value="' + esc(over.t2name||g.t2.team) + '" placeholder="Team 2 name">';
-  } else {
-    h += sourceDropdown('st2-'+sid, over.t2type||g.t2.type, over.t2slot||g.t2.slot);
-  }
+  if (t2f) h += '<input type="text" id="st2-' + sid + '" value="' + esc(over.t2name||g.t2.team) + '" placeholder="Team 2 name">';
+  else h += sourceDropdown('st2-'+sid, over.t2type||g.t2.type, over.t2slot||g.t2.slot);
   h += '</div>';
 
   h += '<div style="margin-top:0.6em;padding-top:0.6em;border-top:0.07em solid var(--border)">'
@@ -600,7 +523,7 @@ function renderScheduleEditor() {
       if (sides.length > 1) {
         html += '<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.1em;'
           +'text-transform:uppercase;color:var(--blue-lt);padding:0.4em 0 0.2em">'
-          + (side==='L' ? 'Left Side' : side==='R' ? 'Right Side' : side) + '</div>';
+          + (side==='L'?'Left Side':side==='R'?'Right Side':side) + '</div>';
       }
       defs.forEach(function(n){
         var sid = round + '.' + side + '.' + n;
@@ -622,6 +545,7 @@ function toggleSched(sid) {
 async function saveAllSchedule() {
   var btn    = document.getElementById('schedSaveBtn');
   var status = document.getElementById('schedStatus');
+  var statusB = document.getElementById('schedStatusBottom');
   btn.disabled = true;
   var out = {};
 
@@ -641,7 +565,6 @@ async function saveAllSchedule() {
     var st2srcEl  = document.getElementById('st2-' + sid + '-slot');
     var newLabel  = labelEl ? labelEl.value.trim() : '';
 
-    // Don't overwrite a cleared slot unless it now has a label
     if (schedule[sid] && schedule[sid].clear && !newLabel) return;
 
     var entry  = {};
@@ -674,12 +597,17 @@ async function saveAllSchedule() {
     if (typeof applySchedule === 'function') applySchedule(schedule);
     showToast('Schedule saved');
     status.textContent = '✓ Saved';
-    setTimeout(function(){ status.textContent=''; }, 3000);
+    if (statusB) statusB.textContent = '✓ Saved';
+    setTimeout(function(){
+      status.textContent = '';
+      if (statusB) statusB.textContent = '';
+    }, 3000);
     renderAdmin();
     renderScheduleEditor();
   } catch(e) {
     showToast('Save failed', true);
     status.textContent = '✗ Error';
+    if (statusB) statusB.textContent = '✗ Error';
   }
   btn.disabled = false;
 }

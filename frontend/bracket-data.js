@@ -30,13 +30,14 @@ function parseTimeVal(t) {
   return isNaN(d.getTime()) ? Infinity : d.getTime();
 }
 
-// Formats 'YYYY-MM-DDTHH:MM' → 'm/d Day H:MM AM/PM'  e.g. '7/19 Sun 11:30 AM'
+// Formats 'YYYY-MM-DDTHH:MM' → 'm/d Sunday 11:30 AM'
+// Full day name used everywhere — no abbreviations.
 // Returns empty string for empty input; raw string as fallback if unparseable.
 function formatTime(t) {
   if (!t) return '';
   var d = new Date(t);
   if (isNaN(d.getTime())) return t;
-  var days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   var m    = d.getMonth() + 1;
   var day  = d.getDate();
   var dow  = days[d.getDay()];
@@ -114,17 +115,14 @@ function shortName(name) {
 // shortName is ONLY applied inside the "X / Y" composition here.
 function smartLabel(teamSlot, results) {
   if (!teamSlot) return '?';
-  // If resolved, return full team name — no shortName here
   const resolved = resolveSlot(teamSlot, results);
   if (resolved) return resolved;
   if (teamSlot.type==='fixed') return teamSlot.team || '?';
   const sourceG = GAMES[teamSlot.slot];
   if (!sourceG) return slotLabel(teamSlot);
-  // Both source teams must be resolvable to use the smart format
   const p1 = resolveSlot(sourceG.t1, results);
   const p2 = resolveSlot(sourceG.t2, results);
   if (p1 && p2) {
-    // shortName only here — composing a two-team "X / Y" string
     return (teamSlot.type==='winner' ? 'Winner of ' : 'Loser of ')
       + shortName(p1) + ' / ' + shortName(p2);
   }
@@ -153,12 +151,11 @@ function isEliminated(teamName, results) {
 // { clear: true } entries are skipped so cleared slots stay empty.
 // Time is NOT required to create a game — label + both teams are sufficient.
 function applySchedule(schedule) {
-  // Wipe live object entirely before rebuilding
   Object.keys(GAMES).forEach(k => delete GAMES[k]);
 
   for (const [sid, ov] of Object.entries(schedule)) {
     if (!ov || typeof ov !== 'object') continue;
-    if (ov.clear) continue; // slot intentionally empty
+    if (ov.clear) continue;
 
     const parsed = parseSlotId(sid);
     if (!parsed.round || !parsed.side || isNaN(parsed.num)) continue;
