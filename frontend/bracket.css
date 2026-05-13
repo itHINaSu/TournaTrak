@@ -542,6 +542,90 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   .bracket-side-wrap { position: static; flex: 1; min-width: 0; }
 }
 
+/* ════════════════════════════════════════════════════════════
+   MOBILE BRACKET — two-column peek layout
+   Current round (80vw) fully visible + next round peeks 20vw.
+   Cards match By Round card style. Convergence is animated via
+   JS-driven translateY blend as the user swipes between rounds.
+   ════════════════════════════════════════════════════════════ */
+
+/* Horizontal snap container — overflow-y hidden; each column scrolls independently */
+.mbc-outer {
+  display: flex;
+  flex-direction: row;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  width: 100%;
+}
+
+/* One snap page per round — width set inline by JS (80vw) */
+.mbc-col {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Round name + progress dots — above the scroll area */
+.mbc-hdr {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5em 1em 0.45em;
+  background: var(--surface);
+  border-bottom: 0.07em solid var(--border);
+}
+.mbc-hdr-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-lt);
+}
+.mbc-dots { display: flex; gap: 5px; align-items: center; }
+.mbc-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--border);
+  transition: background 0.2s, transform 0.2s;
+}
+.mbc-dot.active { background: var(--blue-lt); transform: scale(1.35); }
+
+/* Independent vertical scroll per column — scrollbar hidden on mobile */
+.mbc-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+  display: flex;
+  justify-content: center;
+  padding: 0.5em 0 2em;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.mbc-scroll::-webkit-scrollbar { display: none; }
+
+/* Absolutely-positioned card container — width + height set by JS */
+.mbc-inner {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* Each card: absolute position, translateY driven by JS scroll blend */
+.mbc-card {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+.mbc-card .round-game-card { margin-bottom: 0; }
+
 @print {
   .site-header, .view-tabs, .header-controls, .theme-toggle, .selector-row { display: none; }
   body { background: #fff; color: #000; }
