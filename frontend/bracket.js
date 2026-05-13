@@ -525,36 +525,30 @@ function roundCardHTML(gid) {
 
 // ── Mobile: two-column peek layout with convergence animation ─────────
 //
-// Layout: each round occupies colW = 80% of the screen. The snap scroll
-// container is 100% wide, so the current round is fully visible and the
-// next round peeks in at 20% (= 25% of the 80vw column width).
+// Each round occupies colW = 72% of the viewport. The next round peeks
+// at 28%. Cards are positioned absolutely:
+//   earlyY — evenly spaced, vertically centered for small rounds
+//   lateY  — bracket-tree midpoints (average of the two feeder cards)
+// Horizontal scroll progress blends between the two positions so the
+// bracket tree converges visually as you swipe forward.
 //
-// Positioning:
-//   earlyY — evenly spaced cards with a small gap (used when a round is
-//             the active "early" column)
-//   lateY  — bracket-tree midpoints: each card sits at the average Y of
-//             its two source games, so the tree converges as you swipe
-//             (used when a round is peeking as the "late" column)
-//
-// Animation: the horizontal scroll progress (0→1 between snap points)
-// drives a linear blend from lateY→earlyY for the incoming round and
-// earlyY→lateY for the outgoing round. Vertical scroll is synced
-// between adjacent columns so lateY positions stay visually aligned.
+// Two-pass layout: HTML is built first, then the actual .mbc-hdr height
+// is measured so earlyY centering uses the true scrollable area height.
+// Each column scrolls independently — no cross-column scrollTop sync,
+// which was stopping iOS momentum.
 function renderMobileBracket(root, dims) {
-  var hdrH  = document.getElementById('siteHeader').getBoundingClientRect().height;
-  var tabsH = document.getElementById('viewTabs').getBoundingClientRect().height;
-  var viewH = window.innerHeight - hdrH - tabsH;
-  var winW  = window.innerWidth;
+  var siteHdrH = document.getElementById('siteHeader').getBoundingClientRect().height;
+  var tabsH    = document.getElementById('viewTabs').getBoundingClientRect().height;
+  var viewH    = window.innerHeight - siteHdrH - tabsH;
+  var winW     = window.innerWidth;
 
-  // Card height sized so ~4 cards fill the viewport; championship is 1.8× taller
-  var CARD_H      = Math.max(Math.floor(viewH / 4.5), 80);
+  var CARD_H       = Math.max(Math.floor(viewH / 4.5), 80);
   var CHAMP_CARD_H = Math.round(CARD_H * 1.8);
-  var GAP         = Math.max(Math.round(CARD_H * 0.07), 6);
+  var GAP          = Math.max(Math.round(CARD_H * 0.07), 6);
   document.documentElement.style.setProperty('--mbc-card-h', CARD_H + 'px');
 
-  var colW  = Math.round(winW * 0.72);  // 28% peek of next round
+  var colW  = Math.round(winW * 0.72);
   var padPx = 12;
-  var cardW = colW - 2 * padPx;
 
   var rounds = ['R1','R2','QF','SF','CHAMP'];
 
@@ -565,96 +559,18 @@ function renderMobileBracket(root, dims) {
     return out;
   }
 
-  // ── earlyY: slot-based positions, centered for rounds with ≤4 slots ──
-  var earlyY = {};
-  rounds.forEach(function(round) {
-    var isChamp = round === 'CHAMP';
-    var sides = isChamp ? ['C'] : ['L', 'R'];
-    var numSlots = 0;
-    sides.forEach(function(side) {
-      numSlots += (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side].length : 0;
-    });
-    var cardH = isChamp ? CHAMP_CARD_H : CARD_H;
-    // Vertical centering offset for rounds that fit on screen without scrolling
-    var totalH = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
-    var offset = numSlots <= 4 ? Math.max(Math.floor((viewH - totalH) / 2), GAP) : 0;
-    var idx = 0;
-    sides.forEach(function(side) {
-      var nums = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
-      nums.forEach(function(num) {
-        earlyY[round + '.' + side + '.' + num] = offset + idx * (cardH + GAP);
-        idx++;
-      });
-    });
-  });
-
-  // innerH per round: content height only (no trailing blank space).
-  // For rounds that fit on screen (≤4 slots, centered) the height equals
-  // viewH so there is nothing to scroll; for taller rounds it is the exact
-  // pixel height of all cards + gaps + a small bottom pad.
-  function roundInnerH(round) {
-    var isChamp = round === 'CHAMP';
-    var sides = isChamp ? ['C'] : ['L', 'R'];
-    var numSlots = 0;
-    sides.forEach(function(side) {
-      numSlots += (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side].length : 0;
-    });
-    var cardH   = isChamp ? CHAMP_CARD_H : CARD_H;
-    var totalH  = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
-    var offset  = numSlots <= 4 ? Math.max(Math.floor((viewH - totalH) / 2), GAP) : 0;
-    return Math.max(offset + totalH + 24, viewH);
-  }
-
-  // ── lateY: slot-index math — game i is centered between prev-round slots 2i and 2i+1 ──
-  var lateY = {};
-  var prevRoundFor = { R2:'R1', QF:'R2', SF:'QF', CHAMP:'SF' };
-  ['R2','QF','SF','CHAMP'].forEach(function(round) {
-    var prev = prevRoundFor[round];
-    // Ordered slot keys for prev round (same traversal order as earlyY)
-    var prevKeys = [];
-    var prevSides = ['L','R'];
-    prevSides.forEach(function(side) {
-      var nums = (SLOT_DEFS[prev] && SLOT_DEFS[prev][side]) ? SLOT_DEFS[prev][side] : [];
-      nums.forEach(function(num) { prevKeys.push(prev + '.' + side + '.' + num); });
-    });
-    // Ordered slot keys for current round
-    var curKeys = [];
-    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
-    sides.forEach(function(side) {
-      var nums = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
-      nums.forEach(function(num) { curKeys.push(round + '.' + side + '.' + num); });
-    });
-    // Game at slot index i sits centered between prev slots 2i and 2i+1.
-    // CHAMP is always centered (lateY = earlyY) so it never shifts off-center
-    // when peeking from SF.
-    curKeys.forEach(function(gid, i) {
-      if (!GAMES[gid]) return;
-      if (round === 'CHAMP') {
-        lateY[gid] = earlyY[gid] !== undefined ? earlyY[gid] : 0;
-        return;
-      }
-      var p0 = prevKeys[2 * i], p1 = prevKeys[2 * i + 1];
-      lateY[gid] = (p0 && p1 && earlyY[p0] !== undefined && earlyY[p1] !== undefined)
-        ? (earlyY[p0] + earlyY[p1]) / 2
-        : (earlyY[gid] !== undefined ? earlyY[gid] : 0);
-    });
-  });
-
-  // ── Build column HTML ─────────────────────────────────────────────
+  // ── Pass 1: build HTML with placeholder card positions ───────────────
   var colsHTML = rounds.map(function(round, ri) {
-    var gids = gidsFor(round);
     var isChamp = round === 'CHAMP';
-    // Championship fills 100% of the viewport so SF can't peek in
     var cWidth  = isChamp ? winW : colW;
     var cCardW  = cWidth - 2 * padPx;
+    var cardH   = isChamp ? CHAMP_CARD_H : CARD_H;
+    var gids    = gidsFor(round);
+
     var cardsHTML = gids.map(function(gid) {
-      var ey = earlyY[gid] !== undefined ? earlyY[gid] : 0;
-      var ly = lateY[gid]  !== undefined ? lateY[gid]  : ey;
-      var h  = isChamp ? CHAMP_CARD_H : CARD_H;
       var inner = isChamp ? champCardHTML(gid) : mobileRoundCardHTML(gid);
-      return '<div class="mbc-card" style="top:' + ey + 'px;height:' + h + 'px" data-late-offset="' + (ly - ey).toFixed(1) + '">'
-        + inner
-        + '</div>';
+      return '<div class="mbc-card" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0">'
+        + inner + '</div>';
     }).join('');
 
     var dots = rounds.map(function(_, i) {
@@ -667,7 +583,7 @@ function renderMobileBracket(root, dims) {
       +   '<span class="mbc-dots">' + dots + '</span>'
       + '</div>'
       + '<div class="mbc-scroll">'
-      +   '<div class="mbc-inner" style="height:' + roundInnerH(round) + 'px;width:' + cCardW + 'px">'
+      +   '<div class="mbc-inner" style="height:' + viewH + 'px;width:' + cCardW + 'px">'
       +     cardsHTML
       +   '</div>'
       + '</div>'
@@ -680,7 +596,93 @@ function renderMobileBracket(root, dims) {
   var outer  = document.getElementById('mbcOuter');
   var colEls = Array.prototype.slice.call(outer.querySelectorAll('.mbc-col'));
 
-  // Apply blend factor (0=earlyY, 1=lateY) to all cards in a column
+  // ── Pass 2: measure actual header height, compute positions ──────────
+  var mbcHdrH = colEls[0] ? colEls[0].querySelector('.mbc-hdr').getBoundingClientRect().height : 36;
+  var scrollH = viewH - mbcHdrH;  // actual visible scroll area height
+
+  // earlyY: evenly spaced, centered when ≤4 slots fit without scrolling
+  var earlyY = {};
+  rounds.forEach(function(round) {
+    var isChamp  = round === 'CHAMP';
+    var sides    = isChamp ? ['C'] : ['L', 'R'];
+    var numSlots = 0;
+    sides.forEach(function(side) {
+      numSlots += (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side].length : 0;
+    });
+    var cardH  = isChamp ? CHAMP_CARD_H : CARD_H;
+    var totalH = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
+    var offset = numSlots <= 4
+      ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
+      : GAP;
+    var idx = 0;
+    sides.forEach(function(side) {
+      var nums = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
+      nums.forEach(function(num) {
+        earlyY[round + '.' + side + '.' + num] = offset + idx * (cardH + GAP);
+        idx++;
+      });
+    });
+  });
+
+  // innerH: exact content height so there's no excess blank space at bottom
+  function roundInnerH(round) {
+    var isChamp  = round === 'CHAMP';
+    var sides    = isChamp ? ['C'] : ['L', 'R'];
+    var numSlots = 0;
+    sides.forEach(function(side) {
+      numSlots += (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side].length : 0;
+    });
+    var cardH  = isChamp ? CHAMP_CARD_H : CARD_H;
+    var totalH = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
+    var offset = numSlots <= 4
+      ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
+      : GAP;
+    return Math.max(offset + totalH + GAP, scrollH);
+  }
+
+  // lateY: each game i centered between its two feeder slots (2i and 2i+1)
+  var lateY = {};
+  var prevRoundFor = { R2:'R1', QF:'R2', SF:'QF', CHAMP:'SF' };
+  ['R2','QF','SF','CHAMP'].forEach(function(round) {
+    var prev     = prevRoundFor[round];
+    var prevKeys = [];
+    ['L','R'].forEach(function(side) {
+      var nums = (SLOT_DEFS[prev] && SLOT_DEFS[prev][side]) ? SLOT_DEFS[prev][side] : [];
+      nums.forEach(function(num) { prevKeys.push(prev + '.' + side + '.' + num); });
+    });
+    var curKeys = [];
+    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
+    sides.forEach(function(side) {
+      var nums = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
+      nums.forEach(function(num) { curKeys.push(round + '.' + side + '.' + num); });
+    });
+    curKeys.forEach(function(gid, i) {
+      if (round === 'CHAMP') {
+        lateY[gid] = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+        return;
+      }
+      var p0 = prevKeys[2 * i], p1 = prevKeys[2 * i + 1];
+      lateY[gid] = (p0 && p1 && earlyY[p0] !== undefined && earlyY[p1] !== undefined)
+        ? (earlyY[p0] + earlyY[p1]) / 2
+        : (earlyY[gid] !== undefined ? earlyY[gid] : 0);
+    });
+  });
+
+  // Apply computed positions and inner heights to the DOM
+  colEls.forEach(function(colEl, ri) {
+    var round = rounds[ri];
+    var inner = colEl.querySelector('.mbc-inner');
+    inner.style.height = roundInnerH(round) + 'px';
+    colEl.querySelectorAll('.mbc-card').forEach(function(card) {
+      var gid = card.dataset.gid;
+      var ey  = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+      var ly  = lateY[gid]  !== undefined ? lateY[gid]  : ey;
+      card.style.top = ey + 'px';
+      card.dataset.lateOffset = (ly - ey).toFixed(1);
+    });
+  });
+
+  // ── Blend animation ──────────────────────────────────────────────────
   function applyBlend(ci, blend) {
     if (ci < 0 || ci >= colEls.length) return;
     var cards = colEls[ci].querySelectorAll('.mbc-card');
@@ -690,13 +692,10 @@ function renderMobileBracket(root, dims) {
     }
   }
 
-  // Active column index — the one snapped into view (div early)
   var activeIdx = 0;
-
-  // Initial state: column 0 is early, all others start at late positions
   for (var i = 0; i < colEls.length; i++) { applyBlend(i, i === 0 ? 0 : 1); }
 
-  // Tap any progress dot to jump directly to that round
+  // Dot tap → jump to that round
   outer.querySelectorAll('.mbc-dot').forEach(function(dot) {
     dot.addEventListener('click', function(e) {
       e.stopPropagation();
@@ -705,35 +704,18 @@ function renderMobileBracket(root, dims) {
     });
   });
 
-  // Horizontal scroll drives the early↔late blend animation
+  // Horizontal scroll → blend
   outer.addEventListener('scroll', function() {
     var x        = outer.scrollLeft;
-    var idx      = Math.round(x / colW);  // nearest snap = active column
+    var idx      = Math.round(x / colW);
     var floorIdx = Math.floor(x / colW);
-    var progress = (x - floorIdx * colW) / colW;  // 0..1 between snap points
-    applyBlend(floorIdx,     progress);       // outgoing: drifts toward late
-    applyBlend(floorIdx + 1, 1 - progress);   // incoming: consolidates to early
+    var progress = (x - floorIdx * colW) / colW;
+    applyBlend(floorIdx,     progress);
+    applyBlend(floorIdx + 1, 1 - progress);
     for (var j = 0; j < floorIdx; j++)                 applyBlend(j, 0);
     for (var j = floorIdx + 2; j < colEls.length; j++) applyBlend(j, 1);
     if (idx !== activeIdx) activeIdx = idx;
   }, { passive: true });
-
-  // One-way vertical scroll sync: only the active (snapped) column drives
-  // scrollTop on the others.  We never set scrollTop on the active element
-  // itself, so the browser's native momentum deceleration runs uninterrupted.
-  // Non-active scroll events return immediately, eliminating any feedback loop.
-  var syncingScroll = false;
-  colEls.forEach(function(col, i) {
-    col.querySelector('.mbc-scroll').addEventListener('scroll', function() {
-      if (i !== activeIdx || syncingScroll) return;
-      syncingScroll = true;
-      var top = this.scrollTop;
-      colEls.forEach(function(c, j) {
-        if (j !== i) c.querySelector('.mbc-scroll').scrollTop = top;
-      });
-      syncingScroll = false;
-    }, { passive: true });
-  });
 }
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW

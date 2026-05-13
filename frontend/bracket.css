@@ -660,16 +660,13 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   text-transform: uppercase;
   color: var(--gold-lt);
 }
-.mbc-dots { display: flex; gap: 2px; align-items: center; }
+.mbc-dots { display: flex; gap: 5px; align-items: center; }
 .mbc-dot {
   width: 8px; height: 8px; border-radius: 50%;
   background: var(--border);
   transition: background 0.2s, transform 0.2s;
   cursor: pointer;
-  /* Larger tap target without affecting visual size */
-  padding: 6px;
-  box-sizing: content-box;
-  margin: -6px -3px;
+  flex-shrink: 0;
 }
 .mbc-dot.active { background: var(--blue-lt); transform: scale(1.35); }
 
@@ -680,8 +677,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  will-change: scroll-position;
-  padding: 0.5em 0 2em;
+  touch-action: pan-y;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
