@@ -592,27 +592,47 @@ function renderMobileBracket(root, dims) {
     }
   }
 
+  // Active column index — the one snapped into view (div early)
+  var activeIdx = 0;
+
+  // Set pointer-events on all scroll elements: only the active column is scrollable
+  function updateScrollable(idx) {
+    activeIdx = idx;
+    colEls.forEach(function(col, i) {
+      col.querySelector('.mbc-scroll').style.pointerEvents = (i === idx) ? 'auto' : 'none';
+    });
+  }
+
   // Initial state: column 0 is early, all others start at late positions
   for (var i = 0; i < colEls.length; i++) { applyBlend(i, i === 0 ? 0 : 1); }
+  updateScrollable(0);
 
   // Horizontal scroll drives the early↔late blend animation
   outer.addEventListener('scroll', function() {
     var x        = outer.scrollLeft;
-    var idx      = Math.floor(x / colW);
-    var progress = (x - idx * colW) / colW;  // 0..1 between snap points
-    applyBlend(idx,     progress);       // outgoing: drifts toward late
-    applyBlend(idx + 1, 1 - progress);   // incoming: consolidates to early
-    for (var j = 0; j < idx; j++)                 applyBlend(j, 0);  // past: early
-    for (var j = idx + 2; j < colEls.length; j++) applyBlend(j, 1);  // future: late
+    var idx      = Math.round(x / colW);  // nearest snap = active column
+    var floorIdx = Math.floor(x / colW);
+    var progress = (x - floorIdx * colW) / colW;  // 0..1 between snap points
+    applyBlend(floorIdx,     progress);       // outgoing: drifts toward late
+    applyBlend(floorIdx + 1, 1 - progress);   // incoming: consolidates to early
+    for (var j = 0; j < floorIdx; j++)                 applyBlend(j, 0);
+    for (var j = floorIdx + 2; j < colEls.length; j++) applyBlend(j, 1);
+    if (idx !== activeIdx) updateScrollable(idx);
   }, { passive: true });
 
-  // Sync vertical scroll between adjacent columns so lateY positions
-  // stay visually aligned with the earlyY positions they reference
+  // Bidirectional vertical scroll sync: when the active column scrolls,
+  // propagate its scrollTop to all other columns so lateY positions align
+  var syncingScroll = false;
   colEls.forEach(function(col, i) {
     var scrollEl = col.querySelector('.mbc-scroll');
     scrollEl.addEventListener('scroll', function() {
-      var next = colEls[i + 1];
-      if (next) next.querySelector('.mbc-scroll').scrollTop = scrollEl.scrollTop;
+      if (syncingScroll) return;
+      syncingScroll = true;
+      var top = scrollEl.scrollTop;
+      colEls.forEach(function(c, j) {
+        if (j !== i) c.querySelector('.mbc-scroll').scrollTop = top;
+      });
+      syncingScroll = false;
     }, { passive: true });
   });
 }
