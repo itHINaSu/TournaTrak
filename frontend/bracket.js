@@ -466,6 +466,30 @@ function champCardHTML(gid) {
     + '</div>';
 }
 
+// ── Mobile bracket: compact 3-row card (team / info / team) ──────────
+function mobileRoundCardHTML(gid) {
+  var g = GAMES[gid];
+  if (!g) return '<div class="mbc-game-card"><div class="mbc-game-mid"><span class="mbc-game-lbl">' + esc(gid) + '</span></div></div>';
+  var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
+  var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
+  var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
+  var ft = formatTime(g.time), timeStr = ft;
+  var m = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
+  if (m) timeStr = m[2];
+  return '<div class="mbc-game-card">'
+    + '<div class="mbc-game-team ' + c1 + '">' + esc(t1.name)
+    + (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
+    + '</div>'
+    + '<div class="mbc-game-mid">'
+    + '<span class="mbc-game-lbl">' + esc(gameLabel(gid)) + '</span>'
+    + (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
+    + '</div>'
+    + '<div class="mbc-game-team ' + c2 + '">' + esc(t2.name)
+    + (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
+    + '</div>'
+    + '</div>';
+}
+
 // ── Mobile: round-game-card HTML for a game ──────────────────────────
 // Produces the same card style as the By Round view.
 function roundCardHTML(gid) {
@@ -558,16 +582,22 @@ function renderMobileBracket(root, dims) {
     });
   });
 
-  // innerH: at least viewH so short rounds don't under-fill the scroll area
-  var maxSlots = rounds.reduce(function(mx, round) {
-    var sides = round === 'CHAMP' ? ['C'] : ['L', 'R'];
-    var n = 0;
+  // innerH per round: content height only (no trailing blank space).
+  // For rounds that fit on screen (≤4 slots, centered) the height equals
+  // viewH so there is nothing to scroll; for taller rounds it is the exact
+  // pixel height of all cards + gaps + a small bottom pad.
+  function roundInnerH(round) {
+    var isChamp = round === 'CHAMP';
+    var sides = isChamp ? ['C'] : ['L', 'R'];
+    var numSlots = 0;
     sides.forEach(function(side) {
-      n += (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side].length : 0;
+      numSlots += (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side].length : 0;
     });
-    return Math.max(mx, n);
-  }, 0);
-  var innerH = Math.max(maxSlots * (CARD_H + GAP) + 24, viewH);
+    var cardH   = isChamp ? CHAMP_CARD_H : CARD_H;
+    var totalH  = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
+    var offset  = numSlots <= 4 ? Math.max(Math.floor((viewH - totalH) / 2), GAP) : 0;
+    return Math.max(offset + totalH + 24, viewH);
+  }
 
   // ── lateY: slot-index math — game i is centered between prev-round slots 2i and 2i+1 ──
   var lateY = {};
@@ -606,7 +636,7 @@ function renderMobileBracket(root, dims) {
       var ey = earlyY[gid] !== undefined ? earlyY[gid] : 0;
       var ly = lateY[gid]  !== undefined ? lateY[gid]  : ey;
       var h  = isChamp ? CHAMP_CARD_H : CARD_H;
-      var inner = isChamp ? champCardHTML(gid) : roundCardHTML(gid);
+      var inner = isChamp ? champCardHTML(gid) : mobileRoundCardHTML(gid);
       return '<div class="mbc-card" style="top:' + ey + 'px;height:' + h + 'px" data-late-offset="' + (ly - ey).toFixed(1) + '">'
         + inner
         + '</div>';
@@ -622,7 +652,7 @@ function renderMobileBracket(root, dims) {
       +   '<span class="mbc-dots">' + dots + '</span>'
       + '</div>'
       + '<div class="mbc-scroll">'
-      +   '<div class="mbc-inner" style="height:' + innerH + 'px;width:' + cardW + 'px">'
+      +   '<div class="mbc-inner" style="height:' + roundInnerH(round) + 'px;width:' + cardW + 'px">'
       +     cardsHTML
       +   '</div>'
       + '</div>'
