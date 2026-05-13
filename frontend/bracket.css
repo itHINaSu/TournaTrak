@@ -629,39 +629,49 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .mbc-card .round-game-card { margin-bottom: 0; }
 
 /* ════════════════════════════════════════════════════════════
-   MOBILE — tabs move to fixed bottom nav
+   MOBILE — tabs + selector fixed to bottom
    ════════════════════════════════════════════════════════════ */
 @media (max-width: 1023px) {
-  /* Fixed bottom nav bar */
+  /* Taller tab bar, lighter background, lifted shadow */
   .view-tabs {
     position: fixed;
     top: auto;
     bottom: 0;
     left: 0;
     right: 0;
-    border-top: 0.07em solid var(--border);
+    background: var(--surface2);
+    border-top: 0.15em solid var(--gold);
     border-bottom: none;
+    box-shadow: 0 -4px 16px rgba(0,0,0,0.35);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 90;
   }
-
-  /* Active indicator points inward (upward) on bottom nav */
   .view-tab {
+    min-height: 4em;
+    padding: 1em 0.3em;
     border-bottom: none;
-    border-top: 0.18em solid transparent;
+    border-top: 0.22em solid transparent;
   }
   .view-tab.active {
     border-top-color: var(--blue-lt);
   }
 
-  /* Selector row sits just below the site header, not below tabs */
+  /* Selector row: fixed directly above the tab bar */
   .selector-row {
-    top: var(--hdr-h, 0px);
+    position: fixed;
+    top: auto;
+    bottom: calc(var(--tabs-h, 4em) + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    right: 0;
+    border-top: 0.07em solid var(--border);
+    border-bottom: none;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.2);
+    z-index: 85;
   }
 
-  /* Scrollable views need bottom padding to clear the fixed nav */
+  /* Scrollable views: clear selector + tabs at bottom */
   #view-rounds, #view-teams {
-    padding-bottom: calc(var(--tabs-h, 3em) + env(safe-area-inset-bottom, 0px) + 1em);
+    padding-bottom: calc(var(--tabs-h, 4em) + var(--sel-h, 5em) + env(safe-area-inset-bottom, 0px) + 0.5em);
   }
 }
 

@@ -658,19 +658,23 @@ function renderMobileBracket(root, dims) {
 function applyStickyOffsets() {
   var hdrH  = document.getElementById('siteHeader').offsetHeight;
   var tabsH = document.getElementById('viewTabs').offsetHeight;
+  var sel   = document.querySelector('.selector-row');
+  var selH  = sel ? sel.offsetHeight : 0;
   var r = document.documentElement.style;
   r.setProperty('--hdr-h',  hdrH  + 'px');
   r.setProperty('--tabs-h', tabsH + 'px');
+  r.setProperty('--sel-h',  (selH || 72) + 'px');
 }
 
 function stickyNavH() {
   var hdr  = document.getElementById('siteHeader');
   var tabs = document.getElementById('viewTabs');
   var sel  = document.querySelector('#view-rounds .selector-row');
-  var tabsAtBottom = window.innerWidth < 1024;
-  return (hdr  ? hdr.offsetHeight  : 0)
-       + (tabs && !tabsAtBottom ? tabs.offsetHeight : 0)
-       + (sel && sel.offsetParent !== null ? sel.offsetHeight : 0);
+  var mobile = window.innerWidth < 1024;
+  // On mobile: tabs + selector are fixed at bottom, only header offsets scroll target
+  return (hdr ? hdr.offsetHeight : 0)
+       + (tabs && !mobile ? tabs.offsetHeight : 0)
+       + (sel && !mobile && sel.offsetParent !== null ? sel.offsetHeight : 0);
 }
 
 // ── Round navigation ──────────────────────────────────────
@@ -752,6 +756,7 @@ function renderRoundView() {
   });
   document.getElementById('roundGames').innerHTML = html;
   setupRoundObserver();
+  applyStickyOffsets();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -923,6 +928,7 @@ function renderTeamView(){
   }
 
   out.innerHTML=html;
+  applyStickyOffsets();
 }
 
 // ══════════════════════════════════════════════════════════
