@@ -664,21 +664,16 @@ function renderMobileBracket(root, dims) {
     if (idx !== activeIdx) activeIdx = idx;
   }, { passive: true });
 
-  // Vertical scroll sync — only propagate while the user's finger is down.
-  // Syncing scrollTop during momentum (after touchend) kills native inertia
-  // on iOS/Android, so we stop as soon as the finger lifts and let each
-  // column coast independently (they're already at the same position).
-  var touching = false;
+  // One-way vertical scroll sync: only the active (snapped) column drives
+  // scrollTop on the others.  We never set scrollTop on the active element
+  // itself, so the browser's native momentum deceleration runs uninterrupted.
+  // Non-active scroll events return immediately, eliminating any feedback loop.
   var syncingScroll = false;
-  root.addEventListener('touchstart', function() { touching = true;  }, { passive: true });
-  root.addEventListener('touchend',   function() { touching = false; }, { passive: true });
-  root.addEventListener('touchcancel',function() { touching = false; }, { passive: true });
   colEls.forEach(function(col, i) {
-    var scrollEl = col.querySelector('.mbc-scroll');
-    scrollEl.addEventListener('scroll', function() {
-      if (!touching || syncingScroll) return;
+    col.querySelector('.mbc-scroll').addEventListener('scroll', function() {
+      if (i !== activeIdx || syncingScroll) return;
       syncingScroll = true;
-      var top = scrollEl.scrollTop;
+      var top = this.scrollTop;
       colEls.forEach(function(c, j) {
         if (j !== i) c.querySelector('.mbc-scroll').scrollTop = top;
       });
