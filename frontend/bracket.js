@@ -540,38 +540,33 @@ function renderMobileBracket(root, dims) {
   }, 0);
   innerH = maxSlots * (CARD_H + GAP) + 24;
 
-  // ── lateY: feeder midpoints, order-preserving so no card swaps during swipe ──
-  // Raw lateY is the average center-Y of a game's source slots so each result
-  // card sits vertically centred between its two feeders. Then we sort the raw
-  // values and reassign them in earlyY order: the i-th card by earlyY gets the
-  // i-th lowest lateY value. This keeps the correct spacing while guaranteeing
-  // the visual order never changes between the two snap positions.
+  // ── lateY: slot-index math — game i is centered between prev-round slots 2i and 2i+1 ──
   var lateY = {};
+  var prevRoundFor = { R2:'R1', QF:'R2', SF:'QF', CHAMP:'SF' };
   ['R2','QF','SF','CHAMP'].forEach(function(round) {
-    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
-    // Step 1: raw lateY from feeder midpoints, per side
-    sides.forEach(function(side) {
-      slotsForRoundSide(round, side).forEach(function(gid) {
-        var g = GAMES[gid]; if (!g) return;
-        var srcMids = [g.t1, g.t2]
-          .filter(function(s) { return s && earlyY[s.slot] !== undefined; })
-          .map(function(s) { return earlyY[s.slot] + CARD_H / 2; });
-        lateY[gid] = srcMids.length
-          ? srcMids.reduce(function(a, b) { return a + b; }, 0) / srcMids.length - CARD_H / 2
-          : earlyY[gid] !== undefined ? earlyY[gid] : 0;
-      });
+    var prev = prevRoundFor[round];
+    // Ordered slot keys for prev round (same traversal order as earlyY)
+    var prevKeys = [];
+    var prevSides = ['L','R'];
+    prevSides.forEach(function(side) {
+      var nums = (SLOT_DEFS[prev] && SLOT_DEFS[prev][side]) ? SLOT_DEFS[prev][side] : [];
+      nums.forEach(function(num) { prevKeys.push(prev + '.' + side + '.' + num); });
     });
-    // Step 2: order-preserving reassignment across the whole round
-    // Sort games by earlyY; sort raw lateY values ascending; pair them 1-to-1.
-    var allGids = gidsFor(round).filter(function(g) { return lateY[g] !== undefined; });
-    var byEarly = allGids.slice().sort(function(a, b) { return (earlyY[a] || 0) - (earlyY[b] || 0); });
-    var sortedVals = byEarly.map(function(g) { return lateY[g]; }).sort(function(a, b) { return a - b; });
-    byEarly.forEach(function(gid, i) { lateY[gid] = sortedVals[i]; });
-    // Step 3: minimum-gap spread in earlyY order
-    for (var i = 1; i < byEarly.length; i++) {
-      var minTop = lateY[byEarly[i - 1]] + CARD_H + 4;
-      if (lateY[byEarly[i]] < minTop) lateY[byEarly[i]] = minTop;
-    }
+    // Ordered slot keys for current round
+    var curKeys = [];
+    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
+    sides.forEach(function(side) {
+      var nums = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
+      nums.forEach(function(num) { curKeys.push(round + '.' + side + '.' + num); });
+    });
+    // Game at slot index i sits centered between prev slots 2i and 2i+1
+    curKeys.forEach(function(gid, i) {
+      if (!GAMES[gid]) return;
+      var p0 = prevKeys[2 * i], p1 = prevKeys[2 * i + 1];
+      lateY[gid] = (p0 && p1 && earlyY[p0] !== undefined && earlyY[p1] !== undefined)
+        ? (earlyY[p0] + earlyY[p1]) / 2
+        : (earlyY[gid] !== undefined ? earlyY[gid] : 0);
+    });
   });
 
   // ── Build column HTML ─────────────────────────────────────────────
@@ -621,17 +616,8 @@ function renderMobileBracket(root, dims) {
   // Active column index — the one snapped into view (div early)
   var activeIdx = 0;
 
-  // Set pointer-events on all scroll elements: only the active column is scrollable
-  function updateScrollable(idx) {
-    activeIdx = idx;
-    colEls.forEach(function(col, i) {
-      col.querySelector('.mbc-scroll').style.pointerEvents = (i === idx) ? 'auto' : 'none';
-    });
-  }
-
   // Initial state: column 0 is early, all others start at late positions
   for (var i = 0; i < colEls.length; i++) { applyBlend(i, i === 0 ? 0 : 1); }
-  updateScrollable(0);
 
   // Horizontal scroll drives the early↔late blend animation
   outer.addEventListener('scroll', function() {
@@ -643,7 +629,7 @@ function renderMobileBracket(root, dims) {
     applyBlend(floorIdx + 1, 1 - progress);   // incoming: consolidates to early
     for (var j = 0; j < floorIdx; j++)                 applyBlend(j, 0);
     for (var j = floorIdx + 2; j < colEls.length; j++) applyBlend(j, 1);
-    if (idx !== activeIdx) updateScrollable(idx);
+    if (idx !== activeIdx) activeIdx = idx;
   }, { passive: true });
 
   // Bidirectional vertical scroll sync: when the active column scrolls,
