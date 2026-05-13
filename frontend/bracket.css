@@ -628,6 +628,43 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .mbc-card .round-game-card { margin-bottom: 0; }
 
+/* ════════════════════════════════════════════════════════════
+   MOBILE — tabs move to fixed bottom nav
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  /* Fixed bottom nav bar */
+  .view-tabs {
+    position: fixed;
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    border-top: 0.07em solid var(--border);
+    border-bottom: none;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    z-index: 90;
+  }
+
+  /* Active indicator points inward (upward) on bottom nav */
+  .view-tab {
+    border-bottom: none;
+    border-top: 0.18em solid transparent;
+  }
+  .view-tab.active {
+    border-top-color: var(--blue-lt);
+  }
+
+  /* Selector row sits just below the site header, not below tabs */
+  .selector-row {
+    top: var(--hdr-h, 0px);
+  }
+
+  /* Scrollable views need bottom padding to clear the fixed nav */
+  #view-rounds, #view-teams {
+    padding-bottom: calc(var(--tabs-h, 3em) + env(safe-area-inset-bottom, 0px) + 1em);
+  }
+}
+
 @print {
   .site-header, .view-tabs, .header-controls, .theme-toggle, .selector-row { display: none; }
   body { background: #fff; color: #000; }

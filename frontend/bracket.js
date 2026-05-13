@@ -664,11 +664,12 @@ function applyStickyOffsets() {
 }
 
 function stickyNavH() {
-  var hdr = document.getElementById('siteHeader');
+  var hdr  = document.getElementById('siteHeader');
   var tabs = document.getElementById('viewTabs');
   var sel  = document.querySelector('#view-rounds .selector-row');
+  var tabsAtBottom = window.innerWidth < 1024;
   return (hdr  ? hdr.offsetHeight  : 0)
-       + (tabs ? tabs.offsetHeight : 0)
+       + (tabs && !tabsAtBottom ? tabs.offsetHeight : 0)
        + (sel && sel.offsetParent !== null ? sel.offsetHeight : 0);
 }
 
