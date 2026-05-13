@@ -689,6 +689,14 @@ input[type="time"]:focus {
 .settings-field input { width: 100%; font-family: 'Barlow', sans-serif; font-size: 0.88em; padding: 0.43em 0.62em; border-radius: 0.25em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); }
 .settings-field input:focus { outline: 0.13em solid var(--blue-lt); }
 .settings-field .field-hint { font-size: 0.65em; color: var(--text-mute); margin-top: 0.2em; }
+.account-username {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gold-lt);
+  letter-spacing: 0.07em;
+  padding: 0.3em 0;
+}
 
 /* ════════════════════════════════════════════════════════════
    TABLET LAYOUT (768px - 1024px)

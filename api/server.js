@@ -154,6 +154,7 @@ app.get('/api/session', (req, res) => {
   res.json({
     authenticated:       !!req.session.authenticated,
     mustChangePassword:  !!req.session.mustChangePassword,
+    username:            req.session.authenticated ? ADMIN_USERNAME : null,
   });
 });
 
