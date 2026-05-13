@@ -692,6 +692,8 @@ function renderMobileBracket(root, dims) {
   });
 
   // ── Blend animation ──────────────────────────────────────────────────
+  // Cards use transform for the lateY offset (earlyY→lateY blend).
+  // The .mbc-inner transform (scroll sync below) is separate and composes on top.
   function applyBlend(ci, blend) {
     if (ci < 0 || ci >= colEls.length) return;
     var cards = colEls[ci].querySelectorAll('.mbc-card');
@@ -704,6 +706,51 @@ function renderMobileBracket(root, dims) {
   var activeIdx = 0;
   for (var i = 0; i < colEls.length; i++) { applyBlend(i, i === 0 ? 0 : 1); }
 
+  // ── Scroll sync: transform-based, preserves native momentum ──────────
+  //
+  // Only the active (earlyY) column has overflow-y:scroll.
+  // Every other column is overflow:hidden and driven by transform on
+  // its .mbc-inner — transforms don't fire scroll events and never
+  // interrupt the browser's deceleration physics on the active column.
+  //
+  // When the active column changes (horizontal snap), the new column
+  // gets native scroll at the current shared position; the old column
+  // switches to transform-driven hidden mode.
+  var sharedScrollTop = 0;
+
+  function syncNonActive() {
+    var ty = sharedScrollTop > 0 ? 'translateY(-' + sharedScrollTop + 'px)' : '';
+    colEls.forEach(function(col, i) {
+      if (i !== activeIdx) col.querySelector('.mbc-inner').style.transform = ty;
+    });
+  }
+
+  function makeColumnActive(idx) {
+    activeIdx = idx;
+    colEls.forEach(function(col, i) {
+      var scrollEl = col.querySelector('.mbc-scroll');
+      var inner    = col.querySelector('.mbc-inner');
+      if (i === idx) {
+        inner.style.transform = '';        // remove transform; native scroll takes over
+        scrollEl.style.overflowY = '';     // restore CSS overflow-y:scroll
+        var maxScroll = Math.max(0, roundInnerH(rounds[i]) - scrollH);
+        scrollEl.scrollTop = Math.min(sharedScrollTop, maxScroll);
+      } else {
+        scrollEl.style.overflowY = 'hidden'; // prevent independent scrolling
+      }
+    });
+    syncNonActive();
+  }
+
+  // Active column scrolls → update shared position and sync others via transform
+  colEls.forEach(function(col, i) {
+    col.querySelector('.mbc-scroll').addEventListener('scroll', function() {
+      if (i !== activeIdx) return;
+      sharedScrollTop = this.scrollTop;
+      syncNonActive();
+    }, { passive: true });
+  });
+
   // Dot tap → jump to that round
   outer.querySelectorAll('.mbc-dot').forEach(function(dot) {
     dot.addEventListener('click', function(e) {
@@ -713,16 +760,7 @@ function renderMobileBracket(root, dims) {
     });
   });
 
-  // Sync all non-active columns' scrollTop to match the active column.
-  // Called on touchend (immediate) and after horizontal snap settles.
-  function syncToActive() {
-    var top = colEls[activeIdx].querySelector('.mbc-scroll').scrollTop;
-    colEls.forEach(function(c, j) {
-      if (j !== activeIdx) c.querySelector('.mbc-scroll').scrollTop = top;
-    });
-  }
-
-  // Horizontal scroll → blend + snap-settle sync
+  // Horizontal scroll → blend animation + switch active column after snap
   var hSnapTimer = null;
   outer.addEventListener('scroll', function() {
     var x        = outer.scrollLeft;
@@ -733,32 +771,12 @@ function renderMobileBracket(root, dims) {
     applyBlend(floorIdx + 1, 1 - progress);
     for (var j = 0; j < floorIdx; j++)                 applyBlend(j, 0);
     for (var j = floorIdx + 2; j < colEls.length; j++) applyBlend(j, 1);
-    if (idx !== activeIdx) activeIdx = idx;
-    // After horizontal snap settles, align all columns to the new active column
     clearTimeout(hSnapTimer);
-    hSnapTimer = setTimeout(syncToActive, 180);
+    hSnapTimer = setTimeout(function() { makeColumnActive(idx); }, 200);
   }, { passive: true });
 
-  // Vertical scroll sync: real-time during active touch only.
-  // We stop syncing once the finger lifts so iOS momentum runs uninterrupted.
-  var isTouchingScroll = false;
-  colEls.forEach(function(col, i) {
-    var scrollEl = col.querySelector('.mbc-scroll');
-    scrollEl.addEventListener('touchstart', function() {
-      if (i === activeIdx) isTouchingScroll = true;
-    }, { passive: true });
-    scrollEl.addEventListener('touchend', function() {
-      isTouchingScroll = false;
-      if (i === activeIdx) syncToActive();  // one final sync on finger lift
-    }, { passive: true });
-    scrollEl.addEventListener('scroll', function() {
-      if (i !== activeIdx || !isTouchingScroll) return;
-      var top = this.scrollTop;
-      colEls.forEach(function(c, j) {
-        if (j !== i) c.querySelector('.mbc-scroll').scrollTop = top;
-      });
-    }, { passive: true });
-  });
+  // Initial state: only column 0 is native-scrollable
+  makeColumnActive(0);
 }
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW
