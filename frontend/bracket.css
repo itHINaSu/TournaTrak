@@ -93,6 +93,7 @@ select.styled {
   cursor: pointer;
   flex: 1;
   min-height: 3.2em;
+  max-width: 28em;
 }
 select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07em; }
 
@@ -265,12 +266,14 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   font-weight: 600;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  padding: 0.25em 0.7em;
-  border-radius: 0.2em 0.2em 0 0;
-  background: var(--blue);
-  color: #fff;
+  padding: 0.15em 0.4em 0.15em 0;
+  background: transparent;
+  color: var(--text-dim);
+  border-bottom: 0.1em solid var(--border);
   position: absolute;
   top: calc(var(--col-hdr-h) * -2);
+  cursor: default;
+  user-select: none;
 }
 .left-side  .bracket-side-label { left: 0; }
 .right-side .bracket-side-label { right: 0; }
@@ -320,6 +323,28 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 
 /* ── Round view ── */
 .round-panel { padding: 0 0 1.5em; }
+/* ── W/L legend ── */
+.wl-legend {
+  max-width: 65em;
+  margin: 0.5em auto 0;
+  padding: 0.4em 1em;
+  display: flex;
+  gap: 1em;
+  align-items: center;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+/* ── Round games 2-column grid on desktop ── */
+.round-games-grid { display: contents; }
+@media (min-width: 1024px) {
+  .round-games-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.5em;
+  }
+}
+
 .round-game-card {
   border: 0.07em solid var(--border);
   border-radius: 0.6em;
@@ -327,35 +352,39 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   background: var(--surface);
   margin-bottom: 1.4em;
 }
+.round-game-card.upcoming {
+  opacity: 0.75;
+  border-style: dashed;
+}
 .round-game-header {
   display: flex;
   align-items: center;
   gap: 0.6em;
-  padding: 0.7em 1em 0.6em;
+  padding: 0.5em 1em;
   background: var(--surface2);
   border-bottom: 0.07em solid var(--border);
 }
 .round-game-id {
   font-family: 'Oswald', sans-serif;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.07em;
   color: var(--blue-lt);
   flex-shrink: 0;
 }
-.round-game-day-time { display: flex; align-items: baseline; gap: 0.45em; flex: 1; }
-.round-game-day  { font-family: 'Oswald', sans-serif; font-size: clamp(1.15rem, 0.18vw + 1.1rem, 1.45rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
-.round-game-time { font-family: 'Oswald', sans-serif; font-size: clamp(1.15rem, 0.18vw + 1.1rem, 1.45rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
+.round-game-day-time { display: flex; align-items: baseline; gap: 0.45em; flex: 1; justify-content: flex-end; }
+.round-game-day  { font-family: 'Oswald', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--text-dim); line-height: 1; }
+.round-game-time { font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-team-row {
   display: flex;
   align-items: center;
-  padding: 0.8em 1em;
+  padding: 0.75em 1em;
   border-bottom: 0.07em solid var(--border);
-  min-height: 3em;
+  min-height: 3.2em;
   gap: 0.6em;
 }
 .round-team-row:last-child { border-bottom: none; }
-.round-team-name { font-size: clamp(0.96rem, 0.05vw + 0.95rem, 1.06rem); font-weight: 600; flex: 1; }
+.round-team-name { font-size: clamp(1rem, 0.08vw + 0.98rem, 1.15rem); font-weight: 700; flex: 1; }
 .round-team-name.tbd  { color: var(--text-mute); font-style: italic; font-weight: 400; }
 .round-team-name.won  { color: var(--win-color); }
 .round-team-name.lost { color: var(--lose-color); }
@@ -366,6 +395,38 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 /* ── Team view ── */
 .team-panel { max-width: 65em; margin: 0 auto; padding: 0 1em 1.5em; }
 .team-no-games { padding: 1em; color: var(--text-mute); font-style: italic; }
+
+/* ── Team chip grid (empty state) ── */
+.team-chips-prompt {
+  max-width: 65em;
+  margin: 1.2em auto 0.3em;
+  padding: 0 1em;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+.team-chips-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5em;
+  padding: 0.5em 1em 2em;
+  max-width: 65em;
+  margin: 0 auto;
+}
+.team-chip {
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: 2em;
+  padding: 0.45em 1.1em;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.team-chip:hover, .team-chip:active { background: var(--blue); border-color: var(--blue-lt); color: #fff; }
+.team-chip.elim { opacity: 0.5; text-decoration: line-through; }
 .team-view-name {
   padding: 0.5em 0 0.25em;
   font-family: 'Oswald', sans-serif;
@@ -599,11 +660,16 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   text-transform: uppercase;
   color: var(--gold-lt);
 }
-.mbc-dots { display: flex; gap: 5px; align-items: center; }
+.mbc-dots { display: flex; gap: 2px; align-items: center; }
 .mbc-dot {
-  width: 6px; height: 6px; border-radius: 50%;
+  width: 8px; height: 8px; border-radius: 50%;
   background: var(--border);
   transition: background 0.2s, transform 0.2s;
+  cursor: pointer;
+  /* Larger tap target without affecting visual size */
+  padding: 6px;
+  box-sizing: content-box;
+  margin: -6px -3px;
 }
 .mbc-dot.active { background: var(--blue-lt); transform: scale(1.35); }
 
@@ -705,6 +771,11 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   overflow: hidden;
   background: var(--surface);
   box-sizing: border-box;
+  transition: opacity 0.15s;
+}
+.mbc-game-card.upcoming {
+  opacity: 0.65;
+  border-style: dashed;
 }
 /* Each team row gets 3 flex-units = 37.5% of card (×2 = 75%) */
 .mbc-game-team {
@@ -762,6 +833,10 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
    MOBILE — tabs + selector fixed to bottom
    ════════════════════════════════════════════════════════════ */
 @media (max-width: 1023px) {
+  /* Compact the header to reclaim vertical space */
+  .header-timestamp { display: none !important; }
+  .site-subtitle { font-size: 0.58em; margin-top: 0.05em; letter-spacing: 0.08em; }
+
   /* Tab bar: noticeably darker than page surface to read as a distinct object */
   .view-tabs {
     position: fixed;

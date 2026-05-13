@@ -256,7 +256,7 @@ function connLines(conns,wVw,hVh,lc,mirror){
   if(!conns.length) return '';
   var s='<svg viewBox="0 0 100 100" preserveAspectRatio="none" '
     +'style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible">';
-  var lw='0.15';
+  var lw='0.5';
   function fx(x){ return mirror?(100-x):x; }
   var byDest={};
   conns.forEach(function(c){
@@ -476,8 +476,9 @@ function mobileRoundCardHTML(gid) {
   var ft = formatTime(g.time), dayStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
   if (m) { dayStr = m[1] + ' ' + m[2]; timeStr = m[3]; }
+  var upcoming = !r.winner ? ' upcoming' : '';
   // Header (top 25%), team 1 (37.5%), team 2 (37.5%)
-  return '<div class="mbc-game-card">'
+  return '<div class="mbc-game-card' + upcoming + '">'
     + '<div class="mbc-game-mid">'
     + '<span class="mbc-game-lbl">' + esc(gameLabel(gid)) + '</span>'
     + '<span class="mbc-game-datetime">'
@@ -551,7 +552,7 @@ function renderMobileBracket(root, dims) {
   var GAP         = Math.max(Math.round(CARD_H * 0.07), 6);
   document.documentElement.style.setProperty('--mbc-card-h', CARD_H + 'px');
 
-  var colW  = Math.round(winW * 0.80);
+  var colW  = Math.round(winW * 0.72);  // 28% peek of next round
   var padPx = 12;
   var cardW = colW - 2 * padPx;
 
@@ -657,7 +658,7 @@ function renderMobileBracket(root, dims) {
     }).join('');
 
     var dots = rounds.map(function(_, i) {
-      return '<span class="mbc-dot' + (i === ri ? ' active' : '') + '"></span>';
+      return '<span class="mbc-dot' + (i === ri ? ' active' : '') + '" data-ri="' + i + '"></span>';
     }).join('');
 
     return '<div class="mbc-col" data-ri="' + ri + '" style="width:' + cWidth + 'px;flex:0 0 ' + cWidth + 'px">'
@@ -694,6 +695,15 @@ function renderMobileBracket(root, dims) {
 
   // Initial state: column 0 is early, all others start at late positions
   for (var i = 0; i < colEls.length; i++) { applyBlend(i, i === 0 ? 0 : 1); }
+
+  // Tap any progress dot to jump directly to that round
+  outer.querySelectorAll('.mbc-dot').forEach(function(dot) {
+    dot.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var ri = parseInt(dot.dataset.ri, 10);
+      outer.scrollTo({ left: ri * colW, behavior: 'smooth' });
+    });
+  });
 
   // Horizontal scroll drives the early↔late blend animation
   outer.addEventListener('scroll', function() {
@@ -797,7 +807,11 @@ document.getElementById('roundSelect').addEventListener('change', function() {
 
 function renderRoundView() {
   var rounds = ['R1','R2','QF','SF','CHAMP'];
-  var html = '';
+  // W/L legend shown once above all rounds
+  var html = '<div class="wl-legend">'
+    + '<span class="result-badge w">W</span> Win &nbsp;'
+    + '<span class="result-badge l">L</span> Loss'
+    + '</div>';
   rounds.forEach(function(round) {
     var sids = Object.keys(GAMES)
       .filter(function(sid){ return GAMES[sid].round === round; })
@@ -805,6 +819,7 @@ function renderRoundView() {
     if (!sids.length) return;
     html += '<div class="round-section" id="round-section-' + round + '" data-round="' + round + '">';
     html += '<div class="round-section-hdr">' + esc(ROUND_LABELS[round]) + '</div>';
+    html += '<div class="round-games-grid">';
     sids.forEach(function(sid) {
       var g=GAMES[sid]; if(!g) return;
       var t1=disp(sid,g.t1), t2=disp(sid,g.t2), r=results[sid]||{};
@@ -814,12 +829,13 @@ function renderRoundView() {
       if(m){ dayStr=m[1]; timeStr=m[2]; }
       var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
       var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
-      html += '<div class="round-game-card">'
+      var upcoming = !r.winner ? ' upcoming' : '';
+      html += '<div class="round-game-card' + upcoming + '">'
         +'<div class="round-game-header">'
         +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
         +'<div class="round-game-day-time">'
-        +'<span class="round-game-day">'+esc(dayStr)+'</span>'
-        +'<span class="round-game-time">'+esc(timeStr)+'</span>'
+        +(dayStr?'<span class="round-game-day">'+esc(dayStr)+'</span>':'')
+        +(timeStr?'<span class="round-game-time">'+esc(timeStr)+'</span>':'')
         +'</div></div>'
         +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
         +(r.winner?'<span class="result-badge '+(t1.won?'w':'l')+'">'+(t1.won?'W':'L')+'</span>':'')
@@ -828,9 +844,11 @@ function renderRoundView() {
         +(r.winner?'<span class="result-badge '+(t2.won?'w':'l')+'">'+(t2.won?'W':'L')+'</span>':'')
         +'</div></div>';
     });
-    html += '</div>';
+    html += '</div></div>'; // close round-games-grid + round-section
   });
   document.getElementById('roundGames').innerHTML = html;
+  // Default selector to the first round with upcoming games
+  document.getElementById('roundSelect').value = firstIncompleteRound();
   setupRoundObserver();
   applyStickyOffsets();
 }
@@ -948,7 +966,33 @@ function makeVerticalChain(chain, team, isLosePath) {
 
 function renderTeamView(){
   var team=teamSel.value, out=document.getElementById('teamOut');
-  if(!team){ out.innerHTML=''; return; }
+  if(!team){
+    var teamNames = [];
+    Object.values(GAMES).forEach(function(g){
+      if(g.t1&&g.t1.type==='fixed'&&g.t1.team) teamNames.push(g.t1.team);
+      if(g.t2&&g.t2.type==='fixed'&&g.t2.team) teamNames.push(g.t2.team);
+    });
+    teamNames = teamNames.filter(function(t,i,a){ return a.indexOf(t)===i; }).sort();
+    if(!teamNames.length){ out.innerHTML=''; return; }
+    out.innerHTML = '<p class="team-chips-prompt">Select a team to view their bracket path and results.</p>'
+      + '<div class="team-chips-grid">'
+      + teamNames.map(function(t){
+          var r = Object.keys(results).find(function(sid){
+            return results[sid] && (resolveSlot(GAMES[sid]&&GAMES[sid].t1,results)===t || resolveSlot(GAMES[sid]&&GAMES[sid].t2,results)===t);
+          });
+          var elim = isEliminated(t, results);
+          return '<button class="team-chip' + (elim ? ' elim' : '') + '" data-team="'+esc(t)+'">'+esc(t)+'</button>';
+        }).join('')
+      + '</div>';
+    out.querySelectorAll('.team-chip').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        teamSel.value = btn.dataset.team;
+        setCookie('tt_team', btn.dataset.team);
+        renderTeamView();
+      });
+    });
+    return;
+  }
 
   var firstGid=null;
   occupiedSlots().forEach(function(sid){
