@@ -351,7 +351,7 @@ function renderDesktopBracket(root,dims){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
         html+='<div style="position:relative;flex-shrink:0;width:'+gapVw+'vw;height:'+totalVh+'vh">'
-          +connLines(buildConnPcts(srcCol,dstCol,slotVh),gapVw,totalVh,lc,!isRight)+'</div>';
+          +connLines(buildConnPcts(srcCol,dstCol,slotVh),gapVw,totalVh,lc,isRight)+'</div>';
       }
     }
     var labelAlign=isRight?'right:0':'left:0';
@@ -540,35 +540,9 @@ function renderMobileBracket(root, dims) {
   }, 0);
   innerH = maxSlots * (CARD_H + GAP) + 24;
 
-  // ── lateY: bracket-tree midpoints, with fallback + overlap fix ───
-  // lateY[gid] = midpoint of source games' earlyY centers, or earlyY[gid]
-  // if sources are missing (zero offset, no animation for that card).
-  // Spread pass runs globally per round (L+R combined) so cross-side
-  // overlaps — e.g. loser-bracket games whose sources are on the opposite
-  // side — are also resolved.
+  // ── lateY: same as earlyY so peek cards stay in natural slot order ──
   var lateY = {};
-  ['R2','QF','SF','CHAMP'].forEach(function(round) {
-    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
-    sides.forEach(function(side) {
-      var gids = slotsForRoundSide(round, side);
-      gids.forEach(function(gid) {
-        var g = GAMES[gid]; if (!g) return;
-        var srcMids = [g.t1, g.t2]
-          .filter(function(s) { return s && earlyY[s.slot] !== undefined; })
-          .map(function(s)    { return earlyY[s.slot] + CARD_H / 2; });
-        lateY[gid] = srcMids.length
-          ? srcMids.reduce(function(a, b) { return a + b; }, 0) / srcMids.length - CARD_H / 2
-          : earlyY[gid] !== undefined ? earlyY[gid] : 0;
-      });
-    });
-    // Global spread: sort all games in this round by lateY and push apart
-    var allGids = gidsFor(round).filter(function(g) { return lateY[g] !== undefined; });
-    allGids.sort(function(a, b) { return lateY[a] - lateY[b]; });
-    for (var i = 1; i < allGids.length; i++) {
-      var minTop = lateY[allGids[i - 1]] + CARD_H + 4;
-      if (lateY[allGids[i]] < minTop) lateY[allGids[i]] = minTop;
-    }
-  });
+  Object.keys(earlyY).forEach(function(slot) { lateY[slot] = earlyY[slot]; });
 
   // ── Build column HTML ─────────────────────────────────────────────
   var colsHTML = rounds.map(function(round, ri) {
