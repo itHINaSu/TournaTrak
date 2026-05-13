@@ -131,6 +131,7 @@
     <div class="admin-tab active" data-tab="results">Results</div>
     <div class="admin-tab" data-tab="schedule">Schedule</div>
     <div class="admin-tab" data-tab="settings">Settings</div>
+    <div class="admin-tab" data-tab="account">Account</div>
   </div>
 
   <!-- ── RESULTS TAB ── -->
@@ -204,9 +205,25 @@
       <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
       <span class="sched-status" id="settingsStatus"></span>
     </div>
+  </div>
 
-    <div class="settings-section" style="margin-top:1.5em">
-      <div class="settings-section-hdr">Admin Password</div>
+  <!-- ── ACCOUNT TAB ── -->
+  <div class="admin-tab-panel" id="tab-account">
+    <div class="admin-subtitle">Manage your login credentials.</div>
+
+    <div class="settings-section">
+      <div class="settings-section-hdr">Session</div>
+      <div class="settings-field">
+        <label>Logged in as</label>
+        <div id="accountUsername" class="account-username">—</div>
+      </div>
+      <div class="settings-save-row">
+        <button class="admin-clear-btn" onclick="doLogout()">Sign Out</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-section-hdr">Change Password</div>
       <div class="settings-field">
         <label>New Password</label>
         <input type="password" id="setNewPass1" autocomplete="new-password" placeholder="At least 8 characters">
@@ -709,11 +726,13 @@ async function apiFetch(url, opts) {
   return r;
 }
 
-function showAdmin() {
+function showAdmin(username) {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = '';
   document.getElementById('logoutBtn').style.display = '';
+  var unEl = document.getElementById('accountUsername');
+  if (unEl) unEl.textContent = username || 'admin';
   fetchAll();
 }
 
@@ -753,7 +772,7 @@ async function doLogin(e) {
     if (r.ok) {
       var data = await r.json().catch(function(){ return {}; });
       if (data.mustChangePassword) showChangePassword();
-      else showAdmin();
+      else showAdmin(data.username);
     } else {
       var data = await r.json().catch(function(){ return {}; });
       errEl.textContent = data.error || 'Login failed';
@@ -838,7 +857,7 @@ async function checkSession() {
     var r    = await fetch('/api/session');
     var data = await r.json();
     if (data.authenticated && data.mustChangePassword) showChangePassword();
-    else if (data.authenticated) showAdmin();
+    else if (data.authenticated) showAdmin(data.username);
     else showLogin();
   } catch(e) {
     showLogin();
