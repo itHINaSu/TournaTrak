@@ -1,0 +1,121 @@
+/* base.css — CSS variables, reset, shared body, header, and toast */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:           #0f1410;
+  --surface:      #181f1a;
+  --surface2:     #1f2921;
+  --border:       #2e3d30;
+  --blue:         #1a5fa8;
+  --blue-lt:      #4a90d9;
+  --gold:         #c49a1a;
+  --gold-lt:      #e8b82a;
+  --text:         #e8ede9;
+  --text-dim:     #7a8f7d;
+  --text-mute:    #4a5e4d;
+  --win-color:    #4a9a4a;
+  --lose-color:   #c05050;
+  --elim-bg:      #2a1f1f;
+  --elim-text:    #8a5a5a;
+  --line-color:   #4a7a8a;
+  --clear-color:  #c05050;
+  --clear-border: #8a3a3a;
+
+  /* Bracket slot sizing — set by JS via setProperty */
+  --slot-h:    10vh;
+  --card-h:    8vh;
+  --row-h:     calc(var(--card-h) / 3);
+  --col-w:     14vw;
+  --col-gap:   2vw;
+  --col-hdr-h: 1.6em;
+}
+
+body.light {
+  --bg:        #f0f4f1;
+  --surface:   #ffffff;
+  --surface2:  #e8ede9;
+  --border:    #c8d8ca;
+  --blue:      #1a5fa8;
+  --blue-lt:   #1a4a8a;
+  --gold:      #a07800;
+  --gold-lt:   #7a5800;
+  --text:      #1a2a1c;
+  --text-dim:  #4a6a50;
+  --text-mute: #8aaa90;
+  --win-color: #2a6a18;
+  --lose-color:#8a2a2a;
+  --elim-bg:   #f5e8e8;
+  --elim-text: #8a4a4a;
+  --line-color:#5a8a9a;
+  --clear-color:#8a2a2a;
+  --clear-border:#c05050;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: clamp(0.92rem, 0.08vw + 0.9rem, 1rem);
+  min-height: 100vh;
+  transition: background 0.2s, color 0.2s;
+}
+
+/* ── Header name block ── */
+.header-name-block { flex: 1; min-width: 0; }
+.site-subtitle {
+  display: none;
+  font-size: 0.65em;
+  color: var(--gold);
+  font-family: 'Oswald', sans-serif;
+  letter-spacing: 0.12em;
+  margin-top: 0.1em;
+}
+
+/* ── Header ── */
+.site-header {
+  background: var(--surface);
+  border-bottom: 0.15em solid var(--gold);
+  padding: 0.8em 1em;
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.site-header h1 {
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(1.05rem, 0.18vw + 1rem, 1.35rem);
+  font-weight: 700;
+  color: var(--gold-lt);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.header-controls { margin-left: auto; display: flex; align-items: center; gap: 0.6em; }
+.theme-toggle {
+  background: none;
+  border: 0.07em solid var(--border);
+  border-radius: 2em;
+  padding: 0.35em 0.9em;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  min-height: 2.5em;
+}
+.theme-toggle:hover { color: var(--text); }
+
+/* Results timestamp — end-justified in header name div */
+.header-timestamp {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.62rem;
+  color: var(--text-mute);
+  letter-spacing: 0.04em;
+  margin-top: 0.3em;
+  text-align: right;
+}
+
+/* ── Toast ── */
+.toast { position: fixed; bottom: 1.5em; left: 50%; transform: translateX(-50%) translateY(1.2em); background: var(--surface2); border: 0.07em solid var(--blue); border-radius: 0.4em; padding: 0.6em 1.2em; font-size: 0.84rem; color: var(--blue-lt); opacity: 0; transition: all 0.25s; pointer-events: none; z-index: 999; white-space: nowrap; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.error { border-color: var(--clear-color); color: var(--clear-color); }
