@@ -10,9 +10,9 @@
 <body>
 
 <header class="site-header" id="siteHeader">
-  <div style="flex:1;min-width:0">
+  <div class="header-name-block">
     <h1 id="siteName">Tournament Bracket</h1>
-    <div id="siteSubtitle" style="display:none;font-size:0.65em;color:var(--gold);font-family:Oswald,sans-serif;letter-spacing:0.12em;margin-top:0.1em"></div>
+    <div id="siteSubtitle" class="site-subtitle"></div>
     <div id="resultsTimestamp" style="display:none" class="header-timestamp"></div>
   </div>
   <div class="header-controls">
@@ -408,78 +408,93 @@ function renderDesktopBracket(root,dims){
 }
 
 
-function renderTabletBracket(root,dims){ renderCarouselBracket(root,dims); }
-function renderMobileBracket(root,dims){ renderCarouselBracket(root,dims); }
-
-function renderCarouselBracket(root,dims){
-  // One vertical column per round, scroll horizontally L→R through rounds.
-  // Each column: R1.L.1…R1.L.8, then R1.R.1…R1.R.8 stacked top-to-bottom.
-  // Cards are identical size throughout. Vertical positions use slotTopVh().
-  // Right-side offset = 8 * slotVh (sits below the full left section).
-
-  var slotVh = dims.slotVh;
-  var cardVh  = dims.cardVh;
-  var colH    = slotVh * 16; // 8 L slots + 8 R slots
-  var rOffset = slotVh * 8;  // where R slots begin vertically
-
-  // Card width: use available width minus small padding
-  var winW    = window.innerWidth;
-  var cardW   = Math.round(winW * 0.92); // 92vw per card/column
-  var peekW   = Math.round(winW * 0.08); // 8vw peek of next column
-
-  var rounds  = ['R1','R2','QF','SF','CHAMP'];
-
-  // Group games by round and side
-  var byRound = {};
-  rounds.forEach(function(r){ byRound[r]={ L:{}, R:{}, C:{} }; });
+// ── Shared bracket data builder ──────────────────────────────────────
+function buildByRound(rounds){
+  var byRound={};
+  rounds.forEach(function(r){ byRound[r]={L:{},R:{},C:{}}; });
   Object.entries(GAMES).forEach(function(e){
-    var gid=e[0], g=e[1];
+    var gid=e[0],g=e[1];
     if(byRound[g.round]) byRound[g.round][g.side][g.num]=gid;
   });
+  return byRound;
+}
+
+// ── Tablet: all rounds side-by-side, total width = window width ──────
+function renderTabletBracket(root,dims){
+  var slotVh=dims.slotVh;
+  var rounds=['R1','R2','QF','SF','CHAMP'];
+  var byRound=buildByRound(rounds);
+  var colH=slotVh*16;
+  var rOffset=slotVh*8;
+
+  var outerPx=12, gapPx=6, cardGapVh=0.4;
+  var colPx=Math.floor((window.innerWidth-2*outerPx-(rounds.length-1)*gapPx)/rounds.length);
 
   var cols='';
   rounds.forEach(function(round){
-    var L=byRound[round].L;
-    var R=byRound[round].R;
-    var C=byRound[round].C;
-
+    var L=byRound[round].L, R=byRound[round].R, C=byRound[round].C;
     var colHTML='';
-
-    // L slots
     Object.keys(L).sort(function(a,b){return a-b;}).forEach(function(num){
-      var top = slotTopVh(round, parseInt(num), slotVh);
-      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;margin:0;">'
-        +cardHTML(L[num])+'</div>';
+      var top=slotTopVh(round,parseInt(num),slotVh)+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(L[num])+'</div>';
     });
-
-    // R slots — offset below L section
     Object.keys(R).sort(function(a,b){return a-b;}).forEach(function(num){
-      var top = rOffset + slotTopVh(round, parseInt(num), slotVh);
-      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;margin:0;">'
-        +cardHTML(R[num])+'</div>';
+      var top=rOffset+slotTopVh(round,parseInt(num),slotVh)+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(R[num])+'</div>';
     });
-
-    // Championship (side=C) — centered in the column
     Object.keys(C).sort(function(a,b){return a-b;}).forEach(function(num){
-      var top = rOffset / 2; // center between L and R sections
-      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;margin:0;">'
-        +cardHTML(C[num])+'</div>';
+      var top=rOffset/2+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(C[num])+'</div>';
     });
+    cols+='<div style="flex:0 0 '+colPx+'px;width:'+colPx+'px;position:relative;height:'+colH+'vh;">'
+      +'<div class="carousel-round-hdr">'+ROUND_LABELS[round]+'</div>'
+      +colHTML+'</div>';
+  });
 
-    cols+='<div style="flex:0 0 '+cardW+'px;width:'+cardW+'px;position:relative;height:'+colH+'vh;'
+  root.innerHTML='<div style="display:flex;flex-direction:row;width:100%;gap:'+gapPx+'px;'
+    +'padding:0.5em '+outerPx+'px;overflow-x:hidden;align-items:flex-start;">'
+    +cols+'</div>';
+}
+
+// ── Mobile: snap-scroll one round at a time ──────────────────────────
+function renderMobileBracket(root,dims){
+  var slotVh=dims.slotVh;
+  var rounds=['R1','R2','QF','SF','CHAMP'];
+  var byRound=buildByRound(rounds);
+  var colH=slotVh*16;
+  var rOffset=slotVh*8;
+
+  var winW=window.innerWidth;
+  var outerPx=10, cardGapVh=0.4;
+  var colPx=Math.round(winW*0.92)-2*outerPx;
+  var peekPx=Math.round(winW*0.08);
+
+  var cols='';
+  rounds.forEach(function(round){
+    var L=byRound[round].L, R=byRound[round].R, C=byRound[round].C;
+    var colHTML='';
+    Object.keys(L).sort(function(a,b){return a-b;}).forEach(function(num){
+      var top=slotTopVh(round,parseInt(num),slotVh)+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(L[num])+'</div>';
+    });
+    Object.keys(R).sort(function(a,b){return a-b;}).forEach(function(num){
+      var top=rOffset+slotTopVh(round,parseInt(num),slotVh)+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(R[num])+'</div>';
+    });
+    Object.keys(C).sort(function(a,b){return a-b;}).forEach(function(num){
+      var top=rOffset/2+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(C[num])+'</div>';
+    });
+    cols+='<div style="flex:0 0 '+colPx+'px;width:'+colPx+'px;position:relative;height:'+colH+'vh;'
       +'scroll-snap-align:start;scroll-snap-stop:always;">'
-      +'<div style="font-family:Oswald,sans-serif;font-size:0.72rem;font-weight:600;'
-      +'letter-spacing:0.1em;text-transform:uppercase;color:var(--gold-lt);'
-      +'text-align:center;padding:0.4em 0 0.6em;">'+ROUND_LABELS[round]+'</div>'
-      +colHTML
-      +'</div>';
+      +'<div class="carousel-round-hdr">'+ROUND_LABELS[round]+'</div>'
+      +colHTML+'</div>';
   });
 
   root.innerHTML='<div style="display:flex;flex-direction:row;overflow-x:auto;'
     +'scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;'
-    +'padding:0.5em '+peekW+'px 1em 0.5em;gap:0.5em;">'
-    +cols
-    +'</div>';
+    +'padding:0.5em '+peekPx+'px 1em '+outerPx+'px;gap:0.5em;">'
+    +cols+'</div>';
 }
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW
@@ -598,32 +613,25 @@ function makeVerticalChain(chain, team, isLosePath) {
       + '</div>'; // .round-game-card
 
     // ── Lose annotation — shown when game not yet played or team won ───
-    // "LOSE" always red · "→" and destination: green if continues, red if out
     if (!played || teamWon) {
       var ln = findNextSlot(gid, 'loser');
-      var arrowColor = ln ? GREEN : RED;
-      var destText   = ln ? gameLabel(ln) : 'OUT';
-      var destColor  = ln ? GREEN : RED;
-      html += '<div style="padding:0.18em 0 0 0.5em;font-family:Oswald,sans-serif;'
-        + 'font-size:0.72em;font-weight:600;letter-spacing:0.05em;display:flex;gap:0.25em;align-items:center">'
-        + '<span style="color:' + RED + '">LOSE</span>'
-        + '<span style="color:' + arrowColor + '">→</span>'
-        + '<span style="color:' + destColor + '">' + esc(destText) + '</span>'
+      var destText = ln ? gameLabel(ln) : 'OUT';
+      var destCls  = ln ? 'color-win' : 'color-lose';
+      var arrowCls = destCls;
+      html += '<div class="team-path-annotation">'
+        + '<span class="color-lose">LOSE</span>'
+        + '<span class="' + arrowCls + '">→</span>'
+        + '<span class="' + destCls + '">' + esc(destText) + '</span>'
         + '</div>';
     }
 
     // ── Connector to next card with WIN label ──────────────────────────
     if (i < chain.length - 1) {
-      var connColor = isLosePath ? RED : LINECOLOR;
-      html += '<div style="display:flex;align-items:center;gap:0.4em;padding:0 0 0 0.5em;margin:0.1em 0">'
-        // Vertical line segment
-        + '<div style="display:flex;flex-direction:column;align-items:center;width:1em">'
-        + '<div style="width:0.07em;height:1.4em;background:' + GREEN + ';'
-        + (isLosePath ? 'border-left:0.07em dashed '+connColor+';background:none;' : '') + '"></div>'
+      html += '<div class="team-path-connector">'
+        + '<div class="team-path-connector-track">'
+        + '<div class="team-path-connector-line' + (isLosePath ? ' lose' : '') + '"></div>'
         + '</div>'
-        // WIN label
-        + '<span style="font-family:Oswald,sans-serif;font-size:0.72em;font-weight:600;'
-        + 'letter-spacing:0.05em;color:' + GREEN + '">WIN</span>'
+        + '<span class="team-path-win-label">WIN</span>'
         + '</div>';
     }
 
@@ -631,15 +639,13 @@ function makeVerticalChain(chain, team, isLosePath) {
     if (i === chain.length - 1 && (!played || teamWon)) {
       var wn = findNextSlot(gid, 'winner');
       if (wn) {
-        html += '<div style="padding:0.18em 0 0.5em 0.5em;font-family:Oswald,sans-serif;'
-          + 'font-size:0.72em;font-weight:600;letter-spacing:0.05em;display:flex;gap:0.25em;align-items:center">'
-          + '<span style="color:' + GREEN + '">WIN</span>'
-          + '<span style="color:' + GREEN + '">→</span>'
-          + '<span style="color:' + GREEN + '">' + esc(gameLabel(wn)) + '</span>'
+        html += '<div class="team-path-annotation team-path-annotation--terminal">'
+          + '<span class="color-win">WIN</span>'
+          + '<span class="color-win">→</span>'
+          + '<span class="color-win">' + esc(gameLabel(wn)) + '</span>'
           + '</div>';
       } else {
-        html += '<div style="padding:0.18em 0 0.5em 0.5em;font-family:Oswald,sans-serif;'
-          + 'font-size:0.72em;font-weight:600;letter-spacing:0.05em;color:' + GOLD + '">'
+        html += '<div class="team-path-annotation team-path-annotation--terminal color-gold">'
           + 'WIN → CHAMP 🏆</div>';
       }
     }
@@ -659,13 +665,11 @@ function renderTeamView(){
       firstGid=sid;
   });
   if(!firstGid){
-    out.innerHTML='<div style="padding:1em;color:var(--text-mute);font-style:italic">No games found.</div>';
+    out.innerHTML='<div class="team-no-games">No games found.</div>';
     return;
   }
 
-  var html='<div style="padding:0.5em 0 0.25em;font-family:Oswald,sans-serif;font-size:0.78em;'
-    +'font-weight:600;color:var(--text-dim);letter-spacing:0.13em;text-transform:uppercase">'
-    +esc(team)+'</div>';
+  var html='<div class="team-view-name">'+esc(team)+'</div>';
 
   var winChain=buildWinChain(firstGid);
   var r0=results[firstGid]||{};
@@ -711,8 +715,7 @@ function renderTeamView(){
   });
 
   if(isEliminated(team,results)){
-    html+='<div style="margin:0.25em 0 1em;padding:0.5em 0.75em;border-radius:0.25em;'
-      +'background:var(--elim-bg);color:var(--elim-text);font-size:0.8em">Tournament run complete.</div>';
+    html+='<div class="team-elim-msg">Tournament run complete.</div>';
   }
 
   out.innerHTML=html;

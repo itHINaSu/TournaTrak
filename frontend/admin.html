@@ -40,9 +40,79 @@
     opacity: 0.7;
   }
   .empty-slot-card:hover { opacity: 1; }
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .login-box {
+    width: min(90vw, 340px);
+    background: var(--surface);
+    border: 0.07em solid var(--border);
+    border-radius: 0.5em;
+    padding: 2em 1.8em;
+  }
+  .login-title {
+    font-family: Oswald, sans-serif;
+    font-size: 1.1em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--blue-lt);
+    margin-bottom: 1.2em;
+  }
+  .login-error {
+    color: var(--clear-color);
+    font-size: 0.8em;
+    margin-bottom: 0.6em;
+    display: none;
+  }
 </style>
 </head>
 <body>
+
+<!-- Login overlay — visible until session check passes -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-title">Admin Login</div>
+    <form onsubmit="doLogin(event)">
+      <div class="sched-field">
+        <label>Username</label>
+        <input type="text" id="loginUser" autocomplete="username" placeholder="admin" value="admin">
+      </div>
+      <div class="sched-field">
+        <label>Password</label>
+        <input type="password" id="loginPass" autocomplete="current-password" placeholder="Password">
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <button type="submit" id="loginBtn" class="sched-save-btn login-btn">Sign In</button>
+    </form>
+  </div>
+</div>
+
+<!-- Change-password overlay — shown on first login when FORCE_PASSWORD_CHANGE=true -->
+<div class="login-overlay" id="changePasswordOverlay" style="display:none">
+  <div class="login-box">
+    <div class="login-title">Set a New Password</div>
+    <div class="login-desc">Choose a permanent password before continuing. Must be at least 8 characters.</div>
+    <form onsubmit="doFirstLoginPasswordChange(event)">
+      <div class="sched-field">
+        <label>New Password</label>
+        <input type="password" id="cpNewPass1" autocomplete="new-password" placeholder="At least 8 characters">
+      </div>
+      <div class="sched-field">
+        <label>Confirm Password</label>
+        <input type="password" id="cpNewPass2" autocomplete="new-password" placeholder="Confirm password">
+      </div>
+      <div class="login-error" id="cpError"></div>
+      <button type="submit" id="cpBtn" class="sched-save-btn login-btn">Set Password</button>
+    </form>
+  </div>
+</div>
 
 <header class="site-header" id="siteHeader">
   <div>
@@ -50,11 +120,12 @@
   </div>
   <div class="header-controls">
     <a href="/" class="admin-public-btn">← Public</a>
+    <button id="logoutBtn" class="admin-clear-btn" onclick="doLogout()" style="display:none">Sign Out</button>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
   </div>
 </header>
 
-<div class="admin-wrap">
+<div class="admin-wrap" id="adminWrap" style="display:none">
 
   <div class="admin-tab-bar">
     <div class="admin-tab active" data-tab="results">Results</div>
@@ -75,14 +146,14 @@
       Empty slots can be filled to create new games. Save All writes to schedule.json — public page picks up on reload.
     </div>
     <!-- Top action row -->
-    <div class="sched-action-row" style="margin-bottom:1em">
+    <div class="sched-action-row sched-action-row--top">
       <button class="sched-save-btn" id="schedSaveBtn" onclick="saveAllSchedule()">Save All Changes</button>
       <a href="/" class="admin-public-btn">↗ Public Page</a>
       <span class="sched-status" id="schedStatus"></span>
     </div>
     <div id="scheduleEditor"></div>
     <!-- Bottom action row (duplicated) -->
-    <div class="sched-action-row" style="margin-top:1.5em;padding-top:1em;border-top:0.07em solid var(--border)">
+    <div class="sched-action-row sched-action-row--bottom">
       <button class="sched-save-btn" onclick="saveAllSchedule()">Save All Changes</button>
       <a href="/" class="admin-public-btn">↗ Public Page</a>
       <span class="sched-status" id="schedStatusBottom"></span>
@@ -98,19 +169,19 @@
     <div class="settings-section">
       <div class="settings-section-hdr">Tournament Identity</div>
       <div class="settings-field">
-        <label>Tournament Name <span style="color:var(--text-mute);font-size:0.85em">(public page header)</span></label>
+        <label>Tournament Name <span class="field-label-hint">(public page header)</span></label>
         <input type="text" id="set-tournamentName" placeholder="e.g. Dedham Tournament 2026">
       </div>
       <div class="settings-field">
-        <label>Page Title <span style="color:var(--text-mute);font-size:0.85em">(browser tab)</span></label>
+        <label>Page Title <span class="field-label-hint">(browser tab)</span></label>
         <input type="text" id="set-pageTitle" placeholder="e.g. 2026 Dedham Tournament">
       </div>
       <div class="settings-field">
-        <label>Subtitle <span style="color:var(--text-mute);font-size:0.85em">(optional, below tournament name)</span></label>
+        <label>Subtitle <span class="field-label-hint">(optional, below tournament name)</span></label>
         <input type="text" id="set-subtitle" placeholder='e.g. 16" Softball · Carroll County'>
       </div>
       <div class="settings-field">
-        <label>Admin Panel Name <span style="color:var(--text-mute);font-size:0.85em">(this page's header)</span></label>
+        <label>Admin Panel Name <span class="field-label-hint">(this page's header)</span></label>
         <input type="text" id="set-adminName" placeholder="Tournament Admin">
       </div>
     </div>
@@ -129,9 +200,25 @@
       </div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:0.6em;margin-top:0.5em">
+    <div class="settings-save-row">
       <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
       <span class="sched-status" id="settingsStatus"></span>
+    </div>
+
+    <div class="settings-section" style="margin-top:1.5em">
+      <div class="settings-section-hdr">Admin Password</div>
+      <div class="settings-field">
+        <label>New Password</label>
+        <input type="password" id="setNewPass1" autocomplete="new-password" placeholder="At least 8 characters">
+      </div>
+      <div class="settings-field">
+        <label>Confirm New Password</label>
+        <input type="password" id="setNewPass2" autocomplete="new-password" placeholder="Confirm password">
+      </div>
+      <div class="settings-save-row">
+        <button class="sched-save-btn" onclick="savePassword()">Change Password</button>
+        <span class="sched-status" id="passwordStatus"></span>
+      </div>
     </div>
   </div>
 
@@ -222,10 +309,11 @@ async function saveSettings() {
     if (el) out[key] = el.value.trim();
   });
   try {
-    var r = await fetch('/api/settings', {
+    var r = await apiFetch('/api/settings', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(out)
     });
+    if (!r) return;
     if (!r.ok) throw new Error();
     settings = out;
     applySettingsToPage();
@@ -322,7 +410,7 @@ function renderAdmin() {
         html += '<div class="admin-game-row">'
           + '<span class="admin-game-id">' + esc(lbl) + '</span>'
           + '<span class="admin-game-time-display">' + esc(ft) + '</span>'
-          + '<span class="admin-game-teams" style="color:var(--text)">' + esc(t1) + ' vs ' + esc(t2) + '</span>'
+          + '<span class="admin-game-teams admin-game-teams--ready">' + esc(t1) + ' vs ' + esc(t2) + '</span>'
           + '<select class="admin-winner-sel" id="sel-' + sid + '">'
           + '<option value="">— winner —</option>'
           + '<option value="' + esc(t1) + '">' + esc(t1) + '</option>'
@@ -332,7 +420,7 @@ function renderAdmin() {
           + '</div>';
       } else {
         var missing = [!t1&&l1, !t2&&l2].filter(Boolean);
-        html += '<div class="admin-game-row" style="opacity:0.4">'
+        html += '<div class="admin-game-row admin-game-row--waiting">'
           + '<span class="admin-game-id">' + esc(lbl) + '</span>'
           + '<span class="admin-game-time-display">' + esc(ft) + '</span>'
           + '<span class="admin-game-teams admin-locked">Waiting: ' + esc(missing.join(', ')) + '</span>'
@@ -353,10 +441,11 @@ async function saveResult(sid) {
   var t2 = resolveSlot(g.t2, results);
   var loser = winner === t1 ? t2 : t1;
   try {
-    var r = await fetch('/api/results', {
+    var r = await apiFetch('/api/results', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ game: sid, winner: winner, loser: loser })
     });
+    if (!r) return;
     if (!r.ok) throw new Error();
     results[sid] = { winner: winner, loser: loser };
     showToast(gameLabel(sid) + ' saved — ' + winner + ' wins');
@@ -366,7 +455,8 @@ async function saveResult(sid) {
 
 async function clearResult(sid) {
   try {
-    var r = await fetch('/api/results/' + encodeURIComponent(sid), { method:'DELETE' });
+    var r = await apiFetch('/api/results/' + encodeURIComponent(sid), { method:'DELETE' });
+    if (!r) return;
     if (!r.ok) throw new Error();
     results[sid] = { winner: null, loser: null };
     showToast(gameLabel(sid) + ' cleared');
@@ -408,9 +498,9 @@ function sourceDropdown(idBase, currentType, currentSlot) {
     slotOpts += '</optgroup>';
   });
 
-  return '<div style="display:flex;gap:0.4em;align-items:center;flex-wrap:wrap">'
+  return '<div class="source-dropdown-row">'
     + '<select class="admin-winner-sel" id="' + idBase + '-type" style="min-width:5.5em">' + typeOpts + '</select>'
-    + '<span style="font-size:0.75em;color:var(--text-mute)">of</span>'
+    + '<span class="source-dropdown-sep">of</span>'
     + '<select class="admin-winner-sel" id="' + idBase + '-slot" style="min-width:12em">' + slotOpts + '</select>'
     + '</div>';
 }
@@ -428,7 +518,7 @@ function occupiedCard(sid) {
   var h = '<div class="sched-game-card">';
   h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
     + '<span class="sched-game-hdr-id">' + esc(lbl) + '</span>'
-    + '<span class="sched-game-hdr-id" style="color:var(--text-mute);font-size:0.65em">' + esc(sid) + '</span>'
+    + '<span class="sched-game-hdr-sid">' + esc(sid) + '</span>'
     + '<span class="sched-game-hdr-time">' + esc(formatTime(time)) + '</span>'
     + '<span class="sched-game-hdr-teams">' + esc(t1disp) + ' vs ' + esc(t2disp) + '</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
@@ -452,10 +542,9 @@ function occupiedCard(sid) {
   else h += sourceDropdown('st2-'+sid, over.t2type||g.t2.type, over.t2slot||g.t2.slot);
   h += '</div>';
 
-  h += '<div style="margin-top:0.6em;padding-top:0.6em;border-top:0.07em solid var(--border)">'
-    + '<button class="admin-clear-btn" onclick="clearSlot(\'' + sid + '\')" '
-    + 'style="border-color:var(--clear-border);color:var(--clear-color)">Clear Slot</button>'
-    + '<span style="font-size:0.65em;color:var(--text-mute);margin-left:0.6em">Removes this game entirely — slot returns to empty</span>'
+  h += '<div class="sched-game-footer">'
+    + '<button class="admin-clear-btn" onclick="clearSlot(\'' + sid + '\')">Clear Slot</button>'
+    + '<span class="sched-footer-note">Removes this game entirely — slot returns to empty</span>'
     + '</div>';
 
   h += '</div></div>';
@@ -466,13 +555,12 @@ function emptyCard(sid) {
   var over = schedule[sid] || {};
   var h = '<div class="empty-slot-card">';
   h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
-    + '<span class="sched-game-hdr-id" style="color:var(--text-mute)">' + sid + '</span>'
-    + '<span class="sched-game-hdr-teams" style="color:var(--text-mute);font-style:italic">— empty slot —</span>'
+    + '<span class="sched-game-hdr-sid">' + sid + '</span>'
+    + '<span class="sched-game-hdr-teams empty">— empty slot —</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
     + '</div>';
   h += '<div class="sched-game-body" id="sbody-' + sid + '">';
-  h += '<div style="font-size:0.72em;color:var(--text-mute);margin-bottom:0.6em;font-style:italic">'
-    + 'Fill this slot to create a new game. Requires a label and both teams. Save All to apply.</div>';
+  h += '<div class="empty-slot-instructions">Fill this slot to create a new game. Requires a label and both teams. Save All to apply.</div>';
   h += '<div class="sched-field"><label>Game Label</label>'
     + '<input type="text" id="slabel-' + sid + '" value="' + esc(over.label||'') + '" placeholder="e.g. G7"></div>';
   h += '<div class="sched-field"><label>Date &amp; Time</label>'
@@ -493,10 +581,11 @@ async function clearSlot(sid) {
   var out = Object.assign({}, schedule);
   out[sid] = { clear: true };
   try {
-    var r = await fetch('/api/schedule', {
+    var r = await apiFetch('/api/schedule', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(out)
     });
+    if (!r) return;
     if (!r.ok) throw new Error();
     schedule = out;
     if (typeof applySchedule === 'function') applySchedule(schedule);
@@ -521,8 +610,7 @@ function renderScheduleEditor() {
       var defs = SLOT_DEFS[round][side] || [];
       if (!defs.length) return;
       if (sides.length > 1) {
-        html += '<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.1em;'
-          +'text-transform:uppercase;color:var(--blue-lt);padding:0.4em 0 0.2em">'
+        html += '<div class="sched-side-label">'
           + (side==='L'?'Left Side':side==='R'?'Right Side':side) + '</div>';
       }
       defs.forEach(function(n){
@@ -588,10 +676,11 @@ async function saveAllSchedule() {
   });
 
   try {
-    var r = await fetch('/api/schedule', {
+    var r = await apiFetch('/api/schedule', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(out)
     });
+    if (!r) { btn.disabled = false; return; }
     if (!r.ok) throw new Error();
     schedule = out;
     if (typeof applySchedule === 'function') applySchedule(schedule);
@@ -612,7 +701,151 @@ async function saveAllSchedule() {
   btn.disabled = false;
 }
 
-fetchAll();
+// ── Auth ───────────────────────────────────────────────────────────────
+// Wrapper for mutation fetches: shows login overlay on 401 (session expired).
+async function apiFetch(url, opts) {
+  var r = await fetch(url, opts);
+  if (r.status === 401) { showLogin(); return null; }
+  return r;
+}
+
+function showAdmin() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('changePasswordOverlay').style.display = 'none';
+  document.getElementById('adminWrap').style.display = '';
+  document.getElementById('logoutBtn').style.display = '';
+  fetchAll();
+}
+
+function showLogin() {
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('changePasswordOverlay').style.display = 'none';
+  document.getElementById('adminWrap').style.display = 'none';
+  document.getElementById('logoutBtn').style.display = 'none';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+function showChangePassword() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('changePasswordOverlay').style.display = 'flex';
+  document.getElementById('adminWrap').style.display = 'none';
+  document.getElementById('logoutBtn').style.display = '';
+  document.getElementById('cpError').style.display = 'none';
+  document.getElementById('cpNewPass1').value = '';
+  document.getElementById('cpNewPass2').value = '';
+}
+
+async function doLogin(e) {
+  if (e) e.preventDefault();
+  var user  = document.getElementById('loginUser').value;
+  var pass  = document.getElementById('loginPass').value;
+  var btn   = document.getElementById('loginBtn');
+  var errEl = document.getElementById('loginError');
+  btn.disabled = true;
+  errEl.style.display = 'none';
+  try {
+    var r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    if (r.ok) {
+      var data = await r.json().catch(function(){ return {}; });
+      if (data.mustChangePassword) showChangePassword();
+      else showAdmin();
+    } else {
+      var data = await r.json().catch(function(){ return {}; });
+      errEl.textContent = data.error || 'Login failed';
+      errEl.style.display = 'block';
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error — try again';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false;
+}
+
+async function doLogout() {
+  await fetch('/api/logout', { method: 'POST' }).catch(function(){});
+  showLogin();
+}
+
+// Shared helper: validates, POSTs to /api/change-password, calls onSuccess or
+// writes error to errEl. Returns true on success.
+async function submitPasswordChange(p1, p2, errEl, onSuccess) {
+  errEl.style.display = 'none';
+  if (p1.length < 8) {
+    errEl.textContent = 'Password must be at least 8 characters';
+    errEl.style.display = 'block';
+    return false;
+  }
+  if (p1 !== p2) {
+    errEl.textContent = 'Passwords do not match';
+    errEl.style.display = 'block';
+    return false;
+  }
+  var r = await apiFetch('/api/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: p1 })
+  });
+  if (!r) return false; // 401 — login overlay shown
+  if (!r.ok) {
+    var data = await r.json().catch(function(){ return {}; });
+    errEl.textContent = data.error || 'Change failed';
+    errEl.style.display = 'block';
+    return false;
+  }
+  onSuccess();
+  return true;
+}
+
+// Called from the first-login forced-change overlay.
+async function doFirstLoginPasswordChange(e) {
+  if (e) e.preventDefault();
+  var btn = document.getElementById('cpBtn');
+  btn.disabled = true;
+  var ok = await submitPasswordChange(
+    document.getElementById('cpNewPass1').value,
+    document.getElementById('cpNewPass2').value,
+    document.getElementById('cpError'),
+    function() { showAdmin(); }
+  );
+  if (!ok) btn.disabled = false;
+}
+
+// Called from the Settings tab "Change Password" section.
+async function savePassword() {
+  var statusEl = document.getElementById('passwordStatus');
+  statusEl.textContent = '';
+  var ok = await submitPasswordChange(
+    document.getElementById('setNewPass1').value,
+    document.getElementById('setNewPass2').value,
+    statusEl,
+    function() {
+      document.getElementById('setNewPass1').value = '';
+      document.getElementById('setNewPass2').value = '';
+      showToast('Password changed');
+      statusEl.textContent = '✓ Changed';
+      setTimeout(function(){ statusEl.textContent = ''; }, 3000);
+    }
+  );
+}
+
+async function checkSession() {
+  try {
+    var r    = await fetch('/api/session');
+    var data = await r.json();
+    if (data.authenticated && data.mustChangePassword) showChangePassword();
+    else if (data.authenticated) showAdmin();
+    else showLogin();
+  } catch(e) {
+    showLogin();
+  }
+}
+
+checkSession();
 </script>
 </body>
 </html>

@@ -60,6 +60,17 @@ body {
   transition: background 0.2s, color 0.2s;
 }
 
+/* ── Header name block ── */
+.header-name-block { flex: 1; min-width: 0; }
+.site-subtitle {
+  display: none;
+  font-size: 0.65em;
+  color: var(--gold);
+  font-family: 'Oswald', sans-serif;
+  letter-spacing: 0.12em;
+  margin-top: 0.1em;
+}
+
 /* ── Header ── */
 .site-header {
   background: var(--surface);
@@ -360,6 +371,18 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   position: relative;
 }
 
+/* ── Carousel round column header (tablet + mobile) ── */
+.carousel-round-hdr {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.70rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold-lt);
+  text-align: center;
+  padding: 0.3em 0 0.5em;
+}
+
 /* ── Mobile bracket ── */
 .mobile-bracket-wrap {
   width: 85vw;
@@ -433,6 +456,67 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 
 /* ── Team view ── */
 .team-panel { max-width: 65em; margin: 0 auto; padding: 0 1em 1.5em; }
+.team-no-games { padding: 1em; color: var(--text-mute); font-style: italic; }
+.team-view-name {
+  padding: 0.5em 0 0.25em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78em;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+.team-elim-msg {
+  margin: 0.25em 0 1em;
+  padding: 0.5em 0.75em;
+  border-radius: 0.25em;
+  background: var(--elim-bg);
+  color: var(--elim-text);
+  font-size: 0.8em;
+}
+.team-path-annotation {
+  padding: 0.18em 0 0 0.5em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  display: flex;
+  gap: 0.25em;
+  align-items: center;
+}
+.team-path-annotation--terminal { padding-bottom: 0.5em; }
+.team-path-connector {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: 0 0 0 0.5em;
+  margin: 0.1em 0;
+}
+.team-path-connector-track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 1em;
+}
+.team-path-connector-line {
+  width: 0.07em;
+  height: 1.4em;
+  background: var(--win-color);
+}
+.team-path-connector-line.lose {
+  background: none;
+  border-left: 0.07em dashed var(--lose-color);
+}
+.team-path-win-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--win-color);
+}
+.color-win  { color: var(--win-color); }
+.color-lose { color: var(--lose-color); }
+.color-gold { color: var(--gold-lt); }
 .team-path-label { 
   padding: 0.6em 0.75em;
   font-size: 1.15rem;
@@ -457,6 +541,11 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .champ-team-slot { flex: 1; border: 0.07em solid var(--border); border-radius: 0.25em; padding: 0.5em 0.75em; font-size: 0.96rem; font-weight: 600; color: var(--text); background: var(--surface); }
 .champ-team-slot.tbd { color: var(--text-mute); font-style: italic; font-weight: 400; }
 .champ-winner-display { margin-top: 0.6em; text-align: center; font-family: 'Oswald', sans-serif; font-size: 0.95rem; color: var(--gold-lt); letter-spacing: 0.07em; }
+
+/* ── Login overlay helpers ── */
+.login-btn { width: 100%; margin-top: 0.25em; }
+.login-desc { font-size: 0.8em; color: var(--text-mute); margin-bottom: 1.2em; }
+.field-label-hint { color: var(--text-mute); font-size: 0.85em; }
 
 /* ── Admin ── */
 .admin-wrap { max-width: 65em; margin: 0 auto; padding: 1.2em 1em; }
@@ -502,6 +591,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .sched-game-hdr-id { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.07em; color: var(--blue-lt); }
 .sched-game-hdr-time { font-size: 0.78rem; color: var(--gold-lt); font-weight: 600; }
 .sched-game-hdr-teams { font-size: 0.82rem; color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sched-game-hdr-teams.empty { font-style: italic; }
 .sched-game-hdr-arrow { color: var(--text-mute); font-size: 0.72rem; margin-left: auto; }
 .sched-game-body { padding: 0.75em; display: none; }
 .sched-game-body.open { display: block; }
@@ -519,6 +609,38 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   align-items: center;
   gap: 0.6em;
   flex-wrap: wrap;
+}
+.sched-action-row--top  { margin-bottom: 1em; }
+.sched-action-row--bottom {
+  margin-top: 1.5em;
+  padding-top: 1em;
+  border-top: 0.07em solid var(--border);
+}
+.settings-save-row { display: flex; align-items: center; gap: 0.6em; margin-top: 0.5em; }
+.admin-game-row--waiting { opacity: 0.4; }
+.admin-game-teams--ready { color: var(--text); }
+.sched-game-hdr-sid { color: var(--text-mute); font-size: 0.65em; }
+.source-dropdown-row { display: flex; gap: 0.4em; align-items: center; flex-wrap: wrap; }
+.source-dropdown-sep { font-size: 0.75em; color: var(--text-mute); }
+.sched-game-footer {
+  margin-top: 0.6em;
+  padding-top: 0.6em;
+  border-top: 0.07em solid var(--border);
+}
+.sched-footer-note { font-size: 0.65em; color: var(--text-mute); margin-left: 0.6em; }
+.empty-slot-instructions {
+  font-size: 0.72em;
+  color: var(--text-mute);
+  margin-bottom: 0.6em;
+  font-style: italic;
+}
+.sched-side-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.6em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--blue-lt);
+  padding: 0.4em 0 0.2em;
 }
 
 /* Toast */
