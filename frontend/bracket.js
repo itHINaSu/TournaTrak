@@ -452,17 +452,24 @@ function champCardHTML(gid) {
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
   var ft = formatTime(g.time);
   return '<div class="mbc-champ-card">'
-    + '<div class="mbc-champ-trophy">🏆</div>'
-    + '<div class="mbc-champ-label">Championship</div>'
-    + (ft ? '<div class="mbc-champ-time">' + esc(ft) + '</div>' : '')
-    + '<div class="mbc-champ-team ' + c1 + '">' + esc(t1.name)
-    +   (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
+    + '<div class="mbc-champ-top">'
+    +   '<div class="mbc-champ-trophy">🏆</div>'
+    +   '<div class="mbc-champ-label">Championship</div>'
+    +   (ft ? '<div class="mbc-champ-time">' + esc(ft) + '</div>' : '')
     + '</div>'
-    + '<div class="mbc-champ-vs">vs</div>'
-    + '<div class="mbc-champ-team ' + c2 + '">' + esc(t2.name)
-    +   (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
+    + '<div class="mbc-champ-sep"></div>'
+    + '<div class="mbc-champ-teams">'
+    +   '<div class="mbc-champ-team ' + c1 + '">'
+    +     '<span class="mbc-champ-name">' + esc(t1.name) + '</span>'
+    +     (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
+    +   '</div>'
+    +   '<div class="mbc-champ-vs">vs</div>'
+    +   '<div class="mbc-champ-team ' + c2 + '">'
+    +     '<span class="mbc-champ-name">' + esc(t2.name) + '</span>'
+    +     (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
+    +   '</div>'
     + '</div>'
-    + (r.winner ? '<div class="mbc-champ-winner">' + esc(r.winner) + '</div>' : '')
+    + (r.winner ? '<div class="mbc-champ-winner">🏆 ' + esc(r.winner) + '</div>' : '')
     + '</div>';
 }
 
@@ -480,17 +487,19 @@ function mobileRoundCardHTML(gid) {
   // Header (top 25%), team 1 (37.5%), team 2 (37.5%)
   return '<div class="mbc-game-card' + upcoming + '">'
     + '<div class="mbc-game-mid">'
-    + '<span class="mbc-game-lbl">' + esc(gameLabel(gid)) + '</span>'
-    + '<span class="mbc-game-datetime">'
-    + (dayStr  ? '<span class="mbc-game-day">'  + esc(dayStr)  + '</span>' : '')
-    + (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
-    + '</span>'
+    +   '<span class="mbc-game-lbl">' + esc(gameLabel(gid)) + '</span>'
+    +   '<span class="mbc-game-datetime">'
+    +     (dayStr  ? '<span class="mbc-game-day">'  + esc(dayStr)  + '</span>' : '')
+    +     (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
+    +   '</span>'
     + '</div>'
-    + '<div class="mbc-game-team ' + c1 + '">' + esc(t1.name)
-    + (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
+    + '<div class="mbc-game-team ' + c1 + '">'
+    +   '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
+    +   (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
     + '</div>'
-    + '<div class="mbc-game-team ' + c2 + '">' + esc(t2.name)
-    + (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
+    + '<div class="mbc-game-team ' + c2 + '">'
+    +   '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
+    +   (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
     + '</div>'
     + '</div>';
 }
@@ -704,7 +713,17 @@ function renderMobileBracket(root, dims) {
     });
   });
 
-  // Horizontal scroll → blend
+  // Sync all non-active columns' scrollTop to match the active column.
+  // Called on touchend (immediate) and after horizontal snap settles.
+  function syncToActive() {
+    var top = colEls[activeIdx].querySelector('.mbc-scroll').scrollTop;
+    colEls.forEach(function(c, j) {
+      if (j !== activeIdx) c.querySelector('.mbc-scroll').scrollTop = top;
+    });
+  }
+
+  // Horizontal scroll → blend + snap-settle sync
+  var hSnapTimer = null;
   outer.addEventListener('scroll', function() {
     var x        = outer.scrollLeft;
     var idx      = Math.round(x / colW);
@@ -715,7 +734,31 @@ function renderMobileBracket(root, dims) {
     for (var j = 0; j < floorIdx; j++)                 applyBlend(j, 0);
     for (var j = floorIdx + 2; j < colEls.length; j++) applyBlend(j, 1);
     if (idx !== activeIdx) activeIdx = idx;
+    // After horizontal snap settles, align all columns to the new active column
+    clearTimeout(hSnapTimer);
+    hSnapTimer = setTimeout(syncToActive, 180);
   }, { passive: true });
+
+  // Vertical scroll sync: real-time during active touch only.
+  // We stop syncing once the finger lifts so iOS momentum runs uninterrupted.
+  var isTouchingScroll = false;
+  colEls.forEach(function(col, i) {
+    var scrollEl = col.querySelector('.mbc-scroll');
+    scrollEl.addEventListener('touchstart', function() {
+      if (i === activeIdx) isTouchingScroll = true;
+    }, { passive: true });
+    scrollEl.addEventListener('touchend', function() {
+      isTouchingScroll = false;
+      if (i === activeIdx) syncToActive();  // one final sync on finger lift
+    }, { passive: true });
+    scrollEl.addEventListener('scroll', function() {
+      if (i !== activeIdx || !isTouchingScroll) return;
+      var top = this.scrollTop;
+      colEls.forEach(function(c, j) {
+        if (j !== i) c.querySelector('.mbc-scroll').scrollTop = top;
+      });
+    }, { passive: true });
+  });
 }
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW

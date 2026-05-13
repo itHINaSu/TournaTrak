@@ -677,7 +677,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  touch-action: pan-y;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -695,58 +694,93 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   height: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35em;
-  background: linear-gradient(160deg, var(--surface2) 0%, #2a3820 100%);
-  border: 0.12em solid var(--gold);
+  background: linear-gradient(170deg, var(--surface2) 0%, #1e2e18 100%);
+  border: 0.15em solid var(--gold);
   border-radius: 0.7em;
-  box-shadow: 0 0 24px rgba(196,154,26,0.25), inset 0 1px 0 rgba(232,184,42,0.15);
-  padding: 1em 1.2em;
-  text-align: center;
+  box-shadow: 0 0 32px rgba(196,154,26,0.3), inset 0 1px 0 rgba(232,184,42,0.12);
+  overflow: hidden;
+}
+/* Top info block */
+.mbc-champ-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.9em 1em 0.7em;
+  gap: 0.2em;
+  flex-shrink: 0;
 }
 .mbc-champ-trophy {
-  font-size: 2.2rem;
+  font-size: calc(var(--mbc-card-h, 120px) * 0.22);
   line-height: 1;
-  filter: drop-shadow(0 2px 6px rgba(232,184,42,0.5));
+  filter: drop-shadow(0 2px 8px rgba(232,184,42,0.6));
 }
 .mbc-champ-label {
   font-family: 'Oswald', sans-serif;
-  font-size: 0.75rem;
+  font-size: calc(var(--mbc-card-h, 120px) * 0.115);
   font-weight: 600;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--gold);
 }
 .mbc-champ-time {
-  font-size: 0.72rem;
+  font-size: calc(var(--mbc-card-h, 120px) * 0.085);
   color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+/* Separator */
+.mbc-champ-sep {
+  height: 0.07em;
+  background: var(--gold);
+  opacity: 0.35;
+  flex-shrink: 0;
+  margin: 0 1.2em;
+}
+/* Teams block fills remaining height */
+.mbc-champ-teams {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5em 1.2em;
+  gap: 0.15em;
+  min-height: 0;
 }
 .mbc-champ-team {
   font-family: 'Barlow', sans-serif;
-  font-size: 1.05rem;
-  font-weight: 600;
+  font-size: calc(var(--mbc-card-h, 120px) * 0.155);
+  font-weight: 700;
   color: var(--text);
   display: flex;
   align-items: center;
   gap: 0.4em;
+  max-width: 100%;
 }
-.mbc-champ-team.tbd  { color: var(--text-mute); font-style: italic; }
+.mbc-champ-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.mbc-champ-team.tbd  { color: var(--text-mute); font-style: italic; font-weight: 400; font-size: calc(var(--mbc-card-h, 120px) * 0.115); }
 .mbc-champ-team.won  { color: var(--win-color); }
 .mbc-champ-team.lost { color: var(--lose-color); }
 .mbc-champ-vs {
-  font-size: 0.65rem;
+  font-size: calc(var(--mbc-card-h, 120px) * 0.075);
   color: var(--text-mute);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 .mbc-champ-winner {
-  margin-top: 0.3em;
+  flex-shrink: 0;
+  padding: 0.5em 1.2em 0.6em;
   font-family: 'Oswald', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: calc(var(--mbc-card-h, 120px) * 0.10);
+  font-weight: 700;
   color: var(--gold-lt);
   letter-spacing: 0.1em;
+  text-align: center;
+  border-top: 0.07em solid rgba(196,154,26,0.3);
 }
 
 /* Each card: absolute position, translateY driven by JS scroll blend */
@@ -778,20 +812,31 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   flex: 3;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 0.9em;
+  gap: 0.4em;
+  padding: 0 0.7em;
   font-family: 'Barlow', sans-serif;
-  /* ~55% of team-row height; row = 37.5% of CARD_H */
-  font-size: calc(var(--mbc-card-h, 120px) * 0.20);
+  font-size: calc(var(--mbc-card-h, 120px) * 0.155);
   font-weight: 700;
   color: var(--text);
   min-height: 0;
-  overflow: hidden;
-  white-space: nowrap;
+  min-width: 0;
 }
-.mbc-game-team.tbd  { color: var(--text-mute); font-style: italic; font-weight: 400; }
+.mbc-game-team.tbd  {
+  color: var(--text-mute);
+  font-style: italic;
+  font-weight: 400;
+  font-size: calc(var(--mbc-card-h, 120px) * 0.115);
+}
 .mbc-game-team.won  { color: var(--win-color); }
 .mbc-game-team.lost { color: var(--lose-color); }
+/* Name span: takes all space, truncates with ellipsis */
+.mbc-team-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* Header row gets 2 flex-units = 25% of card */
 .mbc-game-mid {
   flex: 2;
