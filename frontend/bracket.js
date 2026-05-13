@@ -443,106 +443,116 @@ function renderTabletBracket(root,dims){
     +cols+'</div>';
 }
 
-// ── Mobile: ESPN Tournament Challenge-style ───────────────────────────
-// One round per horizontal page (snap-scroll). Within each page, cards
-// are absolutely positioned at their bracket-tree Y midpoints so the
-// tournament tree visually converges as you swipe through rounds.
-// Total column height is constant across all rounds so the scroll range
-// never changes as you advance.
+// ── Mobile: round-game-card HTML for a game ──────────────────────────
+// Produces the same card style as the By Round view.
+function roundCardHTML(gid) {
+  var g = GAMES[gid];
+  if (!g) return '<div class="round-game-card"><div class="round-game-header">'
+    + '<span class="round-game-id">' + esc(gid) + '</span></div></div>';
+  var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
+  var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
+  var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
+  var ft = formatTime(g.time), dayStr = '', timeStr = ft;
+  var m = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
+  if (m) { dayStr = m[1]; timeStr = m[2]; }
+  return '<div class="round-game-card">'
+    + '<div class="round-game-header">'
+    + '<span class="round-game-id">' + esc(gameLabel(gid)) + '</span>'
+    + '<div class="round-game-day-time">'
+    + (dayStr  ? '<span class="round-game-day">'  + esc(dayStr)  + '</span>' : '')
+    + (timeStr ? '<span class="round-game-time">' + esc(timeStr) + '</span>' : '')
+    + '</div></div>'
+    + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
+    + (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
+    + '</div>'
+    + '<div class="round-team-row"><span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
+    + (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
+    + '</div>'
+    + '</div>';
+}
+
+// ── Mobile: two-column peek layout with convergence animation ─────────
+//
+// Layout: each round occupies colW = 80% of the screen. The snap scroll
+// container is 100% wide, so the current round is fully visible and the
+// next round peeks in at 20% (= 25% of the 80vw column width).
+//
+// Positioning:
+//   earlyY — evenly spaced cards with a small gap (used when a round is
+//             the active "early" column)
+//   lateY  — bracket-tree midpoints: each card sits at the average Y of
+//             its two source games, so the tree converges as you swipe
+//             (used when a round is peeking as the "late" column)
+//
+// Animation: the horizontal scroll progress (0→1 between snap points)
+// drives a linear blend from lateY→earlyY for the incoming round and
+// earlyY→lateY for the outgoing round. Vertical scroll is synced
+// between adjacent columns so lateY positions stay visually aligned.
 function renderMobileBracket(root, dims) {
-  var SLOT_VH  = 7.0;          // vertical space per R1 slot
-  var CARD_VH  = 5.8;          // card height (SLOT_VH * ~0.83)
-  var TOTAL_VH = 16 * SLOT_VH; // 112vh — same for every round
-  var PAD_PX   = 14;           // horizontal padding each side
+  var CARD_H = 134;  // approximate px height of a round-game-card at 16px base
+  var GAP    = 10;   // px gap between cards in early (current-round) mode
 
   var hdrH  = document.getElementById('siteHeader').getBoundingClientRect().height;
   var tabsH = document.getElementById('viewTabs').getBoundingClientRect().height;
   var viewH = window.innerHeight - hdrH - tabsH;
-  var cardW = window.innerWidth - 2 * PAD_PX;
+  var winW  = window.innerWidth;
+  var colW  = Math.round(winW * 0.80);  // 80% wide — next round peeks at remaining 20%
+  var padPx = 10;
+  var cardW = colW - 2 * padPx;
+  // Shared inner height: tall enough for all rounds at any position
+  var innerH = 16 * (CARD_H + GAP) + 24;
 
-  // ── 1. Compute Y positions via bracket-tree midpoints ─────────────
-  // R1 games are evenly spaced.  Later rounds are positioned at the
-  // vertical midpoint of the two source games so the tree converges
-  // naturally without any extra animation.
-  var gameY = {}; // gid → top of card in vh
+  var rounds = ['R1','R2','QF','SF','CHAMP'];
 
-  var r1Seq = slotsForRoundSide('R1','L').concat(slotsForRoundSide('R1','R'));
-  r1Seq.forEach(function(gid, i) { gameY[gid] = i * SLOT_VH; });
+  // Returns sorted gid list for a round: L side then R side (or C for CHAMP)
+  function gidsFor(round) {
+    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
+    var out = [];
+    sides.forEach(function(s) { out = out.concat(slotsForRoundSide(round, s)); });
+    return out;
+  }
 
+  // ── earlyY: evenly spaced, indexed within each round ─────────────
+  var earlyY = {};
+  rounds.forEach(function(round) {
+    gidsFor(round).forEach(function(gid, i) { earlyY[gid] = i * (CARD_H + GAP); });
+  });
+
+  // ── lateY: bracket-tree midpoints, with fallback + overlap fix ───
+  // lateY[gid] = midpoint of source games' earlyY centers, or earlyY[gid]
+  // if sources are missing (zero offset, no animation for that card).
+  var lateY = {};
   ['R2','QF','SF','CHAMP'].forEach(function(round) {
     var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
     sides.forEach(function(side) {
-      slotsForRoundSide(round, side).forEach(function(gid) {
+      var gids = slotsForRoundSide(round, side);
+      gids.forEach(function(gid) {
         var g = GAMES[gid]; if (!g) return;
         var srcMids = [g.t1, g.t2]
-          .filter(function(s) { return s && gameY[s.slot] !== undefined; })
-          .map(function(s) { return gameY[s.slot] + CARD_VH / 2; });
-        gameY[gid] = srcMids.length
-          ? srcMids.reduce(function(a,b){return a+b;},0) / srcMids.length - CARD_VH / 2
-          : TOTAL_VH / 2 - CARD_VH / 2;
+          .filter(function(s) { return s && earlyY[s.slot] !== undefined; })
+          .map(function(s)    { return earlyY[s.slot] + CARD_H / 2; });
+        lateY[gid] = srcMids.length
+          ? srcMids.reduce(function(a, b) { return a + b; }, 0) / srcMids.length - CARD_H / 2
+          : earlyY[gid] !== undefined ? earlyY[gid] : 0;
       });
+      // Spread any overlapping lateY values (minimum CARD_H + 4px between tops)
+      var sorted = gids.filter(function(g) { return lateY[g] !== undefined; })
+        .sort(function(a, b) { return lateY[a] - lateY[b]; });
+      for (var i = 1; i < sorted.length; i++) {
+        var minTop = lateY[sorted[i - 1]] + CARD_H + 4;
+        if (lateY[sorted[i]] < minTop) lateY[sorted[i]] = minTop;
+      }
     });
   });
 
-  // ── 2. Build SVG connector lines for a column ─────────────────────
-  // Draws bracket elbows on the right side of each card pair, pointing
-  // to where the next-round game sits.
-  function buildConnSVG(round) {
-    if (round === 'CHAMP') return '';
-    var nextRound = {R1:'R2', R2:'QF', QF:'SF', SF:'CHAMP'}[round];
-    if (!nextRound) return '';
-
-    var lc = 'var(--line-color)';
-    var lines = '';
-    var pctY = function(y) { return (y / TOTAL_VH * 100).toFixed(3); };
-
-    // For each next-round game, find its two sources in this round
-    var sides = nextRound === 'CHAMP' ? ['C'] : ['L','R'];
-    sides.forEach(function(side) {
-      slotsForRoundSide(nextRound, side).forEach(function(dstGid) {
-        var dg = GAMES[dstGid]; if (!dg) return;
-        var srcs = [dg.t1, dg.t2]
-          .filter(function(s){ return s && gameY[s.slot] !== undefined; });
-        if (!srcs.length) return;
-
-        var dstMidPct = pctY((gameY[dstGid] !== undefined ? gameY[dstGid] : 0) + CARD_VH / 2);
-
-        if (srcs.length === 2) {
-          var y1 = pctY(gameY[srcs[0].slot] + CARD_VH / 2);
-          var y2 = pctY(gameY[srcs[1].slot] + CARD_VH / 2);
-          // horizontal stubs from each card right edge to elbow
-          lines += '<line x1="78" y1="'+y1+'" x2="90" y2="'+y1+'" stroke="'+lc+'" stroke-width="0.5" vector-effect="non-scaling-stroke"/>';
-          lines += '<line x1="78" y1="'+y2+'" x2="90" y2="'+y2+'" stroke="'+lc+'" stroke-width="0.5" vector-effect="non-scaling-stroke"/>';
-          // vertical bar connecting both stubs
-          lines += '<line x1="90" y1="'+y1+'" x2="90" y2="'+y2+'" stroke="'+lc+'" stroke-width="0.5" vector-effect="non-scaling-stroke"/>';
-          // horizontal line to edge at dest midpoint
-          lines += '<line x1="90" y1="'+dstMidPct+'" x2="100" y2="'+dstMidPct+'" stroke="'+lc+'" stroke-width="0.5" vector-effect="non-scaling-stroke"/>';
-        } else {
-          var y1 = pctY(gameY[srcs[0].slot] + CARD_VH / 2);
-          lines += '<line x1="78" y1="'+y1+'" x2="90" y2="'+y1+'" stroke="'+lc+'" stroke-width="0.5" vector-effect="non-scaling-stroke"/>';
-          lines += '<line x1="90" y1="'+y1+'" x2="90" y2="'+dstMidPct+'" stroke="'+lc+'" stroke-width="0.5" vector-effect="non-scaling-stroke"/>';
-          lines += '<line x1="90" y1="'+dstMidPct+'" x2="100" y2="'+dstMidPct+'" stroke="'+lc+'" stroke-width="0.5" vector-effect="non-scaling-stroke"/>';
-        }
-      });
-    });
-
-    if (!lines) return '';
-    return '<svg class="mbc-conn-svg" viewBox="0 0 100 100" preserveAspectRatio="none">'
-      + lines + '</svg>';
-  }
-
-  // ── 3. Render columns ─────────────────────────────────────────────
-  var rounds = ['R1','R2','QF','SF','CHAMP'];
-
+  // ── Build column HTML ─────────────────────────────────────────────
   var colsHTML = rounds.map(function(round, ri) {
-    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
-    var gids  = [];
-    sides.forEach(function(s) { gids = gids.concat(slotsForRoundSide(round, s)); });
-
+    var gids = gidsFor(round);
     var cardsHTML = gids.map(function(gid) {
-      var topVh = gameY[gid] !== undefined ? gameY[gid] : 0;
-      return '<div class="mbc-card" style="top:' + topVh.toFixed(2) + 'vh">'
-        + '<div class="bc">' + cardHTML(gid) + '</div>'
+      var ey = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+      var ly = lateY[gid]  !== undefined ? lateY[gid]  : ey;
+      return '<div class="mbc-card" style="top:' + ey + 'px" data-late-offset="' + (ly - ey).toFixed(1) + '">'
+        + roundCardHTML(gid)
         + '</div>';
     }).join('');
 
@@ -550,21 +560,58 @@ function renderMobileBracket(root, dims) {
       return '<span class="mbc-dot' + (i === ri ? ' active' : '') + '"></span>';
     }).join('');
 
-    return '<div class="mbc-col">'
+    return '<div class="mbc-col" data-ri="' + ri + '" style="width:' + colW + 'px;flex:0 0 ' + colW + 'px">'
       + '<div class="mbc-hdr">'
       +   '<span class="mbc-hdr-label">' + esc(ROUND_LABELS[round]) + '</span>'
       +   '<span class="mbc-dots">' + dots + '</span>'
       + '</div>'
       + '<div class="mbc-scroll">'
-      +   '<div class="mbc-inner" style="height:' + TOTAL_VH + 'vh;width:' + cardW + 'px">'
-      +     buildConnSVG(round)
+      +   '<div class="mbc-inner" style="height:' + innerH + 'px;width:' + cardW + 'px">'
       +     cardsHTML
       +   '</div>'
       + '</div>'
       + '</div>';
   }).join('');
 
-  root.innerHTML = '<div class="mbc-outer" style="height:' + viewH + 'px">' + colsHTML + '</div>';
+  root.innerHTML = '<div class="mbc-outer" id="mbcOuter" style="height:' + viewH + 'px">'
+    + colsHTML + '</div>';
+
+  var outer  = document.getElementById('mbcOuter');
+  var colEls = Array.prototype.slice.call(outer.querySelectorAll('.mbc-col'));
+
+  // Apply blend factor (0=earlyY, 1=lateY) to all cards in a column
+  function applyBlend(ci, blend) {
+    if (ci < 0 || ci >= colEls.length) return;
+    var cards = colEls[ci].querySelectorAll('.mbc-card');
+    for (var k = 0; k < cards.length; k++) {
+      var off = parseFloat(cards[k].dataset.lateOffset) || 0;
+      cards[k].style.transform = off ? 'translateY(' + (off * blend).toFixed(1) + 'px)' : '';
+    }
+  }
+
+  // Initial state: column 0 is early, all others start at late positions
+  for (var i = 0; i < colEls.length; i++) { applyBlend(i, i === 0 ? 0 : 1); }
+
+  // Horizontal scroll drives the early↔late blend animation
+  outer.addEventListener('scroll', function() {
+    var x        = outer.scrollLeft;
+    var idx      = Math.floor(x / colW);
+    var progress = (x - idx * colW) / colW;  // 0..1 between snap points
+    applyBlend(idx,     progress);       // outgoing: drifts toward late
+    applyBlend(idx + 1, 1 - progress);   // incoming: consolidates to early
+    for (var j = 0; j < idx; j++)                 applyBlend(j, 0);  // past: early
+    for (var j = idx + 2; j < colEls.length; j++) applyBlend(j, 1);  // future: late
+  }, { passive: true });
+
+  // Sync vertical scroll between adjacent columns so lateY positions
+  // stay visually aligned with the earlyY positions they reference
+  colEls.forEach(function(col, i) {
+    var scrollEl = col.querySelector('.mbc-scroll');
+    scrollEl.addEventListener('scroll', function() {
+      var next = colEls[i + 1];
+      if (next) next.querySelector('.mbc-scroll').scrollTop = scrollEl.scrollTop;
+    }, { passive: true });
+  });
 }
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW
