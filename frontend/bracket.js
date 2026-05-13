@@ -473,16 +473,20 @@ function mobileRoundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
-  var ft = formatTime(g.time), timeStr = ft;
-  var m = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
-  if (m) timeStr = m[2];
+  var ft = formatTime(g.time), dayStr = '', timeStr = ft;
+  var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
+  if (m) { dayStr = m[1] + ' ' + m[2]; timeStr = m[3]; }
+  // Header (top 25%), team 1 (37.5%), team 2 (37.5%)
   return '<div class="mbc-game-card">'
-    + '<div class="mbc-game-team ' + c1 + '">' + esc(t1.name)
-    + (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
-    + '</div>'
     + '<div class="mbc-game-mid">'
     + '<span class="mbc-game-lbl">' + esc(gameLabel(gid)) + '</span>'
+    + '<span class="mbc-game-datetime">'
+    + (dayStr  ? '<span class="mbc-game-day">'  + esc(dayStr)  + '</span>' : '')
     + (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
+    + '</span>'
+    + '</div>'
+    + '<div class="mbc-game-team ' + c1 + '">' + esc(t1.name)
+    + (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
     + '</div>'
     + '<div class="mbc-game-team ' + c2 + '">' + esc(t2.name)
     + (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
@@ -545,6 +549,7 @@ function renderMobileBracket(root, dims) {
   var CARD_H      = Math.max(Math.floor(viewH / 4.5), 80);
   var CHAMP_CARD_H = Math.round(CARD_H * 1.8);
   var GAP         = Math.max(Math.round(CARD_H * 0.07), 6);
+  document.documentElement.style.setProperty('--mbc-card-h', CARD_H + 'px');
 
   var colW  = Math.round(winW * 0.80);
   var padPx = 12;
@@ -618,9 +623,15 @@ function renderMobileBracket(root, dims) {
       var nums = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
       nums.forEach(function(num) { curKeys.push(round + '.' + side + '.' + num); });
     });
-    // Game at slot index i sits centered between prev slots 2i and 2i+1
+    // Game at slot index i sits centered between prev slots 2i and 2i+1.
+    // CHAMP is always centered (lateY = earlyY) so it never shifts off-center
+    // when peeking from SF.
     curKeys.forEach(function(gid, i) {
       if (!GAMES[gid]) return;
+      if (round === 'CHAMP') {
+        lateY[gid] = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+        return;
+      }
       var p0 = prevKeys[2 * i], p1 = prevKeys[2 * i + 1];
       lateY[gid] = (p0 && p1 && earlyY[p0] !== undefined && earlyY[p1] !== undefined)
         ? (earlyY[p0] + earlyY[p1]) / 2
@@ -632,6 +643,9 @@ function renderMobileBracket(root, dims) {
   var colsHTML = rounds.map(function(round, ri) {
     var gids = gidsFor(round);
     var isChamp = round === 'CHAMP';
+    // Championship fills 100% of the viewport so SF can't peek in
+    var cWidth  = isChamp ? winW : colW;
+    var cCardW  = cWidth - 2 * padPx;
     var cardsHTML = gids.map(function(gid) {
       var ey = earlyY[gid] !== undefined ? earlyY[gid] : 0;
       var ly = lateY[gid]  !== undefined ? lateY[gid]  : ey;
@@ -646,13 +660,13 @@ function renderMobileBracket(root, dims) {
       return '<span class="mbc-dot' + (i === ri ? ' active' : '') + '"></span>';
     }).join('');
 
-    return '<div class="mbc-col" data-ri="' + ri + '" style="width:' + colW + 'px;flex:0 0 ' + colW + 'px">'
+    return '<div class="mbc-col" data-ri="' + ri + '" style="width:' + cWidth + 'px;flex:0 0 ' + cWidth + 'px">'
       + '<div class="mbc-hdr">'
       +   '<span class="mbc-hdr-label">' + esc(ROUND_LABELS[round]) + '</span>'
       +   '<span class="mbc-dots">' + dots + '</span>'
       + '</div>'
       + '<div class="mbc-scroll">'
-      +   '<div class="mbc-inner" style="height:' + roundInnerH(round) + 'px;width:' + cardW + 'px">'
+      +   '<div class="mbc-inner" style="height:' + roundInnerH(round) + 'px;width:' + cCardW + 'px">'
       +     cardsHTML
       +   '</div>'
       + '</div>'
