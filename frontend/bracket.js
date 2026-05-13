@@ -521,6 +521,9 @@ function renderMobileBracket(root, dims) {
   // ── lateY: bracket-tree midpoints, with fallback + overlap fix ───
   // lateY[gid] = midpoint of source games' earlyY centers, or earlyY[gid]
   // if sources are missing (zero offset, no animation for that card).
+  // Spread pass runs globally per round (L+R combined) so cross-side
+  // overlaps — e.g. loser-bracket games whose sources are on the opposite
+  // side — are also resolved.
   var lateY = {};
   ['R2','QF','SF','CHAMP'].forEach(function(round) {
     var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
@@ -535,14 +538,14 @@ function renderMobileBracket(root, dims) {
           ? srcMids.reduce(function(a, b) { return a + b; }, 0) / srcMids.length - CARD_H / 2
           : earlyY[gid] !== undefined ? earlyY[gid] : 0;
       });
-      // Spread any overlapping lateY values (minimum CARD_H + 4px between tops)
-      var sorted = gids.filter(function(g) { return lateY[g] !== undefined; })
-        .sort(function(a, b) { return lateY[a] - lateY[b]; });
-      for (var i = 1; i < sorted.length; i++) {
-        var minTop = lateY[sorted[i - 1]] + CARD_H + 4;
-        if (lateY[sorted[i]] < minTop) lateY[sorted[i]] = minTop;
-      }
     });
+    // Global spread: sort all games in this round by lateY and push apart
+    var allGids = gidsFor(round).filter(function(g) { return lateY[g] !== undefined; });
+    allGids.sort(function(a, b) { return lateY[a] - lateY[b]; });
+    for (var i = 1; i < allGids.length; i++) {
+      var minTop = lateY[allGids[i - 1]] + CARD_H + 4;
+      if (lateY[allGids[i]] < minTop) lateY[allGids[i]] = minTop;
+    }
   });
 
   // ── Build column HTML ─────────────────────────────────────────────
