@@ -79,18 +79,78 @@
 .admin-subtitle { font-size: 0.78em; color: var(--text-mute); margin-bottom: 1.2em; }
 .admin-section-hdr { font-family: 'Oswald', sans-serif; font-size: 0.95em; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--gold); padding: 0.6em 0 0.35em; border-bottom: 0.13em solid var(--gold); margin: 1.7em 0 0.85em; }
 .admin-round-hdr { font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); padding: 0.5em 0; border-bottom: 0.07em solid var(--border); margin: 1.2em 0 0.6em; }
-.admin-game-row { display: flex; align-items: center; gap: 0.6em; padding: 0.5em 0; border-bottom: 0.07em solid var(--border); flex-wrap: wrap; }
-.admin-game-id { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.07em; color: var(--blue-lt); width: 2.2em; flex-shrink: 0; }
-.admin-game-time-display { font-size: 0.76rem; color: var(--text-mute); width: 5.2em; flex-shrink: 0; }
-.admin-game-teams { flex: 1; font-size: 0.9rem; color: var(--text-dim); min-width: 7.5em; }
+/* Legacy selectors kept for schedule editor compatibility */
+.admin-game-id { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.07em; color: var(--blue-lt); flex-shrink: 0; }
 .admin-winner-sel { font-family: 'Barlow', sans-serif; font-size: 0.86rem; padding: 0.3em 0.5em; border-radius: 0.2em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; min-width: 9.4em; }
 .admin-winner-sel:focus { outline: 0.13em solid var(--blue-lt); }
-.admin-save-btn { font-family: 'Oswald', sans-serif; font-size: 0.65em; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.32em 0.75em; border-radius: 0.2em; border: 0.07em solid var(--blue); background: var(--blue); color: #fff; cursor: pointer; }
+.admin-save-btn { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.55em 1.1em; border-radius: 0.2em; border: 0.07em solid var(--blue); background: var(--blue); color: #fff; cursor: pointer; white-space: nowrap; }
 .admin-save-btn:hover { background: var(--blue-lt); border-color: var(--blue-lt); }
-.admin-set-label { font-size: 0.84rem; color: var(--win-color); font-weight: 600; }
 .admin-locked { font-size: 0.74rem; color: var(--text-mute); font-style: italic; }
 .admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.25em 0.62em; border-radius: 0.2em; border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
 .admin-clear-btn:hover { background: rgba(192,80,80,0.1); }
+
+/* ── Results tab: card layout (mirrors By Round view) ── */
+.admin-res-card {
+  border: 0.07em solid var(--border);
+  border-radius: 0.6em;
+  overflow: hidden;
+  background: var(--surface);
+  margin-bottom: 1.4em;
+}
+.admin-res-card--waiting { opacity: 0.45; }
+
+.admin-res-hdr {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.7em 1em 0.6em;
+  background: var(--surface2);
+  border-bottom: 0.07em solid var(--border);
+}
+.admin-res-dt {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45em;
+  flex: 1;
+}
+.admin-res-day  { font-family: 'Oswald', sans-serif; font-size: clamp(1.1rem, 0.18vw + 1.05rem, 1.4rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
+.admin-res-time { font-family: 'Oswald', sans-serif; font-size: clamp(1.1rem, 0.18vw + 1.05rem, 1.4rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
+
+.admin-res-team-row {
+  display: flex;
+  align-items: center;
+  padding: 0.8em 1em;
+  border-bottom: 0.07em solid var(--border);
+  min-height: 3em;
+  gap: 0.6em;
+}
+.admin-res-team-row:last-of-type { border-bottom: none; }
+.admin-res-team { font-size: clamp(0.96rem, 0.05vw + 0.95rem, 1.06rem); font-weight: 600; flex: 1; }
+.admin-res-team.won  { color: var(--win-color); }
+.admin-res-team.lost { color: var(--lose-color); }
+
+.admin-res-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.7em 1em;
+  border-top: 0.07em solid var(--border);
+  background: var(--surface2);
+  flex-wrap: wrap;
+}
+.admin-res-footer .admin-winner-sel { flex: 1; min-width: 0; }
+
+.admin-res-waiting {
+  padding: 0.75em 1em;
+  font-size: 0.82rem;
+  color: var(--text-mute);
+  font-style: italic;
+}
+
+/* W/L badges — duplicated from bracket.css so admin page doesn't need that stylesheet */
+.result-badge { font-family: 'Oswald', sans-serif; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em; padding: 0.18em 0.55em; border-radius: 0.2em; flex-shrink: 0; }
+.result-badge.w { background: rgba(74,154,74,0.2);   color: var(--win-color);  border: 0.07em solid rgba(74,154,74,0.3); }
+.result-badge.l { background: rgba(192,80,80,0.15); color: var(--lose-color); border: 0.07em solid rgba(192,80,80,0.25); }
 
 /* Public page link button */
 .admin-public-btn {

@@ -149,7 +149,7 @@ function renderAdmin() {
   ROUND_ORDER.forEach(function(round){
     var sids = Object.keys(GAMES)
       .filter(function(s){ return GAMES[s].round === round; })
-      .sort(function(a,b){ return GAMES[a].num - GAMES[b].num; });
+      .sort(function(a,b){ return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time) || GAMES[a].num - GAMES[b].num; });
     if (!sids.length) return;
 
     html += '<div class="admin-round-hdr">' + ROUND_LABELS[round] + '</div>';
@@ -164,34 +164,46 @@ function renderAdmin() {
       var set  = !!r.winner;
       var both = t1 && t2;
       var lbl  = g.label || sid;
-      var ft   = (typeof formatTime === 'function') ? formatTime(g.time) : g.time;
+
+      var ft  = (typeof formatTime === 'function') ? formatTime(g.time) : (g.time || '');
+      var dayStr = '', timeStr = ft;
+      var tm = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
+      if (tm) { dayStr = tm[1]; timeStr = tm[2]; }
+
+      var hdr = '<div class="admin-res-hdr">'
+        + '<span class="admin-game-id">' + esc(lbl) + '</span>'
+        + '<div class="admin-res-dt">'
+        + (dayStr  ? '<span class="admin-res-day">'  + esc(dayStr)  + '</span>' : '')
+        + (timeStr ? '<span class="admin-res-time">' + esc(timeStr) + '</span>' : '')
+        + '</div></div>';
 
       if (set) {
-        html += '<div class="admin-game-row">'
-          + '<span class="admin-game-id">' + esc(lbl) + '</span>'
-          + '<span class="admin-game-time-display">' + esc(ft) + '</span>'
-          + '<span class="admin-game-teams">' + esc(t1) + ' vs ' + esc(t2) + '</span>'
-          + '<span class="admin-set-label">✓ ' + esc(r.winner) + '</span>'
+        var c1 = r.winner === t1 ? 'won' : 'lost';
+        var c2 = r.winner === t2 ? 'won' : 'lost';
+        html += '<div class="admin-res-card">' + hdr
+          + '<div class="admin-res-team-row"><span class="admin-res-team ' + c1 + '">' + esc(t1) + '</span>'
+          + '<span class="result-badge ' + (c1==='won'?'w':'l') + '">' + (c1==='won'?'W':'L') + '</span></div>'
+          + '<div class="admin-res-team-row"><span class="admin-res-team ' + c2 + '">' + esc(t2) + '</span>'
+          + '<span class="result-badge ' + (c2==='won'?'w':'l') + '">' + (c2==='won'?'W':'L') + '</span></div>'
+          + '<div class="admin-res-footer">'
           + '<button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button>'
-          + '</div>';
+          + '</div></div>';
       } else if (both) {
-        html += '<div class="admin-game-row">'
-          + '<span class="admin-game-id">' + esc(lbl) + '</span>'
-          + '<span class="admin-game-time-display">' + esc(ft) + '</span>'
-          + '<span class="admin-game-teams admin-game-teams--ready">' + esc(t1) + ' vs ' + esc(t2) + '</span>'
+        html += '<div class="admin-res-card">' + hdr
+          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span></div>'
+          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span></div>'
+          + '<div class="admin-res-footer">'
           + '<select class="admin-winner-sel" id="sel-' + sid + '">'
           + '<option value="">— winner —</option>'
           + '<option value="' + esc(t1) + '">' + esc(t1) + '</option>'
           + '<option value="' + esc(t2) + '">' + esc(t2) + '</option>'
           + '</select>'
           + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Save</button>'
-          + '</div>';
+          + '</div></div>';
       } else {
         var missing = [!t1&&l1, !t2&&l2].filter(Boolean);
-        html += '<div class="admin-game-row admin-game-row--waiting">'
-          + '<span class="admin-game-id">' + esc(lbl) + '</span>'
-          + '<span class="admin-game-time-display">' + esc(ft) + '</span>'
-          + '<span class="admin-game-teams admin-locked">Waiting: ' + esc(missing.join(', ')) + '</span>'
+        html += '<div class="admin-res-card admin-res-card--waiting">' + hdr
+          + '<div class="admin-res-waiting">Waiting: ' + esc(missing.join(', ')) + '</div>'
           + '</div>';
       }
     });

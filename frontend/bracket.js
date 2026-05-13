@@ -49,6 +49,17 @@ function updateTimestamp() {
 }
 
 // ══════════════════════════════════════════════════════════
+// COOKIES
+// ══════════════════════════════════════════════════════════
+function setCookie(name, val) {
+  document.cookie = name + '=' + encodeURIComponent(val) + ';max-age=31536000;path=/';
+}
+function getCookie(name) {
+  var m = document.cookie.match('(?:^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+// ══════════════════════════════════════════════════════════
 // THEME
 // ══════════════════════════════════════════════════════════
 var themeBtn=document.getElementById('themeToggle');
@@ -71,13 +82,14 @@ document.querySelectorAll('.view-tab').forEach(function(tab){
     document.querySelectorAll('.view-panel').forEach(function(p){p.classList.remove('active');});
     tab.classList.add('active');
     document.getElementById('view-'+tab.dataset.view).classList.add('active');
+    setCookie('tt_tab', tab.dataset.view);
     renderActive();
   });
 });
 function renderActive(){
   var v=activeView();
   if(v==='bracket') renderBracket();
-  if(v==='rounds')  renderRoundView();
+  if(v==='rounds')  { renderRoundView(); setTimeout(function(){ scrollToRound(firstIncompleteRound()); }, 60); }
   if(v==='teams')   renderTeamView();
 }
 
@@ -97,6 +109,28 @@ async function fetchAll(){
   applySettings();
   updateTimestamp();
   populateTeamSelect();
+
+  // Restore saved tab
+  var savedTab = getCookie('tt_tab');
+  if (savedTab) {
+    var targetTab   = document.querySelector('.view-tab[data-view="' + savedTab + '"]');
+    var targetPanel = document.getElementById('view-' + savedTab);
+    if (targetTab && targetPanel) {
+      document.querySelectorAll('.view-tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelectorAll('.view-panel').forEach(function(p){ p.classList.remove('active'); });
+      targetTab.classList.add('active');
+      targetPanel.classList.add('active');
+    }
+  }
+
+  // Restore saved team selection
+  var savedTeam = getCookie('tt_team');
+  var tSel = document.getElementById('teamSelect');
+  if (savedTeam && tSel) tSel.value = savedTeam;
+
+  // Measure header heights so sticky offsets can be applied
+  applyStickyOffsets();
+
   renderActive();
 }
 var resizeTimer;
@@ -454,42 +488,110 @@ function renderMobileBracket(root,dims){
 // formatTime now returns 'm/d Fullday H:MM AM' so split on
 // the space before the time portion (last two tokens).
 // ══════════════════════════════════════════════════════════
-document.getElementById('roundSelect').addEventListener('change',renderRoundView);
-function renderRoundView(){
-  var round=document.getElementById('roundSelect').value;
-  var sids=Object.keys(GAMES)
-    .filter(function(sid){ return GAMES[sid].round===round; })
-    .sort(function(a,b){ return parseTimeVal(GAMES[a].time)-parseTimeVal(GAMES[b].time); });
-  document.getElementById('roundGames').innerHTML=sids.map(function(sid){
-    var g=GAMES[sid]; if(!g) return '';
-    var t1=disp(sid,g.t1), t2=disp(sid,g.t2), r=results[sid]||{};
-    var ft=formatTime(g.time);
-    var dayStr='', timeStr=ft;
-    var m=ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
-    if(m){ dayStr=m[1]; timeStr=m[2]; }
-    var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
-    var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
-    return '<div class="round-game-card">'
-      +'<div class="round-game-header">'
-      +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
-      +'<div class="round-game-day-time">'
-      +'<span class="round-game-day">'+esc(dayStr)+'</span>'
-      +'<span class="round-game-time">'+esc(timeStr)+'</span>'
-      +'</div></div>'
-      +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
-      +(r.winner?'<span class="result-badge '+(t1.won?'w':'l')+'">'+(t1.won?'W':'L')+'</span>':'')
-      +'</div>'
-      +'<div class="round-team-row"><span class="round-team-name '+c2+'">'+esc(t2.name)+'</span>'
-      +(r.winner?'<span class="result-badge '+(t2.won?'w':'l')+'">'+(t2.won?'W':'L')+'</span>':'')
-      +'</div></div>';
-  }).join('');
+// ── Sticky offset helpers ─────────────────────────────────
+function applyStickyOffsets() {
+  var hdrH  = document.getElementById('siteHeader').offsetHeight;
+  var tabsH = document.getElementById('viewTabs').offsetHeight;
+  var r = document.documentElement.style;
+  r.setProperty('--hdr-h',  hdrH  + 'px');
+  r.setProperty('--tabs-h', tabsH + 'px');
+}
+
+function stickyNavH() {
+  var hdr = document.getElementById('siteHeader');
+  var tabs = document.getElementById('viewTabs');
+  var sel  = document.querySelector('#view-rounds .selector-row');
+  return (hdr  ? hdr.offsetHeight  : 0)
+       + (tabs ? tabs.offsetHeight : 0)
+       + (sel && sel.offsetParent !== null ? sel.offsetHeight : 0);
+}
+
+// ── Round navigation ──────────────────────────────────────
+function firstIncompleteRound() {
+  var rounds = ['R1','R2','QF','SF','CHAMP'];
+  for (var i = 0; i < rounds.length; i++) {
+    var r = rounds[i];
+    var sids = Object.keys(GAMES).filter(function(s){ return GAMES[s].round === r; });
+    if (!sids.length) continue;
+    if (!sids.every(function(s){ return results[s] && results[s].winner; })) return r;
+  }
+  return 'CHAMP';
+}
+
+function scrollToRound(round) {
+  var el = document.getElementById('round-section-' + round);
+  if (!el) return;
+  var offset = stickyNavH();
+  var top = el.getBoundingClientRect().top + window.scrollY - offset - 4;
+  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  document.getElementById('roundSelect').value = round;
+}
+
+var roundObserver = null;
+function setupRoundObserver() {
+  if (roundObserver) { roundObserver.disconnect(); roundObserver = null; }
+  if (!window.IntersectionObserver) return;
+  var navH = stickyNavH();
+  roundObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (e.isIntersecting) document.getElementById('roundSelect').value = e.target.dataset.round;
+    });
+  }, { rootMargin: '-' + (navH + 1) + 'px 0px -70% 0px', threshold: 0 });
+  ['R1','R2','QF','SF','CHAMP'].forEach(function(r) {
+    var el = document.getElementById('round-section-' + r);
+    if (el) roundObserver.observe(el);
+  });
+}
+
+// Round selector navigates to section (doesn't re-render)
+document.getElementById('roundSelect').addEventListener('change', function() {
+  scrollToRound(this.value);
+});
+
+function renderRoundView() {
+  var rounds = ['R1','R2','QF','SF','CHAMP'];
+  var html = '';
+  rounds.forEach(function(round) {
+    var sids = Object.keys(GAMES)
+      .filter(function(sid){ return GAMES[sid].round === round; })
+      .sort(function(a,b){ return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time); });
+    if (!sids.length) return;
+    html += '<div class="round-section" id="round-section-' + round + '" data-round="' + round + '">';
+    html += '<div class="round-section-hdr">' + esc(ROUND_LABELS[round]) + '</div>';
+    sids.forEach(function(sid) {
+      var g=GAMES[sid]; if(!g) return;
+      var t1=disp(sid,g.t1), t2=disp(sid,g.t2), r=results[sid]||{};
+      var ft=formatTime(g.time);
+      var dayStr='', timeStr=ft;
+      var m=ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
+      if(m){ dayStr=m[1]; timeStr=m[2]; }
+      var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
+      var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
+      html += '<div class="round-game-card">'
+        +'<div class="round-game-header">'
+        +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
+        +'<div class="round-game-day-time">'
+        +'<span class="round-game-day">'+esc(dayStr)+'</span>'
+        +'<span class="round-game-time">'+esc(timeStr)+'</span>'
+        +'</div></div>'
+        +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
+        +(r.winner?'<span class="result-badge '+(t1.won?'w':'l')+'">'+(t1.won?'W':'L')+'</span>':'')
+        +'</div>'
+        +'<div class="round-team-row"><span class="round-team-name '+c2+'">'+esc(t2.name)+'</span>'
+        +(r.winner?'<span class="result-badge '+(t2.won?'w':'l')+'">'+(t2.won?'W':'L')+'</span>':'')
+        +'</div></div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('roundGames').innerHTML = html;
+  setupRoundObserver();
 }
 
 // ══════════════════════════════════════════════════════════
 // TEAM VIEW
 // ══════════════════════════════════════════════════════════
 var teamSel=document.getElementById('teamSelect');
-teamSel.addEventListener('change',renderTeamView);
+teamSel.addEventListener('change',function(){ setCookie('tt_team', teamSel.value); renderTeamView(); });
 
 function populateTeamSelect(){
   while(teamSel.options.length>1) teamSel.remove(1);
