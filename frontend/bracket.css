@@ -24,11 +24,19 @@
   transition: all 0.15s;
   min-height: 3em;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 0.3em;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
+.tab-icon {
+  width: 1.4em; height: 1.4em;
+  flex-shrink: 0;
+  display: none; /* shown only on mobile via media query */
+}
+.tab-label { line-height: 1; }
 .view-tab.active { color: var(--blue-lt); border-bottom-color: var(--blue-lt); }
 .view-tab:active { background: rgba(255,255,255,0.04); }
 
@@ -754,40 +762,53 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
    MOBILE — tabs + selector fixed to bottom
    ════════════════════════════════════════════════════════════ */
 @media (max-width: 1023px) {
-  /* Taller tab bar, lighter background, lifted shadow */
+  /* Tab bar: noticeably darker than page surface to read as a distinct object */
   .view-tabs {
     position: fixed;
     top: auto;
     bottom: 0;
     left: 0;
     right: 0;
-    background: var(--surface2);
-    border-top: 0.15em solid var(--gold);
+    background: #0a0e0b;
+    border-top: 0.22em solid var(--gold);
     border-bottom: none;
-    box-shadow: 0 -4px 16px rgba(0,0,0,0.35);
+    box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     z-index: 90;
   }
   .view-tab {
     min-height: 7em;
-    padding: 1.8em 0.3em;
+    padding: 1.4em 0.3em 1.2em;
     border-bottom: none;
-    border-top: 0.22em solid transparent;
+    border-top: 0.25em solid transparent;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    gap: 0.45em;
+  }
+  .tab-icon {
+    display: block;
+    width: 1.9em;
+    height: 1.9em;
   }
   .view-tab.active {
-    border-top-color: var(--blue-lt);
+    color: var(--gold-lt);
+    border-top-color: var(--gold);
+  }
+  .view-tab.active .tab-icon {
+    color: var(--gold-lt);
   }
 
-  /* Selector row: fixed directly above the tab bar */
+  /* Selector row: thick gold top bar creates a clear break with content above */
   .selector-row {
     position: fixed;
     top: auto;
     bottom: calc(var(--tabs-h, 4em) + env(safe-area-inset-bottom, 0px));
     left: 0;
     right: 0;
-    border-top: 0.07em solid var(--border);
+    background: var(--surface);
+    border-top: 0.3em solid var(--gold);
     border-bottom: none;
-    box-shadow: 0 -2px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.4);
     z-index: 85;
   }
 
