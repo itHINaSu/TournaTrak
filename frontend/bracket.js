@@ -926,14 +926,12 @@ function buildWinChain(sid){
 }
 
 function makeVerticalChain(chain, team, isLosePath) {
-  var RED   = 'var(--lose-color)';
   var GREEN = 'var(--win-color)';
-  var GOLD  = 'var(--gold-lt)';
-  var LINECOLOR = 'var(--line-color)';
 
   var html = '';
 
-  chain.forEach(function(gid, i) {
+  for (var i = 0; i < chain.length; i++) {
+    var gid = chain[i];
     var g = GAMES[gid], r = results[gid] || {};
     var teamWon  = r.winner === team;
     var teamLost = r.loser  === team;
@@ -947,7 +945,7 @@ function makeVerticalChain(chain, team, isLosePath) {
 
     var borderColor = 'var(--border)';
     if (played && teamWon)  borderColor = GREEN;
-    if (played && teamLost) borderColor = RED;
+    if (played && teamLost) borderColor = 'var(--lose-color)';
     if (!played && i === 0 && !isLosePath) borderColor = 'var(--blue-lt)';
 
     html += '<div class="round-game-card" style="border-color:' + borderColor + '">'
@@ -968,14 +966,16 @@ function makeVerticalChain(chain, team, isLosePath) {
       + '</div>'
       + '</div>';
 
+    // Team lost this game — win path ends here; remaining games are unreachable
+    if (played && teamLost) break;
+
     if (!played || teamWon) {
       var ln = findNextSlot(gid, 'loser');
       var destText = ln ? gameLabel(ln) : 'OUT';
       var destCls  = ln ? 'color-win' : 'color-lose';
-      var arrowCls = destCls;
       html += '<div class="team-path-annotation">'
         + '<span class="color-lose">LOSE</span>'
-        + '<span class="' + arrowCls + '">→</span>'
+        + '<span class="' + destCls + '">→</span>'
         + '<span class="' + destCls + '">' + esc(destText) + '</span>'
         + '</div>';
     }
@@ -1002,7 +1002,7 @@ function makeVerticalChain(chain, team, isLosePath) {
           + 'WIN → CHAMP 🏆</div>';
       }
     }
-  });
+  }
 
   return html;
 }

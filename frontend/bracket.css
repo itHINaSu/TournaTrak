@@ -932,6 +932,42 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   #view-rounds, #view-teams {
     padding-bottom: calc(var(--tabs-h, 4em) + var(--sel-h, 5em) + env(safe-area-inset-bottom, 0px) + 0.5em);
   }
+
+  /* ── Team view mobile overrides ── */
+  .team-chips-grid {
+    gap: 0.6em;
+    padding: 0.6em 1em 2em;
+  }
+  .team-chip {
+    padding: 0.65em 1.4em;
+    font-size: 1rem;
+    min-height: 2.75em;
+  }
+  .team-path-label {
+    font-size: 1.05rem;
+    padding: 0.7em 1em;
+  }
+  .round-game-card {
+    margin-bottom: 1em;
+  }
+  .round-game-header {
+    padding: 0.55em 0.9em;
+  }
+  .round-team-row {
+    padding: 0.85em 0.9em;
+    min-height: 3.6em;
+  }
+  .round-team-name {
+    font-size: 1.05rem;
+  }
+  .result-badge {
+    font-size: 0.85rem;
+    padding: 0.25em 0.65em;
+  }
+  .team-view-name {
+    font-size: 1rem;
+    padding: 0.6em 0 0.3em;
+  }
 }
 
 @print {
