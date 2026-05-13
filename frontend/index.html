@@ -62,6 +62,7 @@
 // STATE
 // ══════════════════════════════════════════════════════════
 var results={}, schedule={}, settings={};
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 var SETTING_DEFAULTS = {
   tournamentName: 'Tournament Bracket',
@@ -250,15 +251,15 @@ function applyCSSVars(dims){
 // ══════════════════════════════════════════════════════════
 function cardHTML(gid){
   var g=GAMES[gid];
-  if(!g) return '<div class="bc-hdr"><span class="bc-id">'+gid+'</span></div>'
+  if(!g) return '<div class="bc-hdr"><span class="bc-id">'+esc(gid)+'</span></div>'
     +'<div class="bc-team tbd">TBD</div><div class="bc-team tbd">TBD</div>';
   var t1=disp(gid,g.t1), t2=disp(gid,g.t2);
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
-  return '<div class="bc-hdr"><span class="bc-id">'+gameLabel(gid)+'</span>'
-    +'<span class="bc-time">'+formatTime(g.time)+'</span></div>'
-    +'<div class="bc-team '+c1+'">'+t1.name+'</div>'
-    +'<div class="bc-team '+c2+'">'+t2.name+'</div>';
+  return '<div class="bc-hdr"><span class="bc-id">'+esc(gameLabel(gid))+'</span>'
+    +'<span class="bc-time">'+esc(formatTime(g.time))+'</span></div>'
+    +'<div class="bc-team '+c1+'">'+esc(t1.name)+'</div>'
+    +'<div class="bc-team '+c2+'">'+esc(t2.name)+'</div>';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -370,7 +371,7 @@ function renderDesktopBracket(root,dims){
     return '<div style="position:relative;flex:1;min-width:0;display:flex;'
       +(isRight?'justify-content:flex-start':'justify-content:flex-end')+'">'
       +'<div style="position:relative">'
-      +'<div class="bracket-side-label" style="position:absolute;top:calc(var(--col-hdr-h)*-2.2);'+labelAlign+'">'+label+'</div>'
+      +'<div class="bracket-side-label" style="position:absolute;top:calc(var(--col-hdr-h)*-2.2);'+labelAlign+'">'+esc(label)+'</div>'
       +'<div style="display:flex;flex-direction:row;margin-top:'+hdrVh+'vh">'+html+'</div>'
       +'</div></div>';
   }
@@ -391,10 +392,10 @@ function renderDesktopBracket(root,dims){
       +'<div style="text-align:center;margin-bottom:0.3vh">'
       +'<div style="font-size:clamp(1rem,1.5vw,1.6rem)">🏆</div>'
       +'<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:0.15em">Championship</div>'
-      +'<div style="font-size:0.62em;color:var(--gold-lt);font-weight:600;margin-bottom:0.3em">'+formatTime(champG.time)+'</div>'
+      +'<div style="font-size:0.62em;color:var(--gold-lt);font-weight:600;margin-bottom:0.3em">'+esc(formatTime(champG.time))+'</div>'
       +'</div>'
       +'<div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP.C.1')+'</div>'
-      +(cr.winner?'<div style="font-family:Oswald,sans-serif;font-size:0.85em;color:var(--gold-lt);text-align:center;margin-top:0.4em;letter-spacing:0.07em">'+cr.winner+'</div>':'')
+      +(cr.winner?'<div style="font-family:Oswald,sans-serif;font-size:0.85em;color:var(--gold-lt);text-align:center;margin-top:0.4em;letter-spacing:0.07em">'+esc(cr.winner)+'</div>':'')
       +'</div></div>';
   }
 
@@ -505,15 +506,15 @@ function renderRoundView(){
     var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
     return '<div class="round-game-card">'
       +'<div class="round-game-header">'
-      +'<span class="round-game-id">'+gameLabel(sid)+'</span>'
+      +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
       +'<div class="round-game-day-time">'
-      +'<span class="round-game-day">'+dayStr+'</span>'
-      +'<span class="round-game-time">'+timeStr+'</span>'
+      +'<span class="round-game-day">'+esc(dayStr)+'</span>'
+      +'<span class="round-game-time">'+esc(timeStr)+'</span>'
       +'</div></div>'
-      +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+t1.name+'</span>'
+      +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
       +(r.winner?'<span class="result-badge '+(t1.won?'w':'l')+'">'+(t1.won?'W':'L')+'</span>':'')
       +'</div>'
-      +'<div class="round-team-row"><span class="round-team-name '+c2+'">'+t2.name+'</span>'
+      +'<div class="round-team-row"><span class="round-team-name '+c2+'">'+esc(t2.name)+'</span>'
       +(r.winner?'<span class="result-badge '+(t2.won?'w':'l')+'">'+(t2.won?'W':'L')+'</span>':'')
       +'</div></div>';
   }).join('');
@@ -579,19 +580,19 @@ function makeVerticalChain(chain, team, isLosePath) {
     html += '<div class="round-game-card" style="border-color:' + borderColor + '">'
       + '<div class="round-game-header">'
       + '<div class="round-game-day-time">'  // date/time first so it's on the left in flow
-      + '<span class="round-game-day">' + (formatTime(g.time).match(/^(\d+\/\d+\s+\S+)/)||['',''])[1] + '</span>'
-      + '<span class="round-game-time">' + (formatTime(g.time).match(/\d+:\d+\s+[AP]M$/)||[''])[0] + '</span>'
+      + '<span class="round-game-day">' + esc((formatTime(g.time).match(/^(\d+\/\d+\s+\S+)/)||['',''])[1]) + '</span>'
+      + '<span class="round-game-time">' + esc((formatTime(g.time).match(/\d+:\d+\s+[AP]M$/)||[''])[0]) + '</span>'
       + '</div>'
-      + '<span class="round-game-id" style="margin-left:auto;flex-shrink:0">' + gameLabel(gid) + '</span>'
+      + '<span class="round-game-id" style="margin-left:auto;flex-shrink:0">' + esc(gameLabel(gid)) + '</span>'
       + '</div>'
       // Team 1 row
       + '<div class="round-team-row">'
-      + '<span class="round-team-name ' + c1 + '">' + t1n + '</span>'
+      + '<span class="round-team-name ' + c1 + '">' + esc(t1n) + '</span>'
       + (played ? '<span class="result-badge ' + (r.winner===t1r?'w':'l') + '">' + (r.winner===t1r?'W':'L') + '</span>' : '')
       + '</div>'
       // Team 2 row
       + '<div class="round-team-row">'
-      + '<span class="round-team-name ' + c2 + '">' + t2n + '</span>'
+      + '<span class="round-team-name ' + c2 + '">' + esc(t2n) + '</span>'
       + (played ? '<span class="result-badge ' + (r.winner===t2r?'w':'l') + '">' + (r.winner===t2r?'W':'L') + '</span>' : '')
       + '</div>'
       + '</div>'; // .round-game-card
@@ -607,7 +608,7 @@ function makeVerticalChain(chain, team, isLosePath) {
         + 'font-size:0.72em;font-weight:600;letter-spacing:0.05em;display:flex;gap:0.25em;align-items:center">'
         + '<span style="color:' + RED + '">LOSE</span>'
         + '<span style="color:' + arrowColor + '">→</span>'
-        + '<span style="color:' + destColor + '">' + destText + '</span>'
+        + '<span style="color:' + destColor + '">' + esc(destText) + '</span>'
         + '</div>';
     }
 
@@ -634,7 +635,7 @@ function makeVerticalChain(chain, team, isLosePath) {
           + 'font-size:0.72em;font-weight:600;letter-spacing:0.05em;display:flex;gap:0.25em;align-items:center">'
           + '<span style="color:' + GREEN + '">WIN</span>'
           + '<span style="color:' + GREEN + '">→</span>'
-          + '<span style="color:' + GREEN + '">' + gameLabel(wn) + '</span>'
+          + '<span style="color:' + GREEN + '">' + esc(gameLabel(wn)) + '</span>'
           + '</div>';
       } else {
         html += '<div style="padding:0.18em 0 0.5em 0.5em;font-family:Oswald,sans-serif;'
@@ -664,7 +665,7 @@ function renderTeamView(){
 
   var html='<div style="padding:0.5em 0 0.25em;font-family:Oswald,sans-serif;font-size:0.78em;'
     +'font-weight:600;color:var(--text-dim);letter-spacing:0.13em;text-transform:uppercase">'
-    +team+'</div>';
+    +esc(team)+'</div>';
 
   var winChain=buildWinChain(firstGid);
   var r0=results[firstGid]||{};

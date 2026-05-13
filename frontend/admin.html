@@ -242,8 +242,8 @@ async function saveSettings() {
 function gameLabel(sid) {
   return (GAMES[sid] && GAMES[sid].label) ? GAMES[sid].label : sid;
 }
-function esc(str) {
-  return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
 // Split stored ISO string into date and time parts for the two inputs
@@ -312,30 +312,30 @@ function renderAdmin() {
 
       if (set) {
         html += '<div class="admin-game-row">'
-          + '<span class="admin-game-id">' + lbl + '</span>'
-          + '<span class="admin-game-time-display">' + ft + '</span>'
-          + '<span class="admin-game-teams">' + t1 + ' vs ' + t2 + '</span>'
-          + '<span class="admin-set-label">✓ ' + r.winner + '</span>'
+          + '<span class="admin-game-id">' + esc(lbl) + '</span>'
+          + '<span class="admin-game-time-display">' + esc(ft) + '</span>'
+          + '<span class="admin-game-teams">' + esc(t1) + ' vs ' + esc(t2) + '</span>'
+          + '<span class="admin-set-label">✓ ' + esc(r.winner) + '</span>'
           + '<button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button>'
           + '</div>';
       } else if (both) {
         html += '<div class="admin-game-row">'
-          + '<span class="admin-game-id">' + lbl + '</span>'
-          + '<span class="admin-game-time-display">' + ft + '</span>'
-          + '<span class="admin-game-teams" style="color:var(--text)">' + t1 + ' vs ' + t2 + '</span>'
+          + '<span class="admin-game-id">' + esc(lbl) + '</span>'
+          + '<span class="admin-game-time-display">' + esc(ft) + '</span>'
+          + '<span class="admin-game-teams" style="color:var(--text)">' + esc(t1) + ' vs ' + esc(t2) + '</span>'
           + '<select class="admin-winner-sel" id="sel-' + sid + '">'
           + '<option value="">— winner —</option>'
-          + '<option value="' + esc(t1) + '">' + t1 + '</option>'
-          + '<option value="' + esc(t2) + '">' + t2 + '</option>'
+          + '<option value="' + esc(t1) + '">' + esc(t1) + '</option>'
+          + '<option value="' + esc(t2) + '">' + esc(t2) + '</option>'
           + '</select>'
           + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Save</button>'
           + '</div>';
       } else {
         var missing = [!t1&&l1, !t2&&l2].filter(Boolean);
         html += '<div class="admin-game-row" style="opacity:0.4">'
-          + '<span class="admin-game-id">' + lbl + '</span>'
-          + '<span class="admin-game-time-display">' + ft + '</span>'
-          + '<span class="admin-game-teams admin-locked">Waiting: ' + missing.join(', ') + '</span>'
+          + '<span class="admin-game-id">' + esc(lbl) + '</span>'
+          + '<span class="admin-game-time-display">' + esc(ft) + '</span>'
+          + '<span class="admin-game-teams admin-locked">Waiting: ' + esc(missing.join(', ')) + '</span>'
           + '</div>';
       }
     });
@@ -403,7 +403,7 @@ function sourceDropdown(idBase, currentType, currentSlot) {
       var p1 = resolveSlot(g.t1, results) || slotLabel(g.t1);
       var p2 = resolveSlot(g.t2, results) || slotLabel(g.t2);
       var disp = (g.label||s) + ': ' + shortName(p1) + ' / ' + shortName(p2);
-      slotOpts += '<option value="' + s + '"' + (s===currentSlot?' selected':'') + '>' + disp + '</option>';
+      slotOpts += '<option value="' + s + '"' + (s===currentSlot?' selected':'') + '>' + esc(disp) + '</option>';
     });
     slotOpts += '</optgroup>';
   });
@@ -427,10 +427,10 @@ function occupiedCard(sid) {
 
   var h = '<div class="sched-game-card">';
   h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
-    + '<span class="sched-game-hdr-id">' + lbl + '</span>'
-    + '<span class="sched-game-hdr-id" style="color:var(--text-mute);font-size:0.65em">' + sid + '</span>'
-    + '<span class="sched-game-hdr-time">' + formatTime(time) + '</span>'
-    + '<span class="sched-game-hdr-teams">' + t1disp + ' vs ' + t2disp + '</span>'
+    + '<span class="sched-game-hdr-id">' + esc(lbl) + '</span>'
+    + '<span class="sched-game-hdr-id" style="color:var(--text-mute);font-size:0.65em">' + esc(sid) + '</span>'
+    + '<span class="sched-game-hdr-time">' + esc(formatTime(time)) + '</span>'
+    + '<span class="sched-game-hdr-teams">' + esc(t1disp) + ' vs ' + esc(t2disp) + '</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
     + '</div>';
 
