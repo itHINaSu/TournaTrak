@@ -422,106 +422,11 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .champ-winner-display { margin-top: 0.6em; text-align: center; font-family: 'Oswald', sans-serif; font-size: 0.95rem; color: var(--gold-lt); letter-spacing: 0.07em; }
 
 /* ════════════════════════════════════════════════════════════
-   TABLET LAYOUT (768px - 1024px)
+   MOBILE LAYOUT (phones + tablets under 1024px)
+   Snap-scroll carousel: one round visible at a time.
    ════════════════════════════════════════════════════════════ */
 
-@media (max-width: 1024px) and (min-width: 768px) {
-  .bracket-outer { display: none; }
-
-  .bracket-side {
-    width: 100%;
-    flex: unset;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    margin-bottom: 2em;
-  }
-  .bracket-side.left-side,
-  .bracket-side.right-side { justify-content: unset; }
-
-  .bracket-side-label { position: static; margin-bottom: 0.75em; display: inline-block; }
-
-  .rounds-wrap {
-    width: 100%;
-    max-width: 100%;
-    margin: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    display: flex;
-    flex-direction: row;
-    align-items: flex-start;
-    padding: 0 0.5em 0.5em 0.5em;
-    scroll-snap-type: none;
-  }
-
-  .round-col {
-    flex-shrink: 0;
-    width: 28vw;
-    height: auto;
-    min-height: auto;
-    position: relative;
-    padding-right: 1em;
-  }
-  .round-col:last-child { padding-right: 1.5em; }
-
-  .round-col-hdr {
-    position: static;
-    text-align: center;
-    font-size: 0.80rem;
-    color: var(--gold-lt);
-    font-weight: 600;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 0.5em 0.3em;
-    margin-bottom: 0.6em;
-  }
-
-  .round-gap { display: none; }
-
-  .bc {
-    position: relative;
-    margin-bottom: 0.7em;
-    border-radius: 0.4em;
-    min-height: auto;
-  }
-  .bc-hdr { padding: 0.4em 0.4em; font-size: 0.68rem; }
-  .bc-id  { font-size: 0.63rem; }
-  .bc-time { font-size: 0.63rem; }
-  .bc-team {
-    padding: 0.25em 0.4em;
-    font-size: 0.72rem;
-    min-height: 2.1em;
-    line-height: 1.2;
-    white-space: normal;
-    word-break: break-word;
-  }
-
-  .champ-center {
-    position: relative;
-    width: auto;
-    height: auto;
-    padding: 1em 0.6em;
-    margin-top: 2em;
-    margin-bottom: 0;
-    border-left: none;
-    border-right: none;
-    border-top: 0.07em solid rgba(196,154,26,0.15);
-    border-bottom: none;
-  }
-  .champ-title   { font-size: 0.70rem; margin-bottom: 0.3em; }
-  .champ-gametime { font-size: 0.75rem; margin-bottom: 0.5em; }
-  .champ-trophy  { font-size: 1.6em; margin-bottom: 0.25em; }
-  .champ-winner  { font-size: 0.90rem; margin-top: 0.4em; }
-  .champ-bc      { position: relative; height: auto; margin-bottom: 0; }
-  .bracket-side-wrap { position: static; flex: 1; min-width: 0; }
-}
-
-/* ════════════════════════════════════════════════════════════
-   MOBILE LAYOUT (max-width: 768px)
-   ════════════════════════════════════════════════════════════ */
-
-@media (max-width: 768px) {
+@media (max-width: 1023px) {
   .bracket-outer { display: none; }
 
   .bracket-side {
