@@ -85,9 +85,10 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    // Mark secure only in production (HAProxy terminates TLS; Express sees HTTP).
-    // Set NODE_ENV=production in compose.yml for real deployments.
-    secure:   process.env.NODE_ENV === 'production',
+    // Set COOKIE_SECURE=true in .env only when serving over HTTPS.
+    // Leaving it unset (false) is correct when TLS terminates at HAProxy
+    // and the internal path to nginx/Express is plain HTTP.
+    secure:   process.env.COOKIE_SECURE === 'true',
     sameSite: 'strict',
     maxAge:   8 * 60 * 60 * 1000, // 8 hours
   },
