@@ -145,9 +145,9 @@ function getDims(){
   var availVh=availPx/(window.innerHeight/100);
 
   var winW = window.innerWidth;
-  var isMobile = winW < 768;
-  var isTablet = winW >= 768 && winW <= 1024;
-  var isDesktop = winW > 1024;
+  var isMobile = winW < 1024;
+  var isTablet = false;
+  var isDesktop = winW >= 1024;
 
   if(isDesktop){
     var champVw=12;
