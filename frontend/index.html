@@ -223,17 +223,12 @@ function getDims(){
   }
 
   if(isTablet || isMobile){
-    // Carousel: card height sized so 8 L slots + 8 R slots = 16 slots total fill available height
-    // We want 16 * slotVh to be comfortably visible (can scroll vertically for more)
-    // Target: ~8 slots visible at once (half the column), so slotVh = availVh / 8
-    var slotVh = availVh / 9;  // slightly smaller so a peek of next slot shows
+    // Slot height: size so ~8 slots visible at once (half the full 16-slot column)
+    var slotVh = availVh / 9;
     var cardVh = slotVh * CARD_RATIO;
     var rowVh  = cardVh / 3;
-    if(rowVh < 2.0){ rowVh = 2.0; cardVh = rowVh * 3; slotVh = cardVh / CARD_RATIO; }
-    // colVw not really used in carousel (card width set in px) but keep for compat
-    var colVw = 92;
-    var gapVw = 0.5;
-    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw:0,totalVh:slotVh*16,isDesktop,isTablet,isMobile};
+    if(rowVh < 2.0){ rowVh=2.0; cardVh=rowVh*3; slotVh=cardVh/CARD_RATIO; }
+    return {slotVh,cardVh,rowVh,colVw:92,gapVw:0.5,champVw:0,totalVh:slotVh*16,isDesktop,isTablet,isMobile};
   }
 }
 function applyCSSVars(dims){
@@ -407,79 +402,105 @@ function renderDesktopBracket(root,dims){
 }
 
 
-function renderTabletBracket(root,dims){ renderCarouselBracket(root,dims); }
-function renderMobileBracket(root,dims){ renderCarouselBracket(root,dims); }
-
-function renderCarouselBracket(root,dims){
-  // One vertical column per round, scroll horizontally L→R through rounds.
-  // Each column: R1.L.1…R1.L.8, then R1.R.1…R1.R.8 stacked top-to-bottom.
-  // Cards are identical size throughout. Vertical positions use slotTopVh().
-  // Right-side offset = 8 * slotVh (sits below the full left section).
-
-  var slotVh = dims.slotVh;
-  var cardVh  = dims.cardVh;
-  var colH    = slotVh * 16; // 8 L slots + 8 R slots
-  var rOffset = slotVh * 8;  // where R slots begin vertically
-
-  // Card width: use available width minus small padding
-  var winW    = window.innerWidth;
-  var cardW   = Math.round(winW * 0.92); // 92vw per card/column
-  var peekW   = Math.round(winW * 0.08); // 8vw peek of next column
-
-  var rounds  = ['R1','R2','QF','SF','CHAMP'];
-
-  // Group games by round and side
-  var byRound = {};
-  rounds.forEach(function(r){ byRound[r]={ L:{}, R:{}, C:{} }; });
+// ── Shared bracket data builder ──────────────────────────────────────
+function buildByRound(rounds){
+  var byRound={};
+  rounds.forEach(function(r){ byRound[r]={L:{},R:{},C:{}}; });
   Object.entries(GAMES).forEach(function(e){
-    var gid=e[0], g=e[1];
+    var gid=e[0],g=e[1];
     if(byRound[g.round]) byRound[g.round][g.side][g.num]=gid;
   });
+  return byRound;
+}
+
+// ── Tablet: all rounds side-by-side, total width = window width ──────
+function renderTabletBracket(root,dims){
+  var slotVh=dims.slotVh;
+  var rounds=['R1','R2','QF','SF','CHAMP'];
+  var byRound=buildByRound(rounds);
+  var colH=slotVh*16;  // 8 L slots + 8 R slots, same height every column
+  var rOffset=slotVh*8; // R slots begin below L section
+
+  // Divide window width evenly across all rounds with small gaps
+  var outerPx=12;  // left/right screen margin
+  var gapPx=6;     // gap between round columns
+  var cardGapVh=0.4; // small breathing room between cards within a column
+  var colPx=Math.floor((window.innerWidth-2*outerPx-(rounds.length-1)*gapPx)/rounds.length);
 
   var cols='';
   rounds.forEach(function(round){
-    var L=byRound[round].L;
-    var R=byRound[round].R;
-    var C=byRound[round].C;
-
+    var L=byRound[round].L, R=byRound[round].R, C=byRound[round].C;
     var colHTML='';
 
-    // L slots
     Object.keys(L).sort(function(a,b){return a-b;}).forEach(function(num){
-      var top = slotTopVh(round, parseInt(num), slotVh);
-      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;margin:0;">'
-        +cardHTML(L[num])+'</div>';
+      var top=slotTopVh(round,parseInt(num),slotVh)+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(L[num])+'</div>';
     });
-
-    // R slots — offset below L section
     Object.keys(R).sort(function(a,b){return a-b;}).forEach(function(num){
-      var top = rOffset + slotTopVh(round, parseInt(num), slotVh);
-      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;margin:0;">'
-        +cardHTML(R[num])+'</div>';
+      var top=rOffset+slotTopVh(round,parseInt(num),slotVh)+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(R[num])+'</div>';
     });
-
-    // Championship (side=C) — centered in the column
     Object.keys(C).sort(function(a,b){return a-b;}).forEach(function(num){
-      var top = rOffset / 2; // center between L and R sections
-      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;margin:0;">'
-        +cardHTML(C[num])+'</div>';
+      var top=rOffset/2+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(C[num])+'</div>';
     });
 
-    cols+='<div style="flex:0 0 '+cardW+'px;width:'+cardW+'px;position:relative;height:'+colH+'vh;'
+    cols+='<div style="flex:0 0 '+colPx+'px;width:'+colPx+'px;position:relative;height:'+colH+'vh;">'
+      +'<div style="font-family:Oswald,sans-serif;font-size:0.70rem;font-weight:600;letter-spacing:0.1em;'
+      +'text-transform:uppercase;color:var(--gold-lt);text-align:center;padding:0.3em 0 0.5em;">'
+      +ROUND_LABELS[round]+'</div>'
+      +colHTML+'</div>';
+  });
+
+  root.innerHTML='<div style="display:flex;flex-direction:row;width:100%;gap:'+gapPx+'px;'
+    +'padding:0.5em '+outerPx+'px;overflow-x:hidden;align-items:flex-start;">'
+    +cols+'</div>';
+}
+
+function renderMobileBracket(root,dims){
+  var slotVh=dims.slotVh;
+  var rounds=['R1','R2','QF','SF','CHAMP'];
+  var byRound=buildByRound(rounds);
+  var colH=slotVh*16;   // fixed height — same for every round column
+  var rOffset=slotVh*8; // R slots begin below L section
+
+  var outerPx=10;    // left/right screen margin
+  var cardGapVh=0.4; // small breathing room between cards within a column
+  var colPx=Math.round(winW*0.92)-2*outerPx; // 92vw minus outer margins
+  var peekPx=Math.round(winW*0.08);
+
+  var cols='';
+  rounds.forEach(function(round){
+    var L=byRound[round].L, R=byRound[round].R, C=byRound[round].C;
+    var colHTML='';
+
+    Object.keys(L).sort(function(a,b){return a-b;}).forEach(function(num){
+      var top=slotTopVh(round,parseInt(num),slotVh)+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(L[num])+'</div>';
+    });
+    Object.keys(R).sort(function(a,b){return a-b;}).forEach(function(num){
+      var top=rOffset+slotTopVh(round,parseInt(num),slotVh)+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(R[num])+'</div>';
+    });
+    Object.keys(C).sort(function(a,b){return a-b;}).forEach(function(num){
+      var top=rOffset/2+cardGapVh;
+      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(C[num])+'</div>';
+    });
+
+    cols+='<div style="flex:0 0 '+colPx+'px;width:'+colPx+'px;position:relative;height:'+colH+'vh;'
       +'scroll-snap-align:start;scroll-snap-stop:always;">'
-      +'<div style="font-family:Oswald,sans-serif;font-size:0.72rem;font-weight:600;'
-      +'letter-spacing:0.1em;text-transform:uppercase;color:var(--gold-lt);'
-      +'text-align:center;padding:0.4em 0 0.6em;">'+ROUND_LABELS[round]+'</div>'
-      +colHTML
-      +'</div>';
+      +'<div style="font-family:Oswald,sans-serif;font-size:0.70rem;font-weight:600;letter-spacing:0.1em;'
+      +'text-transform:uppercase;color:var(--gold-lt);text-align:center;padding:0.3em 0 0.5em;">'
+      +ROUND_LABELS[round]+'</div>'
+      +colHTML+'</div>';
   });
 
   root.innerHTML='<div style="display:flex;flex-direction:row;overflow-x:auto;'
     +'scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;'
-    +'padding:0.5em '+peekW+'px 1em 0.5em;gap:0.5em;">'
-    +cols
-    +'</div>';
+    +'padding:0.5em '+peekPx+'px 1em '+outerPx+'px;gap:0.5em;">'
+    +cols+'</div>';
 }
+
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW
 // formatTime now returns 'm/d Fullday H:MM AM' so split on
