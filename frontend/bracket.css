@@ -602,22 +602,81 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 /* Independent vertical scroll per column — scrollbar hidden on mobile */
 .mbc-scroll {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: scroll;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  display: flex;
-  justify-content: center;
+  will-change: scroll-position;
   padding: 0.5em 0 2em;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 .mbc-scroll::-webkit-scrollbar { display: none; }
 
-/* Absolutely-positioned card container — width + height set by JS */
+/* Absolutely-positioned card container — width + height set by JS, centred horizontally */
 .mbc-inner {
   position: relative;
   flex-shrink: 0;
+  margin: 0 auto;
+}
+
+/* ── Championship card ── */
+.mbc-champ-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  background: linear-gradient(160deg, var(--surface2) 0%, #2a3820 100%);
+  border: 0.12em solid var(--gold);
+  border-radius: 0.7em;
+  box-shadow: 0 0 24px rgba(196,154,26,0.25), inset 0 1px 0 rgba(232,184,42,0.15);
+  padding: 1em 1.2em;
+  text-align: center;
+}
+.mbc-champ-trophy {
+  font-size: 2.2rem;
+  line-height: 1;
+  filter: drop-shadow(0 2px 6px rgba(232,184,42,0.5));
+}
+.mbc-champ-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.mbc-champ-time {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+.mbc-champ-team {
+  font-family: 'Barlow', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+.mbc-champ-team.tbd  { color: var(--text-mute); font-style: italic; }
+.mbc-champ-team.won  { color: var(--win-color); }
+.mbc-champ-team.lost { color: var(--lose-color); }
+.mbc-champ-vs {
+  font-size: 0.65rem;
+  color: var(--text-mute);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.mbc-champ-winner {
+  margin-top: 0.3em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--gold-lt);
+  letter-spacing: 0.1em;
 }
 
 /* Each card: absolute position, translateY driven by JS scroll blend */
@@ -626,7 +685,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   left: 0;
   right: 0;
 }
-.mbc-card .round-game-card { margin-bottom: 0; }
+.mbc-card .round-game-card { margin-bottom: 0; height: 100%; box-sizing: border-box; }
 
 /* ════════════════════════════════════════════════════════════
    MOBILE — tabs + selector fixed to bottom
@@ -647,8 +706,8 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     z-index: 90;
   }
   .view-tab {
-    min-height: 4em;
-    padding: 1em 0.3em;
+    min-height: 7em;
+    padding: 1.8em 0.3em;
     border-bottom: none;
     border-top: 0.22em solid transparent;
   }
