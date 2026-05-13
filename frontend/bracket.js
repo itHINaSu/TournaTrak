@@ -499,12 +499,12 @@ function renderMobileBracket(root, dims) {
   var colW  = Math.round(winW * 0.80);  // 80% wide — next round peeks at remaining 20%
   var padPx = 10;
   var cardW = colW - 2 * padPx;
-  // Shared inner height: tall enough for all rounds at any position
-  var innerH = 16 * (CARD_H + GAP) + 24;
+  // innerH computed below after maxSlots is known
+  var innerH;
 
   var rounds = ['R1','R2','QF','SF','CHAMP'];
 
-  // Returns sorted gid list for a round: L side then R side (or C for CHAMP)
+  // Returns sorted gid list for a round (existing games only — for rendering)
   function gidsFor(round) {
     var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
     var out = [];
@@ -512,11 +512,33 @@ function renderMobileBracket(root, dims) {
     return out;
   }
 
-  // ── earlyY: evenly spaced, indexed within each round ─────────────
+  // ── earlyY: slot-based absolute positions ────────────────────────
+  // Derived from SLOT_DEFS so every possible slot gets a fixed Y,
+  // whether or not a game exists for it. Empty R1 slots still occupy
+  // space, keeping R2 lateY midpoints correctly aligned.
   var earlyY = {};
   rounds.forEach(function(round) {
-    gidsFor(round).forEach(function(gid, i) { earlyY[gid] = i * (CARD_H + GAP); });
+    var sides = round === 'CHAMP' ? ['C'] : ['L', 'R'];
+    var idx = 0;
+    sides.forEach(function(side) {
+      var nums = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
+      nums.forEach(function(num) {
+        earlyY[round + '.' + side + '.' + num] = idx * (CARD_H + GAP);
+        idx++;
+      });
+    });
   });
+
+  // innerH: tall enough for the largest round's full slot count
+  var maxSlots = rounds.reduce(function(mx, round) {
+    var sides = round === 'CHAMP' ? ['C'] : ['L', 'R'];
+    var n = 0;
+    sides.forEach(function(side) {
+      n += (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side].length : 0;
+    });
+    return Math.max(mx, n);
+  }, 0);
+  innerH = maxSlots * (CARD_H + GAP) + 24;
 
   // ── lateY: bracket-tree midpoints, with fallback + overlap fix ───
   // lateY[gid] = midpoint of source games' earlyY centers, or earlyY[gid]
