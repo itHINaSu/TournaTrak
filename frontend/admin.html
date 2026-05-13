@@ -40,9 +40,59 @@
     opacity: 0.7;
   }
   .empty-slot-card:hover { opacity: 1; }
+  .login-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .login-box {
+    width: min(90vw, 340px);
+    background: var(--surface);
+    border: 0.07em solid var(--border);
+    border-radius: 0.5em;
+    padding: 2em 1.8em;
+  }
+  .login-title {
+    font-family: Oswald, sans-serif;
+    font-size: 1.1em;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--blue-lt);
+    margin-bottom: 1.2em;
+  }
+  .login-error {
+    color: var(--clear-color);
+    font-size: 0.8em;
+    margin-bottom: 0.6em;
+    display: none;
+  }
 </style>
 </head>
 <body>
+
+<!-- Login overlay — visible until session check passes -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="login-title">Admin Login</div>
+    <form onsubmit="doLogin(event)">
+      <div class="sched-field">
+        <label>Username</label>
+        <input type="text" id="loginUser" autocomplete="username" placeholder="admin" value="admin">
+      </div>
+      <div class="sched-field">
+        <label>Password</label>
+        <input type="password" id="loginPass" autocomplete="current-password" placeholder="Password">
+      </div>
+      <div class="login-error" id="loginError"></div>
+      <button type="submit" id="loginBtn" class="sched-save-btn" style="width:100%;margin-top:0.25em">Sign In</button>
+    </form>
+  </div>
+</div>
 
 <header class="site-header" id="siteHeader">
   <div>
@@ -50,11 +100,12 @@
   </div>
   <div class="header-controls">
     <a href="/" class="admin-public-btn">← Public</a>
+    <button id="logoutBtn" class="admin-clear-btn" onclick="doLogout()" style="display:none">Sign Out</button>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
   </div>
 </header>
 
-<div class="admin-wrap">
+<div class="admin-wrap" id="adminWrap" style="display:none">
 
   <div class="admin-tab-bar">
     <div class="admin-tab active" data-tab="results">Results</div>
@@ -222,10 +273,11 @@ async function saveSettings() {
     if (el) out[key] = el.value.trim();
   });
   try {
-    var r = await fetch('/api/settings', {
+    var r = await apiFetch('/api/settings', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(out)
     });
+    if (!r) return;
     if (!r.ok) throw new Error();
     settings = out;
     applySettingsToPage();
@@ -353,10 +405,11 @@ async function saveResult(sid) {
   var t2 = resolveSlot(g.t2, results);
   var loser = winner === t1 ? t2 : t1;
   try {
-    var r = await fetch('/api/results', {
+    var r = await apiFetch('/api/results', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ game: sid, winner: winner, loser: loser })
     });
+    if (!r) return;
     if (!r.ok) throw new Error();
     results[sid] = { winner: winner, loser: loser };
     showToast(gameLabel(sid) + ' saved — ' + winner + ' wins');
@@ -366,7 +419,8 @@ async function saveResult(sid) {
 
 async function clearResult(sid) {
   try {
-    var r = await fetch('/api/results/' + encodeURIComponent(sid), { method:'DELETE' });
+    var r = await apiFetch('/api/results/' + encodeURIComponent(sid), { method:'DELETE' });
+    if (!r) return;
     if (!r.ok) throw new Error();
     results[sid] = { winner: null, loser: null };
     showToast(gameLabel(sid) + ' cleared');
@@ -493,10 +547,11 @@ async function clearSlot(sid) {
   var out = Object.assign({}, schedule);
   out[sid] = { clear: true };
   try {
-    var r = await fetch('/api/schedule', {
+    var r = await apiFetch('/api/schedule', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(out)
     });
+    if (!r) return;
     if (!r.ok) throw new Error();
     schedule = out;
     if (typeof applySchedule === 'function') applySchedule(schedule);
@@ -588,10 +643,11 @@ async function saveAllSchedule() {
   });
 
   try {
-    var r = await fetch('/api/schedule', {
+    var r = await apiFetch('/api/schedule', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify(out)
     });
+    if (!r) { btn.disabled = false; return; }
     if (!r.ok) throw new Error();
     schedule = out;
     if (typeof applySchedule === 'function') applySchedule(schedule);
@@ -612,7 +668,74 @@ async function saveAllSchedule() {
   btn.disabled = false;
 }
 
-fetchAll();
+// ── Auth ───────────────────────────────────────────────────────────────
+// Wrapper for mutation fetches: shows login overlay on 401 (session expired).
+async function apiFetch(url, opts) {
+  var r = await fetch(url, opts);
+  if (r.status === 401) { showLogin(); return null; }
+  return r;
+}
+
+function showAdmin() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('adminWrap').style.display = '';
+  document.getElementById('logoutBtn').style.display = '';
+  fetchAll();
+}
+
+function showLogin() {
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('adminWrap').style.display = 'none';
+  document.getElementById('logoutBtn').style.display = 'none';
+  document.getElementById('loginPass').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+async function doLogin(e) {
+  if (e) e.preventDefault();
+  var user  = document.getElementById('loginUser').value;
+  var pass  = document.getElementById('loginPass').value;
+  var btn   = document.getElementById('loginBtn');
+  var errEl = document.getElementById('loginError');
+  btn.disabled = true;
+  errEl.style.display = 'none';
+  try {
+    var r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    if (r.ok) {
+      showAdmin();
+    } else {
+      var data = await r.json().catch(function(){ return {}; });
+      errEl.textContent = data.error || 'Login failed';
+      errEl.style.display = 'block';
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error — try again';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false;
+}
+
+async function doLogout() {
+  await fetch('/api/logout', { method: 'POST' }).catch(function(){});
+  showLogin();
+}
+
+async function checkSession() {
+  try {
+    var r    = await fetch('/api/session');
+    var data = await r.json();
+    if (data.authenticated) showAdmin();
+    else showLogin();
+  } catch(e) {
+    showLogin();
+  }
+}
+
+checkSession();
 </script>
 </body>
 </html>
