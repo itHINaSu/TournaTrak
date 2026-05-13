@@ -431,7 +431,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .team-path-label.win-label  { color: var(--win-color); }
 .team-path-label.lose-label { color: var(--lose-color); }
-.team-path-divider { padding-top: 4em; margin: 1.6em 0; height: 0.07em; background: var(--border); }
+.team-path-divider { margin: 1.4em 0; height: 0.07em; background: var(--border); }
 
 /* ── Championship bar (mobile/rounds) ── */
 .champ-bar { margin: 0.4em 0 0.75em; padding: 0.65em 0.9em; background: var(--surface2); border-radius: 0.5em; border: 0.07em solid var(--border); }
