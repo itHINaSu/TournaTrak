@@ -89,7 +89,7 @@
         <input type="password" id="loginPass" autocomplete="current-password" placeholder="Password">
       </div>
       <div class="login-error" id="loginError"></div>
-      <button type="submit" id="loginBtn" class="sched-save-btn" style="width:100%;margin-top:0.25em">Sign In</button>
+      <button type="submit" id="loginBtn" class="sched-save-btn login-btn">Sign In</button>
     </form>
   </div>
 </div>
@@ -98,9 +98,7 @@
 <div class="login-overlay" id="changePasswordOverlay" style="display:none">
   <div class="login-box">
     <div class="login-title">Set a New Password</div>
-    <div style="font-size:0.8em;color:var(--text-mute);margin-bottom:1.2em">
-      Choose a permanent password before continuing. Must be at least 8 characters.
-    </div>
+    <div class="login-desc">Choose a permanent password before continuing. Must be at least 8 characters.</div>
     <form onsubmit="doFirstLoginPasswordChange(event)">
       <div class="sched-field">
         <label>New Password</label>
@@ -111,7 +109,7 @@
         <input type="password" id="cpNewPass2" autocomplete="new-password" placeholder="Confirm password">
       </div>
       <div class="login-error" id="cpError"></div>
-      <button type="submit" id="cpBtn" class="sched-save-btn" style="width:100%;margin-top:0.25em">Set Password</button>
+      <button type="submit" id="cpBtn" class="sched-save-btn login-btn">Set Password</button>
     </form>
   </div>
 </div>
@@ -148,14 +146,14 @@
       Empty slots can be filled to create new games. Save All writes to schedule.json — public page picks up on reload.
     </div>
     <!-- Top action row -->
-    <div class="sched-action-row" style="margin-bottom:1em">
+    <div class="sched-action-row sched-action-row--top">
       <button class="sched-save-btn" id="schedSaveBtn" onclick="saveAllSchedule()">Save All Changes</button>
       <a href="/" class="admin-public-btn">↗ Public Page</a>
       <span class="sched-status" id="schedStatus"></span>
     </div>
     <div id="scheduleEditor"></div>
     <!-- Bottom action row (duplicated) -->
-    <div class="sched-action-row" style="margin-top:1.5em;padding-top:1em;border-top:0.07em solid var(--border)">
+    <div class="sched-action-row sched-action-row--bottom">
       <button class="sched-save-btn" onclick="saveAllSchedule()">Save All Changes</button>
       <a href="/" class="admin-public-btn">↗ Public Page</a>
       <span class="sched-status" id="schedStatusBottom"></span>
@@ -171,19 +169,19 @@
     <div class="settings-section">
       <div class="settings-section-hdr">Tournament Identity</div>
       <div class="settings-field">
-        <label>Tournament Name <span style="color:var(--text-mute);font-size:0.85em">(public page header)</span></label>
+        <label>Tournament Name <span class="field-label-hint">(public page header)</span></label>
         <input type="text" id="set-tournamentName" placeholder="e.g. Dedham Tournament 2026">
       </div>
       <div class="settings-field">
-        <label>Page Title <span style="color:var(--text-mute);font-size:0.85em">(browser tab)</span></label>
+        <label>Page Title <span class="field-label-hint">(browser tab)</span></label>
         <input type="text" id="set-pageTitle" placeholder="e.g. 2026 Dedham Tournament">
       </div>
       <div class="settings-field">
-        <label>Subtitle <span style="color:var(--text-mute);font-size:0.85em">(optional, below tournament name)</span></label>
+        <label>Subtitle <span class="field-label-hint">(optional, below tournament name)</span></label>
         <input type="text" id="set-subtitle" placeholder='e.g. 16" Softball · Carroll County'>
       </div>
       <div class="settings-field">
-        <label>Admin Panel Name <span style="color:var(--text-mute);font-size:0.85em">(this page's header)</span></label>
+        <label>Admin Panel Name <span class="field-label-hint">(this page's header)</span></label>
         <input type="text" id="set-adminName" placeholder="Tournament Admin">
       </div>
     </div>
@@ -202,7 +200,7 @@
       </div>
     </div>
 
-    <div style="display:flex;align-items:center;gap:0.6em;margin-top:0.5em">
+    <div class="settings-save-row">
       <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
       <span class="sched-status" id="settingsStatus"></span>
     </div>
@@ -217,7 +215,7 @@
         <label>Confirm New Password</label>
         <input type="password" id="setNewPass2" autocomplete="new-password" placeholder="Confirm password">
       </div>
-      <div style="display:flex;align-items:center;gap:0.6em;margin-top:0.5em">
+      <div class="settings-save-row">
         <button class="sched-save-btn" onclick="savePassword()">Change Password</button>
         <span class="sched-status" id="passwordStatus"></span>
       </div>
@@ -412,7 +410,7 @@ function renderAdmin() {
         html += '<div class="admin-game-row">'
           + '<span class="admin-game-id">' + esc(lbl) + '</span>'
           + '<span class="admin-game-time-display">' + esc(ft) + '</span>'
-          + '<span class="admin-game-teams" style="color:var(--text)">' + esc(t1) + ' vs ' + esc(t2) + '</span>'
+          + '<span class="admin-game-teams admin-game-teams--ready">' + esc(t1) + ' vs ' + esc(t2) + '</span>'
           + '<select class="admin-winner-sel" id="sel-' + sid + '">'
           + '<option value="">— winner —</option>'
           + '<option value="' + esc(t1) + '">' + esc(t1) + '</option>'
@@ -422,7 +420,7 @@ function renderAdmin() {
           + '</div>';
       } else {
         var missing = [!t1&&l1, !t2&&l2].filter(Boolean);
-        html += '<div class="admin-game-row" style="opacity:0.4">'
+        html += '<div class="admin-game-row admin-game-row--waiting">'
           + '<span class="admin-game-id">' + esc(lbl) + '</span>'
           + '<span class="admin-game-time-display">' + esc(ft) + '</span>'
           + '<span class="admin-game-teams admin-locked">Waiting: ' + esc(missing.join(', ')) + '</span>'
@@ -500,9 +498,9 @@ function sourceDropdown(idBase, currentType, currentSlot) {
     slotOpts += '</optgroup>';
   });
 
-  return '<div style="display:flex;gap:0.4em;align-items:center;flex-wrap:wrap">'
+  return '<div class="source-dropdown-row">'
     + '<select class="admin-winner-sel" id="' + idBase + '-type" style="min-width:5.5em">' + typeOpts + '</select>'
-    + '<span style="font-size:0.75em;color:var(--text-mute)">of</span>'
+    + '<span class="source-dropdown-sep">of</span>'
     + '<select class="admin-winner-sel" id="' + idBase + '-slot" style="min-width:12em">' + slotOpts + '</select>'
     + '</div>';
 }
@@ -520,7 +518,7 @@ function occupiedCard(sid) {
   var h = '<div class="sched-game-card">';
   h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
     + '<span class="sched-game-hdr-id">' + esc(lbl) + '</span>'
-    + '<span class="sched-game-hdr-id" style="color:var(--text-mute);font-size:0.65em">' + esc(sid) + '</span>'
+    + '<span class="sched-game-hdr-sid">' + esc(sid) + '</span>'
     + '<span class="sched-game-hdr-time">' + esc(formatTime(time)) + '</span>'
     + '<span class="sched-game-hdr-teams">' + esc(t1disp) + ' vs ' + esc(t2disp) + '</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
@@ -544,10 +542,9 @@ function occupiedCard(sid) {
   else h += sourceDropdown('st2-'+sid, over.t2type||g.t2.type, over.t2slot||g.t2.slot);
   h += '</div>';
 
-  h += '<div style="margin-top:0.6em;padding-top:0.6em;border-top:0.07em solid var(--border)">'
-    + '<button class="admin-clear-btn" onclick="clearSlot(\'' + sid + '\')" '
-    + 'style="border-color:var(--clear-border);color:var(--clear-color)">Clear Slot</button>'
-    + '<span style="font-size:0.65em;color:var(--text-mute);margin-left:0.6em">Removes this game entirely — slot returns to empty</span>'
+  h += '<div class="sched-game-footer">'
+    + '<button class="admin-clear-btn" onclick="clearSlot(\'' + sid + '\')">Clear Slot</button>'
+    + '<span class="sched-footer-note">Removes this game entirely — slot returns to empty</span>'
     + '</div>';
 
   h += '</div></div>';
@@ -558,13 +555,12 @@ function emptyCard(sid) {
   var over = schedule[sid] || {};
   var h = '<div class="empty-slot-card">';
   h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
-    + '<span class="sched-game-hdr-id" style="color:var(--text-mute)">' + sid + '</span>'
-    + '<span class="sched-game-hdr-teams" style="color:var(--text-mute);font-style:italic">— empty slot —</span>'
+    + '<span class="sched-game-hdr-sid">' + sid + '</span>'
+    + '<span class="sched-game-hdr-teams empty">— empty slot —</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
     + '</div>';
   h += '<div class="sched-game-body" id="sbody-' + sid + '">';
-  h += '<div style="font-size:0.72em;color:var(--text-mute);margin-bottom:0.6em;font-style:italic">'
-    + 'Fill this slot to create a new game. Requires a label and both teams. Save All to apply.</div>';
+  h += '<div class="empty-slot-instructions">Fill this slot to create a new game. Requires a label and both teams. Save All to apply.</div>';
   h += '<div class="sched-field"><label>Game Label</label>'
     + '<input type="text" id="slabel-' + sid + '" value="' + esc(over.label||'') + '" placeholder="e.g. G7"></div>';
   h += '<div class="sched-field"><label>Date &amp; Time</label>'
@@ -614,8 +610,7 @@ function renderScheduleEditor() {
       var defs = SLOT_DEFS[round][side] || [];
       if (!defs.length) return;
       if (sides.length > 1) {
-        html += '<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.1em;'
-          +'text-transform:uppercase;color:var(--blue-lt);padding:0.4em 0 0.2em">'
+        html += '<div class="sched-side-label">'
           + (side==='L'?'Left Side':side==='R'?'Right Side':side) + '</div>';
       }
       defs.forEach(function(n){
