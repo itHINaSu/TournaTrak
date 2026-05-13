@@ -18,14 +18,8 @@ services:
     restart: unless-stopped
     expose:
       - "3000"
-    environment:
-      - NODE_ENV=production
-      # Generate a long random string (e.g. openssl rand -hex 32)
-      - SESSION_SECRET=CHANGEME_replace_with_at_least_32_random_chars
-      - ADMIN_USERNAME=admin
-      # Hash of "TournaTrak" (bcrypt cost 12). Login: admin / TournaTrak
-      # Replace with your own: docker compose run --rm api node generate-hash.js yourpassword
-      - ADMIN_PASSWORD_HASH=$2a$12$PlNaqDDGAJCZTN4yjqDLpu90aOIvNfV2JCp90F3yHcH4ifi3RxBZC
-      # Set to true to force a password change on first login (default for new deployments).
-      # See .env.example for the quickstart flow.
-      - FORCE_PASSWORD_CHANGE=false
+    # ── Environment ────────────────────────────────────────────────────────
+    # Copy the example file and fill in real values before first run:
+    #   mv .env.example .env
+    # Then edit .env with your SESSION_SECRET, password hash, etc.
+    env_file: ./.env
