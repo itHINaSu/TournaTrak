@@ -23,8 +23,9 @@ services:
       # Generate a long random string (e.g. openssl rand -hex 32)
       - SESSION_SECRET=CHANGEME_replace_with_at_least_32_random_chars
       - ADMIN_USERNAME=admin
-      # Generate with: docker compose run --rm api node generate-hash.js yourpassword
-      - ADMIN_PASSWORD_HASH=CHANGEME_run_generate-hash.js_first
+      # Hash of "TournaTrak" (bcrypt cost 12). Login: admin / TournaTrak
+      # Replace with your own: docker compose run --rm api node generate-hash.js yourpassword
+      - ADMIN_PASSWORD_HASH=$2a$12$PlNaqDDGAJCZTN4yjqDLpu90aOIvNfV2JCp90F3yHcH4ifi3RxBZC
       # Set to true to force a password change on first login (default for new deployments).
       # See .env.example for the quickstart flow.
       - FORCE_PASSWORD_CHANGE=false
