@@ -25,3 +25,6 @@ services:
       - ADMIN_USERNAME=admin
       # Generate with: docker compose run --rm api node generate-hash.js yourpassword
       - ADMIN_PASSWORD_HASH=CHANGEME_run_generate-hash.js_first
+      # Set to true to force a password change on first login (default for new deployments).
+      # See .env.example for the quickstart flow.
+      - FORCE_PASSWORD_CHANGE=false

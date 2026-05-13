@@ -94,6 +94,28 @@
   </div>
 </div>
 
+<!-- Change-password overlay — shown on first login when FORCE_PASSWORD_CHANGE=true -->
+<div class="login-overlay" id="changePasswordOverlay" style="display:none">
+  <div class="login-box">
+    <div class="login-title">Set a New Password</div>
+    <div style="font-size:0.8em;color:var(--text-mute);margin-bottom:1.2em">
+      Choose a permanent password before continuing. Must be at least 8 characters.
+    </div>
+    <form onsubmit="doFirstLoginPasswordChange(event)">
+      <div class="sched-field">
+        <label>New Password</label>
+        <input type="password" id="cpNewPass1" autocomplete="new-password" placeholder="At least 8 characters">
+      </div>
+      <div class="sched-field">
+        <label>Confirm Password</label>
+        <input type="password" id="cpNewPass2" autocomplete="new-password" placeholder="Confirm password">
+      </div>
+      <div class="login-error" id="cpError"></div>
+      <button type="submit" id="cpBtn" class="sched-save-btn" style="width:100%;margin-top:0.25em">Set Password</button>
+    </form>
+  </div>
+</div>
+
 <header class="site-header" id="siteHeader">
   <div>
     <h1 id="adminSiteName">Tournament Admin</h1>
@@ -183,6 +205,22 @@
     <div style="display:flex;align-items:center;gap:0.6em;margin-top:0.5em">
       <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
       <span class="sched-status" id="settingsStatus"></span>
+    </div>
+
+    <div class="settings-section" style="margin-top:1.5em">
+      <div class="settings-section-hdr">Admin Password</div>
+      <div class="settings-field">
+        <label>New Password</label>
+        <input type="password" id="setNewPass1" autocomplete="new-password" placeholder="At least 8 characters">
+      </div>
+      <div class="settings-field">
+        <label>Confirm New Password</label>
+        <input type="password" id="setNewPass2" autocomplete="new-password" placeholder="Confirm password">
+      </div>
+      <div style="display:flex;align-items:center;gap:0.6em;margin-top:0.5em">
+        <button class="sched-save-btn" onclick="savePassword()">Change Password</button>
+        <span class="sched-status" id="passwordStatus"></span>
+      </div>
     </div>
   </div>
 
@@ -678,6 +716,7 @@ async function apiFetch(url, opts) {
 
 function showAdmin() {
   document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = '';
   document.getElementById('logoutBtn').style.display = '';
   fetchAll();
@@ -685,10 +724,21 @@ function showAdmin() {
 
 function showLogin() {
   document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = 'none';
   document.getElementById('logoutBtn').style.display = 'none';
   document.getElementById('loginPass').value = '';
   document.getElementById('loginError').style.display = 'none';
+}
+
+function showChangePassword() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('changePasswordOverlay').style.display = 'flex';
+  document.getElementById('adminWrap').style.display = 'none';
+  document.getElementById('logoutBtn').style.display = '';
+  document.getElementById('cpError').style.display = 'none';
+  document.getElementById('cpNewPass1').value = '';
+  document.getElementById('cpNewPass2').value = '';
 }
 
 async function doLogin(e) {
@@ -706,7 +756,9 @@ async function doLogin(e) {
       body: JSON.stringify({ username: user, password: pass })
     });
     if (r.ok) {
-      showAdmin();
+      var data = await r.json().catch(function(){ return {}; });
+      if (data.mustChangePassword) showChangePassword();
+      else showAdmin();
     } else {
       var data = await r.json().catch(function(){ return {}; });
       errEl.textContent = data.error || 'Login failed';
@@ -724,11 +776,74 @@ async function doLogout() {
   showLogin();
 }
 
+// Shared helper: validates, POSTs to /api/change-password, calls onSuccess or
+// writes error to errEl. Returns true on success.
+async function submitPasswordChange(p1, p2, errEl, onSuccess) {
+  errEl.style.display = 'none';
+  if (p1.length < 8) {
+    errEl.textContent = 'Password must be at least 8 characters';
+    errEl.style.display = 'block';
+    return false;
+  }
+  if (p1 !== p2) {
+    errEl.textContent = 'Passwords do not match';
+    errEl.style.display = 'block';
+    return false;
+  }
+  var r = await apiFetch('/api/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: p1 })
+  });
+  if (!r) return false; // 401 — login overlay shown
+  if (!r.ok) {
+    var data = await r.json().catch(function(){ return {}; });
+    errEl.textContent = data.error || 'Change failed';
+    errEl.style.display = 'block';
+    return false;
+  }
+  onSuccess();
+  return true;
+}
+
+// Called from the first-login forced-change overlay.
+async function doFirstLoginPasswordChange(e) {
+  if (e) e.preventDefault();
+  var btn = document.getElementById('cpBtn');
+  btn.disabled = true;
+  var ok = await submitPasswordChange(
+    document.getElementById('cpNewPass1').value,
+    document.getElementById('cpNewPass2').value,
+    document.getElementById('cpError'),
+    function() { showAdmin(); }
+  );
+  if (!ok) btn.disabled = false;
+}
+
+// Called from the Settings tab "Change Password" section.
+async function savePassword() {
+  var statusEl = document.getElementById('passwordStatus');
+  statusEl.textContent = '';
+  var ok = await submitPasswordChange(
+    document.getElementById('setNewPass1').value,
+    document.getElementById('setNewPass2').value,
+    statusEl,
+    function() {
+      document.getElementById('setNewPass1').value = '';
+      document.getElementById('setNewPass2').value = '';
+      showToast('Password changed');
+      statusEl.textContent = '✓ Changed';
+      setTimeout(function(){ statusEl.textContent = ''; }, 3000);
+    }
+  );
+}
+
 async function checkSession() {
   try {
     var r    = await fetch('/api/session');
     var data = await r.json();
-    if (data.authenticated) showAdmin();
+    if (data.authenticated && data.mustChangePassword) showChangePassword();
+    else if (data.authenticated) showAdmin();
     else showLogin();
   } catch(e) {
     showLogin();
