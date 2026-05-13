@@ -1,119 +1,4 @@
-/* bracket.css — all sizing in em/vh/vw, no px */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg:           #0f1410;
-  --surface:      #181f1a;
-  --surface2:     #1f2921;
-  --border:       #2e3d30;
-  --blue:         #1a5fa8;
-  --blue-lt:      #4a90d9;
-  --gold:         #c49a1a;
-  --gold-lt:      #e8b82a;
-  --text:         #e8ede9;
-  --text-dim:     #7a8f7d;
-  --text-mute:    #4a5e4d;
-  --win-color:    #4a9a4a;
-  --lose-color:   #c05050;
-  --elim-bg:      #2a1f1f;
-  --elim-text:    #8a5a5a;
-  --line-color:   #4a7a8a;
-  --clear-color:  #c05050;
-  --clear-border: #8a3a3a;
-
-  /* Bracket slot sizing — set by JS via setProperty */
-  --slot-h:    10vh;
-  --card-h:    8vh;
-  --row-h:     calc(var(--card-h) / 3);
-  --col-w:     14vw;
-  --col-gap:   2vw;
-  --col-hdr-h: 1.6em;
-}
-
-body.light {
-  --bg:        #f0f4f1;
-  --surface:   #ffffff;
-  --surface2:  #e8ede9;
-  --border:    #c8d8ca;
-  --blue:      #1a5fa8;
-  --blue-lt:   #1a4a8a;
-  --gold:      #a07800;
-  --gold-lt:   #7a5800;
-  --text:      #1a2a1c;
-  --text-dim:  #4a6a50;
-  --text-mute: #8aaa90;
-  --win-color: #2a6a18;
-  --lose-color:#8a2a2a;
-  --elim-bg:   #f5e8e8;
-  --elim-text: #8a4a4a;
-  --line-color:#5a8a9a;
-  --clear-color:#8a2a2a;
-  --clear-border:#c05050;
-}
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Barlow', sans-serif;
-  font-size: clamp(0.92rem, 0.08vw + 0.9rem, 1rem);
-  min-height: 100vh;
-  transition: background 0.2s, color 0.2s;
-}
-
-/* ── Header name block ── */
-.header-name-block { flex: 1; min-width: 0; }
-.site-subtitle {
-  display: none;
-  font-size: 0.65em;
-  color: var(--gold);
-  font-family: 'Oswald', sans-serif;
-  letter-spacing: 0.12em;
-  margin-top: 0.1em;
-}
-
-/* ── Header ── */
-.site-header {
-  background: var(--surface);
-  border-bottom: 0.15em solid var(--gold);
-  padding: 0.8em 1em;
-  display: flex;
-  align-items: center;
-  gap: 0.8em;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.site-header h1 {
-  font-family: 'Oswald', sans-serif;
-  font-size: clamp(1.05rem, 0.18vw + 1rem, 1.35rem);
-  font-weight: 700;
-  color: var(--gold-lt);
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  line-height: 1;
-}
-.header-controls { margin-left: auto; display: flex; align-items: center; gap: 0.6em; }
-.theme-toggle {
-  background: none;
-  border: 0.07em solid var(--border);
-  border-radius: 2em;
-  padding: 0.35em 0.9em;
-  cursor: pointer;
-  font-size: 0.82rem;
-  color: var(--text-dim);
-  min-height: 2.5em;
-}
-.theme-toggle:hover { color: var(--text); }
-
-/* Results timestamp — end-justified in header name div */
-.header-timestamp {
-  font-family: 'Barlow', sans-serif;
-  font-size: 0.62rem;
-  color: var(--text-mute);
-  letter-spacing: 0.04em;
-  margin-top: 0.3em;
-  text-align: right;
-}
+/* bracket.css — public page: tabs, bracket layout, round view, team view */
 
 /* ── Tabs ── */
 .view-tabs {
@@ -183,10 +68,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 
 /* ════════════════════════════════════════════════════════════
    BRACKET LAYOUT
-   Full width split at championship.
-   Left:  R1 | R2 | QF | SF | CHAMP (right-justified)
-   Right: CHAMP | SF | QF | R2 | R1 (left-justified)
-   Championship card shared in center.
    ════════════════════════════════════════════════════════════ */
 
 .bracket-outer {
@@ -197,19 +78,15 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   padding: calc(var(--col-hdr-h) + 0.5em) 0 1em 0;
 }
 
-/* Each side takes half the viewport, flows toward center */
 .bracket-side {
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: flex-start;
 }
-/* Left: R1 on outer edge, SF nearest center → right-justify */
 .bracket-side.left-side  { justify-content: flex-end; }
-/* Right: SF nearest center, R1 on outer edge → left-justify */
 .bracket-side.right-side { justify-content: flex-start; }
 
-/* Rounds wrapper inside each side */
 .rounds-wrap {
   display: flex;
   flex-direction: row;
@@ -219,7 +96,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   margin: 0 auto;
 }
 
-/* Round column — absolute-positioned cards inside */
 .round-col {
   position: relative;
   flex-shrink: 0;
@@ -242,7 +118,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   white-space: nowrap;
 }
 
-/* Gap column between rounds — holds SVG connector lines */
 .round-gap {
   position: relative;
   flex-shrink: 0;
@@ -288,27 +163,33 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   white-space: nowrap;
 }
 .bc-time {
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   color: var(--gold-lt);
   font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+  text-align: right;
 }
+/* Desktop bracket team names: single line with ellipsis to prevent crowding */
 .bc-team {
   flex: 1;
   padding: 0.2em 0.45em;
-  font-size: clamp(0.68rem, 0.04vw + 0.67rem, 0.74rem);
+  font-size: 0.64rem;
   font-weight: 600;
   color: var(--text);
   border-bottom: 0.07em solid var(--border);
-  word-break: break-word;
-  white-space: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   line-height: 1.25;
   display: flex;
   align-items: center;
   min-height: var(--row-h);
 }
 .bc-team:last-child { border-bottom: none; }
-.bc-team.tbd  { color: var(--text-mute); font-style: italic; font-weight: 400; font-size: 0.64rem; }
+.bc-team.tbd  { color: var(--text-mute); font-style: italic; font-weight: 400; font-size: 0.58rem; }
 .bc-team.won  { color: var(--win-color); }
 .bc-team.lost { color: var(--lose-color); text-decoration: line-through; opacity: 0.65; }
 
@@ -364,7 +245,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .left-side  .bracket-side-label { left: 0; }
 .right-side .bracket-side-label { right: 0; }
 
-/* Bracket wrapper needs relative positioning for side labels */
 .bracket-side-wrap {
   flex: 1;
   min-width: 0;
@@ -383,7 +263,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   padding: 0.3em 0 0.5em;
 }
 
-/* ── Mobile bracket ── */
+/* ── Mobile bracket (legacy classes, kept for compatibility) ── */
 .mobile-bracket-wrap {
   width: 85vw;
   margin: 0 auto;
@@ -434,7 +314,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   flex-shrink: 0;
 }
 .round-game-day-time { display: flex; align-items: baseline; gap: 0.45em; flex: 1; }
-/* Both day and time now gold — full day name handled by formatTime() */
 .round-game-day  { font-family: 'Oswald', sans-serif; font-size: clamp(1.15rem, 0.18vw + 1.1rem, 1.45rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-game-time { font-family: 'Oswald', sans-serif; font-size: clamp(1.15rem, 0.18vw + 1.1rem, 1.45rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-team-row {
@@ -517,16 +396,16 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .color-win  { color: var(--win-color); }
 .color-lose { color: var(--lose-color); }
 .color-gold { color: var(--gold-lt); }
-.team-path-label { 
+.team-path-label {
   padding: 0.6em 0.75em;
   font-size: 1.15rem;
   font-family: 'Oswald', sans-serif;
   font-weight: 600;
   letter-spacing: 0.13em;
-  text-transform: uppercase; 
+  text-transform: uppercase;
   background: var(--surface2);
-  border-radius: 0.3em; 
-  border-left: 0.2em solid currentColor; 
+  border-radius: 0.3em;
+  border-left: 0.2em solid currentColor;
   margin: 0.5em 0 1.4em;
   text-align: center;
 }
@@ -542,176 +421,12 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .champ-team-slot.tbd { color: var(--text-mute); font-style: italic; font-weight: 400; }
 .champ-winner-display { margin-top: 0.6em; text-align: center; font-family: 'Oswald', sans-serif; font-size: 0.95rem; color: var(--gold-lt); letter-spacing: 0.07em; }
 
-/* ── Login overlay helpers ── */
-.login-btn { width: 100%; margin-top: 0.25em; }
-.login-desc { font-size: 0.8em; color: var(--text-mute); margin-bottom: 1.2em; }
-.field-label-hint { color: var(--text-mute); font-size: 0.85em; }
-
-/* ── Admin ── */
-.admin-wrap { max-width: 65em; margin: 0 auto; padding: 1.2em 1em; }
-.admin-title { font-family: 'Oswald', sans-serif; font-size: 1.25rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold-lt); margin-bottom: 0.25em; }
-.admin-subtitle { font-size: 0.78em; color: var(--text-mute); margin-bottom: 1.2em; }
-.admin-section-hdr { font-family: 'Oswald', sans-serif; font-size: 0.95em; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--gold); padding: 0.6em 0 0.35em; border-bottom: 0.13em solid var(--gold); margin: 1.7em 0 0.85em; }
-.admin-round-hdr { font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); padding: 0.5em 0; border-bottom: 0.07em solid var(--border); margin: 1.2em 0 0.6em; }
-.admin-game-row { display: flex; align-items: center; gap: 0.6em; padding: 0.5em 0; border-bottom: 0.07em solid var(--border); flex-wrap: wrap; }
-.admin-game-id { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.07em; color: var(--blue-lt); width: 2.2em; flex-shrink: 0; }
-.admin-game-time-display { font-size: 0.76rem; color: var(--text-mute); width: 5.2em; flex-shrink: 0; }
-.admin-game-teams { flex: 1; font-size: 0.9rem; color: var(--text-dim); min-width: 7.5em; }
-.admin-winner-sel { font-family: 'Barlow', sans-serif; font-size: 0.86rem; padding: 0.3em 0.5em; border-radius: 0.2em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; min-width: 9.4em; }
-.admin-winner-sel:focus { outline: 0.13em solid var(--blue-lt); }
-.admin-save-btn { font-family: 'Oswald', sans-serif; font-size: 0.65em; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.32em 0.75em; border-radius: 0.2em; border: 0.07em solid var(--blue); background: var(--blue); color: #fff; cursor: pointer; }
-.admin-save-btn:hover { background: var(--blue-lt); border-color: var(--blue-lt); }
-.admin-set-label { font-size: 0.84rem; color: var(--win-color); font-weight: 600; }
-.admin-locked { font-size: 0.74rem; color: var(--text-mute); font-style: italic; }
-.admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.25em 0.62em; border-radius: 0.2em; border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
-.admin-clear-btn:hover { background: rgba(192,80,80,0.1); }
-
-/* Public page link button — styled to match sched-save-btn */
-.admin-public-btn {
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.74rem;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  padding: 0.38em 0.88em;
-  border-radius: 0.2em;
-  border: 0.07em solid var(--border);
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3em;
-}
-.admin-public-btn:hover { color: var(--text); border-color: var(--text-dim); }
-
-.sched-game-card { border: 0.07em solid var(--border); border-radius: 0.4em; overflow: hidden; margin-bottom: 0.75em; background: var(--surface); }
-.sched-game-hdr { display: flex; align-items: center; gap: 0.6em; padding: 0.5em 0.75em; background: var(--surface2); border-bottom: 0.07em solid var(--border); cursor: pointer; }
-.sched-game-hdr-id { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.07em; color: var(--blue-lt); }
-.sched-game-hdr-time { font-size: 0.78rem; color: var(--gold-lt); font-weight: 600; }
-.sched-game-hdr-teams { font-size: 0.82rem; color: var(--text-dim); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sched-game-hdr-teams.empty { font-style: italic; }
-.sched-game-hdr-arrow { color: var(--text-mute); font-size: 0.72rem; margin-left: auto; }
-.sched-game-body { padding: 0.75em; display: none; }
-.sched-game-body.open { display: block; }
-.sched-field { margin-bottom: 0.6em; }
-.sched-field label { display: block; font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.25em; }
-.sched-field input { width: 100%; font-family: 'Barlow', sans-serif; font-size: 0.9rem; padding: 0.43em 0.62em; border-radius: 0.25em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); }
-.sched-field input:focus { outline: 0.13em solid var(--blue-lt); }
-.sched-save-btn { font-family: 'Oswald', sans-serif; font-size: 0.74rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.38em 0.88em; border-radius: 0.2em; border: 0.07em solid var(--blue); background: var(--blue); color: #fff; cursor: pointer; }
-.sched-save-btn:hover { background: var(--blue-lt); }
-.sched-status { font-size: 0.74rem; color: var(--win-color); margin-left: 0.5em; }
-
-/* Row of action buttons (save + public link) */
-.sched-action-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6em;
-  flex-wrap: wrap;
-}
-.sched-action-row--top  { margin-bottom: 1em; }
-.sched-action-row--bottom {
-  margin-top: 1.5em;
-  padding-top: 1em;
-  border-top: 0.07em solid var(--border);
-}
-.settings-save-row { display: flex; align-items: center; gap: 0.6em; margin-top: 0.5em; }
-.admin-game-row--waiting { opacity: 0.4; }
-.admin-game-teams--ready { color: var(--text); }
-.sched-game-hdr-sid { color: var(--text-mute); font-size: 0.65em; }
-.source-dropdown-row { display: flex; gap: 0.4em; align-items: center; flex-wrap: wrap; }
-.source-dropdown-sep { font-size: 0.75em; color: var(--text-mute); }
-.sched-game-footer {
-  margin-top: 0.6em;
-  padding-top: 0.6em;
-  border-top: 0.07em solid var(--border);
-}
-.sched-footer-note { font-size: 0.65em; color: var(--text-mute); margin-left: 0.6em; }
-.empty-slot-instructions {
-  font-size: 0.72em;
-  color: var(--text-mute);
-  margin-bottom: 0.6em;
-  font-style: italic;
-}
-.sched-side-label {
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.6em;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--blue-lt);
-  padding: 0.4em 0 0.2em;
-}
-
-/* Toast */
-.toast { position: fixed; bottom: 1.5em; left: 50%; transform: translateX(-50%) translateY(1.2em); background: var(--surface2); border: 0.07em solid var(--blue); border-radius: 0.4em; padding: 0.6em 1.2em; font-size: 0.84rem; color: var(--blue-lt); opacity: 0; transition: all 0.25s; pointer-events: none; z-index: 999; white-space: nowrap; }
-.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.toast.error { border-color: var(--clear-color); color: var(--clear-color); }
-
-/* Date/time pair inputs in admin */
-.datetime-pair {
-  display: flex;
-  gap: 0.5em;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.datetime-pair input[type="date"],
-.datetime-pair input[type="time"] {
-  flex: 1;
-  min-width: 8em;
-}
-.datetime-pair .dt-sep {
-  font-size: 0.75em;
-  color: var(--text-mute);
-  flex-shrink: 0;
-}
-input[type="date"],
-input[type="time"] {
-  background: var(--surface2);
-  color: var(--text);
-  border: 0.07em solid var(--border);
-  border-radius: 0.25em;
-  padding: 0.3em 0.45em;
-  font-family: 'Barlow', sans-serif;
-  font-size: 0.88em;
-}
-input[type="date"]:focus,
-input[type="time"]:focus {
-  outline: none;
-  border-color: var(--blue-lt);
-}
-
-/* Settings tab */
-.settings-section { margin-bottom: 1.6em; }
-.settings-section-hdr { font-family: 'Oswald', sans-serif; font-size: 0.68em; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); padding: 0.5em 0; border-bottom: 0.07em solid var(--border); margin-bottom: 0.75em; }
-.settings-field { margin-bottom: 0.75em; }
-.settings-field label { display: block; font-family: 'Oswald', sans-serif; font-size: 0.62em; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.3em; }
-.settings-field input { width: 100%; font-family: 'Barlow', sans-serif; font-size: 0.88em; padding: 0.43em 0.62em; border-radius: 0.25em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); }
-.settings-field input:focus { outline: 0.13em solid var(--blue-lt); }
-.settings-field .field-hint { font-size: 0.65em; color: var(--text-mute); margin-top: 0.2em; }
-.account-username {
-  font-family: 'Oswald', sans-serif;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--gold-lt);
-  letter-spacing: 0.07em;
-  padding: 0.3em 0;
-}
-
 /* ════════════════════════════════════════════════════════════
    TABLET LAYOUT (768px - 1024px)
-   
-   Vertical stack with championship at far right:
-   - Left bracket (full width, no snap, wider cards)
-   - Right bracket (full width, no snap, wider cards)
-   - Championship displayed at the end
-   - NO snap behavior (smooth horizontal scroll only)
    ════════════════════════════════════════════════════════════ */
 
 @media (max-width: 1024px) and (min-width: 768px) {
-  .bracket-outer {
-    display: none;
-  }
+  .bracket-outer { display: none; }
 
   .bracket-side {
     width: 100%;
@@ -721,19 +436,11 @@ input[type="time"]:focus {
     align-items: stretch;
     margin-bottom: 2em;
   }
-
   .bracket-side.left-side,
-  .bracket-side.right-side {
-    justify-content: unset;
-  }
+  .bracket-side.right-side { justify-content: unset; }
 
-  .bracket-side-label {
-    position: static;
-    margin-bottom: 0.75em;
-    display: inline-block;
-  }
+  .bracket-side-label { position: static; margin-bottom: 0.75em; display: inline-block; }
 
-  /* Horizontal scroll without snap behavior */
   .rounds-wrap {
     width: 100%;
     max-width: 100%;
@@ -756,10 +463,7 @@ input[type="time"]:focus {
     position: relative;
     padding-right: 1em;
   }
-
-  .round-col:last-child {
-    padding-right: 1.5em;
-  }
+  .round-col:last-child { padding-right: 1.5em; }
 
   .round-col-hdr {
     position: static;
@@ -773,9 +477,7 @@ input[type="time"]:focus {
     margin-bottom: 0.6em;
   }
 
-  .round-gap {
-    display: none;
-  }
+  .round-gap { display: none; }
 
   .bc {
     position: relative;
@@ -783,25 +485,16 @@ input[type="time"]:focus {
     border-radius: 0.4em;
     min-height: auto;
   }
-
-  .bc-hdr {
-    padding: 0.4em 0.4em;
-    font-size: 0.68rem;
-  }
-
-  .bc-id {
-    font-size: 0.63rem;
-  }
-
-  .bc-time {
-    font-size: 0.63rem;
-  }
-
+  .bc-hdr { padding: 0.4em 0.4em; font-size: 0.68rem; }
+  .bc-id  { font-size: 0.63rem; }
+  .bc-time { font-size: 0.63rem; }
   .bc-team {
     padding: 0.25em 0.4em;
     font-size: 0.72rem;
     min-height: 2.1em;
     line-height: 1.2;
+    white-space: normal;
+    word-break: break-word;
   }
 
   .champ-center {
@@ -816,65 +509,21 @@ input[type="time"]:focus {
     border-top: 0.07em solid rgba(196,154,26,0.15);
     border-bottom: none;
   }
-
-  .champ-title {
-    font-size: 0.70rem;
-    margin-bottom: 0.3em;
-  }
-
-  .champ-gametime {
-    font-size: 0.75rem;
-    margin-bottom: 0.5em;
-  }
-
-  .champ-trophy {
-    font-size: 1.6em;
-    margin-bottom: 0.25em;
-  }
-
-  .champ-winner {
-    font-size: 0.90rem;
-    margin-top: 0.4em;
-  }
-
-  .champ-bc {
-    position: relative;
-    height: auto;
-    margin-bottom: 0;
-  }
-
-  .bracket-side-wrap {
-    position: static;
-    flex: 1;
-    min-width: 0;
-  }
+  .champ-title   { font-size: 0.70rem; margin-bottom: 0.3em; }
+  .champ-gametime { font-size: 0.75rem; margin-bottom: 0.5em; }
+  .champ-trophy  { font-size: 1.6em; margin-bottom: 0.25em; }
+  .champ-winner  { font-size: 0.90rem; margin-top: 0.4em; }
+  .champ-bc      { position: relative; height: auto; margin-bottom: 0; }
+  .bracket-side-wrap { position: static; flex: 1; min-width: 0; }
 }
 
 /* ════════════════════════════════════════════════════════════
    MOBILE LAYOUT (max-width: 768px)
-   
-   Layout:
-   - Wrapper: 95vw (left ~2.5% margins)
-   - Left bracket + Right bracket side-by-side (each ~47.5vw)
-   - Championship as third column (right edge)
-   - Each bracket scrolls horizontally through rounds
-   
-   Slot centering:
-   - R1: full width (8 slots visible)
-   - R2: 50% R1 width (4 slots → centered between pairs)
-   - QF: 50% R2 width (2 slots → centered between pairs)
-   - SF: 50% QF width (1 slot → centered)
-   - CHAMP: full width (1 slot)
-   
-   Column widths set by JS based on this math.
    ════════════════════════════════════════════════════════════ */
 
 @media (max-width: 768px) {
-  .bracket-outer {
-    display: none;
-  }
+  .bracket-outer { display: none; }
 
-  /* Mobile wrapper: 95vw total, horizontal layout for left/right/champ */
   .bracket-side {
     flex: 1;
     min-width: 0;
@@ -882,20 +531,11 @@ input[type="time"]:focus {
     flex-direction: column;
     align-items: stretch;
   }
-
   .bracket-side.left-side,
-  .bracket-side.right-side {
-    justify-content: unset;
-  }
+  .bracket-side.right-side { justify-content: unset; }
 
-  .bracket-side-label {
-    position: static;
-    margin-bottom: 0.5em;
-    display: inline-block;
-    font-size: 0.72rem;
-  }
+  .bracket-side-label { position: static; margin-bottom: 0.5em; display: inline-block; font-size: 0.72rem; }
 
-  /* Horizontal carousel for each bracket side */
   .rounds-wrap {
     width: 100%;
     max-width: 100%;
@@ -911,7 +551,6 @@ input[type="time"]:focus {
     -webkit-scroll-snap-type: x mandatory;
   }
 
-  /* Round column with dynamic width (set by JS via --col-w) */
   .round-col {
     flex-shrink: 0;
     scroll-snap-align: start;
@@ -922,12 +561,8 @@ input[type="time"]:focus {
     position: relative;
     padding-right: 0.5em;
   }
+  .round-col:last-child { padding-right: 1.5em; }
 
-  .round-col:last-child {
-    padding-right: 1.5em;
-  }
-
-  /* Round column header */
   .round-col-hdr {
     position: static;
     text-align: center;
@@ -940,40 +575,26 @@ input[type="time"]:focus {
     margin-bottom: 0.4em;
   }
 
-  /* Hide connector lines on mobile */
-  .round-gap {
-    display: none;
-  }
+  .round-gap { display: none; }
 
-  /* Game cards on mobile */
   .bc {
     position: relative;
     margin-bottom: 0.5em;
     border-radius: 0.4em;
     min-height: auto;
   }
-
-  .bc-hdr {
-    padding: 0.33em 0.33em;
-    font-size: 0.62rem;
-  }
-
-  .bc-id {
-    font-size: 0.58rem;
-  }
-
-  .bc-time {
-    font-size: 0.58rem;
-  }
-
+  .bc-hdr { padding: 0.33em 0.33em; font-size: 0.62rem; }
+  .bc-id  { font-size: 0.58rem; }
+  .bc-time { font-size: 0.58rem; }
   .bc-team {
     padding: 0.18em 0.33em;
     font-size: 0.65rem;
     min-height: 1.9em;
     line-height: 1.15;
+    white-space: normal;
+    word-break: break-word;
   }
 
-  /* Championship on right side */
   .champ-center {
     position: relative;
     width: auto;
@@ -985,43 +606,13 @@ input[type="time"]:focus {
     border-bottom: none;
     margin: 0;
   }
-
-  .champ-inner {
-    width: 100%;
-    text-align: center;
-  }
-
-  .champ-title {
-    font-size: 0.62rem;
-    margin-bottom: 0.2em;
-  }
-
-  .champ-gametime {
-    font-size: 0.65rem;
-    margin-bottom: 0.35em;
-  }
-
-  .champ-trophy {
-    font-size: 1.2em;
-    margin-bottom: 0.15em;
-  }
-
-  .champ-bc {
-    position: relative;
-    height: auto;
-    margin-bottom: 0;
-  }
-
-  .champ-winner {
-    font-size: 0.80rem;
-    margin-top: 0.3em;
-  }
-
-  .bracket-side-wrap {
-    position: static;
-    flex: 1;
-    min-width: 0;
-  }
+  .champ-inner   { width: 100%; text-align: center; }
+  .champ-title   { font-size: 0.62rem; margin-bottom: 0.2em; }
+  .champ-gametime { font-size: 0.65rem; margin-bottom: 0.35em; }
+  .champ-trophy  { font-size: 1.2em; margin-bottom: 0.15em; }
+  .champ-bc      { position: relative; height: auto; margin-bottom: 0; }
+  .champ-winner  { font-size: 0.80rem; margin-top: 0.3em; }
+  .bracket-side-wrap { position: static; flex: 1; min-width: 0; }
 }
 
 @print {

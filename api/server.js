@@ -7,64 +7,7 @@ const RESULTS_FILE  = '/data/results.json';
 const SCHEDULE_FILE = '/data/schedule.json';
 const SETTINGS_FILE = '/data/settings.json';
 
-// ── Slot validation (mirrors SLOT_DEFS in frontend/bracket-data.js) ───
-const SLOT_DEFS = {
-  R1:    { L:[1,2,3,4,5,6,7,8], R:[1,2,3,4,5,6,7,8] },
-  R2:    { L:[1,2,3,4],         R:[1,2,3,4] },
-  QF:    { L:[1,2],             R:[1,2] },
-  SF:    { L:[1],               R:[1] },
-  CHAMP: { C:[1] },
-};
-
-function isValidSlotId(sid) {
-  if (typeof sid !== 'string') return false;
-  const p = sid.split('.');
-  if (p.length !== 3) return false;
-  const defs = SLOT_DEFS[p[0]];
-  return !!(defs && defs[p[1]] && defs[p[1]].includes(parseInt(p[2])));
-}
-
-function validateResult({ game, winner, loser } = {}) {
-  if (!game || !winner || !loser)                    return 'game, winner, loser required';
-  if (!isValidSlotId(game))                          return 'invalid slot ID';
-  if (typeof winner !== 'string' || !winner.trim())  return 'winner must be a non-empty string';
-  if (typeof loser  !== 'string' || !loser.trim())   return 'loser must be a non-empty string';
-  if (winner.length > 100 || loser.length > 100)     return 'team name too long (max 100)';
-  if (winner.trim() === loser.trim())                return 'winner and loser must differ';
-  return null;
-}
-
-function validateSchedule(updates) {
-  if (typeof updates !== 'object' || Array.isArray(updates) || updates === null)
-    return 'schedule must be a plain object';
-  if (Object.keys(updates).length > 200)
-    return 'too many entries';
-  for (const [sid, entry] of Object.entries(updates)) {
-    if (!isValidSlotId(sid))
-      return `invalid slot ID: ${sid}`;
-    if (typeof entry !== 'object' || Array.isArray(entry) || entry === null)
-      return `entry for ${sid} must be an object`;
-    if (entry.clear === true) continue;
-    for (const f of ['label','t1name','t2name','t1type','t2type','t1slot','t2slot']) {
-      if (entry[f] !== undefined) {
-        if (typeof entry[f] !== 'string') return `${f} for ${sid} must be a string`;
-        if (entry[f].length > 200)        return `${f} for ${sid} too long (max 200)`;
-      }
-    }
-    if (entry.time !== undefined && entry.time !== '' &&
-        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(entry.time))
-      return `invalid time format for ${sid}: expected YYYY-MM-DDTHH:MM`;
-    if (entry.t1slot && !isValidSlotId(entry.t1slot)) return `invalid t1slot for ${sid}`;
-    if (entry.t2slot && !isValidSlotId(entry.t2slot)) return `invalid t2slot for ${sid}`;
-    if (entry.t1type && !['winner','loser'].includes(entry.t1type)) return `invalid t1type for ${sid}`;
-    if (entry.t2type && !['winner','loser'].includes(entry.t2type)) return `invalid t2type for ${sid}`;
-    if (entry.num !== undefined) {
-      const n = parseInt(entry.num);
-      if (isNaN(n) || n < 1) return `invalid num for ${sid}`;
-    }
-  }
-  return null;
-}
+const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
 
 const SETTINGS_DEFAULTS = {
   tournamentName: 'Tournament Bracket',
