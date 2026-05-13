@@ -15,6 +15,7 @@ services:
     build: ./api
     volumes:
       - ./files:/data
+      - ./frontend:/frontend:ro
     restart: unless-stopped
     expose:
       - "3000"

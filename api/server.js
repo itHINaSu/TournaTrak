@@ -118,6 +118,13 @@ function needsPasswordChange() {
   return FORCE_PASSWORD_CHANGE && !fs.existsSync(ADMIN_CREDS_FILE);
 }
 
+const FRONTEND_INDEX = '/frontend/index.html';
+
+// Escape for safe injection into HTML text and attribute values
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
 // ── App ───────────────────────────────────────────────────────────────
 const app = express();
 
@@ -200,6 +207,32 @@ app.post('/api/change-password', async (req, res) => {
   } catch (err) {
     console.error('change-password error:', err);
     res.status(500).json({ error: 'Failed to save password' });
+  }
+});
+
+// ── Root HTML — inject dynamic title + Open Graph tags ───────────────
+// Social platforms scrape raw HTML and don't run JS, so <title> and og:title
+// must be present in the server response rather than set by client-side JS.
+app.get(['/', '/index.html'], (req, res) => {
+  const s       = Object.assign({}, SETTINGS_DEFAULTS, readJSON(SETTINGS_FILE));
+  const title   = escHtml(s.pageTitle      || SETTINGS_DEFAULTS.pageTitle);
+  const ogTitle = escHtml(s.tournamentName || SETTINGS_DEFAULTS.tournamentName);
+  const desc    = escHtml(s.subtitle       || '');
+  try {
+    let html = fs.readFileSync(FRONTEND_INDEX, 'utf8');
+    html = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
+    const meta = [
+      `  <meta property="og:title" content="${ogTitle}">`,
+      `  <meta property="og:type" content="website">`,
+      desc ? `  <meta property="og:description" content="${desc}">` : '',
+      desc ? `  <meta name="description" content="${desc}">` : '',
+    ].filter(Boolean).join('\n');
+    html = html.replace('</head>', `${meta}\n</head>`);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+  } catch (err) {
+    console.error('Error serving index:', err);
+    res.status(500).send('Server error');
   }
 });
 
