@@ -632,8 +632,9 @@ function renderMobileBracket(root, dims) {
     if (idx !== activeIdx) activeIdx = idx;
   }, { passive: true });
 
-  // Bidirectional vertical scroll sync: when the active column scrolls,
-  // propagate its scrollTop to all other columns so lateY positions align
+  // Bidirectional vertical scroll sync — hold the guard flag for one rAF
+  // so synced-element scroll events fire while the flag is still true and
+  // cannot loop back.
   var syncingScroll = false;
   colEls.forEach(function(col, i) {
     var scrollEl = col.querySelector('.mbc-scroll');
@@ -644,7 +645,7 @@ function renderMobileBracket(root, dims) {
       colEls.forEach(function(c, j) {
         if (j !== i) c.querySelector('.mbc-scroll').scrollTop = top;
       });
-      syncingScroll = false;
+      requestAnimationFrame(function() { syncingScroll = false; });
     }, { passive: true });
   });
 }
