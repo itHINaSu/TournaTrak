@@ -540,9 +540,39 @@ function renderMobileBracket(root, dims) {
   }, 0);
   innerH = maxSlots * (CARD_H + GAP) + 24;
 
-  // ── lateY: same as earlyY so peek cards stay in natural slot order ──
+  // ── lateY: feeder midpoints, order-preserving so no card swaps during swipe ──
+  // Raw lateY is the average center-Y of a game's source slots so each result
+  // card sits vertically centred between its two feeders. Then we sort the raw
+  // values and reassign them in earlyY order: the i-th card by earlyY gets the
+  // i-th lowest lateY value. This keeps the correct spacing while guaranteeing
+  // the visual order never changes between the two snap positions.
   var lateY = {};
-  Object.keys(earlyY).forEach(function(slot) { lateY[slot] = earlyY[slot]; });
+  ['R2','QF','SF','CHAMP'].forEach(function(round) {
+    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
+    // Step 1: raw lateY from feeder midpoints, per side
+    sides.forEach(function(side) {
+      slotsForRoundSide(round, side).forEach(function(gid) {
+        var g = GAMES[gid]; if (!g) return;
+        var srcMids = [g.t1, g.t2]
+          .filter(function(s) { return s && earlyY[s.slot] !== undefined; })
+          .map(function(s) { return earlyY[s.slot] + CARD_H / 2; });
+        lateY[gid] = srcMids.length
+          ? srcMids.reduce(function(a, b) { return a + b; }, 0) / srcMids.length - CARD_H / 2
+          : earlyY[gid] !== undefined ? earlyY[gid] : 0;
+      });
+    });
+    // Step 2: order-preserving reassignment across the whole round
+    // Sort games by earlyY; sort raw lateY values ascending; pair them 1-to-1.
+    var allGids = gidsFor(round).filter(function(g) { return lateY[g] !== undefined; });
+    var byEarly = allGids.slice().sort(function(a, b) { return (earlyY[a] || 0) - (earlyY[b] || 0); });
+    var sortedVals = byEarly.map(function(g) { return lateY[g]; }).sort(function(a, b) { return a - b; });
+    byEarly.forEach(function(gid, i) { lateY[gid] = sortedVals[i]; });
+    // Step 3: minimum-gap spread in earlyY order
+    for (var i = 1; i < byEarly.length; i++) {
+      var minTop = lateY[byEarly[i - 1]] + CARD_H + 4;
+      if (lateY[byEarly[i]] < minTop) lateY[byEarly[i]] = minTop;
+    }
+  });
 
   // ── Build column HTML ─────────────────────────────────────────────
   var colsHTML = rounds.map(function(round, ri) {
