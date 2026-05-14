@@ -775,6 +775,77 @@ function renderMobileBracket(root, dims) {
     hSnapTimer = setTimeout(function() { makeColumnActive(idx); }, 200);
   }, { passive: true });
 
+  // ── Touch relay: vertical swipes on non-active columns forward to active scroll ──
+  //
+  // Non-active columns are overflow:hidden — the browser won't scroll them, trapping
+  // the touch. We detect those touches on the outer container (events bubble), then
+  // manually drive the active column's scrollTop and simulate momentum on touchend.
+  var relayState = null;
+  var momentumRAF = null;
+
+  function colIdxForEl(el) {
+    while (el && el !== outer) {
+      for (var ci = 0; ci < colEls.length; ci++) { if (colEls[ci] === el) return ci; }
+      el = el.parentElement;
+    }
+    return -1;
+  }
+
+  outer.addEventListener('touchstart', function(e) {
+    if (momentumRAF) { cancelAnimationFrame(momentumRAF); momentumRAF = null; }
+    var touch = e.touches[0];
+    var ci = colIdxForEl(e.target);
+    if (ci === -1 || ci === activeIdx) { relayState = null; return; }
+    relayState = {
+      startX: touch.clientX, startY: touch.clientY,
+      startScroll: sharedScrollTop,
+      lastY: touch.clientY, lastTime: Date.now(),
+      velocity: 0, isVertical: null
+    };
+  }, { passive: true });
+
+  outer.addEventListener('touchmove', function(e) {
+    if (!relayState) return;
+    var touch = e.touches[0];
+    var dy = touch.clientY - relayState.startY;
+    var dx = touch.clientX - relayState.startX;
+    if (relayState.isVertical === null && (Math.abs(dy) > 4 || Math.abs(dx) > 4)) {
+      relayState.isVertical = Math.abs(dy) >= Math.abs(dx);
+    }
+    if (!relayState.isVertical) { relayState = null; return; }
+    var now = Date.now(), dt = now - relayState.lastTime;
+    if (dt > 0) relayState.velocity = (touch.clientY - relayState.lastY) / dt;
+    relayState.lastY = touch.clientY; relayState.lastTime = now;
+    var scrollEl = colEls[activeIdx].querySelector('.mbc-scroll');
+    var maxScroll = Math.max(0, roundInnerH(rounds[activeIdx]) - scrollH);
+    scrollEl.scrollTop = Math.min(Math.max(0, relayState.startScroll - dy), maxScroll);
+  }, { passive: true });
+
+  function startMomentum(vel) {
+    var scrollEl = colEls[activeIdx].querySelector('.mbc-scroll');
+    var prev = performance.now();
+    function step(now) {
+      var dt = now - prev; prev = now;
+      var elapsed = now - step._start;
+      var v = vel * Math.exp(-0.007 * elapsed);
+      if (Math.abs(v) < 0.02) return;
+      var maxScroll = Math.max(0, roundInnerH(rounds[activeIdx]) - scrollH);
+      scrollEl.scrollTop = Math.min(Math.max(0, scrollEl.scrollTop - v * dt), maxScroll);
+      momentumRAF = requestAnimationFrame(step);
+    }
+    step._start = performance.now();
+    momentumRAF = requestAnimationFrame(step);
+  }
+
+  outer.addEventListener('touchend', function() {
+    if (!relayState || !relayState.isVertical) { relayState = null; return; }
+    var vel = relayState.velocity;
+    relayState = null;
+    if (Math.abs(vel) > 0.04) startMomentum(vel);
+  }, { passive: true });
+
+  outer.addEventListener('touchcancel', function() { relayState = null; }, { passive: true });
+
   // Initial state: only column 0 is native-scrollable
   makeColumnActive(0);
 }

@@ -871,20 +871,27 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 
 /* ════════════════════════════════════════════════════════════
-   MOBILE — tabs + selector fixed to bottom
+   MOBILE — flex-body layout: body is a locked column,
+   tabs sit naturally at the bottom (no position:fixed needed),
+   selector is fixed above tabs with no body-scroll jitter.
    ════════════════════════════════════════════════════════════ */
 @media (max-width: 1023px) {
   /* Compact the header to reclaim vertical space */
   .header-timestamp { display: none !important; }
   .site-subtitle { font-size: 0.58em; margin-top: 0.05em; letter-spacing: 0.08em; }
 
-  /* Tab bar: noticeably darker than page surface to read as a distinct object */
+  /* Viewport-locked flex column — body never scrolls, so position:fixed is rock-solid */
+  html { height: 100%; }
+  body { height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+  .site-header { flex-shrink: 0; }
+
+  /* Tab bar: last flex item → naturally sits at the bottom, no position:fixed needed */
   .view-tabs {
-    position: fixed;
+    order: 10;
+    flex-shrink: 0;
+    position: static;
     top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
+    bottom: auto;
     background: #0a0e0b;
     border-top: 0.22em solid var(--gold);
     border-bottom: none;
@@ -893,8 +900,8 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     z-index: 90;
   }
   .view-tab {
-    min-height: 7em;
-    padding: 1.4em 0.3em 1.2em;
+    min-height: 9em;
+    padding: 1.8em 0.3em 1.5em;
     border-bottom: none;
     border-top: 0.25em solid transparent;
     font-size: 0.78rem;
@@ -903,8 +910,8 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   }
   .tab-icon {
     display: block;
-    width: 1.9em;
-    height: 1.9em;
+    width: 2.2em;
+    height: 2.2em;
   }
   .view-tab.active {
     color: var(--gold-lt);
@@ -914,11 +921,20 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     color: var(--gold-lt);
   }
 
-  /* Selector row: thick gold top bar creates a clear break with content above */
+  /* Active panels fill remaining space between header and tab bar */
+  .view-panel.active { flex: 1; min-height: 0; overflow: hidden; }
+  /* Rounds and teams panels scroll their own content */
+  #view-rounds.active, #view-teams.active {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+
+  /* Selector row: fixed just above tabs; body never scrolls → no iOS jitter */
   .selector-row {
     position: fixed;
     top: auto;
-    bottom: calc(var(--tabs-h, 4em) + env(safe-area-inset-bottom, 0px));
+    bottom: var(--tabs-h, 9em);
     left: 0;
     right: 0;
     background: var(--surface);
@@ -930,7 +946,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 
   /* Scrollable views: clear selector + tabs at bottom */
   #view-rounds, #view-teams {
-    padding-bottom: calc(var(--tabs-h, 4em) + var(--sel-h, 5em) + env(safe-area-inset-bottom, 0px) + 0.5em);
+    padding-bottom: calc(var(--sel-h, 5em) + 0.5em);
   }
 
   /* ── Team view mobile overrides ── */
