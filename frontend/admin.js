@@ -199,11 +199,6 @@ function renderAdmin() {
           + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
           + '<input type="number" class="admin-score-inp" id="sc2-' + sid + '" min="0" max="9999" placeholder="Score"></div>'
           + '<div class="admin-res-footer">'
-          + '<select class="admin-winner-sel" id="sel-' + sid + '">'
-          + '<option value="">— winner —</option>'
-          + '<option value="' + esc(t1) + '">' + esc(t1) + '</option>'
-          + '<option value="' + esc(t2) + '">' + esc(t2) + '</option>'
-          + '</select>'
           + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Save</button>'
           + '</div></div>';
       } else {
@@ -219,28 +214,28 @@ function renderAdmin() {
 }
 
 async function saveResult(sid) {
-  var sel = document.getElementById('sel-' + sid);
-  var winner = sel && sel.value;
-  if (!winner) { showToast('Select a winner first', true); return; }
   var g  = GAMES[sid];
   var t1 = resolveSlot(g.t1, results);
   var t2 = resolveSlot(g.t2, results);
-  var loser = winner === t1 ? t2 : t1;
   var sc1el = document.getElementById('sc1-' + sid);
   var sc2el = document.getElementById('sc2-' + sid);
-  var payload = { game: sid, winner: winner, loser: loser };
-  if (sc1el && sc1el.value !== '') payload.t1score = parseInt(sc1el.value, 10);
-  if (sc2el && sc2el.value !== '') payload.t2score = parseInt(sc2el.value, 10);
+  var s1 = (sc1el && sc1el.value !== '') ? parseInt(sc1el.value, 10) : null;
+  var s2 = (sc2el && sc2el.value !== '') ? parseInt(sc2el.value, 10) : null;
+  if (s1 === null || s2 === null || isNaN(s1) || isNaN(s2)) {
+    showToast('Enter scores for both teams', true); return;
+  }
+  if (s1 === s2) { showToast('Scores are tied — cannot determine winner', true); return; }
+  var winner = s1 > s2 ? t1 : t2;
+  var loser  = s1 > s2 ? t2 : t1;
+  var payload = { game: sid, winner: winner, loser: loser, t1score: s1, t2score: s2 };
   try {
     var r = await apiFetch('/api/results', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(payload)
     });
     if (!r) return;
     if (!r.ok) throw new Error();
-    results[sid] = { winner: winner, loser: loser };
-    if (payload.t1score !== undefined) results[sid].t1score = payload.t1score;
-    if (payload.t2score !== undefined) results[sid].t2score = payload.t2score;
+    results[sid] = { winner: winner, loser: loser, t1score: s1, t2score: s2 };
     showToast(gameLabel(sid) + ' saved — ' + winner + ' wins');
     renderAdmin();
   } catch(e) { showToast('Save failed', true); }
