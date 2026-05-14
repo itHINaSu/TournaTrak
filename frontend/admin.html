@@ -49,6 +49,25 @@
   </div>
 </div>
 
+<!-- Password reset modal — admin resets another user's password -->
+<div class="login-overlay" id="resetPwModal" style="display:none">
+  <div class="login-box">
+    <div class="login-title" id="resetPwTitle">Reset Password</div>
+    <div class="login-desc" id="resetPwDesc"></div>
+    <form onsubmit="submitResetPassword(event)">
+      <div class="sched-field">
+        <label>New Password</label>
+        <input type="password" id="resetPwInput" autocomplete="new-password" placeholder="At least 8 characters">
+      </div>
+      <div class="login-error" id="resetPwError"></div>
+      <div style="display:flex;gap:0.6em;margin-top:0.5em">
+        <button type="submit" class="sched-save-btn">Reset Password</button>
+        <button type="button" class="admin-clear-btn" onclick="closeResetPwModal()">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <header class="site-header" id="siteHeader">
   <div>
     <h1 id="adminSiteName">Tournament Admin</h1>
@@ -154,6 +173,32 @@
       </div>
       <div class="settings-save-row">
         <button class="admin-clear-btn" onclick="doLogout()">Sign Out</button>
+      </div>
+    </div>
+
+    <!-- ── USER MANAGEMENT (admin only, shown via JS) ── -->
+    <div class="settings-section" id="usersSection" style="display:none">
+      <div class="settings-section-hdr">Users</div>
+      <div id="usersList" class="users-list"></div>
+      <div class="settings-section-hdr" style="margin-top:1.6em">Add User</div>
+      <div class="settings-field">
+        <label>Username</label>
+        <input type="text" id="newUserUsername" autocomplete="off" placeholder="e.g. scorer1">
+      </div>
+      <div class="settings-field">
+        <label>Role</label>
+        <select id="newUserRole" class="admin-winner-sel" style="width:100%;padding:0.5em 0.62em">
+          <option value="results">Results — enter results only</option>
+          <option value="admin">Admin — full access</option>
+        </select>
+      </div>
+      <div class="settings-field">
+        <label>Initial Password <span class="field-label-hint">(user must change on first login)</span></label>
+        <input type="password" id="newUserPass" autocomplete="new-password" placeholder="At least 8 characters">
+      </div>
+      <div class="settings-save-row">
+        <button class="sched-save-btn" onclick="addUser()">Add User</button>
+        <span class="sched-status" id="addUserStatus"></span>
       </div>
     </div>
 

@@ -266,6 +266,35 @@ input[type="time"]:focus {
   border-color: var(--blue-lt);
 }
 
+/* ── User management ── */
+.users-list { margin-bottom: 0.5em; }
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.65em 0;
+  border-bottom: 0.07em solid var(--border);
+  flex-wrap: wrap;
+}
+.user-row:last-child { border-bottom: none; }
+.user-name { font-weight: 600; font-size: 0.9rem; flex: 1; min-width: 0; }
+.user-role {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.18em 0.5em;
+  border-radius: 0.25em;
+  flex-shrink: 0;
+}
+.user-role--admin   { background: rgba(59,130,246,0.12); color: var(--blue-lt); border: 0.07em solid var(--blue); }
+.user-role--results { background: rgba(196,154,26,0.1);  color: var(--gold-lt);  border: 0.07em solid rgba(196,154,26,0.4); }
+.user-actions { display: flex; gap: 0.4em; align-items: center; flex-shrink: 0; }
+.user-delete-btn { color: var(--clear-color) !important; border-color: var(--clear-border) !important; }
+.user-self-label { font-size: 0.72rem; color: var(--text-mute); font-style: italic; }
+.user-must-change { font-size: 0.68rem; color: var(--gold); font-style: italic; flex-shrink: 0; }
+
 /* ════════════════════════════════════════════════════════════
    MOBILE ADMIN — tabs at bottom, same style as public page
    ════════════════════════════════════════════════════════════ */

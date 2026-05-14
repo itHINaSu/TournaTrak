@@ -6,6 +6,7 @@ const fs      = require('fs');
 const RESULTS_FILE  = '/data/results.json';
 const SCHEDULE_FILE = '/data/schedule.json';
 const SETTINGS_FILE = '/data/settings.json';
+const USERS_FILE    = '/data/users.json';
 
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
 
@@ -18,6 +19,9 @@ const SETTINGS_DEFAULTS = {
   rightLabel:     'Right Bracket',
 };
 
+// Valid roles. 'team' is reserved for a future lineup feature but not yet active.
+const VALID_ROLES = ['admin', 'results'];
+
 function readJSON(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
   catch { return {}; }
@@ -26,12 +30,61 @@ function writeJSON(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-const ADMIN_CREDS_FILE = '/data/admin.json';
+// ── User storage helpers ──────────────────────────────────────────────
+function readUsers() {
+  try {
+    const data = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
+    return Array.isArray(data.users) ? data.users : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeUsers(users) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify({ users }, null, 2));
+}
+
+function findUser(username) {
+  return readUsers().find(u => u.username === username) || null;
+}
+
+function updateUser(username, updates) {
+  const users = readUsers();
+  const idx = users.findIndex(u => u.username === username);
+  if (idx === -1) return false;
+  users[idx] = Object.assign({}, users[idx], updates);
+  writeUsers(users);
+  return true;
+}
+
+// On first startup (no users.json), auto-bootstrap from env vars +
+// any legacy /data/admin.json override hash if present.
+function ensureUsers() {
+  if (fs.existsSync(USERS_FILE)) return;
+
+  // Absorb legacy admin.json hash if it exists
+  let hash = ADMIN_PASSWORD_HASH;
+  try {
+    const legacy = JSON.parse(fs.readFileSync('/data/admin.json', 'utf8'));
+    if (typeof legacy.passwordHash === 'string' && legacy.passwordHash.startsWith('$2')) {
+      hash = legacy.passwordHash;
+    }
+  } catch {}
+
+  const bootstrapUser = {
+    username:           ADMIN_USERNAME,
+    passwordHash:       hash,
+    role:               'admin',
+    mustChangePassword: FORCE_PASSWORD_CHANGE,
+  };
+  writeUsers([bootstrapUser]);
+  console.log(`Bootstrapped users.json with admin user "${ADMIN_USERNAME}"`);
+}
 
 // ── Credentials — required at startup ────────────────────────────────
-const SESSION_SECRET      = process.env.SESSION_SECRET      || '';
-const ADMIN_USERNAME      = process.env.ADMIN_USERNAME      || 'admin';
-const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || '';
+const SESSION_SECRET        = process.env.SESSION_SECRET        || '';
+const ADMIN_USERNAME        = process.env.ADMIN_USERNAME        || 'admin';
+const ADMIN_PASSWORD_HASH   = process.env.ADMIN_PASSWORD_HASH   || '';
 const FORCE_PASSWORD_CHANGE = process.env.FORCE_PASSWORD_CHANGE === 'true';
 
 if (!SESSION_SECRET) {
@@ -44,22 +97,8 @@ if (!ADMIN_PASSWORD_HASH.startsWith('$2')) {
   process.exit(1);
 }
 
-// Returns the active password hash: file-based (post-change) takes priority
-// over the env var default so rotations survive container restarts.
-function getAdminHash() {
-  try {
-    const creds = JSON.parse(fs.readFileSync(ADMIN_CREDS_FILE, 'utf8'));
-    if (typeof creds.passwordHash === 'string' && creds.passwordHash.startsWith('$2'))
-      return creds.passwordHash;
-  } catch {}
-  return ADMIN_PASSWORD_HASH;
-}
-
-// True when FORCE_PASSWORD_CHANGE is set and the password has never been
-// changed through the UI (i.e. no admin.json exists yet).
-function needsPasswordChange() {
-  return FORCE_PASSWORD_CHANGE && !fs.existsSync(ADMIN_CREDS_FILE);
-}
+// Bootstrap users.json from env vars on first startup
+ensureUsers();
 
 const FRONTEND_INDEX = '/frontend/index.html';
 
@@ -94,36 +133,57 @@ app.use(session({
   },
 }));
 
-function requireAuth(req, res, next) {
-  if (!req.session.authenticated)      return res.status(401).json({ error: 'Authentication required' });
-  if (req.session.mustChangePassword)  return res.status(403).json({ error: 'Password change required', mustChangePassword: true });
-  next();
+// requireRole(...roles) returns middleware that checks the session role.
+// requireAdmin   — admin only
+// requireResults — admin or results
+function requireRole(...roles) {
+  return function(req, res, next) {
+    if (!req.session.username)           return res.status(401).json({ error: 'Authentication required' });
+    if (req.session.mustChangePassword)  return res.status(403).json({ error: 'Password change required', mustChangePassword: true });
+    if (!roles.includes(req.session.role)) return res.status(403).json({ error: 'Insufficient permissions' });
+    next();
+  };
 }
+
+const requireAdmin   = requireRole('admin');
+const requireResults = requireRole('admin', 'results');
 
 // ── Auth endpoints ────────────────────────────────────────────────────
 app.get('/api/session', (req, res) => {
   res.json({
-    authenticated:       !!req.session.authenticated,
-    mustChangePassword:  !!req.session.mustChangePassword,
-    username:            req.session.authenticated ? ADMIN_USERNAME : null,
+    authenticated:      !!req.session.username,
+    mustChangePassword: !!req.session.mustChangePassword,
+    username:           req.session.username || null,
+    role:               req.session.role     || null,
   });
 });
+
+// Sentinel hash used when user not found, to prevent timing attacks.
+const SENTINEL_HASH = '$2b$12$invalidhashsentinelXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body || {};
   if (typeof username !== 'string' || typeof password !== 'string') {
     return res.status(400).json({ error: 'username and password required' });
   }
+  const user = findUser(username);
   // Always run bcrypt so response time does not reveal valid usernames.
-  const passwordOk = await bcrypt.compare(password, getAdminHash());
-  if (username !== ADMIN_USERNAME || !passwordOk) {
+  const hashToCompare = user ? user.passwordHash : SENTINEL_HASH;
+  const passwordOk = await bcrypt.compare(password, hashToCompare);
+  if (!user || !passwordOk) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
   req.session.regenerate(err => {
     if (err) return res.status(500).json({ error: 'Session error' });
-    req.session.authenticated      = true;
-    req.session.mustChangePassword = needsPasswordChange();
-    res.json({ ok: true, mustChangePassword: req.session.mustChangePassword });
+    req.session.username           = user.username;
+    req.session.role               = user.role;
+    req.session.mustChangePassword = !!user.mustChangePassword;
+    res.json({
+      ok:                 true,
+      mustChangePassword: req.session.mustChangePassword,
+      username:           user.username,
+      role:               user.role,
+    });
   });
 });
 
@@ -132,7 +192,7 @@ app.post('/api/logout', (req, res) => {
 });
 
 app.post('/api/change-password', async (req, res) => {
-  if (!req.session.authenticated) {
+  if (!req.session.username) {
     return res.status(401).json({ error: 'Authentication required' });
   }
   const { password } = req.body || {};
@@ -145,12 +205,87 @@ app.post('/api/change-password', async (req, res) => {
   }
   try {
     const hash = await bcrypt.hash(password, 12);
-    writeJSON(ADMIN_CREDS_FILE, { passwordHash: hash });
+    const updated = updateUser(req.session.username, { passwordHash: hash, mustChangePassword: false });
+    if (!updated) return res.status(404).json({ error: 'User not found' });
     req.session.mustChangePassword = false;
     res.json({ ok: true });
   } catch (err) {
     console.error('change-password error:', err);
     res.status(500).json({ error: 'Failed to save password' });
+  }
+});
+
+// ── User management (admin only) ──────────────────────────────────────
+const USERNAME_RE = /^[a-zA-Z0-9_-]{2,32}$/;
+
+app.get('/api/users', requireAdmin, (req, res) => {
+  const users = readUsers().map(({ username, role, mustChangePassword }) => ({
+    username, role, mustChangePassword: !!mustChangePassword,
+  }));
+  res.json(users);
+});
+
+app.post('/api/users', requireAdmin, async (req, res) => {
+  const { username, password, role } = req.body || {};
+  if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
+    return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
+  }
+  if (!VALID_ROLES.includes(role)) {
+    return res.status(400).json({ error: 'Invalid role. Must be one of: ' + VALID_ROLES.join(', ') });
+  }
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  if (Buffer.byteLength(password, 'utf8') > 72) {
+    return res.status(400).json({ error: 'Password too long (max 72 characters)' });
+  }
+  if (findUser(username)) {
+    return res.status(409).json({ error: 'Username already exists' });
+  }
+  try {
+    const passwordHash = await bcrypt.hash(password, 12);
+    const users = readUsers();
+    users.push({ username, passwordHash, role, mustChangePassword: true });
+    writeUsers(users);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('add-user error:', err);
+    res.status(500).json({ error: 'Failed to create user' });
+  }
+});
+
+app.delete('/api/users/:username', requireAdmin, (req, res) => {
+  const { username } = req.params;
+  if (username === req.session.username) {
+    return res.status(400).json({ error: 'Cannot delete your own account' });
+  }
+  if (!findUser(username)) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  const users = readUsers().filter(u => u.username !== username);
+  writeUsers(users);
+  res.json({ ok: true });
+});
+
+app.post('/api/users/:username/reset-password', requireAdmin, async (req, res) => {
+  const { username } = req.params;
+  const { password } = req.body || {};
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  if (Buffer.byteLength(password, 'utf8') > 72) {
+    return res.status(400).json({ error: 'Password too long (max 72 characters)' });
+  }
+  if (!findUser(username)) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  try {
+    const passwordHash = await bcrypt.hash(password, 12);
+    updateUser(username, { passwordHash, mustChangePassword: true });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('reset-password error:', err);
+    res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 
@@ -194,7 +329,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 // ── Protected mutation routes ─────────────────────────────────────────
-app.post('/api/results', requireAuth, (req, res) => {
+app.post('/api/results', requireResults, (req, res) => {
   const err = validateResult(req.body);
   if (err) return res.status(400).json({ error: err });
   const { game, winner, loser, t1score, t2score } = req.body;
@@ -209,7 +344,7 @@ app.post('/api/results', requireAuth, (req, res) => {
 
 // Express decodes the param automatically; slot IDs contain only [A-Z0-9.]
 // so no additional URI decoding is needed.
-app.delete('/api/results/:slot', requireAuth, (req, res) => {
+app.delete('/api/results/:slot', requireResults, (req, res) => {
   const game = req.params.slot;
   if (!isValidSlotId(game)) {
     return res.status(400).json({ error: 'invalid slot ID' });
@@ -223,14 +358,14 @@ app.delete('/api/results/:slot', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.post('/api/schedule', requireAuth, (req, res) => {
+app.post('/api/schedule', requireAdmin, (req, res) => {
   const err = validateSchedule(req.body);
   if (err) return res.status(400).json({ error: err });
   writeJSON(SCHEDULE_FILE, req.body);
   res.json({ ok: true });
 });
 
-app.post('/api/settings', requireAuth, (req, res) => {
+app.post('/api/settings', requireAdmin, (req, res) => {
   const incoming = req.body || {};
   const clean = {};
   Object.keys(SETTINGS_DEFAULTS).forEach(k => {

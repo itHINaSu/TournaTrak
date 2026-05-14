@@ -1,5 +1,6 @@
 // admin.js — admin panel logic
 var results = {}, schedule = {}, settings = {};
+var currentRole = null;
 
 var SETTING_DEFAULTS = {
   tournamentName: 'Tournament Bracket',
@@ -496,13 +497,33 @@ async function apiFetch(url, opts) {
   return r;
 }
 
-function showAdmin(username) {
+// Apply role-based visibility restrictions. Idempotent — safe to call multiple times.
+function applyRoleRestrictions(role) {
+  var restricted = ['schedule', 'settings'];
+  document.querySelectorAll('.admin-tab').forEach(function(tab) {
+    var hide = role !== 'admin' && restricted.indexOf(tab.dataset.tab) !== -1;
+    tab.style.display = hide ? 'none' : '';
+    if (hide && tab.classList.contains('active')) {
+      tab.classList.remove('active');
+      document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
+      document.querySelector('.admin-tab[data-tab="results"]').classList.add('active');
+      document.getElementById('tab-results').classList.add('active');
+    }
+  });
+  var sec = document.getElementById('usersSection');
+  if (sec) sec.style.display = role === 'admin' ? '' : 'none';
+}
+
+function showAdmin(username, role) {
+  if (role !== undefined) currentRole = role;
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = '';
   document.getElementById('logoutBtn').style.display = '';
   var unEl = document.getElementById('accountUsername');
   if (unEl) unEl.textContent = username || 'admin';
+  applyRoleRestrictions(currentRole);
+  if (currentRole === 'admin') loadUsers();
   fetchAll();
 }
 
@@ -541,8 +562,9 @@ async function doLogin(e) {
     });
     if (r.ok) {
       var data = await r.json().catch(function(){ return {}; });
+      currentRole = data.role || null;
       if (data.mustChangePassword) showChangePassword();
-      else showAdmin(data.username);
+      else showAdmin(data.username, data.role);
     } else {
       var data = await r.json().catch(function(){ return {}; });
       errEl.textContent = data.error || 'Login failed';
@@ -599,7 +621,9 @@ async function doFirstLoginPasswordChange(e) {
     document.getElementById('cpNewPass1').value,
     document.getElementById('cpNewPass2').value,
     document.getElementById('cpError'),
-    function() { showAdmin(); }
+    function() {
+      showAdmin(document.getElementById('accountUsername').textContent, currentRole);
+    }
   );
   if (!ok) btn.disabled = false;
 }
@@ -626,12 +650,133 @@ async function checkSession() {
   try {
     var r    = await fetch('/api/session');
     var data = await r.json();
-    if (data.authenticated && data.mustChangePassword) showChangePassword();
-    else if (data.authenticated) showAdmin(data.username);
-    else showLogin();
+    if (data.authenticated) {
+      currentRole = data.role || null;
+      if (data.mustChangePassword) showChangePassword();
+      else showAdmin(data.username, data.role);
+    } else {
+      showLogin();
+    }
   } catch(e) {
     showLogin();
   }
+}
+
+// ── User management ────────────────────────────────────────────────────
+
+async function loadUsers() {
+  var r = await apiFetch('/api/users');
+  if (!r || !r.ok) return;
+  var users = await r.json().catch(function(){ return []; });
+  renderUsersList(users);
+}
+
+function renderUsersList(users) {
+  var el = document.getElementById('usersList');
+  if (!el) return;
+  var me = (document.getElementById('accountUsername') || {}).textContent || '';
+  if (!users.length) {
+    el.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No additional users.</div>';
+    return;
+  }
+  el.innerHTML = users.map(function(u) {
+    var isSelf = u.username === me;
+    var roleLabel = { admin: 'Admin', results: 'Results' }[u.role] || u.role;
+    return '<div class="user-row">'
+      + '<span class="user-name">' + esc(u.username) + '</span>'
+      + '<span class="user-role user-role--' + esc(u.role) + '">' + esc(roleLabel) + '</span>'
+      + (u.mustChangePassword ? '<span class="user-must-change">pw change pending</span>' : '')
+      + '<div class="user-actions">'
+      + (isSelf
+          ? '<span class="user-self-label">(you)</span>'
+          : '<button class="admin-clear-btn" onclick="openResetPwModal(\'' + esc(u.username) + '\')">Reset PW</button>'
+            + '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + esc(u.username) + '\')">Delete</button>')
+      + '</div></div>';
+  }).join('');
+}
+
+async function addUser() {
+  var username = (document.getElementById('newUserUsername').value || '').trim();
+  var role     = document.getElementById('newUserRole').value;
+  var password = document.getElementById('newUserPass').value;
+  var status   = document.getElementById('addUserStatus');
+  status.textContent = '';
+  status.style.color = '';
+  var r = await apiFetch('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: username, password: password, role: role })
+  });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    status.textContent = '✗ ' + (data.error || 'Failed');
+    status.style.color = 'var(--lose-color)';
+    return;
+  }
+  document.getElementById('newUserUsername').value = '';
+  document.getElementById('newUserPass').value = '';
+  status.textContent = '✓ Added';
+  setTimeout(function(){ status.textContent = ''; }, 3000);
+  showToast('User ' + username + ' created');
+  loadUsers();
+}
+
+async function deleteUser(username) {
+  if (!confirm('Delete user "' + username + '"? This cannot be undone.')) return;
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username), { method: 'DELETE' });
+  if (!r) return;
+  if (!r.ok) {
+    var data = await r.json().catch(function(){ return {}; });
+    showToast(data.error || 'Delete failed', true);
+    return;
+  }
+  showToast('User ' + username + ' deleted');
+  loadUsers();
+}
+
+var resetPwTarget = null;
+
+function openResetPwModal(username) {
+  resetPwTarget = username;
+  document.getElementById('resetPwTitle').textContent = 'Reset Password';
+  document.getElementById('resetPwDesc').textContent = 'Set a new password for "' + username + '". They will be required to change it on next login.';
+  document.getElementById('resetPwInput').value = '';
+  document.getElementById('resetPwError').style.display = 'none';
+  document.getElementById('resetPwModal').style.display = 'flex';
+}
+
+function closeResetPwModal() {
+  resetPwTarget = null;
+  document.getElementById('resetPwModal').style.display = 'none';
+}
+
+async function submitResetPassword(e) {
+  if (e) e.preventDefault();
+  if (!resetPwTarget) return;
+  var pw    = document.getElementById('resetPwInput').value;
+  var errEl = document.getElementById('resetPwError');
+  errEl.style.display = 'none';
+  if (!pw || pw.length < 8) {
+    errEl.textContent = 'Password must be at least 8 characters';
+    errEl.style.display = 'block';
+    return;
+  }
+  var r = await apiFetch('/api/users/' + encodeURIComponent(resetPwTarget) + '/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw })
+  });
+  if (!r) return;
+  if (!r.ok) {
+    var data = await r.json().catch(function(){ return {}; });
+    errEl.textContent = data.error || 'Reset failed';
+    errEl.style.display = 'block';
+    return;
+  }
+  closeResetPwModal();
+  showToast('Password reset for ' + resetPwTarget);
+  loadUsers();
 }
 
 checkSession();
