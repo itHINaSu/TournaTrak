@@ -56,24 +56,28 @@
 
 <div class="view-panel" id="view-rounds">
   <div class="selector-row">
-    <label>Round</label>
-    <select class="styled" id="roundSelect">
-      <option value="R1">Round 1</option>
-      <option value="R2">Round 2</option>
-      <option value="QF">Quarter Finals</option>
-      <option value="SF">Semi Finals</option>
-      <option value="CHAMP">Championship</option>
-    </select>
+    <div class="selector-inner">
+      <label>Round</label>
+      <select class="styled" id="roundSelect">
+        <option value="R1">Round 1</option>
+        <option value="R2">Round 2</option>
+        <option value="QF">Quarter Finals</option>
+        <option value="SF">Semi Finals</option>
+        <option value="CHAMP">Championship</option>
+      </select>
+    </div>
   </div>
   <div class="round-panel" id="roundGames"></div>
 </div>
 
 <div class="view-panel" id="view-teams">
   <div class="selector-row">
-    <label>Team</label>
-    <select class="styled" id="teamSelect">
-      <option value="">— select a team —</option>
-    </select>
+    <div class="selector-inner">
+      <label>Team</label>
+      <select class="styled" id="teamSelect">
+        <option value="">— select a team —</option>
+      </select>
+    </div>
   </div>
   <div class="team-panel" id="teamOut"></div>
 </div>

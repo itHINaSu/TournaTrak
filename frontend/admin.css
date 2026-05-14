@@ -147,6 +147,7 @@
 .admin-res-footer {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.6em;
   padding: 0.7em 1em;
   border-top: 0.07em solid var(--border);
@@ -263,4 +264,58 @@ input[type="date"]:focus,
 input[type="time"]:focus {
   outline: none;
   border-color: var(--blue-lt);
+}
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE ADMIN — tabs at bottom, same style as public page
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  html { height: 100%; }
+  body { height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+  .site-header { flex-shrink: 0; }
+
+  #adminWrap {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .admin-tab-bar {
+    order: 10;
+    flex-shrink: 0;
+    margin-bottom: 0;
+    border-bottom: none;
+    border-top: 0.22em solid var(--gold);
+    background: #0a0e0b;
+    box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .admin-tab {
+    border-bottom: none;
+    border-top: 0.25em solid transparent;
+    padding: 1em 0.3em;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+  }
+
+  .admin-tab.active {
+    color: var(--gold-lt);
+    border-bottom-color: transparent;
+    border-top-color: var(--gold);
+  }
+
+  .admin-tab-panel.active {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    padding: 1em;
+    min-height: 0;
+  }
 }

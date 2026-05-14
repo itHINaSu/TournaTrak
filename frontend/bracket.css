@@ -46,17 +46,21 @@
 
 /* ── Selectors ── */
 .selector-row {
-  display: flex;
-  gap: 0.6em;
-  align-items: center;
-  padding: 0.8em 1em;
-  flex-wrap: wrap;
   position: sticky;
   top: calc(var(--hdr-h, 0px) + var(--tabs-h, 0px));
   z-index: 80;
   background: var(--surface);
   border-bottom: 0.15em solid var(--blue);
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.selector-inner {
+  max-width: 65em;
+  margin: 0 auto;
+  padding: 0.8em 1em;
+  display: flex;
+  gap: 0.6em;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 /* ── Round sections (By Round all-rounds layout) ── */
@@ -374,6 +378,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .round-game-day-time { display: flex; align-items: baseline; gap: 0.45em; flex: 1; justify-content: flex-end; }
 .round-game-day  { font-family: 'Oswald', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--text-dim); line-height: 1; }
+.round-game-dow  { font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-game-time { font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-team-row {
   display: flex;
@@ -397,7 +402,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .round-game-main { flex: 1; min-width: 0; }
 .round-lose-side {
   flex-shrink: 0;
-  aspect-ratio: 1;
   border-left: 0.07em solid var(--border);
   display: flex;
   flex-direction: column;
@@ -898,6 +902,12 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   font-size: calc(var(--mbc-card-h, 120px) * 0.10);
   font-weight: 600;
   color: var(--text-dim);
+}
+.mbc-game-dow {
+  font-family: 'Oswald', sans-serif;
+  font-size: calc(var(--mbc-card-h, 120px) * 0.12);
+  font-weight: 700;
+  color: var(--gold-lt);
 }
 .mbc-game-time {
   font-family: 'Oswald', sans-serif;

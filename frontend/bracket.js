@@ -110,8 +110,9 @@ async function fetchAll(){
   updateTimestamp();
   populateTeamSelect();
 
-  // Restore saved tab
+  // Restore saved tab; on mobile default to By Round if no saved preference
   var savedTab = getCookie('tt_tab');
+  if (!savedTab && window.innerWidth < 1024) savedTab = 'rounds';
   if (savedTab) {
     var targetTab   = document.querySelector('.view-tab[data-view="' + savedTab + '"]');
     var targetPanel = document.getElementById('view-' + savedTab);
@@ -487,16 +488,17 @@ function mobileRoundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
-  var ft = formatTime(g.time), dayStr = '', timeStr = ft;
+  var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
-  if (m) { dayStr = m[1] + ' ' + m[2]; timeStr = m[3]; }
+  if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
   var upcoming = !r.winner ? ' upcoming' : '';
   // Header (top 25%), team 1 (37.5%), team 2 (37.5%)
   return '<div class="mbc-game-card' + upcoming + '">'
     + '<div class="mbc-game-mid">'
     +   '<span class="mbc-game-lbl">' + esc(gameLabel(gid)) + '</span>'
     +   '<span class="mbc-game-datetime">'
-    +     (dayStr  ? '<span class="mbc-game-day">'  + esc(dayStr)  + '</span>' : '')
+    +     (dateStr ? '<span class="mbc-game-day">'  + esc(dateStr) + '</span>' : '')
+    +     (dowStr  ? '<span class="mbc-game-dow">'  + esc(dowStr)  + '</span>' : '')
     +     (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
     +   '</span>'
     + '</div>'
@@ -520,14 +522,15 @@ function roundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
-  var ft = formatTime(g.time), dayStr = '', timeStr = ft;
-  var m = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
-  if (m) { dayStr = m[1]; timeStr = m[2]; }
+  var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
+  var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
+  if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
   return '<div class="round-game-card">'
     + '<div class="round-game-header">'
     + '<span class="round-game-id">' + esc(gameLabel(gid)) + '</span>'
     + '<div class="round-game-day-time">'
-    + (dayStr  ? '<span class="round-game-day">'  + esc(dayStr)  + '</span>' : '')
+    + (dateStr ? '<span class="round-game-day">'  + esc(dateStr) + '</span>' : '')
+    + (dowStr  ? '<span class="round-game-dow">'  + esc(dowStr)  + '</span>' : '')
     + (timeStr ? '<span class="round-game-time">' + esc(timeStr) + '</span>' : '')
     + '</div></div>'
     + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
@@ -870,9 +873,18 @@ function firstIncompleteRound() {
 function scrollToRound(round) {
   var el = document.getElementById('round-section-' + round);
   if (!el) return;
-  var offset = stickyNavH();
-  var top = el.getBoundingClientRect().top + window.scrollY - offset - 4;
-  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  var mobile = window.innerWidth < 1024;
+  var panel = document.getElementById('view-rounds');
+  if (mobile && panel) {
+    var panelRect = panel.getBoundingClientRect();
+    var elRect = el.getBoundingClientRect();
+    var scrollOffset = elRect.top - panelRect.top + panel.scrollTop - 4;
+    panel.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
+  } else {
+    var offset = stickyNavH();
+    var top = el.getBoundingClientRect().top + window.scrollY - offset - 4;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }
   document.getElementById('roundSelect').value = round;
 }
 
@@ -912,9 +924,9 @@ function renderRoundView() {
       var g=GAMES[sid]; if(!g) return;
       var t1=disp(sid,g.t1), t2=disp(sid,g.t2), r=results[sid]||{};
       var ft=formatTime(g.time);
-      var dayStr='', timeStr=ft;
-      var m=ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
-      if(m){ dayStr=m[1]; timeStr=m[2]; }
+      var dateStr='', dowStr='', timeStr=ft;
+      var m=ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
+      if(m){ dateStr=m[1]; dowStr=m[2]; timeStr=m[3]; }
       var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
       var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
       var upcoming = !r.winner ? ' upcoming' : '';
@@ -922,7 +934,8 @@ function renderRoundView() {
         +'<div class="round-game-header">'
         +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
         +'<div class="round-game-day-time">'
-        +(dayStr?'<span class="round-game-day">'+esc(dayStr)+'</span>':'')
+        +(dateStr?'<span class="round-game-day">'+esc(dateStr)+'</span>':'')
+        +(dowStr?'<span class="round-game-dow">'+esc(dowStr)+'</span>':'')
         +(timeStr?'<span class="round-game-time">'+esc(timeStr)+'</span>':'')
         +'</div></div>'
         +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
@@ -960,6 +973,14 @@ function populateTeamSelect(){
   });
 }
 
+function syncLoseSideWidths() {
+  var sides = document.querySelectorAll('.round-lose-side');
+  for (var i = 0; i < sides.length; i++) {
+    sides[i].style.width = '';
+    sides[i].style.width = sides[i].offsetHeight + 'px';
+  }
+}
+
 function buildWinChain(sid){
   var chain=[sid], cur=sid;
   for(var i=0;i<10;i++){
@@ -993,6 +1014,9 @@ function makeVerticalChain(chain, team, isLosePath) {
     if (played && teamLost) borderColor = 'var(--lose-color)';
     if (!played && i === 0 && !isLosePath) borderColor = 'var(--blue-lt)';
 
+    var ft2 = formatTime(g.time), mft2 = ft2.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
+    var dt2 = mft2 ? mft2[1] : '', dw2 = mft2 ? mft2[2] : '', tm2 = mft2 ? mft2[3] : ft2;
+
     // Lose destination sidebar (shown when team hasn't lost yet)
     var loseSide = '';
     if (!played || teamWon) {
@@ -1008,8 +1032,9 @@ function makeVerticalChain(chain, team, isLosePath) {
       + '<div class="round-game-main">'
       + '<div class="round-game-header">'
       + '<div class="round-game-day-time">'
-      + '<span class="round-game-day">' + esc((formatTime(g.time).match(/^(\d+\/\d+\s+\S+)/)||['',''])[1]) + '</span>'
-      + '<span class="round-game-time">' + esc((formatTime(g.time).match(/\d+:\d+\s+[AP]M$/)||[''])[0]) + '</span>'
+      + (dt2 ? '<span class="round-game-day">'  + esc(dt2) + '</span>' : '')
+      + (dw2 ? '<span class="round-game-dow">'  + esc(dw2) + '</span>' : '')
+      + (tm2 ? '<span class="round-game-time">' + esc(tm2) + '</span>' : '')
       + '</div>'
       + '<span class="round-game-id" style="margin-left:auto;flex-shrink:0">' + esc(gameLabel(gid)) + '</span>'
       + '</div>'
@@ -1126,8 +1151,12 @@ function renderTeamView(){
       }
     } else {
       if(!played||teamLostHere){
+        var lgGame = GAMES[gid];
+        var lopp1 = resolveSlot(lgGame.t1, results);
+        var lopp2 = resolveSlot(lgGame.t2, results);
+        var lossOpp = (lopp1 === team) ? (lopp2 || smartLabel(lgGame.t2, results)) : (lopp1 || smartLabel(lgGame.t1, results));
         html+='<div class="team-path-divider"></div>';
-        html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(gid)+')</div>';
+        html+='<div class="team-path-label lose-label">Loss to '+esc(lossOpp)+'</div>';
         // Show the game that put the team on the lose path, then a LOSS connector.
         // This makes the lose path section self-contained with full context.
         if(teamLostHere){
@@ -1150,6 +1179,7 @@ function renderTeamView(){
   }
 
   out.innerHTML=html;
+  syncLoseSideWidths();
   applyStickyOffsets();
 }
 
