@@ -985,7 +985,19 @@ function makeVerticalChain(chain, team, isLosePath) {
     if (played && teamLost) borderColor = 'var(--lose-color)';
     if (!played && i === 0 && !isLosePath) borderColor = 'var(--blue-lt)';
 
+    // Lose destination sidebar (shown when team hasn't lost yet)
+    var loseSide = '';
+    if (!played || teamWon) {
+      var ln = findNextSlot(gid, 'loser');
+      var destText = ln ? gameLabel(ln) : 'OUT';
+      loseSide = '<div class="round-lose-side">'
+        + '<span class="round-lose-tag">LOSE</span>'
+        + '<span class="round-lose-dest' + (ln ? '' : ' out') + '">' + esc(destText) + '</span>'
+        + '</div>';
+    }
+
     html += '<div class="round-game-card" style="border-color:' + borderColor + '">'
+      + '<div class="round-game-main">'
       + '<div class="round-game-header">'
       + '<div class="round-game-day-time">'
       + '<span class="round-game-day">' + esc((formatTime(g.time).match(/^(\d+\/\d+\s+\S+)/)||['',''])[1]) + '</span>'
@@ -1001,21 +1013,12 @@ function makeVerticalChain(chain, team, isLosePath) {
       + '<span class="round-team-name ' + c2 + '">' + esc(t2n) + '</span>'
       + (played ? '<span class="result-badge ' + (r.winner===t2r?'w':'l') + '">' + (r.winner===t2r?'W':'L') + '</span>' : '')
       + '</div>'
+      + '</div>'
+      + loseSide
       + '</div>';
 
     // Team lost this game — win path ends here; remaining games are unreachable
     if (played && teamLost) break;
-
-    if (!played || teamWon) {
-      var ln = findNextSlot(gid, 'loser');
-      var destText = ln ? gameLabel(ln) : 'OUT';
-      var destCls  = ln ? 'color-win' : 'color-lose';
-      html += '<div class="team-path-annotation">'
-        + '<span class="color-lose">LOSE</span>'
-        + '<span class="' + destCls + '">→</span>'
-        + '<span class="' + destCls + '">' + esc(destText) + '</span>'
-        + '</div>';
-    }
 
     if (i < chain.length - 1) {
       html += '<div class="team-path-connector">'

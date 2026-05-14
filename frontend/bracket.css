@@ -396,6 +396,39 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .team-panel { max-width: 65em; margin: 0 auto; padding: 0 1em 1.5em; }
 .team-no-games { padding: 1em; color: var(--text-mute); font-style: italic; }
 
+/* Cards in the team panel show a lose-destination sidebar on the right */
+.team-panel .round-game-card { display: flex; flex-direction: row; align-items: stretch; }
+.round-game-main { flex: 1; min-width: 0; }
+.round-lose-side {
+  flex-shrink: 0;
+  width: 3.2em;
+  border-left: 0.07em solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3em;
+  padding: 0.4em 0.25em;
+  background: rgba(192,80,80,0.06);
+}
+.round-lose-tag {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--lose-color);
+}
+.round-lose-dest {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+.round-lose-dest.out { color: var(--lose-color); }
+
 /* ── Team chip grid (empty state) ── */
 .team-chips-prompt {
   max-width: 65em;
