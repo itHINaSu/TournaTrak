@@ -996,7 +996,7 @@ function makeVerticalChain(chain, team, isLosePath) {
       var ln = findNextSlot(gid, 'loser');
       var destText = ln ? gameLabel(ln) : 'OUT';
       loseSide = '<div class="round-lose-side">'
-        + '<span class="round-lose-tag">LOSE</span>'
+        + '<span class="round-lose-tag">LOSS</span>'
         + '<span class="round-lose-dest' + (ln ? '' : ' out') + '">' + esc(destText) + '</span>'
         + '</div>';
     }
