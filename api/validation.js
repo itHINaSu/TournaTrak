@@ -15,13 +15,21 @@ function isValidSlotId(sid) {
   return !!(defs && defs[p[1]] && defs[p[1]].includes(parseInt(p[2])));
 }
 
-function validateResult({ game, winner, loser } = {}) {
+function validateResult({ game, winner, loser, t1score, t2score } = {}) {
   if (!game || !winner || !loser)                    return 'game, winner, loser required';
   if (!isValidSlotId(game))                          return 'invalid slot ID';
   if (typeof winner !== 'string' || !winner.trim())  return 'winner must be a non-empty string';
   if (typeof loser  !== 'string' || !loser.trim())   return 'loser must be a non-empty string';
   if (winner.length > 100 || loser.length > 100)     return 'team name too long (max 100)';
   if (winner.trim() === loser.trim())                return 'winner and loser must differ';
+  if (t1score !== undefined && t1score !== null) {
+    const n = parseInt(t1score, 10);
+    if (isNaN(n) || n < 0 || n > 9999)              return 't1score must be an integer 0–9999';
+  }
+  if (t2score !== undefined && t2score !== null) {
+    const n = parseInt(t2score, 10);
+    if (isNaN(n) || n < 0 || n > 9999)              return 't2score must be an integer 0–9999';
+  }
   return null;
 }
 

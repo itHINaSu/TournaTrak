@@ -180,18 +180,24 @@ function renderAdmin() {
       if (set) {
         var c1 = r.winner === t1 ? 'won' : 'lost';
         var c2 = r.winner === t2 ? 'won' : 'lost';
+        var sc1 = (r.t1score !== undefined && r.t1score !== null) ? '<span class="admin-score-disp">' + r.t1score + '</span>' : '';
+        var sc2 = (r.t2score !== undefined && r.t2score !== null) ? '<span class="admin-score-disp">' + r.t2score + '</span>' : '';
         html += '<div class="admin-res-card">' + hdr
           + '<div class="admin-res-team-row"><span class="admin-res-team ' + c1 + '">' + esc(t1) + '</span>'
+          + sc1
           + '<span class="result-badge ' + (c1==='won'?'w':'l') + '">' + (c1==='won'?'W':'L') + '</span></div>'
           + '<div class="admin-res-team-row"><span class="admin-res-team ' + c2 + '">' + esc(t2) + '</span>'
+          + sc2
           + '<span class="result-badge ' + (c2==='won'?'w':'l') + '">' + (c2==='won'?'W':'L') + '</span></div>'
           + '<div class="admin-res-footer">'
           + '<button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button>'
           + '</div></div>';
       } else if (both) {
         html += '<div class="admin-res-card">' + hdr
-          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span></div>'
-          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span></div>'
+          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
+          + '<input type="number" class="admin-score-inp" id="sc1-' + sid + '" min="0" max="9999" placeholder="Score"></div>'
+          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
+          + '<input type="number" class="admin-score-inp" id="sc2-' + sid + '" min="0" max="9999" placeholder="Score"></div>'
           + '<div class="admin-res-footer">'
           + '<select class="admin-winner-sel" id="sel-' + sid + '">'
           + '<option value="">— winner —</option>'
@@ -220,14 +226,21 @@ async function saveResult(sid) {
   var t1 = resolveSlot(g.t1, results);
   var t2 = resolveSlot(g.t2, results);
   var loser = winner === t1 ? t2 : t1;
+  var sc1el = document.getElementById('sc1-' + sid);
+  var sc2el = document.getElementById('sc2-' + sid);
+  var payload = { game: sid, winner: winner, loser: loser };
+  if (sc1el && sc1el.value !== '') payload.t1score = parseInt(sc1el.value, 10);
+  if (sc2el && sc2el.value !== '') payload.t2score = parseInt(sc2el.value, 10);
   try {
     var r = await apiFetch('/api/results', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ game: sid, winner: winner, loser: loser })
+      body: JSON.stringify(payload)
     });
     if (!r) return;
     if (!r.ok) throw new Error();
     results[sid] = { winner: winner, loser: loser };
+    if (payload.t1score !== undefined) results[sid].t1score = payload.t1score;
+    if (payload.t2score !== undefined) results[sid].t2score = payload.t2score;
     showToast(gameLabel(sid) + ' saved — ' + winner + ' wins');
     renderAdmin();
   } catch(e) { showToast('Save failed', true); }

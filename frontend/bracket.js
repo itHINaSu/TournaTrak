@@ -233,6 +233,13 @@ function bracketTime(iso) {
   return days[d.getDay()] + ' ' + h12 + ':' + ms + ' ' + ampm;
 }
 
+function scoreHTML(score) {
+  if (score === null || score === undefined || score === '') return '';
+  var n = parseInt(score, 10);
+  if (isNaN(n)) return '';
+  return '<span class="game-score">' + n + '</span>';
+}
+
 // ══════════════════════════════════════════════════════════
 // CARD HTML
 // ══════════════════════════════════════════════════════════
@@ -240,13 +247,13 @@ function cardHTML(gid){
   var g=GAMES[gid];
   if(!g) return '<div class="bc-hdr"><span class="bc-id">'+esc(gid)+'</span></div>'
     +'<div class="bc-team tbd">TBD</div><div class="bc-team tbd">TBD</div>';
-  var t1=disp(gid,g.t1), t2=disp(gid,g.t2);
+  var t1=disp(gid,g.t1), t2=disp(gid,g.t2), r=results[gid]||{};
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
   return '<div class="bc-hdr"><span class="bc-id">'+esc(gameLabel(gid))+'</span>'
     +'<span class="bc-time">'+esc(bracketTime(g.time))+'</span></div>'
-    +'<div class="bc-team '+c1+'">'+esc(t1.name)+'</div>'
-    +'<div class="bc-team '+c2+'">'+esc(t2.name)+'</div>';
+    +'<div class="bc-team '+c1+'"><span class="bc-name">'+esc(t1.name)+'</span>'+scoreHTML(r.t1score)+'</div>'
+    +'<div class="bc-team '+c2+'"><span class="bc-name">'+esc(t2.name)+'</span>'+scoreHTML(r.t2score)+'</div>';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -461,11 +468,13 @@ function champCardHTML(gid) {
     + '<div class="mbc-champ-teams">'
     +   '<div class="mbc-champ-team ' + c1 + '">'
     +     '<span class="mbc-champ-name">' + esc(t1.name) + '</span>'
+    +     scoreHTML(r.t1score)
     +     (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
     +   '</div>'
     +   '<div class="mbc-champ-vs">vs</div>'
     +   '<div class="mbc-champ-team ' + c2 + '">'
     +     '<span class="mbc-champ-name">' + esc(t2.name) + '</span>'
+    +     scoreHTML(r.t2score)
     +     (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
     +   '</div>'
     + '</div>'
@@ -495,10 +504,12 @@ function mobileRoundCardHTML(gid) {
     + '</div>'
     + '<div class="mbc-game-team ' + c1 + '">'
     +   '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
+    +   scoreHTML(r.t1score)
     +   (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
     + '</div>'
     + '<div class="mbc-game-team ' + c2 + '">'
     +   '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
+    +   scoreHTML(r.t2score)
     +   (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
     + '</div>'
     + '</div>';
@@ -524,9 +535,11 @@ function roundCardHTML(gid) {
     + (timeStr ? '<span class="round-game-time">' + esc(timeStr) + '</span>' : '')
     + '</div></div>'
     + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
+    + scoreHTML(r.t1score)
     + (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
     + '</div>'
     + '<div class="round-team-row"><span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
+    + scoreHTML(r.t2score)
     + (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
     + '</div>'
     + '</div>';
@@ -923,9 +936,11 @@ function renderRoundView() {
         +(timeStr?'<span class="round-game-time">'+esc(timeStr)+'</span>':'')
         +'</div></div>'
         +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
+        +scoreHTML(r.t1score)
         +(r.winner?'<span class="result-badge '+(t1.won?'w':'l')+'">'+(t1.won?'W':'L')+'</span>':'')
         +'</div>'
         +'<div class="round-team-row"><span class="round-team-name '+c2+'">'+esc(t2.name)+'</span>'
+        +scoreHTML(r.t2score)
         +(r.winner?'<span class="result-badge '+(t2.won?'w':'l')+'">'+(t2.won?'W':'L')+'</span>':'')
         +'</div></div>';
     });
@@ -1012,10 +1027,12 @@ function makeVerticalChain(chain, team, isLosePath) {
       + '</div>'
       + '<div class="round-team-row">'
       + '<span class="round-team-name ' + c1 + '">' + esc(t1n) + '</span>'
+      + scoreHTML(r.t1score)
       + (played ? '<span class="result-badge ' + (r.winner===t1r?'w':'l') + '">' + (r.winner===t1r?'W':'L') + '</span>' : '')
       + '</div>'
       + '<div class="round-team-row">'
       + '<span class="round-team-name ' + c2 + '">' + esc(t2n) + '</span>'
+      + scoreHTML(r.t2score)
       + (played ? '<span class="result-badge ' + (r.winner===t2r?'w':'l') + '">' + (r.winner===t2r?'W':'L') + '</span>' : '')
       + '</div>'
       + '</div>'
@@ -1125,6 +1142,17 @@ function renderTeamView(){
       if(!played||teamLostHere){
         html+='<div class="team-path-divider"></div>';
         html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(gid)+')</div>';
+        // Show the game that put the team on the lose path, then a LOSS connector.
+        // This makes the lose path section self-contained with full context.
+        if(teamLostHere){
+          html+=makeVerticalChain([gid],team,false);
+          html+='<div class="team-path-connector">'
+            +'<div class="team-path-connector-track">'
+            +'<div class="team-path-connector-line lose"></div>'
+            +'</div>'
+            +'<span class="team-path-win-label" style="color:var(--lose-color)">LOSS</span>'
+            +'</div>';
+        }
         html+=makeVerticalChain(buildWinChain(ln),team,true);
         if(teamLostHere) teamEliminated=true;
       }

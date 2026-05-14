@@ -197,9 +197,12 @@ app.get('/api/settings', (req, res) => {
 app.post('/api/results', requireAuth, (req, res) => {
   const err = validateResult(req.body);
   if (err) return res.status(400).json({ error: err });
-  const { game, winner, loser } = req.body;
+  const { game, winner, loser, t1score, t2score } = req.body;
   const data = readJSON(RESULTS_FILE);
-  data[game] = { winner: winner.trim(), loser: loser.trim() };
+  const entry = { winner: winner.trim(), loser: loser.trim() };
+  if (t1score !== undefined && t1score !== null && t1score !== '') entry.t1score = parseInt(t1score, 10);
+  if (t2score !== undefined && t2score !== null && t2score !== '') entry.t2score = parseInt(t2score, 10);
+  data[game] = entry;
   writeJSON(RESULTS_FILE, data);
   res.json({ ok: true });
 });
