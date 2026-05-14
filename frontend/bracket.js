@@ -763,7 +763,8 @@ function renderMobileBracket(root, dims) {
     hSwipe = {
       startX: t.clientX, startY: t.clientY, lastX: t.clientX,
       startLeft: outer.scrollLeft,
-      decided: false, isHoriz: false
+      decided: false, isHoriz: false,
+      lastTime: Date.now(), velocity: 0
     };
   }, { passive: true });
 
@@ -777,7 +778,11 @@ function renderMobileBracket(root, dims) {
       hSwipe.decided = true;
     }
     if (!hSwipe.isHoriz) return;
+    var now = Date.now();
+    var dt = now - hSwipe.lastTime;
+    if (dt > 0) hSwipe.velocity = (t.clientX - hSwipe.lastX) / dt;
     hSwipe.lastX = t.clientX;
+    hSwipe.lastTime = now;
     var maxLeft = (colEls.length - 1) * colW;
     outer.scrollLeft = Math.max(0, Math.min(hSwipe.startLeft - dx, maxLeft));
   }, { passive: true });
@@ -785,9 +790,9 @@ function renderMobileBracket(root, dims) {
   captureEl.addEventListener('touchend', function(e) {
     if (!hSwipe || !hSwipe.isHoriz) { hSwipe = null; return; }
     var dx  = e.changedTouches[0].clientX - hSwipe.startX;
-    var vel = e.changedTouches[0].clientX - hSwipe.lastX;
+    var vel = hSwipe.velocity; // px/ms, positive = moving right
     var raw = (hSwipe.startLeft - dx) / colW;
-    var snap = vel < -15 ? Math.ceil(raw) : vel > 15 ? Math.floor(raw) : Math.round(raw);
+    var snap = vel < -0.25 ? Math.ceil(raw) : vel > 0.25 ? Math.floor(raw) : Math.round(raw);
     snap = Math.max(0, Math.min(snap, colEls.length - 1));
     outer.scrollTo ? outer.scrollTo({ left: snap * colW, behavior: 'smooth' })
                    : (outer.scrollLeft = snap * colW);
