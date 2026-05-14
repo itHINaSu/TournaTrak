@@ -162,11 +162,6 @@
   font-style: italic;
 }
 
-/* W/L badges — duplicated from bracket.css so admin page doesn't need that stylesheet */
-.result-badge { font-family: 'Oswald', sans-serif; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em; padding: 0.18em 0.55em; border-radius: 0.2em; flex-shrink: 0; }
-.result-badge.w { background: rgba(74,154,74,0.2);   color: var(--win-color);  border: 0.07em solid rgba(74,154,74,0.3); }
-.result-badge.l { background: rgba(192,80,80,0.15); color: var(--lose-color); border: 0.07em solid rgba(192,80,80,0.25); }
-
 /* Public page link button */
 .admin-public-btn {
   font-family: 'Oswald', sans-serif;

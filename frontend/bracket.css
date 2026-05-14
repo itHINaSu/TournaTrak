@@ -334,16 +334,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 /* ── Round view ── */
 .round-panel { padding: 0 0 1.5em; }
 /* ── W/L legend ── */
-.wl-legend {
-  max-width: 65em;
-  margin: 0.5em auto 0;
-  padding: 0.4em 1em;
-  display: flex;
-  gap: 1em;
-  align-items: center;
-  font-size: 0.8rem;
-  color: var(--text-dim);
-}
 
 /* ── Round games 2-column grid on desktop ── */
 .round-games-grid { display: contents; }
@@ -398,10 +388,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .round-team-name.tbd  { color: var(--text-mute); font-style: italic; font-weight: 400; }
 .round-team-name.won  { color: var(--win-color); }
 .round-team-name.lost { color: var(--lose-color); }
-.result-badge { font-family: 'Oswald', sans-serif; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em; padding: 0.18em 0.55em; border-radius: 0.2em; flex-shrink: 0; }
-.result-badge.w { background: rgba(74,154,74,0.2);   color: var(--win-color);  border: 0.07em solid rgba(74,154,74,0.3); }
-.result-badge.l { background: rgba(192,80,80,0.15); color: var(--lose-color); border: 0.07em solid rgba(192,80,80,0.25); }
-
 /* ── Team view ── */
 .team-panel { max-width: 65em; margin: 0 auto; padding: 0 1em 1.5em; }
 .team-no-games { padding: 1em; color: var(--text-mute); font-style: italic; }
@@ -1025,10 +1011,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   }
   .round-team-name {
     font-size: 1.05rem;
-  }
-  .result-badge {
-    font-size: 0.85rem;
-    padding: 0.25em 0.65em;
   }
   .team-view-name {
     font-size: 1rem;

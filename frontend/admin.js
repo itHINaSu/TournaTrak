@@ -185,10 +185,10 @@ function renderAdmin() {
         html += '<div class="admin-res-card">' + hdr
           + '<div class="admin-res-team-row"><span class="admin-res-team ' + c1 + '">' + esc(t1) + '</span>'
           + sc1
-          + '<span class="result-badge ' + (c1==='won'?'w':'l') + '">' + (c1==='won'?'W':'L') + '</span></div>'
+          + '</div>'
           + '<div class="admin-res-team-row"><span class="admin-res-team ' + c2 + '">' + esc(t2) + '</span>'
           + sc2
-          + '<span class="result-badge ' + (c2==='won'?'w':'l') + '">' + (c2==='won'?'W':'L') + '</span></div>'
+          + '</div>'
           + '<div class="admin-res-footer">'
           + '<button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button>'
           + '</div></div>';

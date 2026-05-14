@@ -469,13 +469,11 @@ function champCardHTML(gid) {
     +   '<div class="mbc-champ-team ' + c1 + '">'
     +     '<span class="mbc-champ-name">' + esc(t1.name) + '</span>'
     +     scoreHTML(r.t1score)
-    +     (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
     +   '</div>'
     +   '<div class="mbc-champ-vs">vs</div>'
     +   '<div class="mbc-champ-team ' + c2 + '">'
     +     '<span class="mbc-champ-name">' + esc(t2.name) + '</span>'
     +     scoreHTML(r.t2score)
-    +     (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
     +   '</div>'
     + '</div>'
     + (r.winner ? '<div class="mbc-champ-winner">🏆 ' + esc(r.winner) + '</div>' : '')
@@ -505,12 +503,10 @@ function mobileRoundCardHTML(gid) {
     + '<div class="mbc-game-team ' + c1 + '">'
     +   '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
     +   scoreHTML(r.t1score)
-    +   (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
     + '</div>'
     + '<div class="mbc-game-team ' + c2 + '">'
     +   '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
     +   scoreHTML(r.t2score)
-    +   (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
     + '</div>'
     + '</div>';
 }
@@ -536,11 +532,9 @@ function roundCardHTML(gid) {
     + '</div></div>'
     + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
     + scoreHTML(r.t1score)
-    + (r.winner ? '<span class="result-badge ' + (t1.won?'w':'l') + '">' + (t1.won?'W':'L') + '</span>' : '')
     + '</div>'
     + '<div class="round-team-row"><span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
     + scoreHTML(r.t2score)
-    + (r.winner ? '<span class="result-badge ' + (t2.won?'w':'l') + '">' + (t2.won?'W':'L') + '</span>' : '')
     + '</div>'
     + '</div>';
 }
@@ -905,11 +899,7 @@ document.getElementById('roundSelect').addEventListener('change', function() {
 
 function renderRoundView() {
   var rounds = ['R1','R2','QF','SF','CHAMP'];
-  // W/L legend shown once above all rounds
-  var html = '<div class="wl-legend">'
-    + '<span class="result-badge w">W</span> Win &nbsp;'
-    + '<span class="result-badge l">L</span> Loss'
-    + '</div>';
+  var html = '';
   rounds.forEach(function(round) {
     var sids = Object.keys(GAMES)
       .filter(function(sid){ return GAMES[sid].round === round; })
@@ -937,11 +927,9 @@ function renderRoundView() {
         +'</div></div>'
         +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
         +scoreHTML(r.t1score)
-        +(r.winner?'<span class="result-badge '+(t1.won?'w':'l')+'">'+(t1.won?'W':'L')+'</span>':'')
         +'</div>'
         +'<div class="round-team-row"><span class="round-team-name '+c2+'">'+esc(t2.name)+'</span>'
         +scoreHTML(r.t2score)
-        +(r.winner?'<span class="result-badge '+(t2.won?'w':'l')+'">'+(t2.won?'W':'L')+'</span>':'')
         +'</div></div>';
     });
     html += '</div></div>'; // close round-games-grid + round-section
@@ -1028,12 +1016,10 @@ function makeVerticalChain(chain, team, isLosePath) {
       + '<div class="round-team-row">'
       + '<span class="round-team-name ' + c1 + '">' + esc(t1n) + '</span>'
       + scoreHTML(r.t1score)
-      + (played ? '<span class="result-badge ' + (r.winner===t1r?'w':'l') + '">' + (r.winner===t1r?'W':'L') + '</span>' : '')
       + '</div>'
       + '<div class="round-team-row">'
       + '<span class="round-team-name ' + c2 + '">' + esc(t2n) + '</span>'
       + scoreHTML(r.t2score)
-      + (played ? '<span class="result-badge ' + (r.winner===t2r?'w':'l') + '">' + (r.winner===t2r?'W':'L') + '</span>' : '')
       + '</div>'
       + '</div>'
       + loseSide
