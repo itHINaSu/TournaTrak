@@ -618,29 +618,42 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
    JS-driven translateY blend as the user swipes between rounds.
    ════════════════════════════════════════════════════════════ */
 
-/* Horizontal snap container — overflow-y hidden; each column scrolls independently */
+/* Horizontal column container — JS-driven snap via scrollLeft */
 .mbc-outer {
   display: flex;
   flex-direction: row;
   overflow-x: scroll;
   overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: none;
   width: 100%;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 .mbc-outer::-webkit-scrollbar { display: none; }
 
-/* One snap page per round — width set inline by JS (80vw) */
+/* One column per round — no CSS snap (JS handles it) */
 .mbc-col {
   flex-shrink: 0;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
+
+/* Full-width vertical scroll overlay — the ONLY scroll container.
+   Positioned below .mbc-hdr so the dot-navigation bar stays tappable.
+   touch-action:pan-y lets iOS handle vertical with native momentum;
+   horizontal swipes are detected in JS and forwarded to .mbc-outer. */
+.mbc-scroll-cap {
+  overflow-y: scroll;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.mbc-scroll-cap::-webkit-scrollbar { display: none; }
 
 /* Round name + progress dots — above the scroll area */
 .mbc-hdr {
@@ -670,17 +683,11 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .mbc-dot.active { background: var(--blue-lt); transform: scale(1.35); }
 
-/* Independent vertical scroll per column — scrollbar hidden on mobile */
+/* Column scroll area — overflow:hidden; .mbc-scroll-cap overlay drives scroll */
 .mbc-scroll {
   flex: 1;
-  overflow-y: scroll;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
+  overflow: hidden;
 }
-.mbc-scroll::-webkit-scrollbar { display: none; }
 
 /* Absolutely-positioned card container — width + height set by JS, centred horizontally */
 .mbc-inner {
