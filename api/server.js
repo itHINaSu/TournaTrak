@@ -1,11 +1,13 @@
 const express = require('express');
 const session = require('express-session');
 const bcrypt  = require('bcryptjs');
+const crypto  = require('crypto');
 const fs      = require('fs');
 
 const RESULTS_FILE  = '/data/results.json';
 const SCHEDULE_FILE = '/data/schedule.json';
 const SETTINGS_FILE = '/data/settings.json';
+const COACHES_FILE  = '/data/coaches.json';
 
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
 
@@ -237,6 +239,50 @@ app.post('/api/settings', requireAuth, (req, res) => {
     if (incoming[k] !== undefined) clean[k] = String(incoming[k]).slice(0, 500);
   });
   writeJSON(SETTINGS_FILE, clean);
+  res.json({ ok: true });
+});
+
+// ── Coach magic-link endpoints ────────────────────────────────────────
+// Public: validate a token and return the associated team name.
+app.get('/api/coach', (req, res) => {
+  const token = req.query.token;
+  if (!token || typeof token !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(token)) {
+    return res.status(400).json({ error: 'invalid token' });
+  }
+  const coaches = readJSON(COACHES_FILE);
+  const entry   = coaches[token];
+  if (!entry || !entry.team) return res.status(401).json({ error: 'invalid or expired token' });
+  res.json({ team: entry.team });
+});
+
+// Admin: list all coach tokens.
+app.get('/api/coaches', requireAuth, (req, res) => {
+  res.json(readJSON(COACHES_FILE));
+});
+
+// Admin: create a token for a team.
+app.post('/api/coaches', requireAuth, (req, res) => {
+  const { team } = req.body || {};
+  if (!team || typeof team !== 'string' || !team.trim()) {
+    return res.status(400).json({ error: 'team required' });
+  }
+  const token   = crypto.randomBytes(24).toString('base64url');
+  const coaches = readJSON(COACHES_FILE);
+  coaches[token] = { team: team.trim(), created: new Date().toISOString() };
+  writeJSON(COACHES_FILE, coaches);
+  res.json({ ok: true, token });
+});
+
+// Admin: revoke a token.
+app.delete('/api/coaches/:token', requireAuth, (req, res) => {
+  const token   = req.params.token;
+  if (!/^[A-Za-z0-9_-]{1,64}$/.test(token)) {
+    return res.status(400).json({ error: 'invalid token' });
+  }
+  const coaches = readJSON(COACHES_FILE);
+  if (!coaches[token]) return res.status(404).json({ error: 'token not found' });
+  delete coaches[token];
+  writeJSON(COACHES_FILE, coaches);
   res.json({ ok: true });
 });
 

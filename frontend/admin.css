@@ -264,3 +264,22 @@ input[type="time"]:focus {
   outline: none;
   border-color: var(--blue-lt);
 }
+
+/* ── Coach link row ── */
+.coach-link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.6em 1em;
+}
+.coach-link-input {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Barlow', monospace;
+  font-size: 0.78em;
+  padding: 0.4em 0.6em;
+  border-radius: 0.25em;
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+}

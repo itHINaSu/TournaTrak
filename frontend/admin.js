@@ -29,6 +29,7 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
     tab.classList.add('active');
     document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'coaches') loadCoaches();
   });
 });
 
@@ -620,6 +621,112 @@ async function savePassword() {
       setTimeout(function(){ statusEl.textContent = ''; }, 3000);
     }
   );
+}
+
+// ── Coaches tab ────────────────────────────────────────────────────────
+var coachTokens = {};
+
+async function loadCoaches() {
+  try {
+    var r = await apiFetch('/api/coaches');
+    if (!r || !r.ok) return;
+    coachTokens = await r.json();
+  } catch(e) { coachTokens = {}; }
+  renderCoaches();
+}
+
+function getBaseUrl() {
+  return window.location.protocol + '//' + window.location.host;
+}
+
+function renderCoaches() {
+  var wrap = document.getElementById('coachesPanel');
+  if (!wrap) return;
+
+  // Collect all fixed teams from schedule
+  var teams = {};
+  Object.values(GAMES).forEach(function(g) {
+    if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams[g.t1.team] = 1;
+    if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams[g.t2.team] = 1;
+  });
+  var teamNames = Object.keys(teams).sort();
+
+  // Build a reverse map: team → token
+  var teamToToken = {};
+  Object.entries(coachTokens).forEach(function(e) {
+    var token = e[0], entry = e[1];
+    if (entry.team) teamToToken[entry.team] = token;
+  });
+
+  var base = getBaseUrl();
+  var html = '';
+
+  if (!teamNames.length) {
+    html = '<div class="admin-res-waiting">No fixed teams found in the schedule.</div>';
+  } else {
+    teamNames.forEach(function(team) {
+      var token = teamToToken[team];
+      var link  = token ? base + '/lineup?token=' + token : '';
+      html += '<div class="admin-res-card">'
+        + '<div class="admin-res-hdr"><span class="admin-game-id">' + esc(team) + '</span></div>';
+      if (token) {
+        html += '<div class="coach-link-row">'
+          + '<input type="text" class="coach-link-input" id="cl-' + esc(token) + '" value="' + esc(link) + '" readonly>'
+          + '<button class="admin-save-btn" onclick="copyCoachLink(\'' + esc(token) + '\')">Copy</button>'
+          + '</div>'
+          + '<div class="admin-res-footer">'
+          + '<button class="admin-clear-btn" onclick="revokeCoachLink(\'' + esc(token) + '\', \'' + esc(team) + '\')">Revoke</button>'
+          + '</div>';
+      } else {
+        html += '<div class="admin-res-footer">'
+          + '<button class="admin-save-btn" onclick="generateCoachLink(\'' + esc(team) + '\')">Generate Link</button>'
+          + '</div>';
+      }
+      html += '</div>';
+    });
+  }
+
+  wrap.innerHTML = html;
+}
+
+async function generateCoachLink(team) {
+  try {
+    var r = await apiFetch('/api/coaches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ team: team })
+    });
+    if (!r) return;
+    if (!r.ok) { showToast('Generate failed', true); return; }
+    var data = await r.json();
+    coachTokens[data.token] = { team: team, created: new Date().toISOString() };
+    renderCoaches();
+    showToast('Link generated for ' + team);
+  } catch(e) { showToast('Generate failed', true); }
+}
+
+function copyCoachLink(token) {
+  var el = document.getElementById('cl-' + token);
+  if (!el) return;
+  el.select();
+  el.setSelectionRange(0, 99999);
+  navigator.clipboard.writeText(el.value).then(function() {
+    showToast('Link copied');
+  }).catch(function() {
+    document.execCommand('copy');
+    showToast('Link copied');
+  });
+}
+
+async function revokeCoachLink(token, team) {
+  try {
+    var r = await apiFetch('/api/coaches/' + encodeURIComponent(token), { method: 'DELETE' });
+    if (!r) return;
+    if (!r.ok) { showToast('Revoke failed', true); return; }
+    delete coachTokens[token];
+    renderCoaches();
+    showToast('Link revoked for ' + team);
+  } catch(e) { showToast('Revoke failed', true); }
 }
 
 async function checkSession() {

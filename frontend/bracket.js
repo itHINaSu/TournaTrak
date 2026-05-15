@@ -110,6 +110,16 @@ async function fetchAll(){
   updateTimestamp();
   populateTeamSelect();
 
+  // On the /lineup route, override tab and team from the magic-link token.
+  // This takes priority over saved cookies so coaches land directly on their team.
+  if (window.location.pathname === '/lineup') {
+    var lineupHandled = await handleLineupToken();
+    if (lineupHandled) {
+      applyStickyOffsets();
+      return;
+    }
+  }
+
   // Restore saved tab
   var savedTab = getCookie('tt_tab');
   if (savedTab) {
@@ -138,6 +148,36 @@ window.addEventListener('resize',function(){
   clearTimeout(resizeTimer);
   resizeTimer=setTimeout(function(){if(activeView()==='bracket') renderBracket();},150);
 });
+
+// ══════════════════════════════════════════════════════════
+// LINEUP MAGIC-LINK
+// ══════════════════════════════════════════════════════════
+async function handleLineupToken() {
+  var params = new URLSearchParams(window.location.search);
+  var token  = params.get('token');
+  if (!token) return false;
+  try {
+    var r = await fetch('/api/coach?token=' + encodeURIComponent(token));
+    if (!r.ok) return false;
+    var data = await r.json();
+    if (!data.team) return false;
+
+    // Switch to teams tab
+    document.querySelectorAll('.view-tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelectorAll('.view-panel').forEach(function(p){ p.classList.remove('active'); });
+    var teamsTab   = document.querySelector('.view-tab[data-view="teams"]');
+    var teamsPanel = document.getElementById('view-teams');
+    if (teamsTab)   teamsTab.classList.add('active');
+    if (teamsPanel) teamsPanel.classList.add('active');
+
+    // Select the coach's team
+    var tSel = document.getElementById('teamSelect');
+    if (tSel) tSel.value = data.team;
+
+    renderTeamView();
+    return true;
+  } catch(e) { return false; }
+}
 
 // ══════════════════════════════════════════════════════════
 // HELPERS

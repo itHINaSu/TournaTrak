@@ -66,6 +66,7 @@
     <div class="admin-tab active" data-tab="results">Results</div>
     <div class="admin-tab" data-tab="schedule">Schedule</div>
     <div class="admin-tab" data-tab="settings">Settings</div>
+    <div class="admin-tab" data-tab="coaches">Coaches</div>
     <div class="admin-tab" data-tab="account">Account</div>
   </div>
 
@@ -140,6 +141,14 @@
       <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
       <span class="sched-status" id="settingsStatus"></span>
     </div>
+  </div>
+
+  <!-- ── COACHES TAB ── -->
+  <div class="admin-tab-panel" id="tab-coaches">
+    <div class="admin-subtitle">
+      Generate magic links for each team's coach. Each link lets the coach view their team's bracket path at <code>/lineup?token=…</code>.
+    </div>
+    <div id="coachesPanel"></div>
   </div>
 
   <!-- ── ACCOUNT TAB ── -->
