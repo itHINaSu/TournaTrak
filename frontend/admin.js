@@ -1383,17 +1383,15 @@ function renderCoachesList(coaches) {
         + '</span>';
     }).join('');
     return '<div class="coach-card">'
-      + '<div class="user-info">'
-      +   '<span class="user-name">' + esc(u.username) + '</span>'
-      +   '<span class="coach-teams-wrap">'
-      +     teamTags
-      +     '<button class="coach-add-team-btn" onclick="showAddCoachTeam(\'' + esc(u.username) + '\')">+ Team</button>'
-      +   '</span>'
-      +   '<div class="coach-add-team-row" id="cat-' + esc(u.username) + '" style="display:none">'
-      +     '<select class="styled" id="cat-sel-' + esc(u.username) + '"></select>'
-      +     '<button class="admin-save-btn" onclick="addCoachTeam(\'' + esc(u.username) + '\')">Add</button>'
-      +     '<button class="admin-clear-btn" onclick="hideAddCoachTeam(\'' + esc(u.username) + '\')">Cancel</button>'
-      +   '</div>'
+      + '<span class="coach-card-name">' + esc(u.username) + '</span>'
+      + '<div class="coach-teams-wrap">'
+      +   teamTags
+      +   '<button class="coach-add-team-btn" onclick="showAddCoachTeam(\'' + esc(u.username) + '\')">+ Team</button>'
+      + '</div>'
+      + '<div class="coach-add-team-row" id="cat-' + esc(u.username) + '" style="display:none">'
+      +   '<select class="styled" id="cat-sel-' + esc(u.username) + '"></select>'
+      +   '<button class="admin-save-btn" onclick="addCoachTeam(\'' + esc(u.username) + '\')">Add</button>'
+      +   '<button class="admin-clear-btn" onclick="hideAddCoachTeam(\'' + esc(u.username) + '\')">Cancel</button>'
       + '</div>'
       + '<div class="coach-actions">'
       +   (link ? '<input type="text" class="coach-link-hidden" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly tabindex="-1" aria-hidden="true">' : '')

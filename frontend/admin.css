@@ -488,32 +488,30 @@ input[type="time"]:focus {
   .settings-nav-item:last-child { border-bottom: none; }
   .settings-nav-item.active { color: var(--gold-lt); background: rgba(196,154,26,0.08); }
 
-  /* Coach card: stack info above actions on mobile */
-  .coach-card {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5em;
-  }
-  .coach-actions { flex-wrap: wrap; }
 }
 
-/* ── Coach link row ── */
-/* ── Coach card (replaces user-row for team accounts) ── */
+/* ── Coach card ── */
 .coach-card {
   display: flex;
-  align-items: center;
-  gap: 0.6em;
-  padding: 0.65em 0;
+  flex-direction: column;
+  gap: 0.35em;
+  padding: 0.75em 0;
   border-bottom: 0.07em solid var(--border);
-  flex-wrap: wrap;
 }
 .coach-card:last-child { border-bottom: none; }
+.coach-card-name { font-weight: 600; font-size: 0.9rem; }
+.coach-teams-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em;
+}
 .coach-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4em;
   align-items: center;
-  flex-shrink: 0;
-  flex-wrap: wrap;
+  padding-top: 0.25em;
 }
 /* Hidden value store for the copy function — never shown */
 .coach-link-hidden {
