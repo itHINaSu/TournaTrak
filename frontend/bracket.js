@@ -120,9 +120,10 @@ function renderBucketView() {
   }
 
   function makeRow(team, i) {
-    var count = parseInt(counts[team]) || 0;
-    var rank  = i + 1;
-    return '<div class="bucket-row">'
+    var count     = parseInt(counts[team]) || 0;
+    var rank      = i + 1;
+    var medalCls  = rank <= 3 ? ' bucket-row--' + rank : '';
+    return '<div class="bucket-row' + medalCls + '">'
       + '<span class="bucket-rank">' + rank + '</span>'
       + '<span class="bucket-team-name">' + esc(team) + '</span>'
       + '<span class="bucket-count">' + count + '</span>'

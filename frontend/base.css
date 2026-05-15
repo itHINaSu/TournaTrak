@@ -21,6 +21,17 @@
   --clear-color:  #c05050;
   --clear-border: #8a3a3a;
 
+  /* Medal colors for bucket top-3 */
+  --medal-gold-bg:     #3d2d00;
+  --medal-gold-border: #7a5c10;
+  --medal-gold-text:   #f2c83a;
+  --medal-silver-bg:   #1e2630;
+  --medal-silver-border:#40566a;
+  --medal-silver-text: #a8c0d0;
+  --medal-bronze-bg:   #2d1600;
+  --medal-bronze-border:#5c3018;
+  --medal-bronze-text: #c87840;
+
   /* Bracket slot sizing — set by JS via setProperty */
   --slot-h:    10vh;
   --card-h:    8vh;
@@ -49,6 +60,17 @@ body.light {
   --line-color:#5a8a9a;
   --clear-color:#8a2a2a;
   --clear-border:#c05050;
+
+  /* Medal colors — light mode */
+  --medal-gold-bg:     #fffacc;
+  --medal-gold-border: #c8a000;
+  --medal-gold-text:   #5a3c00;
+  --medal-silver-bg:   #e4edf5;
+  --medal-silver-border:#7090a8;
+  --medal-silver-text: #283848;
+  --medal-bronze-bg:   #f5e8d8;
+  --medal-bronze-border:#a86030;
+  --medal-bronze-text: #4a2010;
 }
 
 body {

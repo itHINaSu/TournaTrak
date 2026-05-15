@@ -123,6 +123,31 @@
   min-width: 1.8em;
   text-align: center;
 }
+/* Medal backgrounds for top-3 rows */
+.bucket-row--1 {
+  background: var(--medal-gold-bg);
+  border-color: var(--medal-gold-border);
+}
+.bucket-row--1 .bucket-rank,
+.bucket-row--1 .bucket-team-name,
+.bucket-row--1 .bucket-count { color: var(--medal-gold-text); }
+
+.bucket-row--2 {
+  background: var(--medal-silver-bg);
+  border-color: var(--medal-silver-border);
+}
+.bucket-row--2 .bucket-rank,
+.bucket-row--2 .bucket-team-name,
+.bucket-row--2 .bucket-count { color: var(--medal-silver-text); }
+
+.bucket-row--3 {
+  background: var(--medal-bronze-bg);
+  border-color: var(--medal-bronze-border);
+}
+.bucket-row--3 .bucket-rank,
+.bucket-row--3 .bucket-team-name,
+.bucket-row--3 .bucket-count { color: var(--medal-bronze-text); }
+
 /* Frozen top-3 block — desktop: sticky below tabs/bar/header */
 .bucket-frozen {
   position: sticky;
