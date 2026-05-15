@@ -213,6 +213,77 @@
 .admin-game-row--waiting { opacity: 0.4; }
 .admin-game-teams--ready { color: var(--text); }
 
+/* ── Settings dashboard layout ── */
+.settings-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5em;
+}
+.settings-content {
+  flex: 1;
+  min-width: 0;
+}
+.settings-panel { display: none; }
+.settings-panel.active { display: block; }
+
+.settings-mobile-bar {
+  display: none;
+  align-items: center;
+  gap: 0.75em;
+  margin-bottom: 1em;
+  padding-bottom: 0.75em;
+  border-bottom: 0.07em solid var(--border);
+}
+.settings-hamburger {
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0.28em 0.55em;
+  background: transparent;
+  border: 0.07em solid var(--border);
+  border-radius: 0.25em;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.settings-hamburger:hover { color: var(--text); border-color: var(--text-dim); }
+.settings-mobile-section {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-lt);
+}
+
+.settings-sidebar {
+  width: 9em;
+  flex-shrink: 0;
+  position: sticky;
+  top: 1em;
+  border-left: 0.07em solid var(--border);
+  padding-left: 0.75em;
+}
+.settings-nav-item {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 0.62em 0.6em;
+  border-radius: 0.25em;
+  cursor: pointer;
+  border-left: 0.18em solid transparent;
+  margin-left: -0.82em;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+  margin-bottom: 0.05em;
+}
+.settings-nav-item:hover { color: var(--text); background: var(--surface2); }
+.settings-nav-item.active {
+  color: var(--gold-lt);
+  border-left-color: var(--gold-lt);
+  background: rgba(196,154,26,0.08);
+}
+
 /* ── Settings tab ── */
 .settings-section { margin-bottom: 1.6em; }
 .settings-section-hdr { font-family: 'Oswald', sans-serif; font-size: 0.68em; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); padding: 0.5em 0; border-bottom: 0.07em solid var(--border); margin-bottom: 0.75em; }
@@ -352,4 +423,38 @@ input[type="time"]:focus {
     padding: 1em;
     min-height: 0;
   }
+
+  /* Settings sidebar — hamburger-controlled dropdown on mobile */
+  .settings-mobile-bar { display: flex; }
+  .settings-sidebar {
+    position: absolute;
+    top: 3.2em;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: var(--surface);
+    border: 0.07em solid var(--border);
+    border-radius: 0 0 0.4em 0.4em;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.45);
+    padding: 0.4em 0;
+    border-left: none;
+    display: none;
+    width: auto;
+  }
+  .settings-sidebar.open { display: block; }
+  .settings-nav-item {
+    border-left: none;
+    border-radius: 0;
+    margin-left: 0;
+    padding: 0.85em 1em;
+    border-bottom: 0.07em solid var(--border);
+    font-size: 0.82rem;
+  }
+  .settings-nav-item:last-child { border-bottom: none; }
+  .settings-nav-item.active {
+    border-left: none;
+    border-right: 0.22em solid var(--gold-lt);
+  }
+  /* settings-layout needs relative positioning for the absolute sidebar */
+  #tab-settings { position: relative; }
 }

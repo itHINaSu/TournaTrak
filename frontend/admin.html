@@ -84,10 +84,9 @@
 
   <div class="admin-tab-bar">
     <div class="admin-tab active" data-tab="results">Results</div>
-    <div class="admin-tab" data-tab="schedule">Schedule</div>
     <div class="admin-tab" data-tab="lineups">Lineups</div>
+    <div class="admin-tab" data-tab="schedule">Schedule</div>
     <div class="admin-tab" data-tab="settings">Settings</div>
-    <div class="admin-tab" data-tab="account">Account</div>
   </div>
 
   <!-- ── RESULTS TAB ── -->
@@ -148,110 +147,130 @@
 
   <!-- ── SETTINGS TAB ── -->
   <div class="admin-tab-panel" id="tab-settings">
-    <div class="admin-subtitle">
-      Configure tournament identity and display labels. Changes take effect on the public page after reload.
-    </div>
+    <div class="settings-layout">
 
-    <div class="settings-section">
-      <div class="settings-section-hdr">Tournament Identity</div>
-      <div class="settings-field">
-        <label>Tournament Name <span class="field-label-hint">(public page header)</span></label>
-        <input type="text" id="set-tournamentName" placeholder="e.g. Summer Tournament 2025">
-      </div>
-      <div class="settings-field">
-        <label>Page Title <span class="field-label-hint">(browser tab)</span></label>
-        <input type="text" id="set-pageTitle" placeholder="e.g. 2025 Summer Tournament">
-      </div>
-      <div class="settings-field">
-        <label>Subtitle <span class="field-label-hint">(optional, below tournament name)</span></label>
-        <input type="text" id="set-subtitle" placeholder="e.g. Slowpitch · Double Elimination">
-      </div>
-      <div class="settings-field">
-        <label>Admin Panel Name <span class="field-label-hint">(this page's header)</span></label>
-        <input type="text" id="set-adminName" placeholder="Tournament Admin">
-      </div>
-    </div>
+      <div class="settings-content">
+        <!-- Mobile nav bar -->
+        <div class="settings-mobile-bar">
+          <button class="settings-hamburger" onclick="toggleSettingsSidebar()">&#9776;</button>
+          <span class="settings-mobile-section" id="settingsMobileSection">Page Info</span>
+        </div>
 
-    <div class="settings-section">
-      <div class="settings-section-hdr">Bracket Labels</div>
-      <div class="settings-field">
-        <label>Left Bracket Label</label>
-        <input type="text" id="set-leftLabel" placeholder="Left Bracket">
-        <div class="field-hint">Shown above the left side of the bracket and on mobile.</div>
-      </div>
-      <div class="settings-field">
-        <label>Right Bracket Label</label>
-        <input type="text" id="set-rightLabel" placeholder="Right Bracket">
-        <div class="field-hint">Shown above the right side of the bracket and on mobile.</div>
-      </div>
-    </div>
+        <!-- ── Page Info panel ── -->
+        <div class="settings-panel active" id="sp-pageinfo">
+          <div class="admin-subtitle">Configure tournament identity and display labels. Changes take effect on the public page after reload.</div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Tournament Identity</div>
+            <div class="settings-field">
+              <label>Tournament Name <span class="field-label-hint">(public page header)</span></label>
+              <input type="text" id="set-tournamentName" placeholder="e.g. Summer Tournament 2025">
+            </div>
+            <div class="settings-field">
+              <label>Page Title <span class="field-label-hint">(browser tab)</span></label>
+              <input type="text" id="set-pageTitle" placeholder="e.g. 2025 Summer Tournament">
+            </div>
+            <div class="settings-field">
+              <label>Subtitle <span class="field-label-hint">(optional, below tournament name)</span></label>
+              <input type="text" id="set-subtitle" placeholder="e.g. Slowpitch · Double Elimination">
+            </div>
+            <div class="settings-field">
+              <label>Admin Panel Name <span class="field-label-hint">(this page's header)</span></label>
+              <input type="text" id="set-adminName" placeholder="Tournament Admin">
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Bracket Labels</div>
+            <div class="settings-field">
+              <label>Left Bracket Label</label>
+              <input type="text" id="set-leftLabel" placeholder="Left Bracket">
+              <div class="field-hint">Shown above the left side of the bracket and on mobile.</div>
+            </div>
+            <div class="settings-field">
+              <label>Right Bracket Label</label>
+              <input type="text" id="set-rightLabel" placeholder="Right Bracket">
+              <div class="field-hint">Shown above the right side of the bracket and on mobile.</div>
+            </div>
+          </div>
+          <div class="settings-save-row">
+            <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
+            <span class="sched-status" id="settingsStatus"></span>
+          </div>
+        </div>
 
-    <div class="settings-save-row">
-      <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
-      <span class="sched-status" id="settingsStatus"></span>
-    </div>
-  </div>
+        <!-- ── Account panel ── -->
+        <div class="settings-panel" id="sp-account">
+          <div class="admin-subtitle">Manage your login credentials.</div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Session</div>
+            <div class="settings-field">
+              <label>Logged in as</label>
+              <div id="accountUsername" class="account-username">—</div>
+            </div>
+            <div class="settings-save-row">
+              <button class="admin-clear-btn" onclick="doLogout()">Sign Out</button>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Change Password</div>
+            <div class="settings-field">
+              <label>New Password</label>
+              <input type="password" id="setNewPass1" autocomplete="new-password" placeholder="At least 8 characters">
+            </div>
+            <div class="settings-field">
+              <label>Confirm New Password</label>
+              <input type="password" id="setNewPass2" autocomplete="new-password" placeholder="Confirm password">
+            </div>
+            <div class="settings-save-row">
+              <button class="sched-save-btn" onclick="savePassword()">Change Password</button>
+              <span class="sched-status" id="passwordStatus"></span>
+            </div>
+          </div>
+        </div>
 
-  <!-- ── ACCOUNT TAB ── -->
-  <div class="admin-tab-panel" id="tab-account">
-    <div class="admin-subtitle">Manage your login credentials.</div>
+        <!-- ── Users panel (admin only) ── -->
+        <div class="settings-panel" id="sp-users">
+          <div class="admin-subtitle">Manage admin users and team access links.</div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Users</div>
+            <div id="usersList" class="users-list"></div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Add User</div>
+            <div class="settings-field">
+              <label>Username</label>
+              <input type="text" id="newUserUsername" autocomplete="off" placeholder="e.g. scorer1">
+            </div>
+            <div class="settings-field">
+              <label>Role</label>
+              <select id="newUserRole" class="admin-winner-sel" style="width:100%;padding:0.5em 0.62em">
+                <option value="results">Results — enter results only</option>
+                <option value="admin">Admin — full access</option>
+                <option value="team">Team — lineup submission</option>
+              </select>
+            </div>
+            <div class="settings-field" id="newTeamNameField" style="display:none">
+              <label>Team Name <span class="field-label-hint">(shown on the lineup page)</span></label>
+              <input type="text" id="newTeamName" autocomplete="off" placeholder="e.g. Eagles">
+            </div>
+            <div class="settings-field" id="newUserPassField">
+              <label>Initial Password <span class="field-label-hint">(user must change on first login)</span></label>
+              <input type="password" id="newUserPass" autocomplete="new-password" placeholder="At least 8 characters">
+            </div>
+            <div class="settings-save-row">
+              <button class="sched-save-btn" onclick="addUser()">Add User</button>
+              <span class="sched-status" id="addUserStatus"></span>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    <div class="settings-section">
-      <div class="settings-section-hdr">Session</div>
-      <div class="settings-field">
-        <label>Logged in as</label>
-        <div id="accountUsername" class="account-username">—</div>
-      </div>
-      <div class="settings-save-row">
-        <button class="admin-clear-btn" onclick="doLogout()">Sign Out</button>
-      </div>
-    </div>
+      <!-- Right sidebar navigation -->
+      <nav class="settings-sidebar" id="settingsSidebar">
+        <div class="settings-nav-item active" data-section="pageinfo" onclick="showSettingsSection('pageinfo')">Page Info</div>
+        <div class="settings-nav-item" data-section="account" onclick="showSettingsSection('account')">Account</div>
+        <div class="settings-nav-item" data-section="users" onclick="showSettingsSection('users')">Users</div>
+      </nav>
 
-    <!-- ── USER MANAGEMENT (admin only, shown via JS) ── -->
-    <div class="settings-section" id="usersSection" style="display:none">
-      <div class="settings-section-hdr">Users</div>
-      <div id="usersList" class="users-list"></div>
-      <div class="settings-section-hdr" style="margin-top:1.6em">Add User</div>
-      <div class="settings-field">
-        <label>Username</label>
-        <input type="text" id="newUserUsername" autocomplete="off" placeholder="e.g. scorer1">
-      </div>
-      <div class="settings-field">
-        <label>Role</label>
-        <select id="newUserRole" class="admin-winner-sel" style="width:100%;padding:0.5em 0.62em">
-          <option value="results">Results — enter results only</option>
-          <option value="admin">Admin — full access</option>
-          <option value="team">Team — lineup submission</option>
-        </select>
-      </div>
-      <div class="settings-field" id="newTeamNameField" style="display:none">
-        <label>Team Name <span class="field-label-hint">(shown on the lineup page)</span></label>
-        <input type="text" id="newTeamName" autocomplete="off" placeholder="e.g. Eagles">
-      </div>
-      <div class="settings-field" id="newUserPassField">
-        <label>Initial Password <span class="field-label-hint">(user must change on first login)</span></label>
-        <input type="password" id="newUserPass" autocomplete="new-password" placeholder="At least 8 characters">
-      </div>
-      <div class="settings-save-row">
-        <button class="sched-save-btn" onclick="addUser()">Add User</button>
-        <span class="sched-status" id="addUserStatus"></span>
-      </div>
-    </div>
-
-    <div class="settings-section">
-      <div class="settings-section-hdr">Change Password</div>
-      <div class="settings-field">
-        <label>New Password</label>
-        <input type="password" id="setNewPass1" autocomplete="new-password" placeholder="At least 8 characters">
-      </div>
-      <div class="settings-field">
-        <label>Confirm New Password</label>
-        <input type="password" id="setNewPass2" autocomplete="new-password" placeholder="Confirm password">
-      </div>
-      <div class="settings-save-row">
-        <button class="sched-save-btn" onclick="savePassword()">Change Password</button>
-        <span class="sched-status" id="passwordStatus"></span>
-      </div>
     </div>
   </div>
 

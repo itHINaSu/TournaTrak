@@ -35,8 +35,35 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     if (tab.dataset.tab === 'lineups') {
       populateLineupTeamSelect();
     }
+    if (tab.dataset.tab === 'settings') {
+      // Default to account section for non-admin; page info for admin
+      var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
+      var anyActive = document.querySelector('.settings-panel.active');
+      if (!anyActive) showSettingsSection(defaultSection);
+    }
   });
 });
+
+// ── Settings sidebar ───────────────────────────────────────────────────
+var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users' };
+
+function showSettingsSection(section) {
+  document.querySelectorAll('.settings-panel').forEach(function(p) {
+    p.classList.toggle('active', p.id === 'sp-' + section);
+  });
+  document.querySelectorAll('.settings-nav-item').forEach(function(n) {
+    n.classList.toggle('active', n.dataset.section === section);
+  });
+  var titleEl = document.getElementById('settingsMobileSection');
+  if (titleEl) titleEl.textContent = SETTINGS_SECTION_TITLES[section] || section;
+  var sidebar = document.getElementById('settingsSidebar');
+  if (sidebar) sidebar.classList.remove('open');
+}
+
+function toggleSettingsSidebar() {
+  var sidebar = document.getElementById('settingsSidebar');
+  if (sidebar) sidebar.classList.toggle('open');
+}
 
 // ── Toast ──────────────────────────────────────────────────────────────
 function showToast(msg, err) {
@@ -596,9 +623,9 @@ async function apiFetch(url, opts) {
 
 // Apply role-based visibility restrictions. Idempotent — safe to call multiple times.
 function applyRoleRestrictions(role) {
-  var restricted = ['schedule', 'settings'];
+  // Tab-level restrictions: schedule is admin-only
   document.querySelectorAll('.admin-tab').forEach(function(tab) {
-    var hide = role !== 'admin' && restricted.indexOf(tab.dataset.tab) !== -1;
+    var hide = role !== 'admin' && tab.dataset.tab === 'schedule';
     tab.style.display = hide ? 'none' : '';
     if (hide && tab.classList.contains('active')) {
       tab.classList.remove('active');
@@ -607,8 +634,22 @@ function applyRoleRestrictions(role) {
       document.getElementById('tab-results').classList.add('active');
     }
   });
-  var sec = document.getElementById('usersSection');
-  if (sec) sec.style.display = role === 'admin' ? '' : 'none';
+  // Settings sidebar restrictions: page info and users are admin-only
+  var adminOnlySections = ['pageinfo', 'users'];
+  adminOnlySections.forEach(function(section) {
+    var navItem = document.querySelector('.settings-nav-item[data-section="' + section + '"]');
+    if (navItem) navItem.style.display = role === 'admin' ? '' : 'none';
+  });
+  // If non-admin lands on a restricted settings section, redirect to account
+  if (role !== 'admin') {
+    var activePanel = document.querySelector('.settings-panel.active');
+    if (activePanel) {
+      var activeSection = activePanel.id.replace('sp-', '');
+      if (adminOnlySections.indexOf(activeSection) !== -1) {
+        showSettingsSection('account');
+      }
+    }
+  }
 }
 
 function showAdmin(username, role) {
