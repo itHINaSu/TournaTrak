@@ -441,7 +441,6 @@ input[type="time"]:focus {
   .admin-tab-panel.active {
     flex: 1;
     overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     padding: 1em;
     min-height: 0;

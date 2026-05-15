@@ -743,7 +743,20 @@ function applyRoleRestrictions(role) {
   }
 }
 
+function resetIOSZoom() {
+  // iOS Safari stays zoomed after an input is dismissed. Briefly locking
+  // maximum-scale to 1 forces an immediate zoom-out, then we remove the lock.
+  if (document.activeElement) document.activeElement.blur();
+  var meta = document.querySelector('meta[name=viewport]');
+  if (!meta) return;
+  meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1');
+  setTimeout(function() {
+    meta.setAttribute('content', 'width=device-width, initial-scale=1.0');
+  }, 60);
+}
+
 function showAdmin(username, role, teamName) {
+  resetIOSZoom();
   if (role !== undefined) currentRole = role;
   if (teamName !== undefined) currentTeamName = teamName;
   document.getElementById('loginOverlay').style.display = 'none';
@@ -1465,3 +1478,25 @@ async function submitResetPassword(e) {
 }
 
 checkSession();
+
+// Move the settings sidebar to <body> on mobile so its z-index is evaluated
+// in the root stacking context, not inside the overflow:auto panel which
+// creates a stacking context that traps it below the backdrop.
+// On desktop the sidebar is restored to its original flex-layout position.
+(function() {
+  var sidebar = document.getElementById('settingsSidebar');
+  if (!sidebar) return;
+  var origParent = sidebar.parentElement;
+  var origNext   = sidebar.nextElementSibling;
+  function placeSidebar() {
+    var mobile = window.innerWidth < 1024;
+    if (mobile && sidebar.parentElement !== document.body) {
+      document.body.appendChild(sidebar);
+    } else if (!mobile && sidebar.parentElement === document.body) {
+      if (origNext) origParent.insertBefore(sidebar, origNext);
+      else          origParent.appendChild(sidebar);
+    }
+  }
+  window.addEventListener('resize', placeSidebar);
+  placeSidebar();
+}());
