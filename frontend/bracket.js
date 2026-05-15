@@ -124,7 +124,6 @@ function renderBucketView() {
       + '<span class="bucket-rank' + rankClass + '">' + rank + '</span>'
       + '<span class="bucket-team-name">' + esc(team) + '</span>'
       + '<span class="bucket-count">' + count + '</span>'
-      + '<svg class="bucket-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5Q12 2 15 5"/><line x1="4" y1="7" x2="20" y2="7"/><path d="M4 7l2.5 14h11L20 7"/></svg>'
       + '</div>';
   });
   html += '</div>';
