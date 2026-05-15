@@ -1317,19 +1317,13 @@ function renderCoachesList(coaches) {
   el.innerHTML = coaches.map(function(u) {
     var teams = Array.isArray(u.teams) && u.teams.length ? u.teams : (u.teamName ? [u.teamName] : []);
     var link  = u.accessToken ? (window.location.origin + '/api/team-access/' + u.accessToken) : '';
-    var linkRow = link
-      ? '<div class="coach-link-row">'
-        + '<input type="text" class="coach-link-input" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly>'
-        + '<button class="admin-save-btn" onclick="copyCoachLink(\'' + esc(u.username) + '\')">Copy</button>'
-        + '</div>'
-      : '';
     var teamTags = teams.map(function(t) {
       var canRemove = teams.length > 1;
       return '<span class="coach-team-tag">' + esc(t)
         + (canRemove ? '<button class="coach-team-remove" onclick="removeCoachTeam(\'' + esc(u.username) + '\',\'' + esc(t) + '\')" title="Remove team">✕</button>' : '')
         + '</span>';
     }).join('');
-    return '<div class="user-row">'
+    return '<div class="coach-card">'
       + '<div class="user-info">'
       +   '<span class="user-name">' + esc(u.username) + '</span>'
       +   '<span class="coach-teams-wrap">'
@@ -1342,8 +1336,9 @@ function renderCoachesList(coaches) {
       +     '<button class="admin-clear-btn" onclick="hideAddCoachTeam(\'' + esc(u.username) + '\')">Cancel</button>'
       +   '</div>'
       + '</div>'
-      + linkRow
-      + '<div class="user-actions">'
+      + '<div class="coach-actions">'
+      +   (link ? '<input type="text" class="coach-link-hidden" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly tabindex="-1" aria-hidden="true">' : '')
+      +   (link ? '<button class="admin-save-btn" onclick="copyCoachLink(\'' + esc(u.username) + '\')">Copy Link</button>' : '')
       +   (u.accessToken ? '<button class="admin-clear-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>' : '')
       +   '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + esc(u.username) + '\')">Delete</button>'
       + '</div>'
