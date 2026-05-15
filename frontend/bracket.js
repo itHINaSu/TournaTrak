@@ -161,6 +161,18 @@ function getCookie(name) {
 // THEME
 // ══════════════════════════════════════════════════════════
 var themeBtn=document.getElementById('themeToggle');
+
+// Auto-apply system color scheme on first load, then follow OS changes.
+(function(){
+  var mq = window.matchMedia('(prefers-color-scheme: light)');
+  function applyScheme(light) {
+    document.body.classList.toggle('light', light);
+    if (themeBtn) themeBtn.textContent = light ? '🌙 Dark' : '☀ Light';
+  }
+  applyScheme(mq.matches);
+  mq.addEventListener('change', function(e) { applyScheme(e.matches); });
+})();
+
 themeBtn.addEventListener('click',function(){
   document.body.classList.toggle('light');
   themeBtn.textContent=document.body.classList.contains('light')?'🌙 Dark':'☀ Light';

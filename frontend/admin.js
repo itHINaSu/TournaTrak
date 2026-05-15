@@ -21,11 +21,20 @@ function getSetting(key) {
 }
 
 // ── Theme ──────────────────────────────────────────────────────────────
-document.getElementById('themeToggle').addEventListener('click', function(){
-  document.body.classList.toggle('light');
-  document.getElementById('themeToggle').textContent =
-    document.body.classList.contains('light') ? '🌙 Dark' : '☀ Light';
-});
+(function(){
+  var btn = document.getElementById('themeToggle');
+  var mq  = window.matchMedia('(prefers-color-scheme: light)');
+  function applyScheme(light) {
+    document.body.classList.toggle('light', light);
+    if (btn) btn.textContent = light ? '🌙 Dark' : '☀ Light';
+  }
+  applyScheme(mq.matches);
+  mq.addEventListener('change', function(e) { applyScheme(e.matches); });
+  if (btn) btn.addEventListener('click', function(){
+    document.body.classList.toggle('light');
+    btn.textContent = document.body.classList.contains('light') ? '🌙 Dark' : '☀ Light';
+  });
+})();
 
 // ── Tabs ───────────────────────────────────────────────────────────────
 document.querySelectorAll('.admin-tab').forEach(function(tab){

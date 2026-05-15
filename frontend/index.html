@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tournament Bracket</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0f1410" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f0f4f1" media="(prefers-color-scheme: light)">
+<link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="base.css">
 <link rel="stylesheet" href="bracket.css">
@@ -107,5 +111,12 @@
 
 <script src="bracket-data.js"></script>
 <script src="bracket.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js');
+  });
+}
+</script>
 </body>
 </html>
