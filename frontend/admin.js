@@ -60,9 +60,6 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     }
     // Reset results to games mode when re-entering the results tab
     if (tab.dataset.tab === 'results') setResultsMode('games');
-    if (tab.dataset.tab === 'schedule') {
-      requestAnimationFrame(function() { requestAnimationFrame(scrollToLastCompleted); });
-    }
     if (tab.dataset.tab === 'settings') {
       var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
       var anyActive = document.querySelector('.settings-panel.active');
@@ -524,16 +521,6 @@ function renderScheduleEditor() {
     });
   });
   wrap.innerHTML = html;
-}
-
-function scrollToLastCompleted() {
-  var lastSid = null;
-  allSlotIds().forEach(function(sid) {
-    if (GAMES[sid] && results[sid] && results[sid].winner) lastSid = sid;
-  });
-  if (!lastSid) return;
-  var card = document.querySelector('[data-sid="' + lastSid + '"]');
-  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function toggleSched(sid) {

@@ -199,7 +199,7 @@ function renderActive(){
   var v=activeView();
   updateTimestamp(); // keep bar in sync whenever view changes
   if(v==='bracket') renderBracket();
-  if(v==='rounds')  { renderRoundView(); setTimeout(function(){ scrollToRound(firstIncompleteRound()); }, 60); }
+  if(v==='rounds')  { renderRoundView(); setTimeout(scrollToLastCompletedCard, 60); }
   if(v==='teams')   renderTeamView();
   if(v==='buckets') renderBucketView();
 }
@@ -1007,6 +1007,32 @@ function scrollToRound(round) {
   document.getElementById('roundSelect').value = round;
 }
 
+function scrollToLastCompletedCard() {
+  var rounds = ['R1','R2','QF','SF','CHAMP'];
+  var lastSid = null;
+  rounds.forEach(function(round) {
+    Object.keys(GAMES)
+      .filter(function(s){ return GAMES[s].round === round; })
+      .sort(function(a,b){ return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time); })
+      .forEach(function(sid) {
+        if (results[sid] && results[sid].winner) lastSid = sid;
+      });
+  });
+  if (!lastSid) return;
+  var card = document.getElementById('rgc-' + lastSid);
+  if (!card) return;
+  var mobile = window.innerWidth < 1024;
+  var panel = document.getElementById('view-rounds');
+  if (mobile && panel) {
+    var scrollOffset = card.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop - 4;
+    panel.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
+  } else {
+    var top = card.getBoundingClientRect().top + window.scrollY - stickyNavH() - 4;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }
+  document.getElementById('roundSelect').value = GAMES[lastSid].round;
+}
+
 var roundObserver = null;
 function setupRoundObserver() {
   if (roundObserver) { roundObserver.disconnect(); roundObserver = null; }
@@ -1049,7 +1075,7 @@ function renderRoundView() {
       var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
       var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
       var upcoming = !r.winner ? ' upcoming' : '';
-      html += '<div class="round-game-card' + upcoming + '">'
+      html += '<div class="round-game-card' + upcoming + '" id="rgc-' + sid + '">'
         +'<div class="round-game-header">'
         +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
         +'<div class="round-game-day-time">'
