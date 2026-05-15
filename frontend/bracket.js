@@ -34,6 +34,28 @@ function applySettings() {
 function updateTimestamp() {
   var bar  = document.getElementById('updateBar');
   var text = document.getElementById('updateBarText');
+  var view = activeView();
+
+  // Buckets tab: show bucket update time or "no data" notice
+  if (view === 'buckets') {
+    var updatedAt = buckets && buckets.updatedAt;
+    var hasCounts = updatedAt && Object.keys((buckets && buckets.counts) || {}).length > 0;
+    if (text) {
+      if (hasCounts) {
+        var bd = new Date(updatedAt);
+        text.textContent = isNaN(bd.getTime())
+          ? 'Bucket results updated'
+          : 'Bucket results updated ' + formatBucketTime(bd);
+      } else {
+        text.textContent = 'No Updates Have Been Submitted';
+      }
+    }
+    if (bar) bar.style.display = '';
+    applyStickyOffsets();
+    return;
+  }
+
+  // All other tabs: show game results update time, or hide if none
   var hasResults = Object.values(results).some(function(r){ return r && r.winner; });
   if (!hasResults) {
     if (bar) bar.style.display = 'none';
@@ -64,27 +86,10 @@ function formatBucketTime(d) {
 }
 
 function renderBucketView() {
-  var out    = document.getElementById('bucketOut');
-  var barEl  = document.getElementById('bucketStatusBar');
-  var textEl = document.getElementById('bucketStatusText');
+  var out = document.getElementById('bucketOut');
   if (!out) return;
 
-  // Always update the status banner
-  var updatedAt = buckets && buckets.updatedAt;
-  var hasResults = updatedAt && Object.keys((buckets && buckets.counts) || {}).length > 0;
-  if (textEl) {
-    if (hasResults) {
-      var d = new Date(updatedAt);
-      textEl.textContent = isNaN(d.getTime())
-        ? 'Results updated'
-        : 'Last updated: ' + formatBucketTime(d);
-    } else {
-      textEl.textContent = 'No Results Posted';
-    }
-  }
-
   var counts     = (buckets && buckets.counts) ? buckets.counts : {};
-  var savedOrder = Array.isArray(buckets && buckets.order) ? buckets.order : [];
   var extraTeams = Array.isArray(buckets && buckets.bucketOnlyTeams) ? buckets.bucketOnlyTeams : [];
   var schedTeams = [];
   Object.values(GAMES).forEach(function(g) {
@@ -94,20 +99,13 @@ function renderBucketView() {
   schedTeams = schedTeams.filter(function(t, i, a) { return a.indexOf(t) === i; });
   var allTeams = schedTeams.concat(extraTeams.filter(function(t) { return schedTeams.indexOf(t) === -1; }));
 
-  // Apply saved admin order if present; otherwise sort by count desc
-  if (savedOrder.length) {
-    var ordered = [];
-    savedOrder.forEach(function(name) { if (allTeams.indexOf(name) !== -1) ordered.push(name); });
-    allTeams.forEach(function(t) { if (savedOrder.indexOf(t) === -1) ordered.push(t); });
-    allTeams = ordered;
-  } else {
-    allTeams.sort(function(a, b) {
-      var ca = parseInt(counts[a]) || 0;
-      var cb = parseInt(counts[b]) || 0;
-      if (cb !== ca) return cb - ca;
-      return a.localeCompare(b);
-    });
-  }
+  // Always sort by count descending, then alphabetically as tiebreaker
+  allTeams.sort(function(a, b) {
+    var ca = parseInt(counts[a]) || 0;
+    var cb = parseInt(counts[b]) || 0;
+    if (cb !== ca) return cb - ca;
+    return a.localeCompare(b);
+  });
 
   var top3El = document.getElementById('bucketTop3');
 
@@ -194,10 +192,12 @@ document.querySelectorAll('.view-tab').forEach(function(tab){
     document.getElementById('view-'+tab.dataset.view).classList.add('active');
     setCookie('tt_tab', tab.dataset.view);
     renderActive();
+    fetchAll(); // refresh data on every tab tap (PWA-friendly)
   });
 });
 function renderActive(){
   var v=activeView();
+  updateTimestamp(); // keep bar in sync whenever view changes
   if(v==='bracket') renderBracket();
   if(v==='rounds')  { renderRoundView(); setTimeout(function(){ scrollToRound(firstIncompleteRound()); }, 60); }
   if(v==='teams')   renderTeamView();

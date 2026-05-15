@@ -1102,7 +1102,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   }
   .view-tab {
     min-height: 0;
-    padding: 0.75em 0.5em 0.6em;
+    padding: 0.75em 0.5em 0.9em;
     border-bottom: none;
     border-top: 0.25em solid transparent;
     font-size: 0.78rem;
