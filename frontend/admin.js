@@ -35,14 +35,22 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       toggleSettingsSidebar();
       return;
     }
+    // Results tab while already active → switch to bucket mode
+    if (tab.dataset.tab === 'results' && tab.classList.contains('active')) {
+      setResultsMode('buckets');
+      return;
+    }
     document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
     document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
     tab.classList.add('active');
     document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+    syncResultsTabLabel();
     if (tab.dataset.tab === 'lineups') {
       window.location.href = '/lineup';
       return;
     }
+    // Reset results to games mode when re-entering the results tab
+    if (tab.dataset.tab === 'results') setResultsMode('games');
     if (tab.dataset.tab === 'settings') {
       var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
       var anyActive = document.querySelector('.settings-panel.active');
@@ -61,6 +69,13 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     }
   });
 });
+
+function syncResultsTabLabel() {
+  var tab   = document.querySelector('.admin-tab[data-tab="results"]');
+  if (!tab) return;
+  var label = tab.querySelector('.tab-label');
+  if (label) label.textContent = tab.classList.contains('active') ? 'Bucket' : 'Results';
+}
 
 // ── Settings sidebar ───────────────────────────────────────────────────
 var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users', coaches: 'Coaches' };
