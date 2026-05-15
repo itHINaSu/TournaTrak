@@ -1061,12 +1061,31 @@ async function deleteUser(username) {
 
 // ── Coaches section ────────────────────────────────────────────────────
 
+function populateCoachTeamSelect() {
+  var sel = document.getElementById('newCoachTeamName');
+  if (!sel) return;
+  var teams = [];
+  if (typeof GAMES !== 'undefined') {
+    Object.values(GAMES).forEach(function(g) {
+      if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams.push(g.t1.team);
+      if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams.push(g.t2.team);
+    });
+    teams = teams.filter(function(t, i, a) { return a.indexOf(t) === i; }).sort();
+  }
+  var current = sel.value;
+  sel.innerHTML = '<option value="">— select team —</option>'
+    + teams.map(function(t) {
+        return '<option value="' + esc(t) + '"' + (t === current ? ' selected' : '') + '>' + esc(t) + '</option>';
+      }).join('');
+}
+
 async function loadCoaches() {
   try {
     var r = await apiFetch('/api/users');
     if (!r || !r.ok) return;
     var users = await r.json().catch(function(){ return []; });
     renderCoachesList(users.filter(function(u) { return u.role === 'team'; }));
+    populateCoachTeamSelect();
   } catch(e) {}
 }
 

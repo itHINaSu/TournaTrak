@@ -290,8 +290,10 @@
               <input type="text" id="newCoachUsername" autocomplete="off" placeholder="e.g. eagles-coach">
             </div>
             <div class="settings-field">
-              <label>Team Name <span class="field-label-hint">(must match schedule exactly)</span></label>
-              <input type="text" id="newCoachTeamName" autocomplete="off" placeholder="e.g. Eagles">
+              <label>Team Name</label>
+              <select id="newCoachTeamName" class="admin-winner-sel" style="width:100%;padding:0.5em 0.62em">
+                <option value="">— select team —</option>
+              </select>
             </div>
             <div class="settings-save-row">
               <button class="sched-save-btn" onclick="addCoach()">Add Coach</button>
