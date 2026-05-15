@@ -1,8 +1,9 @@
 // admin-sw.js — admin PWA service worker (network-first)
-var CACHE = 'tournatrak-admin-v1';
+var CACHE = 'tournatrak-admin-v2';
 var PRECACHE_URLS = [
   '/admin',
   '/admin.html',
+  '/fonts.css',
   '/base.css',
   '/admin.css',
   '/bracket-data.js',
