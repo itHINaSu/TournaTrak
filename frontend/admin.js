@@ -362,69 +362,72 @@ function renderAdmin() {
   var wrap = document.getElementById('adminGames');
   var html = '';
 
-  ROUND_ORDER.forEach(function(round){
-    var sids = Object.keys(GAMES)
-      .filter(function(s){ return GAMES[s].round === round; })
-      .sort(function(a,b){ return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time) || GAMES[a].num - GAMES[b].num; });
-    if (!sids.length) return;
-
-    html += '<div class="admin-round-hdr">' + ROUND_LABELS[round] + '</div>';
-
-    sids.forEach(function(sid){
-      var g    = GAMES[sid];
-      var t1   = resolveSlot(g.t1, results);
-      var t2   = resolveSlot(g.t2, results);
-      var l1   = slotLabel(g.t1);
-      var l2   = slotLabel(g.t2);
-      var r    = results[sid] || {};
-      var set  = !!r.winner;
-      var both = t1 && t2;
-      var lbl  = g.label || sid;
-
-      var ft  = (typeof formatTime === 'function') ? formatTime(g.time) : (g.time || '');
-      var dayStr = '', timeStr = ft;
-      var tm = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
-      if (tm) { dayStr = tm[1]; timeStr = tm[2]; }
-
-      var hdr = '<div class="admin-res-hdr">'
-        + '<span class="admin-game-id">' + esc(lbl) + '</span>'
-        + '<div class="admin-res-dt">'
-        + (dayStr  ? '<span class="admin-res-day">'  + esc(dayStr)  + '</span>' : '')
-        + (timeStr ? '<span class="admin-res-time">' + esc(timeStr) + '</span>' : '')
-        + '</div></div>';
-
-      if (set) {
-        var c1 = r.winner === t1 ? 'won' : 'lost';
-        var c2 = r.winner === t2 ? 'won' : 'lost';
-        var sc1 = (r.t1score !== undefined && r.t1score !== null) ? '<span class="admin-score-disp">' + r.t1score + '</span>' : '';
-        var sc2 = (r.t2score !== undefined && r.t2score !== null) ? '<span class="admin-score-disp">' + r.t2score + '</span>' : '';
-        html += '<div class="admin-res-card">' + hdr
-          + '<div class="admin-res-team-row"><span class="admin-res-team ' + c1 + '">' + esc(t1) + '</span>'
-          + sc1
-          + '</div>'
-          + '<div class="admin-res-team-row"><span class="admin-res-team ' + c2 + '">' + esc(t2) + '</span>'
-          + sc2
-          + '</div>'
-          + '<div class="admin-res-footer">'
-          + '<button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button>'
-          + '</div></div>';
-      } else if (both) {
-        html += '<div class="admin-res-card">' + hdr
-          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
-          + '<input type="number" class="admin-score-inp" id="sc1-' + sid + '" min="0" max="9999" placeholder="Score"></div>'
-          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
-          + '<input type="number" class="admin-score-inp" id="sc2-' + sid + '" min="0" max="9999" placeholder="Score"></div>'
-          + '<div class="admin-res-footer">'
-          + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Save</button>'
-          + '</div></div>';
-      } else {
-        var missing = [!t1&&l1, !t2&&l2].filter(Boolean);
-        html += '<div class="admin-res-card admin-res-card--waiting">' + hdr
-          + '<div class="admin-res-waiting">Waiting: ' + esc(missing.join(', ')) + '</div>'
-          + '</div>';
-      }
-    });
+  // Sort all games by date/time, then by game num as tiebreak
+  var allSids = Object.keys(GAMES).sort(function(a, b) {
+    var ta = parseTimeVal(GAMES[a].time);
+    var tb = parseTimeVal(GAMES[b].time);
+    if (ta !== tb) return ta - tb;
+    return (GAMES[a].num || 0) - (GAMES[b].num || 0);
   });
+
+  var pending   = allSids.filter(function(s) { return !(results[s] && results[s].winner); });
+  var completed = allSids.filter(function(s) { return !!(results[s] && results[s].winner); });
+
+  function buildCard(sid) {
+    var g    = GAMES[sid];
+    var t1   = resolveSlot(g.t1, results);
+    var t2   = resolveSlot(g.t2, results);
+    var l1   = slotLabel(g.t1);
+    var l2   = slotLabel(g.t2);
+    var r    = results[sid] || {};
+    var set  = !!r.winner;
+    var both = t1 && t2;
+    var lbl  = g.label || sid;
+
+    var ft  = (typeof formatTime === 'function') ? formatTime(g.time) : (g.time || '');
+    var dayStr = '', timeStr = ft;
+    var tm = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
+    if (tm) { dayStr = tm[1]; timeStr = tm[2]; }
+
+    var hdr = '<div class="admin-res-hdr">'
+      + '<span class="admin-game-id">' + esc(lbl) + '</span>'
+      + '<div class="admin-res-dt">'
+      + (dayStr  ? '<span class="admin-res-day">'  + esc(dayStr)  + '</span>' : '')
+      + (timeStr ? '<span class="admin-res-time">' + esc(timeStr) + '</span>' : '')
+      + '</div></div>';
+
+    if (set) {
+      var c1 = r.winner === t1 ? 'won' : 'lost';
+      var c2 = r.winner === t2 ? 'won' : 'lost';
+      var sc1 = (r.t1score !== undefined && r.t1score !== null) ? '<span class="admin-score-disp">' + r.t1score + '</span>' : '';
+      var sc2 = (r.t2score !== undefined && r.t2score !== null) ? '<span class="admin-score-disp">' + r.t2score + '</span>' : '';
+      return '<div class="admin-res-card">' + hdr
+        + '<div class="admin-res-team-row"><span class="admin-res-team ' + c1 + '">' + esc(t1) + '</span>' + sc1 + '</div>'
+        + '<div class="admin-res-team-row"><span class="admin-res-team ' + c2 + '">' + esc(t2) + '</span>' + sc2 + '</div>'
+        + '<div class="admin-res-footer"><button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button></div>'
+        + '</div>';
+    } else if (both) {
+      return '<div class="admin-res-card">' + hdr
+        + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" placeholder="Score"></div>'
+        + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" placeholder="Score"></div>'
+        + '<div class="admin-res-footer"><button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Save</button></div>'
+        + '</div>';
+    } else {
+      var missing = [!t1 && l1, !t2 && l2].filter(Boolean);
+      return '<div class="admin-res-card admin-res-card--waiting">' + hdr
+        + '<div class="admin-res-waiting">Waiting: ' + esc(missing.join(', ')) + '</div>'
+        + '</div>';
+    }
+  }
+
+  pending.forEach(function(sid) { html += buildCard(sid); });
+
+  if (completed.length) {
+    html += '<div class="admin-round-hdr admin-completed-hdr">Completed</div>';
+    completed.forEach(function(sid) { html += buildCard(sid); });
+  }
 
   wrap.innerHTML = html;
 }
@@ -1105,38 +1108,87 @@ function renderBucketAdmin() {
     var rawVal = (counts[team.name] !== undefined && counts[team.name] !== null) ? parseInt(counts[team.name]) : 0;
     var val = isNaN(rawVal) ? 0 : rawVal;
     html += '<div class="bucket-admin-row" data-idx="' + i + '">'
-      + '<span class="bucket-admin-move">'
-      + '<button class="bucket-move-btn" onclick="moveBucketTeam(' + i + ',-1)" title="Move up" ' + (i === 0 ? 'disabled' : '') + '>&#9650;</button>'
-      + '<button class="bucket-move-btn" onclick="moveBucketTeam(' + i + ',1)" title="Move down" ' + (i === _bucketTeams.length - 1 ? 'disabled' : '') + '>&#9660;</button>'
-      + '</span>'
+      + '<span class="bucket-drag-handle" title="Drag to reorder"></span>'
       + '<span class="bucket-admin-name">' + esc(team.name) + '</span>'
-      + '<input type="number" class="bucket-admin-inp" id="bci-' + i + '" min="0" max="9999" value="' + val + '">'
+      + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="bucket-admin-inp" id="bci-' + i + '" value="' + val + '">'
       + (team.extra ? '<button class="admin-clear-btn" onclick="deleteBucketTeam(' + i + ')">Remove</button>' : '')
       + '</div>';
   });
   html += '</div>';
   wrap.innerHTML = html;
+  initBucketDrag();
 }
 
-function moveBucketTeam(idx, dir) {
-  var newIdx = idx + dir;
-  if (newIdx < 0 || newIdx >= _bucketTeams.length) return;
-  // Preserve current input values before re-render
-  _bucketTeams.forEach(function(team, i) {
-    var el = document.getElementById('bci-' + i);
-    if (el) { var v = parseInt(el.value, 10); team._tempCount = isNaN(v) ? 0 : v; }
+function initBucketDrag() {
+  document.querySelectorAll('.bucket-drag-handle').forEach(function(handle) {
+    handle.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      var row = handle.closest('.bucket-admin-row');
+      if (row) bucketDragStart(row, e);
+    });
   });
-  var tmp = _bucketTeams[idx];
-  _bucketTeams[idx] = _bucketTeams[newIdx];
-  _bucketTeams[newIdx] = tmp;
-  var counts = {};
-  _bucketTeams.forEach(function(t) { if (t._tempCount !== undefined) counts[t.name] = t._tempCount; });
-  renderBucketAdmin();
-  // Restore temp counts into re-rendered inputs
-  _bucketTeams.forEach(function(team, i) {
-    var el = document.getElementById('bci-' + i);
-    if (el && counts[team.name] !== undefined) el.value = counts[team.name];
+}
+
+function bucketDragStart(srcRow, e) {
+  var list    = srcRow.parentElement;
+  var srcIdx  = parseInt(srcRow.dataset.idx, 10);
+  var rowRect = srcRow.getBoundingClientRect();
+  var offsetY = e.clientY - rowRect.top;
+
+  var ghost = srcRow.cloneNode(true);
+  ghost.removeAttribute('id');
+  Object.assign(ghost.style, {
+    position: 'fixed', left: rowRect.left + 'px', top: rowRect.top + 'px',
+    width: rowRect.width + 'px', zIndex: '9999', pointerEvents: 'none',
+    opacity: '0.92', transform: 'rotate(1.5deg)',
+    boxShadow: '0 8px 28px rgba(0,0,0,0.5)', transition: 'none'
   });
+  document.body.appendChild(ghost);
+  srcRow.style.opacity = '0.25';
+
+  var lastTarget = null;
+
+  function onMove(e2) {
+    e2.preventDefault();
+    ghost.style.top = (e2.clientY - offsetY) + 'px';
+    ghost.style.visibility = 'hidden';
+    var el = document.elementFromPoint(e2.clientX, e2.clientY);
+    ghost.style.visibility = '';
+    var overRow = el && el.closest('.bucket-admin-row');
+    list.querySelectorAll('.bucket-admin-row').forEach(function(r) { r.classList.remove('bucket-drag-over'); });
+    if (overRow && overRow !== srcRow) {
+      overRow.classList.add('bucket-drag-over');
+      lastTarget = overRow;
+    }
+  }
+
+  function onUp() {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    ghost.remove();
+    srcRow.style.opacity = '';
+    list.querySelectorAll('.bucket-admin-row').forEach(function(r) { r.classList.remove('bucket-drag-over'); });
+
+    if (lastTarget) {
+      var targetIdx = parseInt(lastTarget.dataset.idx, 10);
+      _bucketTeams.forEach(function(team, i) {
+        var el = document.getElementById('bci-' + i);
+        if (el) { var v = parseInt(el.value, 10); team._tempCount = isNaN(v) ? 0 : v; }
+      });
+      var moved = _bucketTeams.splice(srcIdx, 1)[0];
+      _bucketTeams.splice(targetIdx, 0, moved);
+      var saved = {};
+      _bucketTeams.forEach(function(t) { if (t._tempCount !== undefined) saved[t.name] = t._tempCount; });
+      renderBucketAdmin();
+      _bucketTeams.forEach(function(team, i) {
+        var el = document.getElementById('bci-' + i);
+        if (el && saved[team.name] !== undefined) el.value = saved[team.name];
+      });
+    }
+  }
+
+  document.addEventListener('pointermove', onMove, { passive: false });
+  document.addEventListener('pointerup', onUp);
 }
 
 async function saveBucketCounts() {
