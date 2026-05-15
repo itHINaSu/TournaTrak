@@ -1113,6 +1113,7 @@ function makeVerticalChain(chain, team, isLosePath) {
       var destText = ln ? gameLabel(ln) : 'OUT';
       loseSide = '<div class="round-lose-side">'
         + '<span class="round-lose-tag">LOSS</span>'
+        + '<span class="round-lose-arrow">↓</span>'
         + '<span class="round-lose-dest' + (ln ? '' : ' out') + '">' + esc(destText) + '</span>'
         + '</div>';
     }
