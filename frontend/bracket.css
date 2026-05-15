@@ -540,7 +540,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 
 /* ── Team chip grid (empty state) ── */
 .team-chips-prompt {
-  max-width: 65em;
+  max-width: 42em;
   margin: 1.2em auto 0.3em;
   padding: 0 1em;
   color: var(--text-dim);
@@ -548,27 +548,34 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .team-chips-grid {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5em;
-  padding: 0.5em 1em 2em;
-  max-width: 65em;
+  flex-direction: column;
+  gap: 0.35em;
+  padding: 1em 1em 2em;
+  max-width: 42em;
   margin: 0 auto;
 }
 .team-chip {
-  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
   border: 0.07em solid var(--border);
-  border-radius: 2em;
-  padding: 0.45em 1.1em;
-  font-family: 'Barlow', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 600;
+  border-radius: 0.4em;
+  padding: 0.75em 1em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--text);
   cursor: pointer;
+  text-align: left;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
   -webkit-tap-highlight-color: transparent;
 }
-.team-chip:hover, .team-chip:active { background: var(--blue); border-color: var(--blue-lt); color: #fff; }
-.team-chip.elim { opacity: 0.5; text-decoration: line-through; }
+.team-chip:hover, .team-chip:active { background: var(--surface2); border-color: var(--blue-lt); color: var(--blue-lt); }
+.team-chip.elim { opacity: 0.45; }
 .team-view-name {
   padding: 0.5em 0 0.25em;
   font-family: 'Oswald', sans-serif;
@@ -1150,15 +1157,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   }
 
   /* ── Team view mobile overrides ── */
-  .team-chips-grid {
-    gap: 0.6em;
-    padding: 0.6em 1em 2em;
-  }
-  .team-chip {
-    padding: 0.65em 1.4em;
-    font-size: 1rem;
-    min-height: 2.75em;
-  }
   .team-path-label {
     font-size: 1.05rem;
     padding: 0.7em 1em;
