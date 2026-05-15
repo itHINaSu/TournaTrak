@@ -1047,21 +1047,23 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     border-bottom: none;
     box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0.5em);
+    padding-right: env(safe-area-inset-right, 0.5em);
     z-index: 90;
   }
   .view-tab {
-    min-height: 9em;
-    padding: 1.8em 0.3em 1.5em;
+    min-height: 0;
+    padding: 0.75em 0.5em 0.6em;
     border-bottom: none;
     border-top: 0.25em solid transparent;
     font-size: 0.78rem;
     letter-spacing: 0.08em;
-    gap: 0.45em;
+    gap: 0.3em;
   }
   .tab-icon {
     display: block;
-    width: 2.2em;
-    height: 2.2em;
+    width: 1.8em;
+    height: 1.8em;
   }
   .view-tab.active {
     color: var(--gold-lt);
