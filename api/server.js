@@ -98,6 +98,35 @@ if (!ADMIN_PASSWORD_HASH.startsWith('$2')) {
   process.exit(1);
 }
 
+// Ensure /data directory and all required JSON files exist at startup.
+// readJSON already handles missing files gracefully (returns {}), but
+// writeJSON will throw if /data itself is absent, and buckets.json needs
+// a structured default rather than a bare {}.
+function ensureDataFiles() {
+  const DATA_DIR = '/data';
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    console.log('Created /data directory');
+  }
+
+  const defaults = {
+    [RESULTS_FILE]:  {},
+    [SCHEDULE_FILE]: {},
+    [SETTINGS_FILE]: {},
+    [LINEUPS_FILE]:  {},
+    [BUCKETS_FILE]:  { counts: {}, bucketOnlyTeams: [] },
+  };
+
+  Object.entries(defaults).forEach(([file, empty]) => {
+    if (!fs.existsSync(file)) {
+      fs.writeFileSync(file, JSON.stringify(empty, null, 2));
+      console.log(`Created ${file}`);
+    }
+  });
+}
+
+ensureDataFiles();
+
 // Bootstrap users.json from env vars on first startup
 ensureUsers();
 
