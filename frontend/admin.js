@@ -1250,17 +1250,32 @@ function renderCoachesList(coaches) {
     return;
   }
   el.innerHTML = coaches.map(function(u) {
-    var link = u.accessToken ? (window.location.origin + '/api/team-access/' + u.accessToken) : '';
+    var teams = Array.isArray(u.teams) && u.teams.length ? u.teams : (u.teamName ? [u.teamName] : []);
+    var link  = u.accessToken ? (window.location.origin + '/api/team-access/' + u.accessToken) : '';
     var linkRow = link
       ? '<div class="coach-link-row">'
         + '<input type="text" class="coach-link-input" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly>'
         + '<button class="admin-save-btn" onclick="copyCoachLink(\'' + esc(u.username) + '\')">Copy</button>'
         + '</div>'
       : '';
+    var teamTags = teams.map(function(t) {
+      var canRemove = teams.length > 1;
+      return '<span class="coach-team-tag">' + esc(t)
+        + (canRemove ? '<button class="coach-team-remove" onclick="removeCoachTeam(\'' + esc(u.username) + '\',\'' + esc(t) + '\')" title="Remove team">✕</button>' : '')
+        + '</span>';
+    }).join('');
     return '<div class="user-row">'
       + '<div class="user-info">'
       +   '<span class="user-name">' + esc(u.username) + '</span>'
-      +   (u.teamName ? '<span class="user-team-name">' + esc(u.teamName) + '</span>' : '')
+      +   '<span class="coach-teams-wrap">'
+      +     teamTags
+      +     '<button class="coach-add-team-btn" onclick="showAddCoachTeam(\'' + esc(u.username) + '\')">+ Team</button>'
+      +   '</span>'
+      +   '<div class="coach-add-team-row" id="cat-' + esc(u.username) + '" style="display:none">'
+      +     '<select class="styled" id="cat-sel-' + esc(u.username) + '"></select>'
+      +     '<button class="admin-save-btn" onclick="addCoachTeam(\'' + esc(u.username) + '\')">Add</button>'
+      +     '<button class="admin-clear-btn" onclick="hideAddCoachTeam(\'' + esc(u.username) + '\')">Cancel</button>'
+      +   '</div>'
       + '</div>'
       + linkRow
       + '<div class="user-actions">'
@@ -1269,6 +1284,47 @@ function renderCoachesList(coaches) {
       + '</div>'
       + '</div>';
   }).join('');
+}
+
+function showAddCoachTeam(username) {
+  var row = document.getElementById('cat-' + username);
+  var sel = document.getElementById('cat-sel-' + username);
+  if (!row || !sel) return;
+  var schedTeams = typeof getScheduleTeams === 'function' ? getScheduleTeams() : [];
+  sel.innerHTML = schedTeams.length
+    ? schedTeams.map(function(t){ return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('')
+    : '<option value="">No schedule loaded</option>';
+  row.style.display = '';
+}
+
+function hideAddCoachTeam(username) {
+  var row = document.getElementById('cat-' + username);
+  if (row) row.style.display = 'none';
+}
+
+async function addCoachTeam(username) {
+  var sel = document.getElementById('cat-sel-' + username);
+  var teamName = sel ? sel.value : '';
+  if (!teamName) return;
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/teams', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ teamName: teamName })
+  });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { showToast(data.error || 'Failed', true); return; }
+  showToast('Team added');
+  loadCoaches();
+}
+
+async function removeCoachTeam(username, teamName) {
+  if (!confirm('Remove "' + teamName + '" from ' + username + '?')) return;
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/teams/' + encodeURIComponent(teamName), { method: 'DELETE' });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { showToast(data.error || 'Failed', true); return; }
+  showToast('Team removed');
+  loadCoaches();
 }
 
 function copyCoachLink(username) {

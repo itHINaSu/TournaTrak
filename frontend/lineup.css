@@ -215,6 +215,23 @@
   display: inline-block;
 }
 
+/* ── Sign-out button ── */
+.lineup-signout-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.5em 1.1em;
+  border-radius: 0.3em;
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.lineup-signout-btn:hover { color: var(--lose-color); border-color: var(--lose-color); }
+
 /* ── No-game message ── */
 .lineup-no-game {
   font-family: 'Barlow', sans-serif;

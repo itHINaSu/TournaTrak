@@ -157,7 +157,8 @@ function requireLineupAccess(req, res, next) {
   const role = req.session.role;
   if (role === 'admin' || role === 'results') return next();
   if (role === 'team') {
-    if (req.params.teamName !== req.session.teamName)
+    const teams = req.session.teams || (req.session.teamName ? [req.session.teamName] : []);
+    if (!req.params.teamName || !teams.includes(req.params.teamName))
       return res.status(403).json({ error: 'Access denied' });
     return next();
   }
@@ -166,12 +167,14 @@ function requireLineupAccess(req, res, next) {
 
 // ── Auth endpoints ────────────────────────────────────────────────────
 app.get('/api/session', (req, res) => {
+  const teams = req.session.teams || (req.session.teamName ? [req.session.teamName] : []);
   res.json({
     authenticated:      !!req.session.username,
     mustChangePassword: !!req.session.mustChangePassword,
     username:           req.session.username  || null,
     role:               req.session.role      || null,
     teamName:           req.session.teamName  || null,
+    teams,
   });
 });
 
@@ -238,7 +241,11 @@ const USERNAME_RE = /^[a-zA-Z0-9_-]{2,32}$/;
 app.get('/api/users', requireAdmin, (req, res) => {
   const users = readUsers().map(u => {
     const out = { username: u.username, role: u.role, mustChangePassword: !!u.mustChangePassword };
-    if (u.role === 'team') { out.teamName = u.teamName; out.accessToken = u.accessToken; }
+    if (u.role === 'team') {
+      out.teamName  = u.teamName;
+      out.teams     = u.teams || (u.teamName ? [u.teamName] : []);
+      out.accessToken = u.accessToken;
+    }
     return out;
   });
   res.json(users);
@@ -262,7 +269,8 @@ app.post('/api/users', requireAdmin, async (req, res) => {
         return res.status(400).json({ error: 'Team name is required for team users' });
       }
       const accessToken = crypto.randomBytes(32).toString('hex');
-      users.push({ username, role: 'team', teamName: teamName.trim(), accessToken, mustChangePassword: false });
+      const trimmed = teamName.trim();
+      users.push({ username, role: 'team', teamName: trimmed, teams: [trimmed], accessToken, mustChangePassword: false });
       writeUsers(users);
       return res.json({ ok: true, accessToken });
     } else {
@@ -328,6 +336,34 @@ app.post('/api/users/:username/regenerate-token', requireAdmin, (req, res) => {
   res.json({ ok: true, accessToken });
 });
 
+app.post('/api/users/:username/teams', requireAdmin, (req, res) => {
+  const { username } = req.params;
+  const { teamName } = req.body || {};
+  if (!teamName || typeof teamName !== 'string' || !teamName.trim()) {
+    return res.status(400).json({ error: 'teamName is required' });
+  }
+  const user = findUser(username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role !== 'team') return res.status(400).json({ error: 'Only team users have teams' });
+  const name = teamName.trim();
+  const teams = user.teams || (user.teamName ? [user.teamName] : []);
+  if (teams.includes(name)) return res.status(409).json({ error: 'Team already assigned' });
+  teams.push(name);
+  updateUser(username, { teams });
+  res.json({ ok: true });
+});
+
+app.delete('/api/users/:username/teams/:teamName', requireAdmin, (req, res) => {
+  const { username, teamName } = req.params;
+  const user = findUser(username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role !== 'team') return res.status(400).json({ error: 'Only team users have teams' });
+  const teams = (user.teams || (user.teamName ? [user.teamName] : [])).filter(t => t !== teamName);
+  if (teams.length === 0) return res.status(400).json({ error: 'Cannot remove the only team' });
+  updateUser(username, { teams, teamName: teams[0] });
+  res.json({ ok: true });
+});
+
 app.get('/api/team-access/:token', (req, res) => {
   const { token } = req.params;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) {
@@ -342,6 +378,7 @@ app.get('/api/team-access/:token', (req, res) => {
     req.session.username = user.username;
     req.session.role     = user.role;
     req.session.teamName = user.teamName;
+    req.session.teams    = user.teams || (user.teamName ? [user.teamName] : []);
     res.redirect('/lineup');
   });
 });

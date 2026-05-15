@@ -142,6 +142,11 @@ async function loadLineupForGame(slotId, teamName, readOnly) {
   }
 }
 
+async function signOut() {
+  try { await fetch('/api/logout', { method: 'POST' }); } catch(e) {}
+  window.location.replace('/lineup?invalid=1');
+}
+
 async function submitLineup() {
   if (!currentTeamName || !currentSlotId || isReadOnly) return;
   var btn = document.getElementById('lineupSubmitBtn');
@@ -224,6 +229,8 @@ async function init() {
     currentTeamName = session.teamName;
     document.getElementById('lineupTeamName').textContent = currentTeamName;
     document.getElementById('lineupContent').style.display = '';
+    var signoutBtn = document.getElementById('lineupSignoutBtn');
+    if (signoutBtn) signoutBtn.style.display = '';
 
     var [rr, schedR, settingsR] = await Promise.all([
       fetch('/api/results'),
@@ -239,13 +246,16 @@ async function init() {
     if (settingsData.tournamentName) document.getElementById('siteName').textContent = settingsData.tournamentName;
     document.title = (settingsData.pageTitle || settingsData.tournamentName || 'Team Lineup') + ' — Lineup';
 
-    var allTeams = getScheduleTeams();
-    var teamSel  = document.getElementById('lineupTeamSel');
-    if (teamSel && allTeams.length) {
-      teamSel.innerHTML = allTeams.map(function(t) {
+    // Restrict team selector to teams this coach is authorised to manage
+    var myTeams = Array.isArray(session.teams) && session.teams.length
+      ? session.teams
+      : (currentTeamName ? [currentTeamName] : []);
+    var teamSel = document.getElementById('lineupTeamSel');
+    if (teamSel && myTeams.length) {
+      teamSel.innerHTML = myTeams.map(function(t) {
         return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
       }).join('');
-      if (allTeams.indexOf(currentTeamName) !== -1) teamSel.value = currentTeamName;
+      if (myTeams.indexOf(currentTeamName) !== -1) teamSel.value = currentTeamName;
     }
 
     document.getElementById('lineupSelectorsRow').style.display = '';

@@ -605,6 +605,62 @@ input[type="time"]:focus {
 .bucket-move-btn:hover:not(:disabled) { color: var(--text); opacity: 1; }
 .bucket-move-btn:disabled { opacity: 0.2; cursor: default; }
 
+/* ── Coach multi-team tags ── */
+.coach-team-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: 0.25em;
+  padding: 0.2em 0.45em 0.2em 0.55em;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+.coach-team-remove {
+  background: none;
+  border: none;
+  color: var(--text-mute);
+  cursor: pointer;
+  font-size: 0.78rem;
+  line-height: 1;
+  padding: 0 0.1em;
+  opacity: 0.7;
+}
+.coach-team-remove:hover { color: var(--lose-color); opacity: 1; }
+.coach-add-team-btn {
+  background: none;
+  border: 0.07em dashed var(--border);
+  border-radius: 0.25em;
+  color: var(--text-mute);
+  cursor: pointer;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.78rem;
+  padding: 0.25em 0.6em;
+  transition: color 0.15s, border-color 0.15s;
+}
+.coach-add-team-btn:hover { color: var(--blue-lt); border-color: var(--blue-lt); }
+.coach-add-team-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin-top: 0.3em;
+  flex-wrap: wrap;
+}
+.coach-add-team-row input {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.82rem;
+  padding: 0.3em 0.5em;
+  border-radius: 0.25em;
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  width: 12em;
+}
+.coach-add-team-row input:focus { outline: 0.13em solid var(--blue-lt); border-color: var(--blue-lt); }
+
 /* ── Admin mobile bottom tabs (matches public page style) ── */
 @media (max-width: 1023px) {
   .admin-tab-bar {

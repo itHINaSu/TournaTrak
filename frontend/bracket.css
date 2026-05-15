@@ -1078,7 +1078,11 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+    scrollbar-width: none;
   }
+  #view-rounds.active::-webkit-scrollbar,
+  #view-teams.active::-webkit-scrollbar { display: none; }
+
   #view-buckets.active {
     display: flex;
     flex-direction: column;
@@ -1086,10 +1090,16 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   }
   #view-buckets.active .bucket-panel {
     flex: 1;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    box-sizing: border-box;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
+    scrollbar-width: none;
   }
+  #view-buckets.active .bucket-panel::-webkit-scrollbar { display: none; }
 
   /* Selector row: fixed just above tabs; body never scrolls → no iOS jitter */
   .selector-row {
