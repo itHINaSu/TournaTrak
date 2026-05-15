@@ -440,14 +440,45 @@ app.post('/api/settings', requireAdmin, (req, res) => {
 });
 
 // ── Lineup endpoints ──────────────────────────────────────────────────
-app.get('/api/lineups/:teamName', requireLineupAccess, (req, res) => {
+
+// All lineups for a team across all games (used by coach page for selector)
+app.get('/api/lineups/by-team/:teamName', requireLineupAccess, (req, res) => {
   const { teamName } = req.params;
   const lineups = readJSON(LINEUPS_FILE);
-  res.json(lineups[teamName] || { rows: [] });
+  const out = {};
+  Object.entries(lineups).forEach(([slotId, byTeam]) => {
+    if (byTeam && byTeam[teamName]) out[slotId] = byTeam[teamName];
+  });
+  res.json(out);
 });
 
-app.post('/api/lineups/:teamName', requireLineupAccess, (req, res) => {
-  const { teamName } = req.params;
+// All lineups for a game slot (admin/results only)
+app.get('/api/lineups/game/:slotId', requireResults, (req, res) => {
+  const { slotId } = req.params;
+  if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
+  const lineups = readJSON(LINEUPS_FILE);
+  res.json(lineups[slotId] || {});
+});
+
+// Lineup for a specific team in a specific game
+app.get('/api/lineups/game/:slotId/:teamName', requireLineupAccess, (req, res) => {
+  const { slotId, teamName } = req.params;
+  if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
+  const lineups = readJSON(LINEUPS_FILE);
+  res.json((lineups[slotId] || {})[teamName] || { rows: [] });
+});
+
+// Save lineup for a team in a specific game
+// Team-role users are locked out once the game has a result; admins can always edit.
+app.post('/api/lineups/game/:slotId/:teamName', requireLineupAccess, (req, res) => {
+  const { slotId, teamName } = req.params;
+  if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
+  if (req.session.role === 'team') {
+    const results = readJSON(RESULTS_FILE);
+    if (results[slotId] && results[slotId].winner) {
+      return res.status(403).json({ error: 'Game is complete — lineup is locked' });
+    }
+  }
   const { rows } = req.body || {};
   if (!Array.isArray(rows)) return res.status(400).json({ error: 'rows must be an array' });
   if (rows.length > 20) return res.status(400).json({ error: 'Maximum 20 rows' });
@@ -457,7 +488,8 @@ app.post('/api/lineups/:teamName', requireLineupAccess, (req, res) => {
     position: String(r.position || '').slice(0, 8),
   }));
   const lineups = readJSON(LINEUPS_FILE);
-  lineups[teamName] = { rows: clean, updatedAt: new Date().toISOString() };
+  if (!lineups[slotId]) lineups[slotId] = {};
+  lineups[slotId][teamName] = { rows: clean, updatedAt: new Date().toISOString() };
   writeJSON(LINEUPS_FILE, lineups);
   res.json({ ok: true });
 });

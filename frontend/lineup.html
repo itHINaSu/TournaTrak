@@ -35,6 +35,21 @@
     <div id="lineupTeamName" class="lineup-team-name"></div>
   </div>
 
+  <div id="lineupGameInfo" class="lineup-game-info" style="display:none"></div>
+
+  <div id="lineupReadOnlyBadge" style="display:none" class="lineup-readonly-badge">
+    View Only — Game Complete
+  </div>
+
+  <div id="lineupPastRow" style="display:none" class="lineup-past-row">
+    <span class="lineup-past-label">View past game:</span>
+    <select id="pastGameSelect" class="lineup-past-sel"></select>
+  </div>
+
+  <div id="lineupNoGame" style="display:none" class="lineup-no-game">
+    No upcoming games scheduled for your team.
+  </div>
+
   <div class="lineup-form-wrap">
     <table class="lineup-table">
       <thead>
@@ -54,6 +69,7 @@
   </div>
 </div>
 
+<script src="bracket-data.js"></script>
 <script src="lineup.js"></script>
 </body>
 </html>

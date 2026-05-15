@@ -149,3 +149,88 @@
   .lineup-th--num { display: none; }
   .lineup-td-num  { display: none; }
 }
+
+/* ── Game info header ── */
+.lineup-game-info {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6em;
+  flex-wrap: wrap;
+  margin-bottom: 0.75em;
+  padding: 0.55em 0.75em;
+  background: var(--surface2);
+  border-radius: 0.3em;
+  border: 0.07em solid var(--border);
+}
+.lineup-game-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.92rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.lineup-game-opp {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+.lineup-game-opp--tbd { color: var(--text-mute); font-style: italic; }
+.lineup-game-time {
+  font-size: 0.78rem;
+  color: var(--text-mute);
+  margin-left: auto;
+}
+
+/* ── Read-only badge ── */
+.lineup-readonly-badge {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: 0.25em;
+  padding: 0.35em 0.7em;
+  margin-bottom: 0.75em;
+  display: inline-block;
+}
+
+/* ── Past game selector ── */
+.lineup-past-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  margin-bottom: 1em;
+}
+.lineup-past-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  flex-shrink: 0;
+}
+.lineup-past-sel {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.88rem;
+  padding: 0.35em 0.5em;
+  border-radius: 0.25em;
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  flex: 1;
+  max-width: 28em;
+}
+
+/* ── No-game message ── */
+.lineup-no-game {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-mute);
+  padding: 1.5em 0;
+}

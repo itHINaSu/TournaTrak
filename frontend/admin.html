@@ -122,13 +122,18 @@
     <div class="sched-action-row sched-action-row--top">
       <div style="display:flex;align-items:center;gap:0.6em;flex-wrap:wrap">
         <label style="font-family:Oswald,sans-serif;font-size:0.78rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--blue-lt);font-weight:600;flex-shrink:0">Team</label>
-        <select class="styled" id="lineupTeamSelect" style="flex:1;min-width:12em;max-width:22em" onchange="loadAdminLineup()">
+        <select class="styled" id="lineupTeamSelect" style="flex:1;min-width:10em;max-width:18em" onchange="onAdminTeamChange()">
           <option value="">— select team —</option>
+        </select>
+        <label id="lineupGameLabel" style="display:none;font-family:Oswald,sans-serif;font-size:0.78rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--blue-lt);font-weight:600;flex-shrink:0">Game</label>
+        <select class="styled" id="lineupGameSelect" style="display:none;flex:1;min-width:10em;max-width:20em" onchange="loadAdminLineup()">
+          <option value="">— select game —</option>
         </select>
       </div>
       <button class="sched-save-btn" onclick="saveAdminLineup()">Save Lineup</button>
       <span class="sched-status" id="adminLineupStatus"></span>
     </div>
+  <div id="adminLineupLocked" style="display:none" class="admin-subtitle" style="padding:0.4em 0;color:var(--text-mute)">Game complete — lineup locked for coaches.</div>
     <div id="adminLineupWrap" style="display:none">
       <table class="lineup-table" style="margin-top:0.5em">
         <thead>
@@ -154,6 +159,7 @@
         <div class="settings-nav-item active" data-section="pageinfo" onclick="showSettingsSection('pageinfo')">Page Info</div>
         <div class="settings-nav-item" data-section="account" onclick="showSettingsSection('account')">Account</div>
         <div class="settings-nav-item" data-section="users" onclick="showSettingsSection('users')">Users</div>
+        <div class="settings-nav-item" data-section="coaches" onclick="showSettingsSection('coaches')">Coaches</div>
       </nav>
 
       <div class="settings-content">
@@ -266,6 +272,30 @@
             <div class="settings-save-row">
               <button class="sched-save-btn" onclick="addUser()">Add User</button>
               <span class="sched-status" id="addUserStatus"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Coaches panel (admin only) ── -->
+        <div class="settings-panel" id="sp-coaches">
+          <div class="admin-subtitle">Generate and manage magic links for team coaches. Each link signs the coach in directly to their lineup page.</div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Team Coaches</div>
+            <div id="coachesList" class="users-list"></div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Add Coach</div>
+            <div class="settings-field">
+              <label>Username <span class="field-label-hint">(for admin reference)</span></label>
+              <input type="text" id="newCoachUsername" autocomplete="off" placeholder="e.g. eagles-coach">
+            </div>
+            <div class="settings-field">
+              <label>Team Name <span class="field-label-hint">(must match schedule exactly)</span></label>
+              <input type="text" id="newCoachTeamName" autocomplete="off" placeholder="e.g. Eagles">
+            </div>
+            <div class="settings-save-row">
+              <button class="sched-save-btn" onclick="addCoach()">Add Coach</button>
+              <span class="sched-status" id="addCoachStatus"></span>
             </div>
           </div>
         </div>

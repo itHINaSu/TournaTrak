@@ -1,6 +1,7 @@
 // admin.js — admin panel logic
 var results = {}, schedule = {}, settings = {};
 var currentRole = null;
+var currentTeamName = null;
 
 var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
 
@@ -45,7 +46,7 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
 });
 
 // ── Settings sidebar ───────────────────────────────────────────────────
-var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users' };
+var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users', coaches: 'Coaches' };
 
 function showSettingsSection(section) {
   document.querySelectorAll('.settings-panel').forEach(function(p) {
@@ -57,6 +58,8 @@ function showSettingsSection(section) {
   var titleEl = document.getElementById('settingsMobileSection');
   if (titleEl) titleEl.textContent = SETTINGS_SECTION_TITLES[section] || section;
   closeSettingsSidebar();
+  if (section === 'coaches') loadCoaches();
+  if (section === 'users')   loadUsers();
 }
 
 function openSettingsSidebar() {
@@ -131,33 +134,93 @@ function populateLineupTeamSelect() {
       }).join('');
 }
 
-async function loadAdminLineup() {
-  var sel = document.getElementById('lineupTeamSelect');
-  var teamName = sel ? sel.value : '';
-  var wrap  = document.getElementById('adminLineupWrap');
-  var empty = document.getElementById('adminLineupEmpty');
+function onAdminTeamChange() {
+  var teamName = (document.getElementById('lineupTeamSelect') || {}).value || '';
+  var gameSel  = document.getElementById('lineupGameSelect');
+  var gameLbl  = document.getElementById('lineupGameLabel');
+  var wrap     = document.getElementById('adminLineupWrap');
+  var empty    = document.getElementById('adminLineupEmpty');
+
   if (!teamName) {
+    if (gameSel) { gameSel.style.display = 'none'; gameSel.innerHTML = '<option value="">— select game —</option>'; }
+    if (gameLbl) gameLbl.style.display = 'none';
     if (wrap)  wrap.style.display  = 'none';
     if (empty) empty.style.display = '';
     return;
   }
-  if (wrap)  wrap.style.display  = '';
-  if (empty) empty.style.display = 'none';
+
+  // Collect all games for this team
+  var roundOrd = { R1: 0, R2: 1, QF: 2, SF: 3, CHAMP: 4 };
+  var teamGames = [];
+  Object.keys(GAMES).forEach(function(slotId) {
+    var g  = GAMES[slotId];
+    var t1 = resolveSlot(g.t1, results);
+    var t2 = resolveSlot(g.t2, results);
+    if (t1 === teamName || t2 === teamName) teamGames.push({ slotId: slotId, g: g });
+  });
+  teamGames.sort(function(a, b) {
+    var at = a.g.time ? new Date(a.g.time).getTime() : Infinity;
+    var bt = b.g.time ? new Date(b.g.time).getTime() : Infinity;
+    if (at !== bt) return at - bt;
+    return (roundOrd[a.g.round] || 0) - (roundOrd[b.g.round] || 0);
+  });
+
+  if (gameSel) {
+    gameSel.innerHTML = '<option value="">— select game —</option>'
+      + teamGames.map(function(tg) {
+          var r = results[tg.slotId];
+          var locked = (r && r.winner) ? ' ✓' : '';
+          return '<option value="' + esc(tg.slotId) + '">' + esc(tg.g.label || tg.slotId) + locked + '</option>';
+        }).join('');
+    gameSel.style.display = teamGames.length ? '' : 'none';
+    if (gameLbl) gameLbl.style.display = teamGames.length ? '' : 'none';
+  }
+
+  if (wrap)  wrap.style.display  = 'none';
+  if (empty) empty.style.display = '';
+
+  // Auto-select next upcoming game
+  var next = teamGames.find(function(tg) { return !(results[tg.slotId] && results[tg.slotId].winner); });
+  if (next && gameSel) { gameSel.value = next.slotId; loadAdminLineup(); }
+}
+
+async function loadAdminLineup() {
+  var teamName = (document.getElementById('lineupTeamSelect') || {}).value || '';
+  var slotId   = (document.getElementById('lineupGameSelect') || {}).value || '';
+  var wrap     = document.getElementById('adminLineupWrap');
+  var empty    = document.getElementById('adminLineupEmpty');
+  var locked   = document.getElementById('adminLineupLocked');
+
+  if (!teamName || !slotId) {
+    if (wrap)   wrap.style.display   = 'none';
+    if (empty)  empty.style.display  = '';
+    if (locked) locked.style.display = 'none';
+    return;
+  }
+
+  var isLocked = results[slotId] && results[slotId].winner;
+  if (locked) locked.style.display = isLocked ? '' : 'none';
+
   try {
-    var r = await apiFetch('/api/lineups/' + encodeURIComponent(teamName));
+    var r = await apiFetch('/api/lineups/game/' + encodeURIComponent(slotId) + '/' + encodeURIComponent(teamName));
     if (!r) return;
     var data = r.ok ? await r.json() : { rows: [] };
     document.getElementById('adminLineupBody').innerHTML = buildAdminLineupRows(data.rows || []);
+    if (wrap)  wrap.style.display  = '';
+    if (empty) empty.style.display = 'none';
   } catch(e) {
     document.getElementById('adminLineupBody').innerHTML = buildAdminLineupRows([]);
+    if (wrap) wrap.style.display = '';
   }
 }
 
 async function saveAdminLineup() {
-  var sel = document.getElementById('lineupTeamSelect');
-  var teamName = sel ? sel.value : '';
-  var status = document.getElementById('adminLineupStatus');
-  if (!teamName) { if (status) { status.textContent = '✗ Select a team first'; status.style.color = 'var(--lose-color)'; } return; }
+  var teamName = (document.getElementById('lineupTeamSelect') || {}).value || '';
+  var slotId   = (document.getElementById('lineupGameSelect') || {}).value || '';
+  var status   = document.getElementById('adminLineupStatus');
+  if (!teamName || !slotId) {
+    showToast('Select a team and game first', true); return;
+  }
   var rows = [];
   for (var i = 0; i < 20; i++) {
     rows.push({
@@ -166,19 +229,21 @@ async function saveAdminLineup() {
       position: (document.getElementById('alp-' + i) || {}).value || '',
     });
   }
-  var r = await apiFetch('/api/lineups/' + encodeURIComponent(teamName), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rows: rows })
-  });
+  var r = await apiFetch(
+    '/api/lineups/game/' + encodeURIComponent(slotId) + '/' + encodeURIComponent(teamName),
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: rows }) }
+  );
   if (!r) return;
-  if (r.ok) {
-    showToast('Lineup saved for ' + teamName);
-    if (status) { status.textContent = '✓ Saved'; setTimeout(function(){ status.textContent = ''; }, 3000); }
-  } else {
-    var d = await r.json().catch(function(){ return {}; });
-    showToast(d.error || 'Save failed', true);
-    if (status) { status.textContent = '✗ Error'; }
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    showToast(data.error || 'Save failed', true);
+    if (status) { status.textContent = '✗ ' + (data.error || 'Error'); status.style.color = 'var(--lose-color)'; }
+    return;
+  }
+  showToast('Lineup saved for ' + teamName);
+  if (status) {
+    status.textContent = '✓ Saved'; status.style.color = '';
+    setTimeout(function(){ status.textContent = ''; }, 3000);
   }
 }
 
@@ -200,6 +265,14 @@ async function fetchAll() {
   renderScheduleEditor();
   populateSettingsFields();
   populateLineupTeamSelect();
+  if (currentRole === 'team' && currentTeamName) {
+    var teamSel = document.getElementById('lineupTeamSelect');
+    if (teamSel) {
+      teamSel.value = currentTeamName;
+      teamSel.disabled = true;
+    }
+    onAdminTeamChange();
+  }
 }
 
 function applySettingsToPage() {
@@ -651,8 +724,8 @@ function applyRoleRestrictions(role) {
       document.getElementById('tab-results').classList.add('active');
     }
   });
-  // Settings sidebar restrictions: page info and users are admin-only
-  var adminOnlySections = ['pageinfo', 'users'];
+  // Settings sidebar restrictions: page info, users, and coaches are admin-only
+  var adminOnlySections = ['pageinfo', 'users', 'coaches'];
   adminOnlySections.forEach(function(section) {
     var navItem = document.querySelector('.settings-nav-item[data-section="' + section + '"]');
     if (navItem) navItem.style.display = role === 'admin' ? '' : 'none';
@@ -667,10 +740,26 @@ function applyRoleRestrictions(role) {
       }
     }
   }
+  // Team users see only Lineups tab
+  if (role === 'team') {
+    document.querySelectorAll('.admin-tab').forEach(function(tab) {
+      var keep = tab.dataset.tab === 'lineups';
+      tab.style.display = keep ? '' : 'none';
+      if (!keep && tab.classList.contains('active')) {
+        tab.classList.remove('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.remove('active');
+      }
+    });
+    var lt = document.querySelector('.admin-tab[data-tab="lineups"]');
+    var lp = document.getElementById('tab-lineups');
+    if (lt && !lt.classList.contains('active')) { lt.classList.add('active'); }
+    if (lp && !lp.classList.contains('active')) { lp.classList.add('active'); }
+  }
 }
 
-function showAdmin(username, role) {
+function showAdmin(username, role, teamName) {
   if (role !== undefined) currentRole = role;
+  if (teamName !== undefined) currentTeamName = teamName;
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = '';
@@ -724,8 +813,9 @@ async function doLogin(e) {
     if (r.ok) {
       var data = await r.json().catch(function(){ return {}; });
       currentRole = data.role || null;
+      currentTeamName = data.teamName || null;
       if (data.mustChangePassword) showChangePassword();
-      else showAdmin(data.username, data.role);
+      else showAdmin(data.username, data.role, data.teamName);
     } else {
       var data = await r.json().catch(function(){ return {}; });
       errEl.textContent = data.error || 'Login failed';
@@ -783,7 +873,7 @@ async function doFirstLoginPasswordChange(e) {
     document.getElementById('cpNewPass2').value,
     document.getElementById('cpError'),
     function() {
-      showAdmin(document.getElementById('accountUsername').textContent, currentRole);
+      showAdmin(document.getElementById('accountUsername').textContent, currentRole, currentTeamName);
     }
   );
   if (!ok) btn.disabled = false;
@@ -813,8 +903,9 @@ async function checkSession() {
     var data = await r.json();
     if (data.authenticated) {
       currentRole = data.role || null;
+      currentTeamName = data.teamName || null;
       if (data.mustChangePassword) showChangePassword();
-      else showAdmin(data.username, data.role);
+      else showAdmin(data.username, data.role, data.teamName);
     } else {
       showLogin();
     }
@@ -966,6 +1057,87 @@ async function deleteUser(username) {
   }
   showToast('User ' + username + ' deleted');
   loadUsers();
+}
+
+// ── Coaches section ────────────────────────────────────────────────────
+
+async function loadCoaches() {
+  try {
+    var r = await apiFetch('/api/users');
+    if (!r || !r.ok) return;
+    var users = await r.json().catch(function(){ return []; });
+    renderCoachesList(users.filter(function(u) { return u.role === 'team'; }));
+  } catch(e) {}
+}
+
+function renderCoachesList(coaches) {
+  var el = document.getElementById('coachesList');
+  if (!el) return;
+  if (!coaches.length) {
+    el.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No coaches added yet.</div>';
+    return;
+  }
+  el.innerHTML = coaches.map(function(u) {
+    var link = u.accessToken ? (window.location.origin + '/api/team-access/' + u.accessToken) : '';
+    var linkRow = link
+      ? '<div class="coach-link-row">'
+        + '<input type="text" class="coach-link-input" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly>'
+        + '<button class="admin-save-btn" onclick="copyCoachLink(\'' + esc(u.username) + '\')">Copy</button>'
+        + '</div>'
+      : '';
+    return '<div class="user-row">'
+      + '<div class="user-info">'
+      +   '<span class="user-name">' + esc(u.username) + '</span>'
+      +   (u.teamName ? '<span class="user-team-name">' + esc(u.teamName) + '</span>' : '')
+      + '</div>'
+      + linkRow
+      + '<div class="user-actions">'
+      +   (u.accessToken ? '<button class="admin-clear-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>' : '')
+      +   '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + esc(u.username) + '\')">Delete</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function copyCoachLink(username) {
+  var el = document.getElementById('cl-' + username);
+  if (!el) return;
+  var text = el.value;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() { showToast('Link copied'); }).catch(function() { fallbackCopy(text); });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+async function addCoach() {
+  var username = (document.getElementById('newCoachUsername').value || '').trim();
+  var teamName = (document.getElementById('newCoachTeamName').value || '').trim();
+  var status   = document.getElementById('addCoachStatus');
+  status.textContent = '';
+  if (!username || !teamName) {
+    status.textContent = '✗ Username and team name required';
+    status.style.color = 'var(--lose-color)';
+    return;
+  }
+  var r = await apiFetch('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: username, role: 'team', teamName: teamName })
+  });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    status.textContent = '✗ ' + (data.error || 'Failed');
+    status.style.color = 'var(--lose-color)';
+    return;
+  }
+  document.getElementById('newCoachUsername').value = '';
+  document.getElementById('newCoachTeamName').value = '';
+  status.textContent = '✓ Added';
+  setTimeout(function(){ status.textContent = ''; }, 3000);
+  showToast('Coach ' + username + ' added');
+  loadCoaches();
 }
 
 var resetPwTarget = null;
