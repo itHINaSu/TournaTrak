@@ -149,6 +149,13 @@
   <div class="admin-tab-panel" id="tab-settings">
     <div class="settings-layout">
 
+      <!-- Left sidebar navigation (desktop: always visible; mobile: drawer) -->
+      <nav class="settings-sidebar" id="settingsSidebar">
+        <div class="settings-nav-item active" data-section="pageinfo" onclick="showSettingsSection('pageinfo')">Page Info</div>
+        <div class="settings-nav-item" data-section="account" onclick="showSettingsSection('account')">Account</div>
+        <div class="settings-nav-item" data-section="users" onclick="showSettingsSection('users')">Users</div>
+      </nav>
+
       <div class="settings-content">
         <!-- Mobile nav bar -->
         <div class="settings-mobile-bar">
@@ -264,19 +271,13 @@
         </div>
       </div>
 
-      <!-- Right sidebar navigation -->
-      <nav class="settings-sidebar" id="settingsSidebar">
-        <div class="settings-nav-item active" data-section="pageinfo" onclick="showSettingsSection('pageinfo')">Page Info</div>
-        <div class="settings-nav-item" data-section="account" onclick="showSettingsSection('account')">Account</div>
-        <div class="settings-nav-item" data-section="users" onclick="showSettingsSection('users')">Users</div>
-      </nav>
-
     </div>
   </div>
 
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="settings-backdrop" id="settingsBackdrop" onclick="closeSettingsSidebar()"></div>
 
 <script src="bracket-data.js"></script>
 <script src="admin.js"></script>

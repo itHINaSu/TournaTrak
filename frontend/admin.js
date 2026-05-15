@@ -56,13 +56,30 @@ function showSettingsSection(section) {
   });
   var titleEl = document.getElementById('settingsMobileSection');
   if (titleEl) titleEl.textContent = SETTINGS_SECTION_TITLES[section] || section;
+  closeSettingsSidebar();
+}
+
+function openSettingsSidebar() {
   var sidebar = document.getElementById('settingsSidebar');
-  if (sidebar) sidebar.classList.remove('open');
+  var backdrop = document.getElementById('settingsBackdrop');
+  if (sidebar)  sidebar.classList.add('open');
+  if (backdrop) backdrop.classList.add('open');
+}
+
+function closeSettingsSidebar() {
+  var sidebar = document.getElementById('settingsSidebar');
+  var backdrop = document.getElementById('settingsBackdrop');
+  if (sidebar)  sidebar.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
 }
 
 function toggleSettingsSidebar() {
   var sidebar = document.getElementById('settingsSidebar');
-  if (sidebar) sidebar.classList.toggle('open');
+  if (sidebar && sidebar.classList.contains('open')) {
+    closeSettingsSidebar();
+  } else {
+    openSettingsSidebar();
+  }
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────
