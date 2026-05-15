@@ -154,10 +154,6 @@ async function loadLineupForGame(slotId, teamName, readOnly, readOnlyReason) {
   }
 }
 
-async function signOut() {
-  try { await fetch('/api/logout', { method: 'POST' }); } catch(e) {}
-  window.location.replace(isAdmin ? '/admin' : '/lineup?invalid=1');
-}
 
 async function submitLineup() {
   if (!viewedTeamName || !currentSlotId || isReadOnly) return;
@@ -235,12 +231,12 @@ async function init() {
       document.getElementById('lineupInvalid').style.display = '';
       return;
     }
-    if (!session.authenticated || (session.role !== 'team' && session.role !== 'admin')) {
+    if (!session.authenticated || !['team', 'admin', 'results'].includes(session.role)) {
       document.getElementById('lineupInvalid').style.display = '';
       return;
     }
 
-    isAdmin         = session.role === 'admin';
+    isAdmin         = session.role === 'admin' || session.role === 'results';
     currentTeamName = session.teamName || null;
     myTeams = isAdmin
       ? [] // admin can edit any team — checked in isSlotEditable
@@ -251,8 +247,8 @@ async function init() {
     var teamHeader = document.getElementById('lineupTeamName');
     if (teamHeader) teamHeader.textContent = isAdmin ? 'All Teams' : (currentTeamName || '');
     document.getElementById('lineupContent').style.display = '';
-    var signoutBtn = document.getElementById('lineupSignoutBtn');
-    if (signoutBtn) signoutBtn.style.display = '';
+    var adminBack = document.getElementById('lineupAdminBack');
+    if (adminBack) adminBack.style.display = isAdmin ? '' : 'none';
 
     var [rr, schedR, settingsR] = await Promise.all([
       fetch('/api/results'),

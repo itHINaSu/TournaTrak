@@ -15,7 +15,13 @@
 <div class="login-overlay" id="loginOverlay">
   <div class="login-box">
     <div class="login-title">Admin Login</div>
-    <form onsubmit="doLogin(event)">
+    <!-- Coach-blocked state -->
+    <div id="coachBlockMsg" style="display:none">
+      <div class="login-desc" id="coachBlockText"></div>
+      <button class="sched-save-btn login-btn" style="margin-top:1em" onclick="doLogout()">Sign Out</button>
+    </div>
+    <!-- Normal login form -->
+    <form id="loginForm" onsubmit="doLogin(event)">
       <div class="sched-field">
         <label>Username</label>
         <input type="text" id="loginUser" autocomplete="username" placeholder="admin" value="admin">
@@ -167,44 +173,8 @@
     </div>
   </div>
 
-  <!-- ── LINEUPS TAB ── -->
-  <div class="admin-tab-panel" id="tab-lineups">
-    <div class="lineup-wrap">
-      <div class="lineup-selectors-row">
-        <div class="lineup-game-info lineup-sel-half">
-          <select id="lineupTeamSelect" class="lineup-game-sel" onchange="onAdminTeamChange()">
-            <option value="">— select team —</option>
-          </select>
-        </div>
-        <div class="lineup-game-info lineup-sel-half">
-          <span class="lineup-game-sel-placeholder" id="lineupGamePlaceholder">Select a team first</span>
-          <select id="lineupGameSelect" class="lineup-game-sel" style="display:none" onchange="loadAdminLineup()">
-          </select>
-        </div>
-      </div>
-      <div id="adminLineupLocked" style="display:none" class="lineup-readonly-badge">View Only — Game Complete</div>
-      <div id="adminLineupWrap" style="display:none">
-        <div class="lineup-form-wrap">
-          <table class="lineup-table">
-            <thead>
-              <tr>
-                <th class="lineup-th lineup-th--order"></th>
-                <th class="lineup-th lineup-th--num">#</th>
-                <th class="lineup-th lineup-th--name">Player Name</th>
-                <th class="lineup-th lineup-th--pos">Position</th>
-              </tr>
-            </thead>
-            <tbody id="adminLineupBody"></tbody>
-          </table>
-          <div class="lineup-actions">
-            <button class="lineup-submit-btn" id="adminLineupSaveBtn" onclick="saveAdminLineup()">Save Lineup</button>
-            <span class="lineup-status" id="adminLineupStatus"></span>
-          </div>
-        </div>
-      </div>
-      <div id="adminLineupEmpty" class="lineup-no-game">Select a team above to view their lineup.</div>
-    </div>
-  </div>
+  <!-- ── LINEUPS TAB ── (navigates to /lineup) -->
+  <div class="admin-tab-panel" id="tab-lineups"></div>
 
   <!-- ── SETTINGS TAB ── -->
   <div class="admin-tab-panel" id="tab-settings">
