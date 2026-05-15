@@ -398,8 +398,8 @@ input[type="time"]:focus {
 @media (max-width: 1023px) {
   /* Prevent iOS/Android auto-zoom on input focus (triggers below 16px) */
   input, select, textarea { font-size: 16px; }
-  html { height: 100%; }
-  body { height: 100%; overflow: hidden; display: flex; flex-direction: column; }
+  html { height: 100dvh; }
+  body { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
   .site-header { flex-shrink: 0; }
 
   #adminWrap {
