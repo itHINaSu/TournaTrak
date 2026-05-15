@@ -60,6 +60,9 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     }
     // Reset results to games mode when re-entering the results tab
     if (tab.dataset.tab === 'results') setResultsMode('games');
+    if (tab.dataset.tab === 'schedule') {
+      requestAnimationFrame(function() { requestAnimationFrame(scrollToLastCompleted); });
+    }
     if (tab.dataset.tab === 'settings') {
       var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
       var anyActive = document.querySelector('.settings-panel.active');
@@ -416,7 +419,7 @@ function occupiedCard(sid) {
   var t1disp = t1f ? (over.t1name||g.t1.team) : slotLabel(g.t1);
   var t2disp = t2f ? (over.t2name||g.t2.team) : slotLabel(g.t2);
 
-  var h = '<div class="sched-game-card">';
+  var h = '<div class="sched-game-card" data-sid="' + sid + '">';
   h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
     + '<span class="sched-game-hdr-id">' + esc(lbl) + '</span>'
     + '<span class="sched-game-hdr-sid">' + esc(sid) + '</span>'
@@ -454,7 +457,7 @@ function occupiedCard(sid) {
 
 function emptyCard(sid) {
   var over = schedule[sid] || {};
-  var h = '<div class="empty-slot-card">';
+  var h = '<div class="empty-slot-card" data-sid="' + sid + '">';
   h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
     + '<span class="sched-game-hdr-sid">' + sid + '</span>'
     + '<span class="sched-game-hdr-teams empty">— empty slot —</span>'
@@ -521,6 +524,16 @@ function renderScheduleEditor() {
     });
   });
   wrap.innerHTML = html;
+}
+
+function scrollToLastCompleted() {
+  var lastSid = null;
+  allSlotIds().forEach(function(sid) {
+    if (GAMES[sid] && results[sid] && results[sid].winner) lastSid = sid;
+  });
+  if (!lastSid) return;
+  var card = document.querySelector('[data-sid="' + lastSid + '"]');
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function toggleSched(sid) {

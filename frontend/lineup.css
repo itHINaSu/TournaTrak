@@ -324,4 +324,11 @@
     scrollbar-width: none;
   }
   #lineupContent::-webkit-scrollbar { display: none; }
+
+  /* Prevent iOS Safari zoom on input focus */
+  .lineup-inp,
+  .lineup-sel,
+  .lineup-game-sel {
+    font-size: 1rem;
+  }
 }

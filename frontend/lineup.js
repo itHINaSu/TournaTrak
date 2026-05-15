@@ -186,6 +186,7 @@ async function submitLineup() {
 
 // ── SVG icons for tab bar ──────────────────────────────────────────────
 var TAB_ICONS = {
+  admin:    '<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12L12 4l9 8"/><path d="M5 10v9a1 1 0 001 1h4v-4h4v4h4a1 1 0 001-1v-9"/></svg>',
   bracket:  '<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="6" height="4" rx="1"/><rect x="2" y="10" width="6" height="4" rx="1"/><rect x="9" y="6" width="6" height="4" rx="1"/><rect x="16" y="8" width="6" height="4" rx="1"/><line x1="8" y1="5" x2="9" y2="5"/><line x1="8" y1="12" x2="9" y2="12"/><line x1="9" y1="5" x2="9" y2="12"/><line x1="15" y1="8" x2="16" y2="8"/></svg>',
   rounds:   '<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="13" y2="18"/></svg>',
   teams:    '<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><circle cx="17" cy="8" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M17 14c2.2.5 4 2.5 4 5"/></svg>',
@@ -202,8 +203,10 @@ function buildNavBar(adminMode) {
 
   var tabs;
   if (adminMode) {
+    var isPwa = !!(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone);
     tabs = [
-      { label: 'Results',  icon: 'results',  href: '/admin?tab=results'  },
+      isPwa ? { label: 'Admin', icon: 'admin', href: '/admin' }
+            : { label: 'Results', icon: 'results', href: '/admin?tab=results' },
       { label: 'Lineups',  icon: 'lineups',  href: '/lineup', active: true },
       { label: 'Schedule', icon: 'schedule', href: '/admin?tab=schedule' },
       { label: 'Settings', icon: 'settings', href: '/admin?tab=settings' },

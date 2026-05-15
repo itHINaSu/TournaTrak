@@ -723,4 +723,15 @@ input[type="time"]:focus {
   .admin-wrap {
     padding-bottom: calc(5em + env(safe-area-inset-bottom, 0px) + 1.2em);
   }
+
+  /* Prevent iOS Safari from zooming on input focus (requires font-size >= 16px) */
+  .sched-field input,
+  .sched-field select,
+  .settings-field input,
+  .settings-field select,
+  .admin-winner-sel,
+  input[type="date"],
+  input[type="time"] {
+    font-size: 1rem;
+  }
 }
