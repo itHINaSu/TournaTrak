@@ -1,12 +1,28 @@
 /* bracket.css — public page: tabs, bracket layout, round view, team view */
 
+/* ── Update notification bar ── */
+.update-bar {
+  background: var(--blue);
+  color: #fff;
+  text-align: center;
+  padding: 0.35em 1em;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: var(--hdr-h, 0px);
+  z-index: 95;
+  flex-shrink: 0;
+}
+
 /* ── Tabs ── */
 .view-tabs {
   display: flex;
   background: var(--surface);
   border-bottom: 0.07em solid var(--border);
   position: sticky;
-  top: var(--hdr-h, 0);
+  top: calc(var(--hdr-h, 0px) + var(--bar-h, 0px));
   z-index: 90;
 }
 .view-tab {
@@ -47,7 +63,7 @@
 /* ── Selectors ── */
 .selector-row {
   position: sticky;
-  top: calc(var(--hdr-h, 0px) + var(--tabs-h, 0px));
+  top: calc(var(--hdr-h, 0px) + var(--bar-h, 0px) + var(--tabs-h, 0px));
   z-index: 80;
   background: var(--surface);
   border-bottom: 0.15em solid var(--blue);
@@ -61,6 +77,73 @@
   gap: 0.6em;
   align-items: center;
   flex-wrap: wrap;
+}
+
+/* ── Bucket Challenge leaderboard ── */
+.bucket-panel {
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 1em 1em 3em;
+}
+.bucket-updated {
+  font-size: 0.78rem;
+  color: var(--text-mute);
+  text-align: center;
+  margin-bottom: 1em;
+}
+.bucket-leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+.bucket-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: 0.4em;
+  padding: 0.75em 1em;
+}
+.bucket-rank {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-mute);
+  min-width: 1.8em;
+  text-align: center;
+}
+.bucket-rank--1 { color: var(--gold-lt); }
+.bucket-rank--2 { color: #a0b0b8; }
+.bucket-rank--3 { color: #c09060; }
+.bucket-team-name {
+  flex: 1;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bucket-count {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--blue-lt);
+  min-width: 2.5em;
+  text-align: right;
+}
+.bucket-icon-sm {
+  width: 1.1em;
+  height: 1.1em;
+  flex-shrink: 0;
+  opacity: 0.5;
+  color: var(--text-dim);
+}
+.bucket-empty {
+  text-align: center;
+  color: var(--text-mute);
+  padding: 3em 1em;
+  font-style: italic;
 }
 
 /* ── Round sections (By Round all-rounds layout) ── */

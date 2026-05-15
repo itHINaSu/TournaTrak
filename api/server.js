@@ -146,8 +146,9 @@ function requireRole(...roles) {
   };
 }
 
-const requireAdmin   = requireRole('admin');
-const requireResults = requireRole('admin', 'results');
+const requireAdmin      = requireRole('admin');
+const requireResults    = requireRole('admin', 'results');
+const requireLineupRead = requireRole('admin', 'results', 'team');
 
 // Lineup access: team users can only read/write their own team; admin and results can access any.
 function requireLineupAccess(req, res, next) {
@@ -460,8 +461,8 @@ app.get('/api/lineups/game/:slotId', requireResults, (req, res) => {
   res.json(lineups[slotId] || {});
 });
 
-// Lineup for a specific team in a specific game
-app.get('/api/lineups/game/:slotId/:teamName', requireLineupAccess, (req, res) => {
+// Lineup for a specific team in a specific game — team users can view any team (read-only from their POV)
+app.get('/api/lineups/game/:slotId/:teamName', requireLineupRead, (req, res) => {
   const { slotId, teamName } = req.params;
   if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
   const lineups = readJSON(LINEUPS_FILE);
@@ -491,6 +492,62 @@ app.post('/api/lineups/game/:slotId/:teamName', requireLineupAccess, (req, res) 
   if (!lineups[slotId]) lineups[slotId] = {};
   lineups[slotId][teamName] = { rows: clean, updatedAt: new Date().toISOString() };
   writeJSON(LINEUPS_FILE, lineups);
+  res.json({ ok: true });
+});
+
+// ── Bucket challenge endpoints ────────────────────────────────────────
+const BUCKETS_FILE = '/data/buckets.json';
+
+app.get('/api/buckets', (req, res) => {
+  res.json(readJSON(BUCKETS_FILE));
+});
+
+app.post('/api/buckets/counts', requireResults, (req, res) => {
+  const { counts } = req.body || {};
+  if (!counts || typeof counts !== 'object' || Array.isArray(counts)) {
+    return res.status(400).json({ error: 'counts must be an object' });
+  }
+  const clean = {};
+  Object.entries(counts).forEach(([k, v]) => {
+    if (typeof k === 'string' && k.trim()) {
+      const n = parseInt(v, 10);
+      clean[k.trim()] = isNaN(n) ? 0 : Math.max(0, n);
+    }
+  });
+  const data = readJSON(BUCKETS_FILE);
+  data.counts = clean;
+  data.updatedAt = new Date().toISOString();
+  writeJSON(BUCKETS_FILE, data);
+  res.json({ ok: true });
+});
+
+app.post('/api/buckets/teams', requireAdmin, (req, res) => {
+  const { teamName } = req.body || {};
+  if (!teamName || typeof teamName !== 'string' || !teamName.trim()) {
+    return res.status(400).json({ error: 'teamName is required' });
+  }
+  const name = teamName.trim().slice(0, 64);
+  const data = readJSON(BUCKETS_FILE);
+  if (!Array.isArray(data.bucketOnlyTeams)) data.bucketOnlyTeams = [];
+  if (data.bucketOnlyTeams.includes(name)) {
+    return res.status(409).json({ error: 'Team already exists' });
+  }
+  data.bucketOnlyTeams.push(name);
+  writeJSON(BUCKETS_FILE, data);
+  res.json({ ok: true });
+});
+
+app.delete('/api/buckets/teams/:teamName', requireAdmin, (req, res) => {
+  const name = req.params.teamName;
+  const data = readJSON(BUCKETS_FILE);
+  if (!Array.isArray(data.bucketOnlyTeams)) {
+    return res.status(404).json({ error: 'Team not found' });
+  }
+  const idx = data.bucketOnlyTeams.indexOf(name);
+  if (idx === -1) return res.status(404).json({ error: 'Team not found' });
+  data.bucketOnlyTeams.splice(idx, 1);
+  if (data.counts) delete data.counts[name];
+  writeJSON(BUCKETS_FILE, data);
   res.json({ ok: true });
 });
 

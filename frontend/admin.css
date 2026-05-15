@@ -502,3 +502,127 @@ input[type="time"]:focus {
   background: var(--surface2);
   color: var(--text-dim);
 }
+
+/* ── Results mode bar ── */
+.results-mode-bar {
+  display: flex;
+  gap: 0.5em;
+  padding: 0.6em 0 0.75em;
+  border-bottom: 0.07em solid var(--border);
+  margin-bottom: 0.75em;
+}
+.results-mode-btn {
+  background: none;
+  border: 0.07em solid var(--border);
+  border-radius: 0.3em;
+  padding: 0.4em 1.1em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.results-mode-btn.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+
+/* ── Bucket admin editor ── */
+.bucket-admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  max-width: 38em;
+}
+.bucket-admin-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: 0.3em;
+  padding: 0.5em 0.75em;
+}
+.bucket-admin-name {
+  flex: 1;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bucket-admin-inp {
+  width: 5.5em;
+  padding: 0.35em 0.5em;
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: 0.25em;
+  color: var(--text);
+  font-size: 0.95rem;
+  text-align: center;
+}
+.bucket-admin-inp:focus { outline: none; border-color: var(--blue-lt); }
+.bucket-admin-divider {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  padding: 0.6em 0 0.2em;
+  border-top: 0.07em solid var(--border);
+  margin-top: 0.4em;
+}
+
+/* ── Admin mobile bottom tabs (matches public page style) ── */
+@media (max-width: 1023px) {
+  .admin-tab-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 90;
+    background: #0a0e0b;
+    border-top: 0.22em solid var(--gold);
+    border-bottom: none;
+    box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    margin-bottom: 0;
+  }
+  .admin-tab {
+    min-height: 9em;
+    padding: 1.8em 0.3em 1.5em;
+    border-bottom: none;
+    border-top: 0.25em solid transparent;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45em;
+  }
+  .admin-tab .tab-icon {
+    display: block;
+    width: 2.2em;
+    height: 2.2em;
+  }
+  .admin-tab.active {
+    color: var(--gold-lt);
+    border-bottom-color: transparent;
+    border-top-color: var(--gold);
+    border-bottom: none;
+  }
+  /* Settings tab: show gear when inactive, hamburger when active */
+  .admin-tab[data-tab="settings"] .tab-icon--menu { display: none; }
+  .admin-tab[data-tab="settings"].active .tab-icon--gear { display: none; }
+  .admin-tab[data-tab="settings"].active .tab-icon--menu { display: block; }
+  /* Admin wrap needs bottom padding for fixed tab bar */
+  .admin-wrap {
+    padding-bottom: calc(9em + env(safe-area-inset-bottom, 0px) + 1.2em);
+  }
+}

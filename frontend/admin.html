@@ -83,16 +83,67 @@
 <div class="admin-wrap" id="adminWrap" style="display:none">
 
   <div class="admin-tab-bar">
-    <div class="admin-tab active" data-tab="results">Results</div>
-    <div class="admin-tab" data-tab="lineups">Lineups</div>
-    <div class="admin-tab" data-tab="schedule">Schedule</div>
-    <div class="admin-tab" data-tab="settings">Settings</div>
+    <div class="admin-tab active" data-tab="results">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M9 8l2 2 4-4"/>
+      </svg>
+      <span class="tab-label">Results</span>
+    </div>
+    <div class="admin-tab" data-tab="lineups">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/>
+        <circle cx="5" cy="6" r="1" fill="currentColor"/><circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="5" cy="18" r="1" fill="currentColor"/>
+      </svg>
+      <span class="tab-label">Lineups</span>
+    </div>
+    <div class="admin-tab" data-tab="schedule">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/><line x1="8" y1="18" x2="13" y2="18"/>
+      </svg>
+      <span class="tab-label">Schedule</span>
+    </div>
+    <div class="admin-tab" data-tab="settings">
+      <svg class="tab-icon tab-icon--gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+      </svg>
+      <svg class="tab-icon tab-icon--menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+      <span class="tab-label">Settings</span>
+    </div>
   </div>
 
   <!-- ── RESULTS TAB ── -->
   <div class="admin-tab-panel active" id="tab-results">
-    <div class="admin-subtitle">Select a winner for each completed game. Clear removes a result without confirmation.</div>
-    <div id="adminGames"></div>
+    <div class="results-mode-bar">
+      <button class="results-mode-btn active" id="modeGamesBtn" onclick="setResultsMode('games')">Games</button>
+      <button class="results-mode-btn" id="modeBucketsBtn" onclick="setResultsMode('buckets')">Bucket Challenge</button>
+    </div>
+    <div id="resultsGamesPanel">
+      <div class="admin-subtitle">Select a winner for each completed game. Clear removes a result without confirmation.</div>
+      <div id="adminGames"></div>
+    </div>
+    <div id="resultsBucketPanel" style="display:none">
+      <div class="admin-subtitle">Enter bucket counts for all teams. Save all writes every count at once.</div>
+      <div id="bucketAdminWrap"></div>
+      <div class="sched-action-row sched-action-row--top" style="margin-top:1em">
+        <button class="sched-save-btn" onclick="saveBucketCounts()">Save All</button>
+        <span class="sched-status" id="bucketSaveStatus"></span>
+      </div>
+      <div class="settings-section" style="margin-top:1.5em">
+        <div class="settings-section-hdr">Add Outside Team</div>
+        <div class="settings-field">
+          <label>Team Name <span class="field-label-hint">(for teams not in the bracket)</span></label>
+          <input type="text" id="newBucketTeam" autocomplete="off" placeholder="e.g. The Wildcards">
+        </div>
+        <div class="settings-save-row">
+          <button class="sched-save-btn" onclick="addBucketTeam()">Add Team</button>
+          <span class="sched-status" id="addBucketTeamStatus"></span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ── SCHEDULE TAB ── -->

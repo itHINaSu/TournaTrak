@@ -35,15 +35,19 @@
     <div id="lineupTeamName" class="lineup-team-name"></div>
   </div>
 
-  <div id="lineupGameInfo" class="lineup-game-info" style="display:none"></div>
+  <!-- Two-column selector row: team (left) + game (right) -->
+  <div id="lineupSelectorsRow" class="lineup-selectors-row" style="display:none">
+    <div class="lineup-game-info lineup-sel-half">
+      <select id="lineupTeamSel" class="lineup-game-sel"></select>
+    </div>
+    <div class="lineup-game-info lineup-sel-half" id="lineupGameInfo">
+      <span class="lineup-game-sel-placeholder" id="lineupGamePlaceholder">Select a team first</span>
+      <select id="lineupGameSelect" class="lineup-game-sel" style="display:none"></select>
+    </div>
+  </div>
 
   <div id="lineupReadOnlyBadge" style="display:none" class="lineup-readonly-badge">
     View Only — Game Complete
-  </div>
-
-  <div id="lineupPastRow" style="display:none" class="lineup-past-row">
-    <span class="lineup-past-label">View past game:</span>
-    <select id="pastGameSelect" class="lineup-past-sel"></select>
   </div>
 
   <div id="lineupNoGame" style="display:none" class="lineup-no-game">

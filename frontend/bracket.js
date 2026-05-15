@@ -2,7 +2,7 @@
 // ══════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════
-var results={}, schedule={}, settings={};
+var results={}, schedule={}, settings={}, buckets={};
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 var SETTING_DEFAULTS = {
@@ -30,13 +30,18 @@ function applySettings() {
   else { subEl.style.display = 'none'; }
 }
 
-// ── Results timestamp ─────────────────────────────────────────────────
-// Shows end-justified in header below tournament name.
-// Hidden if no results have been recorded.
+// ── Results notification bar ──────────────────────────────────────────
 function updateTimestamp() {
-  var el = document.getElementById('resultsTimestamp');
+  var bar  = document.getElementById('updateBar');
+  var text = document.getElementById('updateBarText');
+  var legEl = document.getElementById('resultsTimestamp');
   var hasResults = Object.values(results).some(function(r){ return r && r.winner; });
-  if (!hasResults) { el.style.display = 'none'; return; }
+  if (legEl) legEl.style.display = 'none';
+  if (!hasResults) {
+    if (bar) bar.style.display = 'none';
+    applyStickyOffsets();
+    return;
+  }
   var now = new Date();
   var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   var m = now.getMonth()+1, d = now.getDate(), dow = days[now.getDay()];
@@ -44,8 +49,66 @@ function updateTimestamp() {
   var ampm = h >= 12 ? 'PM' : 'AM';
   var h12 = h % 12 || 12;
   var ms = min < 10 ? '0'+min : ''+min;
-  el.textContent = 'Results updated ' + m+'/'+d+' '+dow+' '+h12+':'+ms+' '+ampm;
-  el.style.display = 'block';
+  if (text) text.textContent = 'Results updated ' + m+'/'+d+' '+dow+' '+h12+':'+ms+' '+ampm;
+  if (bar) bar.style.display = '';
+  applyStickyOffsets();
+}
+
+// ── Bucket view ───────────────────────────────────────────────────────
+function formatBucketTime(d) {
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var m = d.getMonth()+1, dd = d.getDate(), dow = days[d.getDay()];
+  var h = d.getHours(), mn = d.getMinutes();
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var h12 = h % 12 || 12;
+  var ms = mn < 10 ? '0'+mn : ''+mn;
+  return m+'/'+dd+' '+dow+' '+h12+':'+ms+' '+ampm;
+}
+
+function renderBucketView() {
+  var out = document.getElementById('bucketOut');
+  if (!out) return;
+  var counts     = (buckets && buckets.counts) ? buckets.counts : {};
+  var extraTeams = Array.isArray(buckets && buckets.bucketOnlyTeams) ? buckets.bucketOnlyTeams : [];
+  var schedTeams = [];
+  Object.values(GAMES).forEach(function(g) {
+    if (g.t1 && g.t1.type === 'fixed' && g.t1.team) schedTeams.push(g.t1.team);
+    if (g.t2 && g.t2.type === 'fixed' && g.t2.team) schedTeams.push(g.t2.team);
+  });
+  schedTeams = schedTeams.filter(function(t, i, a) { return a.indexOf(t) === i; });
+  var allTeams = schedTeams.concat(extraTeams.filter(function(t) { return schedTeams.indexOf(t) === -1; }));
+  allTeams.sort(function(a, b) {
+    var ca = parseInt(counts[a]) || 0;
+    var cb = parseInt(counts[b]) || 0;
+    if (cb !== ca) return cb - ca;
+    return a.localeCompare(b);
+  });
+  if (!allTeams.length) {
+    out.innerHTML = '<div class="bucket-empty">No teams in the bucket challenge yet.</div>';
+    return;
+  }
+  var updatedAt = buckets && buckets.updatedAt;
+  var html = '';
+  if (updatedAt) {
+    var d = new Date(updatedAt);
+    if (!isNaN(d.getTime())) {
+      html += '<div class="bucket-updated">Last updated: ' + esc(formatBucketTime(d)) + '</div>';
+    }
+  }
+  html += '<div class="bucket-leaderboard">';
+  allTeams.forEach(function(team, i) {
+    var count     = parseInt(counts[team]) || 0;
+    var rank      = i + 1;
+    var rankClass = rank === 1 ? ' bucket-rank--1' : rank === 2 ? ' bucket-rank--2' : rank === 3 ? ' bucket-rank--3' : '';
+    html += '<div class="bucket-row">'
+      + '<span class="bucket-rank' + rankClass + '">' + rank + '</span>'
+      + '<span class="bucket-team-name">' + esc(team) + '</span>'
+      + '<span class="bucket-count">' + count + '</span>'
+      + '<svg class="bucket-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5Q12 2 15 5"/><line x1="4" y1="7" x2="20" y2="7"/><path d="M4 7l2.5 14h11L20 7"/></svg>'
+      + '</div>';
+  });
+  html += '</div>';
+  out.innerHTML = html;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -91,6 +154,7 @@ function renderActive(){
   if(v==='bracket') renderBracket();
   if(v==='rounds')  { renderRoundView(); setTimeout(function(){ scrollToRound(firstIncompleteRound()); }, 60); }
   if(v==='teams')   renderTeamView();
+  if(v==='buckets') renderBucketView();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -98,14 +162,16 @@ function renderActive(){
 // ══════════════════════════════════════════════════════════
 async function fetchAll(){
   try{
-    var [rr,sr,str]=await Promise.all([
+    var [rr,sr,str,br]=await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
+      fetch('/api/buckets'),
     ]);
     results=await rr.json(); schedule=await sr.json(); settings=await str.json();
+    buckets=br.ok ? await br.json() : {};
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; }
+  }catch(e){ results={}; schedule={}; settings={}; buckets={}; }
   applySettings();
   updateTimestamp();
   populateTeamSelect();
@@ -838,22 +904,26 @@ function renderMobileBracket(root, dims) {
 // ── Sticky offset helpers ─────────────────────────────────
 function applyStickyOffsets() {
   var hdrH  = document.getElementById('siteHeader').offsetHeight;
+  var barEl = document.getElementById('updateBar');
+  var barH  = (barEl && barEl.offsetParent !== null) ? barEl.offsetHeight : 0;
   var tabsH = document.getElementById('viewTabs').offsetHeight;
   var sel   = document.querySelector('.selector-row');
   var selH  = sel ? sel.offsetHeight : 0;
   var r = document.documentElement.style;
   r.setProperty('--hdr-h',  hdrH  + 'px');
+  r.setProperty('--bar-h',  barH  + 'px');
   r.setProperty('--tabs-h', tabsH + 'px');
   r.setProperty('--sel-h',  (selH || 72) + 'px');
 }
 
 function stickyNavH() {
   var hdr  = document.getElementById('siteHeader');
+  var bar  = document.getElementById('updateBar');
   var tabs = document.getElementById('viewTabs');
   var sel  = document.querySelector('#view-rounds .selector-row');
   var mobile = window.innerWidth < 1024;
-  // On mobile: tabs + selector are fixed at bottom, only header offsets scroll target
   return (hdr ? hdr.offsetHeight : 0)
+       + (bar && bar.offsetParent !== null ? bar.offsetHeight : 0)
        + (tabs && !mobile ? tabs.offsetHeight : 0)
        + (sel && !mobile && sel.offsetParent !== null ? sel.offsetHeight : 0);
 }

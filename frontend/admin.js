@@ -1,7 +1,8 @@
 // admin.js — admin panel logic
-var results = {}, schedule = {}, settings = {};
+var results = {}, schedule = {}, settings = {}, buckets = {};
 var currentRole = null;
 var currentTeamName = null;
+var _bucketTeams = [];
 
 var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
 
@@ -29,6 +30,11 @@ document.getElementById('themeToggle').addEventListener('click', function(){
 // ── Tabs ───────────────────────────────────────────────────────────────
 document.querySelectorAll('.admin-tab').forEach(function(tab){
   tab.addEventListener('click', function(){
+    // On mobile: if Settings tab already active, toggle sidebar instead of re-navigating
+    if (window.innerWidth < 1024 && tab.dataset.tab === 'settings' && tab.classList.contains('active')) {
+      toggleSettingsSidebar();
+      return;
+    }
     document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
     document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
     tab.classList.add('active');
@@ -37,10 +43,11 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       populateLineupTeamSelect();
     }
     if (tab.dataset.tab === 'settings') {
-      // Default to account section for non-admin; page info for admin
       var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
       var anyActive = document.querySelector('.settings-panel.active');
       if (!anyActive) showSettingsSection(defaultSection);
+      // On mobile, open sidebar immediately when entering settings
+      if (window.innerWidth < 1024) openSettingsSidebar();
     }
   });
 });
@@ -250,29 +257,23 @@ async function saveAdminLineup() {
 // ── Fetch ──────────────────────────────────────────────────────────────
 async function fetchAll() {
   try {
-    var [rr, sr, str] = await Promise.all([
+    var [rr, sr, str, br] = await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
+      fetch('/api/buckets'),
     ]);
     results  = await rr.json();
     schedule = await sr.json();
     settings = await str.json();
+    buckets  = br.ok ? await br.json() : {};
     if (typeof applySchedule === 'function') applySchedule(schedule);
-  } catch(e) { results = {}; schedule = {}; settings = {}; }
+  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; }
   applySettingsToPage();
   renderAdmin();
   renderScheduleEditor();
   populateSettingsFields();
   populateLineupTeamSelect();
-  if (currentRole === 'team' && currentTeamName) {
-    var teamSel = document.getElementById('lineupTeamSelect');
-    if (teamSel) {
-      teamSel.value = currentTeamName;
-      teamSel.disabled = true;
-    }
-    onAdminTeamChange();
-  }
 }
 
 function applySettingsToPage() {
@@ -713,7 +714,7 @@ async function apiFetch(url, opts) {
 
 // Apply role-based visibility restrictions. Idempotent — safe to call multiple times.
 function applyRoleRestrictions(role) {
-  // Tab-level restrictions: schedule is admin-only
+  // Schedule tab is admin-only
   document.querySelectorAll('.admin-tab').forEach(function(tab) {
     var hide = role !== 'admin' && tab.dataset.tab === 'schedule';
     tab.style.display = hide ? 'none' : '';
@@ -724,36 +725,18 @@ function applyRoleRestrictions(role) {
       document.getElementById('tab-results').classList.add('active');
     }
   });
-  // Settings sidebar restrictions: page info, users, and coaches are admin-only
+  // Settings sidebar: pageinfo, users, coaches are admin-only
   var adminOnlySections = ['pageinfo', 'users', 'coaches'];
   adminOnlySections.forEach(function(section) {
     var navItem = document.querySelector('.settings-nav-item[data-section="' + section + '"]');
     if (navItem) navItem.style.display = role === 'admin' ? '' : 'none';
   });
-  // If non-admin lands on a restricted settings section, redirect to account
   if (role !== 'admin') {
     var activePanel = document.querySelector('.settings-panel.active');
     if (activePanel) {
       var activeSection = activePanel.id.replace('sp-', '');
-      if (adminOnlySections.indexOf(activeSection) !== -1) {
-        showSettingsSection('account');
-      }
+      if (adminOnlySections.indexOf(activeSection) !== -1) showSettingsSection('account');
     }
-  }
-  // Team users see only Lineups tab
-  if (role === 'team') {
-    document.querySelectorAll('.admin-tab').forEach(function(tab) {
-      var keep = tab.dataset.tab === 'lineups';
-      tab.style.display = keep ? '' : 'none';
-      if (!keep && tab.classList.contains('active')) {
-        tab.classList.remove('active');
-        document.getElementById('tab-' + tab.dataset.tab).classList.remove('active');
-      }
-    });
-    var lt = document.querySelector('.admin-tab[data-tab="lineups"]');
-    var lp = document.getElementById('tab-lineups');
-    if (lt && !lt.classList.contains('active')) { lt.classList.add('active'); }
-    if (lp && !lp.classList.contains('active')) { lp.classList.add('active'); }
   }
 }
 
@@ -902,6 +885,7 @@ async function checkSession() {
     var r    = await fetch('/api/session');
     var data = await r.json();
     if (data.authenticated) {
+      if (data.role === 'team') { window.location.replace('/lineup'); return; }
       currentRole = data.role || null;
       currentTeamName = data.teamName || null;
       if (data.mustChangePassword) showChangePassword();
@@ -1057,6 +1041,136 @@ async function deleteUser(username) {
   }
   showToast('User ' + username + ' deleted');
   loadUsers();
+}
+
+// ── Bucket challenge admin ─────────────────────────────────────────────
+var _resultsMode = 'games';
+
+function setResultsMode(mode) {
+  _resultsMode = mode;
+  var gPanel = document.getElementById('resultsGamesPanel');
+  var bPanel = document.getElementById('resultsBucketPanel');
+  var gBtn   = document.getElementById('modeGamesBtn');
+  var bBtn   = document.getElementById('modeBucketsBtn');
+  if (gPanel) gPanel.style.display = mode === 'games'   ? '' : 'none';
+  if (bPanel) bPanel.style.display = mode === 'buckets' ? '' : 'none';
+  if (gBtn)   gBtn.classList.toggle('active', mode === 'games');
+  if (bBtn)   bBtn.classList.toggle('active', mode === 'buckets');
+  if (mode === 'buckets') renderBucketAdmin();
+}
+
+function getScheduleTeams() {
+  var teams = [];
+  if (typeof GAMES !== 'undefined') {
+    Object.values(GAMES).forEach(function(g) {
+      if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams.push(g.t1.team);
+      if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams.push(g.t2.team);
+    });
+    teams = teams.filter(function(t, i, a) { return a.indexOf(t) === i; }).sort();
+  }
+  return teams;
+}
+
+function renderBucketAdmin() {
+  var wrap = document.getElementById('bucketAdminWrap');
+  if (!wrap) return;
+  var schedTeams = getScheduleTeams();
+  var extraTeams = Array.isArray(buckets.bucketOnlyTeams) ? buckets.bucketOnlyTeams.slice() : [];
+  var counts     = buckets.counts || {};
+  _bucketTeams   = schedTeams.map(function(t){ return { name: t, extra: false }; })
+    .concat(extraTeams.map(function(t){ return { name: t, extra: true }; }));
+
+  if (!_bucketTeams.length) {
+    wrap.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No teams yet. Add schedule games or outside teams below.</div>';
+    return;
+  }
+  var prevExtra = false;
+  var html = '<div class="bucket-admin-list">';
+  _bucketTeams.forEach(function(team, i) {
+    if (team.extra && !prevExtra) {
+      html += '<div class="bucket-admin-divider">Outside Teams</div>';
+      prevExtra = true;
+    }
+    var val = (counts[team.name] !== undefined && counts[team.name] !== null) ? parseInt(counts[team.name]) : '';
+    html += '<div class="bucket-admin-row">'
+      + '<span class="bucket-admin-name">' + esc(team.name) + '</span>'
+      + '<input type="number" class="bucket-admin-inp" id="bci-' + i + '" min="0" max="9999" placeholder="0" value="' + (isNaN(val) ? '' : val) + '">'
+      + (team.extra ? '<button class="admin-clear-btn" onclick="deleteBucketTeam(' + i + ')">Remove</button>' : '')
+      + '</div>';
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+}
+
+async function saveBucketCounts() {
+  var counts = {};
+  _bucketTeams.forEach(function(team, i) {
+    var el = document.getElementById('bci-' + i);
+    var v  = el ? parseInt(el.value, 10) : 0;
+    counts[team.name] = isNaN(v) ? 0 : Math.max(0, v);
+  });
+  var status = document.getElementById('bucketSaveStatus');
+  var r = await apiFetch('/api/buckets/counts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ counts: counts })
+  });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    showToast(data.error || 'Save failed', true);
+    if (status) { status.textContent = '✗ Error'; status.style.color = 'var(--lose-color)'; }
+    return;
+  }
+  buckets.counts    = counts;
+  buckets.updatedAt = new Date().toISOString();
+  showToast('Bucket counts saved');
+  if (status) {
+    status.textContent = '✓ Saved'; status.style.color = '';
+    setTimeout(function(){ status.textContent = ''; }, 3000);
+  }
+}
+
+async function addBucketTeam() {
+  var inp    = document.getElementById('newBucketTeam');
+  var name   = (inp ? inp.value : '').trim();
+  var status = document.getElementById('addBucketTeamStatus');
+  if (!name) {
+    if (status) { status.textContent = '✗ Name required'; status.style.color = 'var(--lose-color)'; }
+    return;
+  }
+  var r = await apiFetch('/api/buckets/teams', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ teamName: name })
+  });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    showToast(data.error || 'Add failed', true);
+    if (status) { status.textContent = '✗ ' + (data.error || 'Failed'); status.style.color = 'var(--lose-color)'; }
+    return;
+  }
+  if (!Array.isArray(buckets.bucketOnlyTeams)) buckets.bucketOnlyTeams = [];
+  buckets.bucketOnlyTeams.push(name);
+  if (inp) inp.value = '';
+  if (status) { status.textContent = '✓ Added'; status.style.color = ''; setTimeout(function(){ status.textContent = ''; }, 3000); }
+  showToast(name + ' added');
+  renderBucketAdmin();
+}
+
+async function deleteBucketTeam(idx) {
+  var team = _bucketTeams[idx];
+  if (!team || !team.extra) return;
+  if (!confirm('Remove "' + team.name + '" from the bucket challenge?')) return;
+  var r = await apiFetch('/api/buckets/teams/' + encodeURIComponent(team.name), { method: 'DELETE' });
+  if (!r) return;
+  if (!r.ok) { var d = await r.json().catch(function(){ return {}; }); showToast(d.error || 'Remove failed', true); return; }
+  if (buckets.bucketOnlyTeams) {
+    var ti = buckets.bucketOnlyTeams.indexOf(team.name);
+    if (ti !== -1) buckets.bucketOnlyTeams.splice(ti, 1);
+  }
+  if (buckets.counts) delete buckets.counts[team.name];
+  showToast(team.name + ' removed');
+  renderBucketAdmin();
 }
 
 // ── Coaches section ────────────────────────────────────────────────────

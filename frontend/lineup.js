@@ -1,6 +1,7 @@
-// lineup.js — team lineup page (game-tied)
+// lineup.js — team lineup page
 
-var currentTeamName = null;
+var currentTeamName = null; // coach's own team (from session)
+var viewedTeamName  = null; // team currently being displayed
 var currentSlotId   = null;
 var isReadOnly      = false;
 var lineupResults   = {};
@@ -62,35 +63,66 @@ function findTeamGames(teamName) {
   return games;
 }
 
-function gameDisplayLabel(slotId) {
+function getScheduleTeams() {
+  var teams = [];
+  if (typeof GAMES !== 'undefined') {
+    Object.values(GAMES).forEach(function(g) {
+      if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams.push(g.t1.team);
+      if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams.push(g.t2.team);
+    });
+    teams = teams.filter(function(t, i, a) { return a.indexOf(t) === i; }).sort();
+  }
+  return teams;
+}
+
+function gameOptionLabel(slotId, teamName) {
   var g = GAMES[slotId];
   if (!g) return slotId;
   var lbl = g.label || slotId;
   var t1  = resolveSlot(g.t1, lineupResults);
   var t2  = resolveSlot(g.t2, lineupResults);
-  var opp = (t1 === currentTeamName) ? t2 : t1;
-  var time = g.time ? (' · ' + formatTime(g.time)) : '';
-  return lbl + (opp ? ' vs ' + opp : '') + time;
+  var opp = (t1 === teamName) ? t2 : t1;
+  var timeStr = g.time ? (' · ' + formatTime(g.time)) : '';
+  var done    = (lineupResults[slotId] && lineupResults[slotId].winner) ? ' ✓' : '';
+  return lbl + (opp ? ' vs ' + opp : '') + timeStr + done;
 }
 
-async function loadLineupForGame(slotId, readOnly) {
-  currentSlotId = slotId;
-  isReadOnly    = readOnly;
+function populateGameSelect(teamName) {
+  var gameSel     = document.getElementById('lineupGameSelect');
+  var placeholder = document.getElementById('lineupGamePlaceholder');
+  if (!gameSel) return;
 
-  var g = GAMES[slotId];
-  var infoEl = document.getElementById('lineupGameInfo');
-  if (infoEl && g) {
-    var t1  = resolveSlot(g.t1, lineupResults);
-    var t2  = resolveSlot(g.t2, lineupResults);
-    var opp = (t1 === currentTeamName) ? t2 : t1;
-    infoEl.innerHTML =
-      '<span class="lineup-game-label">' + esc(g.label || slotId) + '</span>'
-      + (opp
-          ? '<span class="lineup-game-opp">vs ' + esc(opp) + '</span>'
-          : '<span class="lineup-game-opp lineup-game-opp--tbd">Opponent TBD</span>')
-      + (g.time ? '<span class="lineup-game-time">' + esc(formatTime(g.time)) + '</span>' : '');
-    infoEl.style.display = '';
+  var allGames = findTeamGames(teamName);
+  if (!allGames.length) {
+    gameSel.style.display = 'none';
+    if (placeholder) { placeholder.textContent = 'No games scheduled'; placeholder.style.display = ''; }
+    return;
   }
+
+  gameSel.innerHTML = allGames.map(function(tg) {
+    return '<option value="' + esc(tg.slotId) + '">' + esc(gameOptionLabel(tg.slotId, teamName)) + '</option>';
+  }).join('');
+
+  if (placeholder) placeholder.style.display = 'none';
+  gameSel.style.display = '';
+
+  var nextGame = allGames.find(function(tg) { return !tg.hasResult; });
+  var target   = nextGame || allGames[allGames.length - 1];
+  if (target) gameSel.value = target.slotId;
+}
+
+function isSlotEditable(slotId, teamName) {
+  if (teamName !== currentTeamName) return false;
+  if (lineupResults[slotId] && lineupResults[slotId].winner) return false;
+  var allGames = findTeamGames(teamName);
+  var nextGame = allGames.find(function(tg) { return !tg.hasResult; });
+  return !!(nextGame && nextGame.slotId === slotId);
+}
+
+async function loadLineupForGame(slotId, teamName, readOnly) {
+  currentSlotId  = slotId;
+  viewedTeamName = teamName;
+  isReadOnly     = readOnly;
 
   var badge = document.getElementById('lineupReadOnlyBadge');
   if (badge) badge.style.display = readOnly ? '' : 'none';
@@ -102,7 +134,7 @@ async function loadLineupForGame(slotId, readOnly) {
   if (statusEl) statusEl.textContent = '';
 
   try {
-    var r    = await fetch('/api/lineups/game/' + encodeURIComponent(slotId) + '/' + encodeURIComponent(currentTeamName));
+    var r    = await fetch('/api/lineups/game/' + encodeURIComponent(slotId) + '/' + encodeURIComponent(teamName));
     var data = r.ok ? await r.json() : { rows: [] };
     document.getElementById('lineupBody').innerHTML = buildRows(data.rows || [], readOnly);
   } catch(e) {
@@ -148,20 +180,28 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  var pastSel = document.getElementById('pastGameSelect');
-  if (pastSel) {
-    pastSel.addEventListener('change', async function() {
-      if (!pastSel.value) {
-        // Return to current (next) game
-        var allGames  = findTeamGames(currentTeamName);
-        var nextGame  = allGames.find(function(tg) { return !tg.hasResult; });
-        var lastDone  = allGames.filter(function(tg) { return tg.hasResult; }).slice(-1)[0];
-        var target    = nextGame || lastDone;
-        if (target) await loadLineupForGame(target.slotId, !nextGame);
-        pastSel.value = '';
-      } else {
-        await loadLineupForGame(pastSel.value, true);
+  var teamSel = document.getElementById('lineupTeamSel');
+  if (teamSel) {
+    teamSel.addEventListener('change', async function() {
+      var team = teamSel.value;
+      if (!team) return;
+      populateGameSelect(team);
+      var gameSel = document.getElementById('lineupGameSelect');
+      var slotId  = gameSel ? gameSel.value : '';
+      if (slotId) {
+        await loadLineupForGame(slotId, team, !isSlotEditable(slotId, team));
       }
+    });
+  }
+
+  var gameSel = document.getElementById('lineupGameSelect');
+  if (gameSel) {
+    gameSel.addEventListener('change', async function() {
+      var slotId  = gameSel.value;
+      var teamSel = document.getElementById('lineupTeamSel');
+      var team    = (teamSel && teamSel.value) ? teamSel.value : currentTeamName;
+      if (!slotId || !team) return;
+      await loadLineupForGame(slotId, team, !isSlotEditable(slotId, team));
     });
   }
 });
@@ -190,42 +230,42 @@ async function init() {
       fetch('/api/schedule'),
       fetch('/api/settings'),
     ]);
-    lineupResults = rr.ok     ? await rr.json()       : {};
-    var sched     = schedR.ok ? await schedR.json()    : {};
-    var settingsData          = settingsR.ok ? await settingsR.json() : {};
+    lineupResults    = rr.ok       ? await rr.json()       : {};
+    var sched        = schedR.ok   ? await schedR.json()   : {};
+    var settingsData = settingsR.ok ? await settingsR.json() : {};
 
     if (typeof applySchedule === 'function') applySchedule(sched);
 
     if (settingsData.tournamentName) document.getElementById('siteName').textContent = settingsData.tournamentName;
     document.title = (settingsData.pageTitle || settingsData.tournamentName || 'Team Lineup') + ' — Lineup';
 
-    var allGames      = findTeamGames(currentTeamName);
-    var completedGames = allGames.filter(function(tg) { return tg.hasResult; });
-    var upcomingGames  = allGames.filter(function(tg) { return !tg.hasResult; });
-    var nextGame       = upcomingGames[0] || null;
-
-    // Populate past game selector
-    var pastRow = document.getElementById('lineupPastRow');
-    var pastSel = document.getElementById('pastGameSelect');
-    if (completedGames.length && pastSel) {
-      pastSel.innerHTML = '<option value="">— current game —</option>'
-        + completedGames.map(function(tg) {
-            return '<option value="' + esc(tg.slotId) + '">' + esc(gameDisplayLabel(tg.slotId)) + '</option>';
-          }).join('');
-      if (pastRow) pastRow.style.display = '';
+    var allTeams = getScheduleTeams();
+    var teamSel  = document.getElementById('lineupTeamSel');
+    if (teamSel && allTeams.length) {
+      teamSel.innerHTML = allTeams.map(function(t) {
+        return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+      }).join('');
+      if (allTeams.indexOf(currentTeamName) !== -1) teamSel.value = currentTeamName;
     }
 
-    if (!allGames.length) {
+    document.getElementById('lineupSelectorsRow').style.display = '';
+
+    var selectedTeam = (teamSel && teamSel.value) ? teamSel.value : currentTeamName;
+    if (selectedTeam) {
+      populateGameSelect(selectedTeam);
+      var gameSel = document.getElementById('lineupGameSelect');
+      var slotId  = gameSel ? gameSel.value : '';
+
+      if (!slotId) {
+        document.getElementById('lineupNoGame').style.display = '';
+        document.getElementById('lineupSubmitBtn').style.display = 'none';
+        return;
+      }
+
+      await loadLineupForGame(slotId, selectedTeam, !isSlotEditable(slotId, selectedTeam));
+    } else {
       document.getElementById('lineupNoGame').style.display = '';
       document.getElementById('lineupSubmitBtn').style.display = 'none';
-      return;
-    }
-
-    if (nextGame) {
-      await loadLineupForGame(nextGame.slotId, false);
-    } else {
-      var lastGame = completedGames[completedGames.length - 1];
-      await loadLineupForGame(lastGame.slotId, true);
     }
 
   } catch(e) {

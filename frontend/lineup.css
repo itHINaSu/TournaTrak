@@ -150,36 +150,53 @@
   .lineup-td-num  { display: none; }
 }
 
-/* ── Game info header ── */
+/* ── Selector row: team + game side by side ── */
+.lineup-selectors-row {
+  display: flex;
+  gap: 0.75em;
+  margin-bottom: 0.75em;
+}
+.lineup-sel-half {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Game info / selector box ── */
 .lineup-game-info {
   display: flex;
-  align-items: baseline;
-  gap: 0.6em;
-  flex-wrap: wrap;
-  margin-bottom: 0.75em;
+  align-items: center;
   padding: 0.55em 0.75em;
   background: var(--surface2);
   border-radius: 0.3em;
   border: 0.07em solid var(--border);
+  min-height: 2.4em;
 }
-.lineup-game-label {
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.92rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+
+/* Transparent select filling the info box */
+.lineup-game-sel {
+  width: 100%;
+  background: transparent;
+  border: none;
   color: var(--text);
-}
-.lineup-game-opp {
-  font-family: 'Barlow', sans-serif;
+  font-family: 'Oswald', sans-serif;
   font-size: 0.88rem;
-  color: var(--text-dim);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  -webkit-appearance: auto;
+  appearance: auto;
 }
-.lineup-game-opp--tbd { color: var(--text-mute); font-style: italic; }
-.lineup-game-time {
-  font-size: 0.78rem;
+.lineup-game-sel:focus { outline: none; }
+
+.lineup-game-sel-placeholder {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.82rem;
   color: var(--text-mute);
-  margin-left: auto;
+  font-style: italic;
+}
+
+@media (max-width: 600px) {
+  .lineup-selectors-row { flex-direction: column; gap: 0.5em; }
 }
 
 /* ── Read-only badge ── */
@@ -196,35 +213,6 @@
   padding: 0.35em 0.7em;
   margin-bottom: 0.75em;
   display: inline-block;
-}
-
-/* ── Past game selector ── */
-.lineup-past-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6em;
-  margin-bottom: 1em;
-}
-.lineup-past-label {
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.72rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-mute);
-  flex-shrink: 0;
-}
-.lineup-past-sel {
-  font-family: 'Barlow', sans-serif;
-  font-size: 0.88rem;
-  padding: 0.35em 0.5em;
-  border-radius: 0.25em;
-  border: 0.07em solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-  cursor: pointer;
-  flex: 1;
-  max-width: 28em;
 }
 
 /* ── No-game message ── */
