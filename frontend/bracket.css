@@ -80,19 +80,21 @@
 }
 
 /* ── Bucket Challenge leaderboard ── */
+.bucket-status-wrap {
+  flex-shrink: 0;
+  padding: 0.9em 1em 0;
+}
 .bucket-status-bar {
   background: var(--surface2);
   border: 0.07em solid var(--border);
   border-radius: 0.4em;
   text-align: center;
   padding: 0.55em 1.5em;
-  margin: 0.9em 1em 0;
   font-family: 'Barlow', sans-serif;
   font-size: 0.82rem;
   font-weight: 500;
   letter-spacing: 0.03em;
   color: var(--text-dim);
-  flex-shrink: 0;
 }
 .bucket-panel {
   max-width: 42em;
