@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="base.css">
 <link rel="stylesheet" href="admin.css">
+<link rel="stylesheet" href="lineup.css">
 </head>
 <body>
 
@@ -84,6 +85,7 @@
   <div class="admin-tab-bar">
     <div class="admin-tab active" data-tab="results">Results</div>
     <div class="admin-tab" data-tab="schedule">Schedule</div>
+    <div class="admin-tab" data-tab="lineups">Lineups</div>
     <div class="admin-tab" data-tab="settings">Settings</div>
     <div class="admin-tab" data-tab="account">Account</div>
   </div>
@@ -113,6 +115,35 @@
       <a href="/" class="admin-public-btn">↗ Public Page</a>
       <span class="sched-status" id="schedStatusBottom"></span>
     </div>
+  </div>
+
+  <!-- ── LINEUPS TAB ── -->
+  <div class="admin-tab-panel" id="tab-lineups">
+    <div class="admin-subtitle">View and edit team lineups. Select a team to load their current lineup.</div>
+    <div class="sched-action-row sched-action-row--top">
+      <div style="display:flex;align-items:center;gap:0.6em;flex-wrap:wrap">
+        <label style="font-family:Oswald,sans-serif;font-size:0.78rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--blue-lt);font-weight:600;flex-shrink:0">Team</label>
+        <select class="styled" id="lineupTeamSelect" style="flex:1;min-width:12em;max-width:22em" onchange="loadAdminLineup()">
+          <option value="">— select team —</option>
+        </select>
+      </div>
+      <button class="sched-save-btn" onclick="saveAdminLineup()">Save Lineup</button>
+      <span class="sched-status" id="adminLineupStatus"></span>
+    </div>
+    <div id="adminLineupWrap" style="display:none">
+      <table class="lineup-table" style="margin-top:0.5em">
+        <thead>
+          <tr>
+            <th class="lineup-th lineup-th--order"></th>
+            <th class="lineup-th lineup-th--num">#</th>
+            <th class="lineup-th lineup-th--name">Player Name</th>
+            <th class="lineup-th lineup-th--pos">Position</th>
+          </tr>
+        </thead>
+        <tbody id="adminLineupBody"></tbody>
+      </table>
+    </div>
+    <div id="adminLineupEmpty" class="admin-subtitle" style="padding:1em 0">Select a team above to view their lineup.</div>
   </div>
 
   <!-- ── SETTINGS TAB ── -->

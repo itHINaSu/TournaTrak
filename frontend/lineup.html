@@ -34,10 +34,23 @@
     <div class="lineup-team-label">Team</div>
     <div id="lineupTeamName" class="lineup-team-name"></div>
   </div>
-  <div class="lineup-placeholder">
-    <div class="lineup-placeholder-icon">📋</div>
-    <div class="lineup-placeholder-title">Lineup Submission</div>
-    <div class="lineup-placeholder-body">Lineup entry will be available here once configured by your tournament administrator.</div>
+
+  <div class="lineup-form-wrap">
+    <table class="lineup-table">
+      <thead>
+        <tr>
+          <th class="lineup-th lineup-th--order"></th>
+          <th class="lineup-th lineup-th--num">#</th>
+          <th class="lineup-th lineup-th--name">Player Name</th>
+          <th class="lineup-th lineup-th--pos">Position</th>
+        </tr>
+      </thead>
+      <tbody id="lineupBody"></tbody>
+    </table>
+    <div class="lineup-actions">
+      <button class="lineup-submit-btn" id="lineupSubmitBtn" onclick="submitLineup()">Save Lineup</button>
+      <span class="lineup-status" id="lineupStatus"></span>
+    </div>
   </div>
 </div>
 

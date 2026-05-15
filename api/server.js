@@ -8,6 +8,7 @@ const RESULTS_FILE  = '/data/results.json';
 const SCHEDULE_FILE = '/data/schedule.json';
 const SETTINGS_FILE = '/data/settings.json';
 const USERS_FILE    = '/data/users.json';
+const LINEUPS_FILE  = '/data/lineups.json';
 
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
 
@@ -147,6 +148,20 @@ function requireRole(...roles) {
 
 const requireAdmin   = requireRole('admin');
 const requireResults = requireRole('admin', 'results');
+
+// Lineup access: team users can only read/write their own team; admin and results can access any.
+function requireLineupAccess(req, res, next) {
+  if (!req.session.username)          return res.status(401).json({ error: 'Authentication required' });
+  if (req.session.mustChangePassword) return res.status(403).json({ error: 'Password change required', mustChangePassword: true });
+  const role = req.session.role;
+  if (role === 'admin' || role === 'results') return next();
+  if (role === 'team') {
+    if (req.params.teamName !== req.session.teamName)
+      return res.status(403).json({ error: 'Access denied' });
+    return next();
+  }
+  return res.status(403).json({ error: 'Insufficient permissions' });
+}
 
 // ── Auth endpoints ────────────────────────────────────────────────────
 app.get('/api/session', (req, res) => {
@@ -421,6 +436,29 @@ app.post('/api/settings', requireAdmin, (req, res) => {
     if (incoming[k] !== undefined) clean[k] = String(incoming[k]).slice(0, 500);
   });
   writeJSON(SETTINGS_FILE, clean);
+  res.json({ ok: true });
+});
+
+// ── Lineup endpoints ──────────────────────────────────────────────────
+app.get('/api/lineups/:teamName', requireLineupAccess, (req, res) => {
+  const { teamName } = req.params;
+  const lineups = readJSON(LINEUPS_FILE);
+  res.json(lineups[teamName] || { rows: [] });
+});
+
+app.post('/api/lineups/:teamName', requireLineupAccess, (req, res) => {
+  const { teamName } = req.params;
+  const { rows } = req.body || {};
+  if (!Array.isArray(rows)) return res.status(400).json({ error: 'rows must be an array' });
+  if (rows.length > 20) return res.status(400).json({ error: 'Maximum 20 rows' });
+  const clean = rows.slice(0, 20).map(r => ({
+    jersey:   String(r.jersey   || '').slice(0, 8),
+    name:     String(r.name     || '').slice(0, 64),
+    position: String(r.position || '').slice(0, 8),
+  }));
+  const lineups = readJSON(LINEUPS_FILE);
+  lineups[teamName] = { rows: clean, updatedAt: new Date().toISOString() };
+  writeJSON(LINEUPS_FILE, lineups);
   res.json({ ok: true });
 });
 

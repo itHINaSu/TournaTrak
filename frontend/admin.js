@@ -2,6 +2,8 @@
 var results = {}, schedule = {}, settings = {};
 var currentRole = null;
 
+var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
+
 var SETTING_DEFAULTS = {
   tournamentName: 'Tournament Bracket',
   pageTitle:      'Tournament Bracket',
@@ -30,6 +32,9 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
     tab.classList.add('active');
     document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+    if (tab.dataset.tab === 'lineups') {
+      populateLineupTeamSelect();
+    }
   });
 });
 
@@ -40,6 +45,97 @@ function showToast(msg, err) {
   t.className = 'toast' + (err ? ' error' : '');
   t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+
+// ── Lineup helpers ─────────────────────────────────────────────────────
+function lineupPosOptions(selected) {
+  return POSITIONS.map(function(p) {
+    var sel = p === (selected || '') ? ' selected' : '';
+    return '<option value="' + p + '"' + sel + '>' + (p || '—') + '</option>';
+  }).join('');
+}
+
+function buildAdminLineupRows(rows) {
+  var html = '';
+  for (var i = 0; i < 20; i++) {
+    var r = (rows && rows[i]) ? rows[i] : {};
+    html += '<tr class="lineup-row">'
+      + '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>'
+      + '<td class="lineup-td-num"><input type="text" class="lineup-inp lineup-inp--num" id="alj-' + i + '" maxlength="4" value="' + esc(r.jersey || '') + '" placeholder="#" inputmode="numeric"></td>'
+      + '<td class="lineup-td-name"><input type="text" class="lineup-inp lineup-inp--name" id="aln-' + i + '" maxlength="64" value="' + esc(r.name || '') + '" placeholder="Player name"></td>'
+      + '<td class="lineup-td-pos"><select class="lineup-sel" id="alp-' + i + '">' + lineupPosOptions(r.position) + '</select></td>'
+      + '</tr>';
+  }
+  return html;
+}
+
+function populateLineupTeamSelect() {
+  var sel = document.getElementById('lineupTeamSelect');
+  if (!sel) return;
+  var teams = [];
+  if (typeof GAMES !== 'undefined') {
+    Object.values(GAMES).forEach(function(g) {
+      if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams.push(g.t1.team);
+      if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams.push(g.t2.team);
+    });
+    teams = teams.filter(function(t, i, a) { return a.indexOf(t) === i; }).sort();
+  }
+  var current = sel.value;
+  sel.innerHTML = '<option value="">— select team —</option>'
+    + teams.map(function(t) {
+        return '<option value="' + esc(t) + '"' + (t === current ? ' selected' : '') + '>' + esc(t) + '</option>';
+      }).join('');
+}
+
+async function loadAdminLineup() {
+  var sel = document.getElementById('lineupTeamSelect');
+  var teamName = sel ? sel.value : '';
+  var wrap  = document.getElementById('adminLineupWrap');
+  var empty = document.getElementById('adminLineupEmpty');
+  if (!teamName) {
+    if (wrap)  wrap.style.display  = 'none';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (wrap)  wrap.style.display  = '';
+  if (empty) empty.style.display = 'none';
+  try {
+    var r = await apiFetch('/api/lineups/' + encodeURIComponent(teamName));
+    if (!r) return;
+    var data = r.ok ? await r.json() : { rows: [] };
+    document.getElementById('adminLineupBody').innerHTML = buildAdminLineupRows(data.rows || []);
+  } catch(e) {
+    document.getElementById('adminLineupBody').innerHTML = buildAdminLineupRows([]);
+  }
+}
+
+async function saveAdminLineup() {
+  var sel = document.getElementById('lineupTeamSelect');
+  var teamName = sel ? sel.value : '';
+  var status = document.getElementById('adminLineupStatus');
+  if (!teamName) { if (status) { status.textContent = '✗ Select a team first'; status.style.color = 'var(--lose-color)'; } return; }
+  var rows = [];
+  for (var i = 0; i < 20; i++) {
+    rows.push({
+      jersey:   (document.getElementById('alj-' + i) || {}).value || '',
+      name:     (document.getElementById('aln-' + i) || {}).value || '',
+      position: (document.getElementById('alp-' + i) || {}).value || '',
+    });
+  }
+  var r = await apiFetch('/api/lineups/' + encodeURIComponent(teamName), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rows: rows })
+  });
+  if (!r) return;
+  if (r.ok) {
+    showToast('Lineup saved for ' + teamName);
+    if (status) { status.textContent = '✓ Saved'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+  } else {
+    var d = await r.json().catch(function(){ return {}; });
+    showToast(d.error || 'Save failed', true);
+    if (status) { status.textContent = '✗ Error'; }
+  }
 }
 
 // ── Fetch ──────────────────────────────────────────────────────────────
@@ -59,6 +155,7 @@ async function fetchAll() {
   renderAdmin();
   renderScheduleEditor();
   populateSettingsFields();
+  populateLineupTeamSelect();
 }
 
 function applySettingsToPage() {
