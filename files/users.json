@@ -1,0 +1,24 @@
+{
+  "users": [
+    {
+      "username": "admin",
+      "passwordHash": "$2a$12$PlNaqDDGAJCZTN4yjqDLpu90aOIvNfV2JCp90F3yHcH4ifi3RxBZC",
+      "role": "admin",
+      "mustChangePassword": false
+    },
+    {
+      "username": "Jeff",
+      "role": "team",
+      "teamName": "Dedham Athletics",
+      "accessToken": "66a3e1664cbef7316494d5d34bd2840a096ac43e2650b8fac144bbc8c7b594c7",
+      "mustChangePassword": false
+    },
+    {
+      "username": "Jake",
+      "role": "team",
+      "teamName": "Eastside Heat",
+      "accessToken": "3b9cef0c676d43e11e00dbc86ffc1d7d47d8be1650987f029589964bf269d935",
+      "mustChangePassword": false
+    }
+  ]
+}
