@@ -123,9 +123,18 @@
   min-width: 1.8em;
   text-align: center;
 }
-.bucket-rank--1 { color: var(--gold-lt); }
-.bucket-rank--2 { color: #a0b0b8; }
-.bucket-rank--3 { color: #c09060; }
+/* Frozen top-3 block — desktop: sticky below tabs/bar/header */
+.bucket-frozen {
+  position: sticky;
+  top: calc(var(--hdr-h, 0px) + var(--bar-h, 0px) + var(--tabs-h, 0px));
+  z-index: 70;
+  background: var(--bg);
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 1em 1em 0;
+  border-bottom: 0.07em solid var(--border);
+}
+.bucket-leaderboard--top3 { gap: 0.35em; }
 .bucket-team-name {
   flex: 1;
   font-family: 'Oswald', sans-serif;
@@ -1095,6 +1104,18 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+  /* On mobile the frozen top-3 is a non-scrolling flex sibling */
+  #view-buckets.active .bucket-frozen {
+    position: static;
+    flex-shrink: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0.75em 1em 0;
+    box-sizing: border-box;
+    background: var(--bg);
+    border-bottom: 0.07em solid var(--border);
   }
   #view-buckets.active .bucket-panel {
     flex: 1;

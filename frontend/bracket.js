@@ -111,23 +111,40 @@ function renderBucketView() {
     });
   }
 
+  var top3El = document.getElementById('bucketTop3');
+
   if (!allTeams.length) {
+    if (top3El) top3El.innerHTML = '';
     out.innerHTML = '<div class="bucket-empty">No teams in the bucket challenge yet.</div>';
     return;
   }
-  var html = '<div class="bucket-leaderboard">';
-  allTeams.forEach(function(team, i) {
-    var count     = parseInt(counts[team]) || 0;
-    var rank      = i + 1;
-    var rankClass = rank === 1 ? ' bucket-rank--1' : rank === 2 ? ' bucket-rank--2' : rank === 3 ? ' bucket-rank--3' : '';
-    html += '<div class="bucket-row">'
-      + '<span class="bucket-rank' + rankClass + '">' + rank + '</span>'
+
+  function makeRow(team, i) {
+    var count = parseInt(counts[team]) || 0;
+    var rank  = i + 1;
+    return '<div class="bucket-row">'
+      + '<span class="bucket-rank">' + rank + '</span>'
       + '<span class="bucket-team-name">' + esc(team) + '</span>'
       + '<span class="bucket-count">' + count + '</span>'
       + '</div>';
-  });
-  html += '</div>';
-  out.innerHTML = html;
+  }
+
+  var topTeams  = allTeams.slice(0, 3);
+  var restTeams = allTeams.slice(3);
+
+  if (top3El) {
+    top3El.innerHTML = '<div class="bucket-leaderboard bucket-leaderboard--top3">'
+      + topTeams.map(function(t, i) { return makeRow(t, i); }).join('')
+      + '</div>';
+  }
+
+  if (restTeams.length) {
+    out.innerHTML = '<div class="bucket-leaderboard">'
+      + restTeams.map(function(t, i) { return makeRow(t, i + 3); }).join('')
+      + '</div>';
+  } else {
+    out.innerHTML = '';
+  }
 }
 
 // ══════════════════════════════════════════════════════════
