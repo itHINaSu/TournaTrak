@@ -9,6 +9,7 @@ const SCHEDULE_FILE = '/data/schedule.json';
 const SETTINGS_FILE = '/data/settings.json';
 const USERS_FILE    = '/data/users.json';
 const LINEUPS_FILE  = '/data/lineups.json';
+const BUCKETS_FILE  = '/data/buckets.json';
 
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
 
@@ -620,7 +621,6 @@ app.post('/api/lineups/game/:slotId/:teamName', requireLineupAccess, (req, res) 
 });
 
 // ── Bucket challenge endpoints ────────────────────────────────────────
-const BUCKETS_FILE = '/data/buckets.json';
 
 app.get('/api/buckets', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
