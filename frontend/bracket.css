@@ -402,6 +402,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .round-game-main { flex: 1; min-width: 0; }
 .round-lose-side {
   flex-shrink: 0;
+  max-width: 25%;
   border-left: 0.07em solid var(--border);
   display: flex;
   flex-direction: column;
