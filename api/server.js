@@ -211,6 +211,8 @@ app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
+const USERNAME_RE = /^[a-zA-Z0-9_-]{2,32}$/;
+
 app.post('/api/change-password', async (req, res) => {
   if (!req.session.username) {
     return res.status(401).json({ error: 'Authentication required' });
@@ -225,8 +227,13 @@ app.post('/api/change-password', async (req, res) => {
   }
   try {
     const hash = await bcrypt.hash(password, 12);
-    const updated = updateUser(req.session.username, { passwordHash: hash, mustChangePassword: false });
-    if (!updated) return res.status(404).json({ error: 'User not found' });
+    const users = readUsers();
+    const idx = users.findIndex(u => u.username === req.session.username);
+    if (idx === -1) return res.status(404).json({ error: 'User not found' });
+    users[idx].passwordHash = hash;
+    users[idx].mustChangePassword = false;
+    delete users[idx].setupToken;
+    writeUsers(users);
     req.session.mustChangePassword = false;
     res.json({ ok: true });
   } catch (err) {
@@ -235,9 +242,22 @@ app.post('/api/change-password', async (req, res) => {
   }
 });
 
-// ── User management (admin only) ──────────────────────────────────────
-const USERNAME_RE = /^[a-zA-Z0-9_-]{2,32}$/;
+app.post('/api/change-username', (req, res) => {
+  if (!req.session.username) return res.status(401).json({ error: 'Authentication required' });
+  if (req.session.role === 'team') return res.status(403).json({ error: 'Team users cannot change username' });
+  const { username } = req.body || {};
+  if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
+    return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
+  }
+  if (username === req.session.username) return res.json({ ok: true });
+  if (findUser(username)) return res.status(409).json({ error: 'Username already taken' });
+  const updated = updateUser(req.session.username, { username });
+  if (!updated) return res.status(404).json({ error: 'User not found' });
+  req.session.username = username;
+  res.json({ ok: true });
+});
 
+// ── User management (admin only) ──────────────────────────────────────
 app.get('/api/users', requireAdmin, (req, res) => {
   const users = readUsers().map(u => {
     const out = { username: u.username, role: u.role, mustChangePassword: !!u.mustChangePassword };
@@ -245,6 +265,8 @@ app.get('/api/users', requireAdmin, (req, res) => {
       out.teamName  = u.teamName;
       out.teams     = u.teams || (u.teamName ? [u.teamName] : []);
       out.accessToken = u.accessToken;
+    } else if (u.mustChangePassword && u.setupToken) {
+      out.setupToken = u.setupToken;
     }
     return out;
   });
@@ -252,7 +274,7 @@ app.get('/api/users', requireAdmin, (req, res) => {
 });
 
 app.post('/api/users', requireAdmin, async (req, res) => {
-  const { username, password, role, teamName } = req.body || {};
+  const { username, role, teamName } = req.body || {};
   if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
     return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
   }
@@ -274,16 +296,10 @@ app.post('/api/users', requireAdmin, async (req, res) => {
       writeUsers(users);
       return res.json({ ok: true, accessToken });
     } else {
-      if (typeof password !== 'string' || password.length < 8) {
-        return res.status(400).json({ error: 'Password must be at least 8 characters' });
-      }
-      if (Buffer.byteLength(password, 'utf8') > 72) {
-        return res.status(400).json({ error: 'Password too long (max 72 characters)' });
-      }
-      const passwordHash = await bcrypt.hash(password, 12);
-      users.push({ username, passwordHash, role, mustChangePassword: true });
+      const setupToken = crypto.randomBytes(32).toString('hex');
+      users.push({ username, role, mustChangePassword: true, setupToken });
       writeUsers(users);
-      return res.json({ ok: true });
+      return res.json({ ok: true, setupToken });
     }
   } catch (err) {
     console.error('add-user error:', err);
@@ -362,6 +378,20 @@ app.delete('/api/users/:username/teams/:teamName', requireAdmin, (req, res) => {
   if (teams.length === 0) return res.status(400).json({ error: 'Cannot remove the only team' });
   updateUser(username, { teams, teamName: teams[0] });
   res.json({ ok: true });
+});
+
+app.get('/api/setup-password/:token', (req, res) => {
+  const { token } = req.params;
+  if (!token || !/^[a-f0-9]{64}$/.test(token)) return res.redirect('/admin?setup=invalid');
+  const user = readUsers().find(u => u.setupToken === token && u.mustChangePassword);
+  if (!user) return res.redirect('/admin?setup=invalid');
+  req.session.regenerate(err => {
+    if (err) return res.redirect('/admin?setup=invalid');
+    req.session.username          = user.username;
+    req.session.role              = user.role;
+    req.session.mustChangePassword = true;
+    res.redirect('/admin?setup=1');
+  });
 });
 
 app.get('/api/team-access/:token', (req, res) => {

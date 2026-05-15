@@ -169,36 +169,41 @@
 
   <!-- ── LINEUPS TAB ── -->
   <div class="admin-tab-panel" id="tab-lineups">
-    <div class="admin-subtitle">View and edit team lineups. Select a team to load their current lineup.</div>
-    <div class="sched-action-row sched-action-row--top">
-      <div style="display:flex;align-items:center;gap:0.6em;flex-wrap:wrap">
-        <label style="font-family:Oswald,sans-serif;font-size:0.78rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--blue-lt);font-weight:600;flex-shrink:0">Team</label>
-        <select class="styled" id="lineupTeamSelect" style="flex:1;min-width:10em;max-width:18em" onchange="onAdminTeamChange()">
-          <option value="">— select team —</option>
-        </select>
-        <label id="lineupGameLabel" style="display:none;font-family:Oswald,sans-serif;font-size:0.78rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--blue-lt);font-weight:600;flex-shrink:0">Game</label>
-        <select class="styled" id="lineupGameSelect" style="display:none;flex:1;min-width:10em;max-width:20em" onchange="loadAdminLineup()">
-          <option value="">— select game —</option>
-        </select>
+    <div class="lineup-wrap">
+      <div class="lineup-selectors-row">
+        <div class="lineup-game-info lineup-sel-half">
+          <select id="lineupTeamSelect" class="lineup-game-sel" onchange="onAdminTeamChange()">
+            <option value="">— select team —</option>
+          </select>
+        </div>
+        <div class="lineup-game-info lineup-sel-half">
+          <span class="lineup-game-sel-placeholder" id="lineupGamePlaceholder">Select a team first</span>
+          <select id="lineupGameSelect" class="lineup-game-sel" style="display:none" onchange="loadAdminLineup()">
+          </select>
+        </div>
       </div>
-      <button class="sched-save-btn" onclick="saveAdminLineup()">Save Lineup</button>
-      <span class="sched-status" id="adminLineupStatus"></span>
+      <div id="adminLineupLocked" style="display:none" class="lineup-readonly-badge">View Only — Game Complete</div>
+      <div id="adminLineupWrap" style="display:none">
+        <div class="lineup-form-wrap">
+          <table class="lineup-table">
+            <thead>
+              <tr>
+                <th class="lineup-th lineup-th--order"></th>
+                <th class="lineup-th lineup-th--num">#</th>
+                <th class="lineup-th lineup-th--name">Player Name</th>
+                <th class="lineup-th lineup-th--pos">Position</th>
+              </tr>
+            </thead>
+            <tbody id="adminLineupBody"></tbody>
+          </table>
+          <div class="lineup-actions">
+            <button class="lineup-submit-btn" id="adminLineupSaveBtn" onclick="saveAdminLineup()">Save Lineup</button>
+            <span class="lineup-status" id="adminLineupStatus"></span>
+          </div>
+        </div>
+      </div>
+      <div id="adminLineupEmpty" class="lineup-no-game">Select a team above to view their lineup.</div>
     </div>
-  <div id="adminLineupLocked" style="display:none" class="admin-subtitle" style="padding:0.4em 0;color:var(--text-mute)">Game complete — lineup locked for coaches.</div>
-    <div id="adminLineupWrap" style="display:none">
-      <table class="lineup-table" style="margin-top:0.5em">
-        <thead>
-          <tr>
-            <th class="lineup-th lineup-th--order"></th>
-            <th class="lineup-th lineup-th--num">#</th>
-            <th class="lineup-th lineup-th--name">Player Name</th>
-            <th class="lineup-th lineup-th--pos">Position</th>
-          </tr>
-        </thead>
-        <tbody id="adminLineupBody"></tbody>
-      </table>
-    </div>
-    <div id="adminLineupEmpty" class="admin-subtitle" style="padding:1em 0">Select a team above to view their lineup.</div>
   </div>
 
   <!-- ── SETTINGS TAB ── -->
@@ -275,6 +280,17 @@
             </div>
           </div>
           <div class="settings-section">
+            <div class="settings-section-hdr">Change Username</div>
+            <div class="settings-field">
+              <label>New Username</label>
+              <input type="text" id="setNewUsername" autocomplete="off" placeholder="2–32 characters">
+            </div>
+            <div class="settings-save-row">
+              <button class="sched-save-btn" onclick="saveUsername()">Change Username</button>
+              <span class="sched-status" id="usernameStatus"></span>
+            </div>
+          </div>
+          <div class="settings-section">
             <div class="settings-section-hdr">Change Password</div>
             <div class="settings-field">
               <label>New Password</label>
@@ -306,7 +322,7 @@
             </div>
             <div class="settings-field">
               <label>Role</label>
-              <select id="newUserRole" class="admin-winner-sel" style="width:100%;padding:0.5em 0.62em">
+              <select id="newUserRole" class="admin-winner-sel" style="width:100%;padding:0.5em 0.62em" onchange="onNewUserRoleChange()">
                 <option value="results">Results — enter results only</option>
                 <option value="admin">Admin — full access</option>
                 <option value="team">Team — lineup submission</option>
@@ -315,10 +331,6 @@
             <div class="settings-field" id="newTeamNameField" style="display:none">
               <label>Team Name <span class="field-label-hint">(shown on the lineup page)</span></label>
               <input type="text" id="newTeamName" autocomplete="off" placeholder="e.g. Eagles">
-            </div>
-            <div class="settings-field" id="newUserPassField">
-              <label>Initial Password <span class="field-label-hint">(user must change on first login)</span></label>
-              <input type="password" id="newUserPass" autocomplete="new-password" placeholder="At least 8 characters">
             </div>
             <div class="settings-save-row">
               <button class="sched-save-btn" onclick="addUser()">Add User</button>

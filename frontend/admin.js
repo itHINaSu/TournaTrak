@@ -46,8 +46,17 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
       var anyActive = document.querySelector('.settings-panel.active');
       if (!anyActive) showSettingsSection(defaultSection);
-      // On mobile, open sidebar immediately when entering settings
-      if (window.innerWidth < 1024) openSettingsSidebar();
+      if (window.innerWidth < 1024) {
+        var visibleNavItems = Array.prototype.filter.call(
+          document.querySelectorAll('.settings-nav-item'),
+          function(n) { return n.style.display !== 'none'; }
+        );
+        if (visibleNavItems.length === 1) {
+          showSettingsSection(visibleNavItems[0].dataset.section);
+        } else {
+          openSettingsSidebar();
+        }
+      }
     }
   });
 });
@@ -109,15 +118,16 @@ function lineupPosOptions(selected) {
   }).join('');
 }
 
-function buildAdminLineupRows(rows) {
+function buildAdminLineupRows(rows, readOnly) {
   var html = '';
+  var dis  = readOnly ? ' disabled' : '';
   for (var i = 0; i < 20; i++) {
     var r = (rows && rows[i]) ? rows[i] : {};
     html += '<tr class="lineup-row">'
       + '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>'
-      + '<td class="lineup-td-num"><input type="text" class="lineup-inp lineup-inp--num" id="alj-' + i + '" maxlength="4" value="' + esc(r.jersey || '') + '" placeholder="#" inputmode="numeric"></td>'
-      + '<td class="lineup-td-name"><input type="text" class="lineup-inp lineup-inp--name" id="aln-' + i + '" maxlength="64" value="' + esc(r.name || '') + '" placeholder="Player name"></td>'
-      + '<td class="lineup-td-pos"><select class="lineup-sel" id="alp-' + i + '">' + lineupPosOptions(r.position) + '</select></td>'
+      + '<td class="lineup-td-num"><input type="text" class="lineup-inp lineup-inp--num" id="alj-' + i + '" maxlength="4" value="' + esc(r.jersey || '') + '" placeholder="#" inputmode="numeric"' + dis + '></td>'
+      + '<td class="lineup-td-name"><input type="text" class="lineup-inp lineup-inp--name" id="aln-' + i + '" maxlength="64" value="' + esc(r.name || '') + '" placeholder="Player name"' + dis + '></td>'
+      + '<td class="lineup-td-pos"><select class="lineup-sel" id="alp-' + i + '"' + dis + '>' + lineupPosOptions(r.position) + '</select></td>'
       + '</tr>';
   }
   return html;
@@ -142,21 +152,22 @@ function populateLineupTeamSelect() {
 }
 
 function onAdminTeamChange() {
-  var teamName = (document.getElementById('lineupTeamSelect') || {}).value || '';
-  var gameSel  = document.getElementById('lineupGameSelect');
-  var gameLbl  = document.getElementById('lineupGameLabel');
-  var wrap     = document.getElementById('adminLineupWrap');
-  var empty    = document.getElementById('adminLineupEmpty');
+  var teamName    = (document.getElementById('lineupTeamSelect') || {}).value || '';
+  var gameSel     = document.getElementById('lineupGameSelect');
+  var placeholder = document.getElementById('lineupGamePlaceholder');
+  var wrap        = document.getElementById('adminLineupWrap');
+  var empty       = document.getElementById('adminLineupEmpty');
+  var locked      = document.getElementById('adminLineupLocked');
 
   if (!teamName) {
-    if (gameSel) { gameSel.style.display = 'none'; gameSel.innerHTML = '<option value="">— select game —</option>'; }
-    if (gameLbl) gameLbl.style.display = 'none';
-    if (wrap)  wrap.style.display  = 'none';
-    if (empty) empty.style.display = '';
+    if (gameSel)     { gameSel.style.display = 'none'; gameSel.innerHTML = ''; }
+    if (placeholder) { placeholder.textContent = 'Select a team first'; placeholder.style.display = ''; }
+    if (wrap)    wrap.style.display    = 'none';
+    if (empty)   empty.style.display   = '';
+    if (locked)  locked.style.display  = 'none';
     return;
   }
 
-  // Collect all games for this team
   var roundOrd = { R1: 0, R2: 1, QF: 2, SF: 3, CHAMP: 4 };
   var teamGames = [];
   Object.keys(GAMES).forEach(function(slotId) {
@@ -173,20 +184,24 @@ function onAdminTeamChange() {
   });
 
   if (gameSel) {
-    gameSel.innerHTML = '<option value="">— select game —</option>'
-      + teamGames.map(function(tg) {
-          var r = results[tg.slotId];
-          var locked = (r && r.winner) ? ' ✓' : '';
-          return '<option value="' + esc(tg.slotId) + '">' + esc(tg.g.label || tg.slotId) + locked + '</option>';
-        }).join('');
-    gameSel.style.display = teamGames.length ? '' : 'none';
-    if (gameLbl) gameLbl.style.display = teamGames.length ? '' : 'none';
+    gameSel.innerHTML = teamGames.map(function(tg) {
+      var r = results[tg.slotId];
+      var done = (r && r.winner) ? ' ✓' : '';
+      return '<option value="' + esc(tg.slotId) + '">' + esc(tg.g.label || tg.slotId) + done + '</option>';
+    }).join('');
+    if (teamGames.length) {
+      gameSel.style.display = '';
+      if (placeholder) placeholder.style.display = 'none';
+    } else {
+      gameSel.style.display = 'none';
+      if (placeholder) { placeholder.textContent = 'No games scheduled'; placeholder.style.display = ''; }
+    }
   }
 
-  if (wrap)  wrap.style.display  = 'none';
-  if (empty) empty.style.display = '';
+  if (wrap)   wrap.style.display   = 'none';
+  if (empty)  empty.style.display  = '';
+  if (locked) locked.style.display = 'none';
 
-  // Auto-select next upcoming game
   var next = teamGames.find(function(tg) { return !(results[tg.slotId] && results[tg.slotId].winner); });
   if (next && gameSel) { gameSel.value = next.slotId; loadAdminLineup(); }
 }
@@ -205,18 +220,20 @@ async function loadAdminLineup() {
     return;
   }
 
-  var isLocked = results[slotId] && results[slotId].winner;
+  var isLocked = !!(results[slotId] && results[slotId].winner);
   if (locked) locked.style.display = isLocked ? '' : 'none';
+  var saveBtn = document.getElementById('adminLineupSaveBtn');
+  if (saveBtn) saveBtn.style.display = isLocked ? 'none' : '';
 
   try {
     var r = await apiFetch('/api/lineups/game/' + encodeURIComponent(slotId) + '/' + encodeURIComponent(teamName));
     if (!r) return;
     var data = r.ok ? await r.json() : { rows: [] };
-    document.getElementById('adminLineupBody').innerHTML = buildAdminLineupRows(data.rows || []);
+    document.getElementById('adminLineupBody').innerHTML = buildAdminLineupRows(data.rows || [], isLocked);
     if (wrap)  wrap.style.display  = '';
     if (empty) empty.style.display = 'none';
   } catch(e) {
-    document.getElementById('adminLineupBody').innerHTML = buildAdminLineupRows([]);
+    document.getElementById('adminLineupBody').innerHTML = buildAdminLineupRows([], false);
     if (wrap) wrap.style.display = '';
   }
 }
@@ -897,6 +914,36 @@ async function savePassword() {
   );
 }
 
+async function saveUsername() {
+  var username = (document.getElementById('setNewUsername').value || '').trim();
+  var statusEl = document.getElementById('usernameStatus');
+  statusEl.textContent = '';
+  statusEl.style.color = '';
+  if (!username) {
+    statusEl.textContent = '✗ Enter a username';
+    statusEl.style.color = 'var(--lose-color)';
+    return;
+  }
+  var r = await apiFetch('/api/change-username', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: username })
+  });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    statusEl.textContent = '✗ ' + (data.error || 'Failed');
+    statusEl.style.color = 'var(--lose-color)';
+    return;
+  }
+  var unEl = document.getElementById('accountUsername');
+  if (unEl) unEl.textContent = username;
+  document.getElementById('setNewUsername').value = '';
+  statusEl.textContent = '✓ Username updated';
+  setTimeout(function(){ statusEl.textContent = ''; }, 3000);
+  showToast('Username changed to ' + username);
+}
+
 async function checkSession() {
   try {
     var r    = await fetch('/api/session');
@@ -941,9 +988,10 @@ function renderUsersList(users) {
 
     var actions = '';
     if (u.role === 'team' && u.accessToken) {
-      var link = window.location.origin + '/api/team-access/' + u.accessToken;
       actions += '<button class="admin-clear-btn" onclick="copyMagicLink(\'' + esc(u.accessToken) + '\')">Copy Link</button>';
       actions += '<button class="admin-clear-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>';
+    } else if (u.setupToken) {
+      actions += '<button class="admin-clear-btn" onclick="copySetupLink(\'' + esc(u.setupToken) + '\')">Copy Setup Link</button>';
     } else if (!isSelf) {
       actions += '<button class="admin-clear-btn" onclick="openResetPwModal(\'' + esc(u.username) + '\')">Reset PW</button>';
     }
@@ -965,17 +1013,24 @@ function renderUsersList(users) {
   }).join('');
 }
 
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(function() { fallbackCopy(text); });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
 function copyMagicLink(token) {
   var link = window.location.origin + '/api/team-access/' + token;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(link).then(function() {
-      showToast('Link copied to clipboard');
-    }).catch(function() {
-      fallbackCopy(link);
-    });
-  } else {
-    fallbackCopy(link);
-  }
+  copyText(link);
+  showToast('Link copied to clipboard');
+}
+
+function copySetupLink(token) {
+  var link = window.location.origin + '/api/setup-password/' + token;
+  copyText(link);
+  showToast('Setup link copied to clipboard');
 }
 
 function fallbackCopy(text) {
@@ -1003,20 +1058,15 @@ async function regenerateToken(username) {
 }
 
 async function addUser() {
-  var username  = (document.getElementById('newUserUsername').value || '').trim();
-  var role      = document.getElementById('newUserRole').value;
-  var password  = document.getElementById('newUserPass').value;
-  var teamName  = (document.getElementById('newTeamName') ? document.getElementById('newTeamName').value : '').trim();
-  var status    = document.getElementById('addUserStatus');
+  var username = (document.getElementById('newUserUsername').value || '').trim();
+  var role     = document.getElementById('newUserRole').value;
+  var teamName = (document.getElementById('newTeamName') ? document.getElementById('newTeamName').value : '').trim();
+  var status   = document.getElementById('addUserStatus');
   status.textContent = '';
   status.style.color = '';
 
   var body = { username: username, role: role };
-  if (role === 'team') {
-    body.teamName = teamName;
-  } else {
-    body.password = password;
-  }
+  if (role === 'team') body.teamName = teamName;
 
   var r = await apiFetch('/api/users', {
     method: 'POST',
@@ -1031,19 +1081,28 @@ async function addUser() {
     return;
   }
   document.getElementById('newUserUsername').value = '';
-  document.getElementById('newUserPass').value = '';
   if (document.getElementById('newTeamName')) document.getElementById('newTeamName').value = '';
-  status.textContent = '✓ Added';
-  setTimeout(function(){ status.textContent = ''; }, 3000);
-  showToast('User ' + username + ' created');
+
+  if (data.setupToken) {
+    var setupLink = window.location.origin + '/api/setup-password/' + data.setupToken;
+    copyText(setupLink);
+    showToast('User created — setup link copied to clipboard');
+    status.textContent = '✓ Created — setup link copied';
+    setTimeout(function(){ status.textContent = ''; }, 5000);
+  } else if (data.accessToken) {
+    copyMagicLink(data.accessToken);
+    status.textContent = '✓ Created — magic link copied';
+    setTimeout(function(){ status.textContent = ''; }, 5000);
+  } else {
+    status.textContent = '✓ Added';
+    setTimeout(function(){ status.textContent = ''; }, 3000);
+  }
   loadUsers();
 }
 
 function onNewUserRoleChange() {
   var role = document.getElementById('newUserRole') ? document.getElementById('newUserRole').value : 'results';
-  var passField = document.getElementById('newUserPassField');
   var teamField = document.getElementById('newTeamNameField');
-  if (passField) passField.style.display = role === 'team' ? 'none' : '';
   if (teamField) teamField.style.display = role === 'team' ? '' : 'none';
 }
 
