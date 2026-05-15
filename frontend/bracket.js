@@ -1292,6 +1292,20 @@ function renderTeamView(){
 }
 
 // ══════════════════════════════════════════════════════════
+// iOS SAFARI VIEWPORT FIX
+// 100vh on iOS Safari includes the browser toolbar, causing the bottom
+// tab bar to be clipped. window.innerHeight gives the true usable height.
+// --app-h is consumed by the mobile CSS rules on html/body.
+// ══════════════════════════════════════════════════════════
+(function() {
+  function setAppH() {
+    document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
+  }
+  window.addEventListener('resize', setAppH);
+  setAppH();
+}());
+
+// ══════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════
 fetchAll();
