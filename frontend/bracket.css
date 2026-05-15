@@ -1091,7 +1091,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     position: static;
     top: auto;
     bottom: auto;
-    background: #0a0e0b;
+    background: var(--bg);
     border-top: 0.22em solid var(--gold);
     border-bottom: none;
     box-shadow: 0 -6px 24px rgba(0,0,0,0.55);

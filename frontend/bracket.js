@@ -34,9 +34,7 @@ function applySettings() {
 function updateTimestamp() {
   var bar  = document.getElementById('updateBar');
   var text = document.getElementById('updateBarText');
-  var legEl = document.getElementById('resultsTimestamp');
   var hasResults = Object.values(results).some(function(r){ return r && r.winner; });
-  if (legEl) legEl.style.display = 'none';
   if (!hasResults) {
     if (bar) bar.style.display = 'none';
     applyStickyOffsets();

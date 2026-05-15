@@ -141,3 +141,7 @@ body {
 .toast { position: fixed; bottom: 1.5em; left: 50%; transform: translateX(-50%) translateY(1.2em); background: var(--surface2); border: 0.07em solid var(--blue); border-radius: 0.4em; padding: 0.6em 1.2em; font-size: 0.84rem; color: var(--blue-lt); opacity: 0; transition: all 0.25s; pointer-events: none; z-index: 999; white-space: nowrap; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { border-color: var(--clear-color); color: var(--clear-color); }
+
+@media (max-width: 1023px) {
+  .toast { bottom: calc(6em + env(safe-area-inset-bottom, 0px)); }
+}

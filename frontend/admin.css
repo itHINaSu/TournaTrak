@@ -114,8 +114,7 @@
   gap: 0.45em;
   flex: 1;
 }
-.admin-res-day  { font-family: 'Oswald', sans-serif; font-size: clamp(1.1rem, 0.18vw + 1.05rem, 1.4rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
-.admin-res-time { font-family: 'Oswald', sans-serif; font-size: clamp(1.1rem, 0.18vw + 1.05rem, 1.4rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
+.admin-res-day, .admin-res-time { font-family: 'Oswald', sans-serif; font-size: clamp(1.1rem, 0.18vw + 1.05rem, 1.4rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
 
 .admin-res-team-row {
   display: flex;
@@ -687,6 +686,8 @@ input[type="time"]:focus {
     border-bottom: none;
     box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0.5em);
+    padding-right: env(safe-area-inset-right, 0.5em);
     margin-bottom: 0;
   }
   .admin-tab {
@@ -701,6 +702,7 @@ input[type="time"]:focus {
     align-items: center;
     justify-content: center;
     gap: 0.3em;
+    -webkit-tap-highlight-color: transparent;
   }
   .admin-tab .tab-icon {
     display: block;

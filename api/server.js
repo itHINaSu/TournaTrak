@@ -88,8 +88,8 @@ const ADMIN_USERNAME        = process.env.ADMIN_USERNAME        || 'admin';
 const ADMIN_PASSWORD_HASH   = process.env.ADMIN_PASSWORD_HASH   || '';
 const FORCE_PASSWORD_CHANGE = process.env.FORCE_PASSWORD_CHANGE === 'true';
 
-if (!SESSION_SECRET) {
-  console.error('Fatal: SESSION_SECRET environment variable is required');
+if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
+  console.error('Fatal: SESSION_SECRET must be at least 32 characters');
   process.exit(1);
 }
 if (!ADMIN_PASSWORD_HASH.startsWith('$2')) {
@@ -117,6 +117,28 @@ app.set('trust proxy', 1);
 
 // Body parsing — 10 kb is generous for every payload this app sends.
 app.use(express.json({ limit: '10kb' }));
+
+// In-memory login rate limiter: max 10 failures per IP per 15 minutes.
+const loginAttempts = new Map();
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_FAILS = 10;
+function loginRateLimit(req, res, next) {
+  const ip = req.ip;
+  const now = Date.now();
+  const entry = loginAttempts.get(ip) || { count: 0, windowStart: now };
+  if (now - entry.windowStart > LOGIN_WINDOW_MS) {
+    entry.count = 0;
+    entry.windowStart = now;
+  }
+  if (entry.count >= LOGIN_MAX_FAILS) {
+    const retryAfter = Math.ceil((entry.windowStart + LOGIN_WINDOW_MS - now) / 1000);
+    res.setHeader('Retry-After', retryAfter);
+    return res.status(429).json({ error: 'Too many login attempts. Try again later.' });
+  }
+  loginAttempts.set(ip, entry);
+  req._loginEntry = entry;
+  next();
+}
 
 // Sessions
 app.use(session({
@@ -181,7 +203,7 @@ app.get('/api/session', (req, res) => {
 // Sentinel hash used when user not found, to prevent timing attacks.
 const SENTINEL_HASH = '$2b$12$invalidhashsentinelXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', loginRateLimit, async (req, res) => {
   const { username, password } = req.body || {};
   if (typeof username !== 'string' || typeof password !== 'string') {
     return res.status(400).json({ error: 'username and password required' });
@@ -191,8 +213,10 @@ app.post('/api/login', async (req, res) => {
   const hashToCompare = user ? user.passwordHash : SENTINEL_HASH;
   const passwordOk = await bcrypt.compare(password, hashToCompare);
   if (!user || !passwordOk) {
+    if (req._loginEntry) req._loginEntry.count++;
     return res.status(401).json({ error: 'Invalid credentials' });
   }
+  if (req._loginEntry) req._loginEntry.count = 0;
   req.session.regenerate(err => {
     if (err) return res.status(500).json({ error: 'Session error' });
     req.session.username           = user.username;
@@ -449,14 +473,17 @@ app.get(['/lineup', '/lineup.html'], (req, res) => {
 
 // ── Public GET routes ─────────────────────────────────────────────────
 app.get('/api/results', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.json(readJSON(RESULTS_FILE));
 });
 
 app.get('/api/schedule', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
   res.json(readJSON(SCHEDULE_FILE));
 });
 
 app.get('/api/settings', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=300');
   res.json(Object.assign({}, SETTINGS_DEFAULTS, readJSON(SETTINGS_FILE)));
 });
 
@@ -541,6 +568,7 @@ app.get('/api/lineups/game/:slotId/:teamName', requireLineupRead, (req, res) => 
 app.post('/api/lineups/game/:slotId/:teamName', requireLineupAccess, (req, res) => {
   const { slotId, teamName } = req.params;
   if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
+  if (teamName.length > 100) return res.status(400).json({ error: 'teamName too long' });
   if (req.session.role === 'team') {
     const results = readJSON(RESULTS_FILE);
     if (results[slotId] && results[slotId].winner) {
@@ -566,6 +594,7 @@ app.post('/api/lineups/game/:slotId/:teamName', requireLineupAccess, (req, res) 
 const BUCKETS_FILE = '/data/buckets.json';
 
 app.get('/api/buckets', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.json(readJSON(BUCKETS_FILE));
 });
 
@@ -578,7 +607,7 @@ app.post('/api/buckets/counts', requireResults, (req, res) => {
   Object.entries(counts).forEach(([k, v]) => {
     if (typeof k === 'string' && k.trim()) {
       const n = parseInt(v, 10);
-      clean[k.trim()] = isNaN(n) ? 0 : Math.max(0, n);
+      clean[k.trim()] = isNaN(n) ? 0 : Math.min(9999, Math.max(0, n));
     }
   });
   const data = readJSON(BUCKETS_FILE);
