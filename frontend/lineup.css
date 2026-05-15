@@ -146,8 +146,8 @@
 }
 
 @media (max-width: 600px) {
-  .lineup-th--num { display: none; }
-  .lineup-td-num  { display: none; }
+  .lineup-td-num { width: 3.5em; }
+  .lineup-inp--num { padding: 0.4em 0.2em; }
 }
 
 /* ── Selector row: team + game side by side ── */

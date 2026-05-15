@@ -635,6 +635,8 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
    ════════════════════════════════════════════════════════════ */
 
 @media (max-width: 1023px) {
+  .update-bar { flex-shrink: 0; position: static; }
+
   .bracket-outer { display: none; }
 
   .bracket-side {
@@ -1054,7 +1056,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   /* Active panels fill remaining space between header and tab bar */
   .view-panel.active { flex: 1; min-height: 0; overflow: hidden; }
   /* Rounds and teams panels scroll their own content */
-  #view-rounds.active, #view-teams.active {
+  #view-rounds.active, #view-teams.active, #view-buckets.active {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;

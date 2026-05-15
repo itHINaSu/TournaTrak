@@ -366,7 +366,7 @@ function buildSideColumns(side){
   return rounds.map(function(round){
     var games=Object.keys(GAMES).filter(function(gid){
       return GAMES[gid].side===side&&GAMES[gid].round===round;
-    }).map(function(gid){ return {gid:gid,slot:GAMES[gid].num}; })
+    }).map(function(gid){ return {gid:gid,slot:parseSlotId(gid).num}; })
       .sort(function(a,b){ return a.slot-b.slot; });
     return {round:round,games:games};
   });

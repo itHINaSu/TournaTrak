@@ -418,7 +418,7 @@ input[type="time"]:focus {
     margin-bottom: 0;
     border-bottom: none;
     border-top: 0.22em solid var(--gold);
-    background: #0a0e0b;
+    background: var(--bg);
     box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
@@ -586,7 +586,7 @@ input[type="time"]:focus {
     left: 0;
     right: 0;
     z-index: 90;
-    background: #0a0e0b;
+    background: var(--bg);
     border-top: 0.22em solid var(--gold);
     border-bottom: none;
     box-shadow: 0 -6px 24px rgba(0,0,0,0.55);

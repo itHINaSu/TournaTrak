@@ -798,6 +798,7 @@ async function doLogin(e) {
       currentRole = data.role || null;
       currentTeamName = data.teamName || null;
       if (data.mustChangePassword) showChangePassword();
+      else if (data.role === 'team') { window.location.replace('/lineup'); return; }
       else showAdmin(data.username, data.role, data.teamName);
     } else {
       var data = await r.json().catch(function(){ return {}; });
