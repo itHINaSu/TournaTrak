@@ -155,6 +155,19 @@ async function fetchAll() {
   renderAdmin();
   renderScheduleEditor();
   populateSettingsFields();
+
+  // ?tab=X from lineup page tab links: activate that tab on load
+  var qTab = new URLSearchParams(window.location.search).get('tab');
+  if (qTab) {
+    var target = document.querySelector('.admin-tab[data-tab="' + qTab + '"]');
+    var panel  = document.getElementById('tab-' + qTab);
+    if (target && panel) {
+      document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
+      target.classList.add('active');
+      panel.classList.add('active');
+    }
+  }
 }
 
 function applySettingsToPage() {

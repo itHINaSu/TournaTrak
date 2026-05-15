@@ -223,8 +223,10 @@ async function fetchAll(){
   updateTimestamp();
   populateTeamSelect();
 
+  // ?view=X from lineup page tab links overrides saved cookie
+  var qView = new URLSearchParams(window.location.search).get('view');
   // Restore saved tab; on mobile default to By Round if no saved preference
-  var savedTab = getCookie('tt_tab');
+  var savedTab = qView || getCookie('tt_tab');
   if (!savedTab && window.innerWidth < 1024) savedTab = 'rounds';
   if (savedTab) {
     var targetTab   = document.querySelector('.view-tab[data-view="' + savedTab + '"]');

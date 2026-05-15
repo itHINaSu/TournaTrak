@@ -239,3 +239,89 @@
   color: var(--text-mute);
   padding: 1.5em 0;
 }
+
+/* ── Navigation tab bar (injected by JS, shown after session check) ── */
+.lineup-nav {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.lineup-nav-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  text-align: center;
+  padding: 0.85em 0.3em;
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(0.78rem, 1.5vw, 0.95rem);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-bottom: 0.18em solid transparent;
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.lineup-nav-tab:hover { color: var(--text); }
+.lineup-nav-tab.active { color: var(--blue-lt); border-bottom-color: var(--blue-lt); }
+.lineup-nav-tab .tab-icon { display: none; }
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE — locked flex column, nav at bottom
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  html { height: 100dvh; }
+  body { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
+  .site-header { flex-shrink: 0; }
+
+  /* Nav bar moves to the bottom via flex order */
+  .lineup-nav {
+    order: 10;
+    flex-shrink: 0;
+    background: var(--bg);
+    border-top: 0.22em solid var(--gold);
+    border-bottom: none;
+    box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0.5em);
+    padding-right: env(safe-area-inset-right, 0.5em);
+  }
+  .lineup-nav-tab {
+    flex-direction: column;
+    min-height: 0;
+    padding: 0.75em 0.3em 0.6em;
+    border-bottom: none;
+    border-top: 0.25em solid transparent;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    gap: 0.3em;
+  }
+  .lineup-nav-tab .tab-icon {
+    display: block;
+    width: 1.8em;
+    height: 1.8em;
+  }
+  .lineup-nav-tab.active {
+    color: var(--gold-lt);
+    border-bottom-color: transparent;
+    border-top-color: var(--gold);
+  }
+
+  /* Scrollable content fills remaining space between header and nav */
+  #lineupLoading,
+  #lineupInvalid { flex: 1; overflow-y: auto; }
+  #lineupContent {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+  }
+  #lineupContent::-webkit-scrollbar { display: none; }
+}
