@@ -1078,24 +1078,39 @@ function renderBucketAdmin() {
   var schedTeams = getScheduleTeams();
   var extraTeams = Array.isArray(buckets.bucketOnlyTeams) ? buckets.bucketOnlyTeams.slice() : [];
   var counts     = buckets.counts || {};
-  _bucketTeams   = schedTeams.map(function(t){ return { name: t, extra: false }; })
+  var savedOrder = Array.isArray(buckets.order) ? buckets.order : [];
+  var allTeamObjs = schedTeams.map(function(t){ return { name: t, extra: false }; })
     .concat(extraTeams.map(function(t){ return { name: t, extra: true }; }));
+  // Apply saved order: start with ordered known teams, append any not in order
+  if (savedOrder.length) {
+    var ordered = [];
+    savedOrder.forEach(function(name) {
+      var obj = allTeamObjs.find(function(t){ return t.name === name; });
+      if (obj) ordered.push(obj);
+    });
+    allTeamObjs.forEach(function(obj) {
+      if (savedOrder.indexOf(obj.name) === -1) ordered.push(obj);
+    });
+    _bucketTeams = ordered;
+  } else {
+    _bucketTeams = allTeamObjs;
+  }
 
   if (!_bucketTeams.length) {
     wrap.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No teams yet. Add schedule games or outside teams below.</div>';
     return;
   }
-  var prevExtra = false;
   var html = '<div class="bucket-admin-list">';
   _bucketTeams.forEach(function(team, i) {
-    if (team.extra && !prevExtra) {
-      html += '<div class="bucket-admin-divider">Outside Teams</div>';
-      prevExtra = true;
-    }
-    var val = (counts[team.name] !== undefined && counts[team.name] !== null) ? parseInt(counts[team.name]) : '';
-    html += '<div class="bucket-admin-row">'
+    var rawVal = (counts[team.name] !== undefined && counts[team.name] !== null) ? parseInt(counts[team.name]) : 0;
+    var val = isNaN(rawVal) ? 0 : rawVal;
+    html += '<div class="bucket-admin-row" data-idx="' + i + '">'
+      + '<span class="bucket-admin-move">'
+      + '<button class="bucket-move-btn" onclick="moveBucketTeam(' + i + ',-1)" title="Move up" ' + (i === 0 ? 'disabled' : '') + '>&#9650;</button>'
+      + '<button class="bucket-move-btn" onclick="moveBucketTeam(' + i + ',1)" title="Move down" ' + (i === _bucketTeams.length - 1 ? 'disabled' : '') + '>&#9660;</button>'
+      + '</span>'
       + '<span class="bucket-admin-name">' + esc(team.name) + '</span>'
-      + '<input type="number" class="bucket-admin-inp" id="bci-' + i + '" min="0" max="9999" placeholder="0" value="' + (isNaN(val) ? '' : val) + '">'
+      + '<input type="number" class="bucket-admin-inp" id="bci-' + i + '" min="0" max="9999" value="' + val + '">'
       + (team.extra ? '<button class="admin-clear-btn" onclick="deleteBucketTeam(' + i + ')">Remove</button>' : '')
       + '</div>';
   });
@@ -1103,17 +1118,40 @@ function renderBucketAdmin() {
   wrap.innerHTML = html;
 }
 
+function moveBucketTeam(idx, dir) {
+  var newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= _bucketTeams.length) return;
+  // Preserve current input values before re-render
+  _bucketTeams.forEach(function(team, i) {
+    var el = document.getElementById('bci-' + i);
+    if (el) { var v = parseInt(el.value, 10); team._tempCount = isNaN(v) ? 0 : v; }
+  });
+  var tmp = _bucketTeams[idx];
+  _bucketTeams[idx] = _bucketTeams[newIdx];
+  _bucketTeams[newIdx] = tmp;
+  var counts = {};
+  _bucketTeams.forEach(function(t) { if (t._tempCount !== undefined) counts[t.name] = t._tempCount; });
+  renderBucketAdmin();
+  // Restore temp counts into re-rendered inputs
+  _bucketTeams.forEach(function(team, i) {
+    var el = document.getElementById('bci-' + i);
+    if (el && counts[team.name] !== undefined) el.value = counts[team.name];
+  });
+}
+
 async function saveBucketCounts() {
   var counts = {};
+  var order  = [];
   _bucketTeams.forEach(function(team, i) {
     var el = document.getElementById('bci-' + i);
     var v  = el ? parseInt(el.value, 10) : 0;
     counts[team.name] = isNaN(v) ? 0 : Math.max(0, v);
+    order.push(team.name);
   });
   var status = document.getElementById('bucketSaveStatus');
   var r = await apiFetch('/api/buckets/counts', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ counts: counts })
+    body: JSON.stringify({ counts: counts, order: order })
   });
   if (!r) return;
   var data = await r.json().catch(function(){ return {}; });

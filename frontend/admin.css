@@ -23,6 +23,7 @@
   user-select: none;
 }
 .admin-tab.active { color: var(--blue-lt); border-bottom-color: var(--blue-lt); }
+.admin-tab .tab-icon { display: none; }
 .admin-tab-panel { display: none; }
 .admin-tab-panel.active { display: block; }
 
@@ -450,37 +451,43 @@ input[type="time"]:focus {
   .settings-mobile-bar { display: flex; }
   .settings-layout { display: block; }
 
-  /* Sidebar becomes a fixed left drawer on mobile */
+  /* Sidebar becomes a bottom-right popover on mobile */
   .settings-sidebar {
     position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: min(14em, 78vw);
+    bottom: calc(9em + env(safe-area-inset-bottom, 0px) + 0.5em);
+    right: 0.75em;
+    top: auto;
+    left: auto;
+    width: min(13em, 80vw);
     z-index: 199;
-    background: var(--bg);
-    border-right: 0.07em solid var(--border);
-    border-left: none;
+    background: var(--surface);
+    border: 0.07em solid var(--border);
+    border-radius: 0.5em;
     margin-right: 0;
-    padding: 4em 0 2em;
+    padding: 0.4em 0;
     overflow-y: auto;
-    transform: translateX(-110%);
-    transition: transform 0.22s ease;
-    box-shadow: none;
+    max-height: 60vh;
+    transform: scale(0.85) translateY(1em);
+    transform-origin: bottom right;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.55);
   }
   .settings-sidebar.open {
-    transform: translateX(0);
-    box-shadow: 6px 0 24px rgba(0,0,0,0.5);
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    pointer-events: auto;
   }
   .settings-nav-item {
-    border-left: 0.25em solid transparent;
+    border-left: none;
     border-radius: 0;
-    padding: 1em 1.1em;
+    padding: 0.9em 1.1em;
     font-size: 0.85rem;
     border-bottom: 0.07em solid var(--border);
   }
   .settings-nav-item:last-child { border-bottom: none; }
-  .settings-nav-item.active { border-left-color: var(--gold-lt); }
+  .settings-nav-item.active { color: var(--gold-lt); background: rgba(196,154,26,0.08); }
 }
 
 /* ── Coach link row ── */
@@ -577,6 +584,26 @@ input[type="time"]:focus {
   border-top: 0.07em solid var(--border);
   margin-top: 0.4em;
 }
+
+/* ── Bucket move buttons ── */
+.bucket-admin-move {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  flex-shrink: 0;
+}
+.bucket-move-btn {
+  background: none;
+  border: none;
+  color: var(--text-mute);
+  cursor: pointer;
+  padding: 0 0.2em;
+  font-size: 0.6rem;
+  line-height: 1;
+  opacity: 0.7;
+}
+.bucket-move-btn:hover:not(:disabled) { color: var(--text); opacity: 1; }
+.bucket-move-btn:disabled { opacity: 0.2; cursor: default; }
 
 /* ── Admin mobile bottom tabs (matches public page style) ── */
 @media (max-width: 1023px) {

@@ -66,9 +66,27 @@ function formatBucketTime(d) {
 }
 
 function renderBucketView() {
-  var out = document.getElementById('bucketOut');
+  var out    = document.getElementById('bucketOut');
+  var barEl  = document.getElementById('bucketStatusBar');
+  var textEl = document.getElementById('bucketStatusText');
   if (!out) return;
+
+  // Always update the status banner
+  var updatedAt = buckets && buckets.updatedAt;
+  var hasResults = updatedAt && Object.keys((buckets && buckets.counts) || {}).length > 0;
+  if (textEl) {
+    if (hasResults) {
+      var d = new Date(updatedAt);
+      textEl.textContent = isNaN(d.getTime())
+        ? 'Results updated'
+        : 'Last updated: ' + formatBucketTime(d);
+    } else {
+      textEl.textContent = 'No Results Posted';
+    }
+  }
+
   var counts     = (buckets && buckets.counts) ? buckets.counts : {};
+  var savedOrder = Array.isArray(buckets && buckets.order) ? buckets.order : [];
   var extraTeams = Array.isArray(buckets && buckets.bucketOnlyTeams) ? buckets.bucketOnlyTeams : [];
   var schedTeams = [];
   Object.values(GAMES).forEach(function(g) {
@@ -77,25 +95,27 @@ function renderBucketView() {
   });
   schedTeams = schedTeams.filter(function(t, i, a) { return a.indexOf(t) === i; });
   var allTeams = schedTeams.concat(extraTeams.filter(function(t) { return schedTeams.indexOf(t) === -1; }));
-  allTeams.sort(function(a, b) {
-    var ca = parseInt(counts[a]) || 0;
-    var cb = parseInt(counts[b]) || 0;
-    if (cb !== ca) return cb - ca;
-    return a.localeCompare(b);
-  });
+
+  // Apply saved admin order if present; otherwise sort by count desc
+  if (savedOrder.length) {
+    var ordered = [];
+    savedOrder.forEach(function(name) { if (allTeams.indexOf(name) !== -1) ordered.push(name); });
+    allTeams.forEach(function(t) { if (savedOrder.indexOf(t) === -1) ordered.push(t); });
+    allTeams = ordered;
+  } else {
+    allTeams.sort(function(a, b) {
+      var ca = parseInt(counts[a]) || 0;
+      var cb = parseInt(counts[b]) || 0;
+      if (cb !== ca) return cb - ca;
+      return a.localeCompare(b);
+    });
+  }
+
   if (!allTeams.length) {
     out.innerHTML = '<div class="bucket-empty">No teams in the bucket challenge yet.</div>';
     return;
   }
-  var updatedAt = buckets && buckets.updatedAt;
-  var html = '';
-  if (updatedAt) {
-    var d = new Date(updatedAt);
-    if (!isNaN(d.getTime())) {
-      html += '<div class="bucket-updated">Last updated: ' + esc(formatBucketTime(d)) + '</div>';
-    }
-  }
-  html += '<div class="bucket-leaderboard">';
+  var html = '<div class="bucket-leaderboard">';
   allTeams.forEach(function(team, i) {
     var count     = parseInt(counts[team]) || 0;
     var rank      = i + 1;
