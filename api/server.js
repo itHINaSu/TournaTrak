@@ -2,6 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const bcrypt  = require('bcryptjs');
 const fs      = require('fs');
+const crypto  = require('crypto');
 
 const RESULTS_FILE  = '/data/results.json';
 const SCHEDULE_FILE = '/data/schedule.json';
@@ -19,8 +20,7 @@ const SETTINGS_DEFAULTS = {
   rightLabel:     'Right Bracket',
 };
 
-// Valid roles. 'team' is reserved for a future lineup feature but not yet active.
-const VALID_ROLES = ['admin', 'results'];
+const VALID_ROLES = ['admin', 'results', 'team'];
 
 function readJSON(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
@@ -153,8 +153,9 @@ app.get('/api/session', (req, res) => {
   res.json({
     authenticated:      !!req.session.username,
     mustChangePassword: !!req.session.mustChangePassword,
-    username:           req.session.username || null,
-    role:               req.session.role     || null,
+    username:           req.session.username  || null,
+    role:               req.session.role      || null,
+    teamName:           req.session.teamName  || null,
   });
 });
 
@@ -219,35 +220,47 @@ app.post('/api/change-password', async (req, res) => {
 const USERNAME_RE = /^[a-zA-Z0-9_-]{2,32}$/;
 
 app.get('/api/users', requireAdmin, (req, res) => {
-  const users = readUsers().map(({ username, role, mustChangePassword }) => ({
-    username, role, mustChangePassword: !!mustChangePassword,
-  }));
+  const users = readUsers().map(u => {
+    const out = { username: u.username, role: u.role, mustChangePassword: !!u.mustChangePassword };
+    if (u.role === 'team') { out.teamName = u.teamName; out.accessToken = u.accessToken; }
+    return out;
+  });
   res.json(users);
 });
 
 app.post('/api/users', requireAdmin, async (req, res) => {
-  const { username, password, role } = req.body || {};
+  const { username, password, role, teamName } = req.body || {};
   if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
     return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
   }
   if (!VALID_ROLES.includes(role)) {
     return res.status(400).json({ error: 'Invalid role. Must be one of: ' + VALID_ROLES.join(', ') });
   }
-  if (typeof password !== 'string' || password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters' });
-  }
-  if (Buffer.byteLength(password, 'utf8') > 72) {
-    return res.status(400).json({ error: 'Password too long (max 72 characters)' });
-  }
   if (findUser(username)) {
     return res.status(409).json({ error: 'Username already exists' });
   }
   try {
-    const passwordHash = await bcrypt.hash(password, 12);
     const users = readUsers();
-    users.push({ username, passwordHash, role, mustChangePassword: true });
-    writeUsers(users);
-    res.json({ ok: true });
+    if (role === 'team') {
+      if (!teamName || typeof teamName !== 'string' || !teamName.trim()) {
+        return res.status(400).json({ error: 'Team name is required for team users' });
+      }
+      const accessToken = crypto.randomBytes(32).toString('hex');
+      users.push({ username, role: 'team', teamName: teamName.trim(), accessToken, mustChangePassword: false });
+      writeUsers(users);
+      return res.json({ ok: true, accessToken });
+    } else {
+      if (typeof password !== 'string' || password.length < 8) {
+        return res.status(400).json({ error: 'Password must be at least 8 characters' });
+      }
+      if (Buffer.byteLength(password, 'utf8') > 72) {
+        return res.status(400).json({ error: 'Password too long (max 72 characters)' });
+      }
+      const passwordHash = await bcrypt.hash(password, 12);
+      users.push({ username, passwordHash, role, mustChangePassword: true });
+      writeUsers(users);
+      return res.json({ ok: true });
+    }
   } catch (err) {
     console.error('add-user error:', err);
     res.status(500).json({ error: 'Failed to create user' });
@@ -289,6 +302,34 @@ app.post('/api/users/:username/reset-password', requireAdmin, async (req, res) =
   }
 });
 
+app.post('/api/users/:username/regenerate-token', requireAdmin, (req, res) => {
+  const { username } = req.params;
+  const user = findUser(username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role !== 'team') return res.status(400).json({ error: 'Only team users have access tokens' });
+  const accessToken = crypto.randomBytes(32).toString('hex');
+  updateUser(username, { accessToken });
+  res.json({ ok: true, accessToken });
+});
+
+app.get('/api/team-access/:token', (req, res) => {
+  const { token } = req.params;
+  if (!token || !/^[a-f0-9]{64}$/.test(token)) {
+    return res.redirect('/lineup?invalid=1');
+  }
+  const user = readUsers().find(u => u.role === 'team' && u.accessToken === token);
+  if (!user) {
+    return res.redirect('/lineup?invalid=1');
+  }
+  req.session.regenerate(err => {
+    if (err) return res.redirect('/lineup?invalid=1');
+    req.session.username = user.username;
+    req.session.role     = user.role;
+    req.session.teamName = user.teamName;
+    res.redirect('/lineup');
+  });
+});
+
 // ── Root HTML — inject dynamic title + Open Graph tags ───────────────
 // Social platforms scrape raw HTML and don't run JS, so <title> and og:title
 // must be present in the server response rather than set by client-side JS.
@@ -311,6 +352,14 @@ app.get(['/', '/index.html'], (req, res) => {
     res.send(html);
   } catch (err) {
     console.error('Error serving index:', err);
+    res.status(500).send('Server error');
+  }
+});
+
+app.get(['/lineup', '/lineup.html'], (req, res) => {
+  try {
+    res.sendFile('/frontend/lineup.html');
+  } catch (err) {
     res.status(500).send('Server error');
   }
 });

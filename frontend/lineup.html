@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Team Lineup</title>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="lineup.css">
+</head>
+<body>
+
+<header class="site-header" id="siteHeader">
+  <div class="header-name-block">
+    <h1 id="siteName">Team Lineup</h1>
+  </div>
+  <div class="header-controls">
+    <button class="theme-toggle" id="themeToggle">☀ Light</button>
+  </div>
+</header>
+
+<div id="lineupInvalid" style="display:none" class="lineup-state">
+  <div class="lineup-state-icon">🔗</div>
+  <div class="lineup-state-title">Link Invalid or Expired</div>
+  <div class="lineup-state-body">This access link is no longer valid. Contact your tournament administrator for a new link.</div>
+</div>
+
+<div id="lineupLoading" class="lineup-state">
+  <div class="lineup-state-body">Loading…</div>
+</div>
+
+<div id="lineupContent" style="display:none" class="lineup-wrap">
+  <div class="lineup-team-header">
+    <div class="lineup-team-label">Team</div>
+    <div id="lineupTeamName" class="lineup-team-name"></div>
+  </div>
+  <div class="lineup-placeholder">
+    <div class="lineup-placeholder-icon">📋</div>
+    <div class="lineup-placeholder-title">Lineup Submission</div>
+    <div class="lineup-placeholder-body">Lineup entry will be available here once configured by your tournament administrator.</div>
+  </div>
+</div>
+
+<script src="lineup.js"></script>
+</body>
+</html>

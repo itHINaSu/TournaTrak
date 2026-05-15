@@ -1,0 +1,74 @@
+/* lineup.css — team lineup page */
+
+.lineup-state {
+  max-width: 36em;
+  margin: 4em auto;
+  padding: 2em 1.5em;
+  text-align: center;
+}
+.lineup-state-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5em;
+}
+.lineup-state-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.5em;
+}
+.lineup-state-body {
+  font-size: 0.9rem;
+  color: var(--text-mute);
+  line-height: 1.6;
+}
+
+.lineup-wrap {
+  max-width: 52em;
+  margin: 0 auto;
+  padding: 1.5em 1em 3em;
+}
+.lineup-team-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  margin-bottom: 1.5em;
+  padding-bottom: 0.75em;
+  border-bottom: 0.07em solid var(--border);
+}
+.lineup-team-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+.lineup-team-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--gold-lt);
+  letter-spacing: 0.05em;
+}
+
+.lineup-placeholder {
+  text-align: center;
+  padding: 3em 1em;
+  border: 0.07em dashed var(--border);
+  border-radius: 0.6em;
+  background: var(--surface);
+}
+.lineup-placeholder-icon { font-size: 2rem; margin-bottom: 0.5em; }
+.lineup-placeholder-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.4em;
+}
+.lineup-placeholder-body { font-size: 0.85rem; color: var(--text-mute); line-height: 1.6; }

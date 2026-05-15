@@ -523,6 +523,12 @@ function showAdmin(username, role) {
   var unEl = document.getElementById('accountUsername');
   if (unEl) unEl.textContent = username || 'admin';
   applyRoleRestrictions(currentRole);
+  var roleEl = document.getElementById('newUserRole');
+  if (roleEl) {
+    roleEl.removeEventListener('change', onNewUserRoleChange);
+    roleEl.addEventListener('change', onNewUserRoleChange);
+    onNewUserRoleChange();
+  }
   if (currentRole === 'admin') loadUsers();
   fetchAll();
 }
@@ -681,31 +687,94 @@ function renderUsersList(users) {
   }
   el.innerHTML = users.map(function(u) {
     var isSelf = u.username === me;
-    var roleLabel = { admin: 'Admin', results: 'Results' }[u.role] || u.role;
+    var roleLabel = { admin: 'Admin', results: 'Results', team: 'Team' }[u.role] || u.role;
+    var teamLine = u.role === 'team' && u.teamName
+      ? '<span class="user-team-name">' + esc(u.teamName) + '</span>' : '';
+    var statusLine = u.mustChangePassword ? '<span class="user-must-change">pw change pending</span>' : '';
+
+    var actions = '';
+    if (u.role === 'team' && u.accessToken) {
+      var link = window.location.origin + '/api/team-access/' + u.accessToken;
+      actions += '<button class="admin-clear-btn" onclick="copyMagicLink(\'' + esc(u.accessToken) + '\')">Copy Link</button>';
+      actions += '<button class="admin-clear-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>';
+    } else if (!isSelf) {
+      actions += '<button class="admin-clear-btn" onclick="openResetPwModal(\'' + esc(u.username) + '\')">Reset PW</button>';
+    }
+    if (!isSelf) {
+      actions += '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + esc(u.username) + '\')">Delete</button>';
+    } else {
+      actions += '<span class="user-self-label">(you)</span>';
+    }
+
     return '<div class="user-row">'
-      + '<span class="user-name">' + esc(u.username) + '</span>'
+      + '<div class="user-info">'
+      +   '<span class="user-name">' + esc(u.username) + '</span>'
+      +   teamLine
+      + '</div>'
       + '<span class="user-role user-role--' + esc(u.role) + '">' + esc(roleLabel) + '</span>'
-      + (u.mustChangePassword ? '<span class="user-must-change">pw change pending</span>' : '')
-      + '<div class="user-actions">'
-      + (isSelf
-          ? '<span class="user-self-label">(you)</span>'
-          : '<button class="admin-clear-btn" onclick="openResetPwModal(\'' + esc(u.username) + '\')">Reset PW</button>'
-            + '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + esc(u.username) + '\')">Delete</button>')
-      + '</div></div>';
+      + statusLine
+      + '<div class="user-actions">' + actions + '</div>'
+      + '</div>';
   }).join('');
 }
 
+function copyMagicLink(token) {
+  var link = window.location.origin + '/api/team-access/' + token;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(function() {
+      showToast('Link copied to clipboard');
+    }).catch(function() {
+      fallbackCopy(link);
+    });
+  } else {
+    fallbackCopy(link);
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); showToast('Link copied'); }
+  catch(e) { showToast('Copy failed — link in console', true); console.log(text); }
+  document.body.removeChild(ta);
+}
+
+async function regenerateToken(username) {
+  if (!confirm('Regenerate access link for "' + username + '"?\nThe old link will stop working immediately.')) return;
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/regenerate-token', { method: 'POST' });
+  if (!r) return;
+  if (!r.ok) {
+    var data = await r.json().catch(function(){ return {}; });
+    showToast(data.error || 'Regenerate failed', true);
+    return;
+  }
+  showToast('New link generated for ' + username);
+  loadUsers();
+}
+
 async function addUser() {
-  var username = (document.getElementById('newUserUsername').value || '').trim();
-  var role     = document.getElementById('newUserRole').value;
-  var password = document.getElementById('newUserPass').value;
-  var status   = document.getElementById('addUserStatus');
+  var username  = (document.getElementById('newUserUsername').value || '').trim();
+  var role      = document.getElementById('newUserRole').value;
+  var password  = document.getElementById('newUserPass').value;
+  var teamName  = (document.getElementById('newTeamName') ? document.getElementById('newTeamName').value : '').trim();
+  var status    = document.getElementById('addUserStatus');
   status.textContent = '';
   status.style.color = '';
+
+  var body = { username: username, role: role };
+  if (role === 'team') {
+    body.teamName = teamName;
+  } else {
+    body.password = password;
+  }
+
   var r = await apiFetch('/api/users', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: username, password: password, role: role })
+    body: JSON.stringify(body)
   });
   if (!r) return;
   var data = await r.json().catch(function(){ return {}; });
@@ -716,10 +785,19 @@ async function addUser() {
   }
   document.getElementById('newUserUsername').value = '';
   document.getElementById('newUserPass').value = '';
+  if (document.getElementById('newTeamName')) document.getElementById('newTeamName').value = '';
   status.textContent = '✓ Added';
   setTimeout(function(){ status.textContent = ''; }, 3000);
   showToast('User ' + username + ' created');
   loadUsers();
+}
+
+function onNewUserRoleChange() {
+  var role = document.getElementById('newUserRole') ? document.getElementById('newUserRole').value : 'results';
+  var passField = document.getElementById('newUserPassField');
+  var teamField = document.getElementById('newTeamNameField');
+  if (passField) passField.style.display = role === 'team' ? 'none' : '';
+  if (teamField) teamField.style.display = role === 'team' ? '' : 'none';
 }
 
 async function deleteUser(username) {

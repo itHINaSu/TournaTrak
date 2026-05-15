@@ -190,9 +190,14 @@
         <select id="newUserRole" class="admin-winner-sel" style="width:100%;padding:0.5em 0.62em">
           <option value="results">Results — enter results only</option>
           <option value="admin">Admin — full access</option>
+          <option value="team">Team — lineup submission</option>
         </select>
       </div>
-      <div class="settings-field">
+      <div class="settings-field" id="newTeamNameField" style="display:none">
+        <label>Team Name <span class="field-label-hint">(shown on the lineup page)</span></label>
+        <input type="text" id="newTeamName" autocomplete="off" placeholder="e.g. Eagles">
+      </div>
+      <div class="settings-field" id="newUserPassField">
         <label>Initial Password <span class="field-label-hint">(user must change on first login)</span></label>
         <input type="password" id="newUserPass" autocomplete="new-password" placeholder="At least 8 characters">
       </div>
