@@ -1262,9 +1262,18 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
         + '<span class="round-win-tag">WON</span>'
         + '</div>';
     } else if (teamLost) {
-      loseSide = '<div class="round-lose-side">'
-        + '<span class="round-lose-tag">LOST</span>'
-        + '</div>';
+      var ln = findNextSlot(gid, 'loser');
+      if (ln) {
+        loseSide = '<div class="round-lose-side">'
+          + '<span class="round-lose-tag">Lost</span>'
+          + '<span class="round-lose-arrow round-lose-arrow--cont">↓</span>'
+          + '<span class="round-lose-dest">' + esc(gameLabel(ln)) + '</span>'
+          + '</div>';
+      } else {
+        loseSide = '<div class="round-lose-side">'
+          + '<span class="round-lose-tag">LOST</span>'
+          + '</div>';
+      }
     }
 
     html += '<div class="round-game-card" style="border-color:' + borderColor + '">'
