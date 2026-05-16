@@ -200,34 +200,46 @@ function buildNavBar(role) {
   var nav = document.getElementById('lineupNav');
   if (!nav) return;
 
-  var tabs;
-  if (role === 'admin') {
-    tabs = [
+  // Staff (admin/results) get the same admin tab bar as the portal.
+  // Coaches get the public page nav bar.
+  var isStaff = (role === 'admin' || role === 'results');
+
+  if (isStaff) {
+    // Measure header so sticky top works correctly
+    var hdr = document.getElementById('siteHeader');
+    if (hdr) document.documentElement.style.setProperty('--hdr-h', hdr.offsetHeight + 'px');
+
+    var tabs = [
       { label: 'Results',  icon: 'results',  href: '/admin?tab=results'  },
       { label: 'Lineups',  icon: 'lineups',  href: '/lineup', active: true },
-      { label: 'Schedule', icon: 'schedule', href: '/admin?tab=schedule' },
-      { label: 'Settings', icon: 'settings', href: '/admin?tab=settings' },
     ];
-  } else if (role === 'results') {
-    tabs = [
-      { label: 'Results',  icon: 'results',  href: '/admin?tab=results'  },
-      { label: 'Lineups',  icon: 'lineups',  href: '/lineup', active: true },
-    ];
+    if (role === 'admin') {
+      tabs.push({ label: 'Schedule', icon: 'schedule', href: '/admin?tab=schedule' });
+      tabs.push({ label: 'Settings', icon: 'settings', href: '/admin?tab=settings' });
+    }
+
+    nav.className = 'admin-tab-bar';
+    nav.innerHTML = tabs.map(function(t) {
+      var cls = 'admin-tab' + (t.active ? ' active' : '');
+      return '<a class="' + cls + '" href="' + t.href + '">'
+        + TAB_ICONS[t.icon]
+        + '<span class="tab-label">' + t.label + '</span></a>';
+    }).join('');
   } else {
-    tabs = [
+    var tabs = [
       { label: 'Bracket',   icon: 'bracket',  href: '/?view=bracket'  },
       { label: 'Schedule',  icon: 'rounds',   href: '/?view=rounds'   },
       { label: 'Team Path', icon: 'teams',    href: '/?view=teams'    },
       { label: 'Buckets',   icon: 'buckets',  href: '/?view=buckets'  },
     ];
-  }
 
-  nav.innerHTML = tabs.map(function(t) {
-    var cls = 'lineup-nav-tab' + (t.active ? ' active' : '');
-    return '<a class="' + cls + '" href="' + t.href + '">'
-      + TAB_ICONS[t.icon]
-      + '<span class="tab-label">' + t.label + '</span></a>';
-  }).join('');
+    nav.className = 'lineup-nav';
+    nav.innerHTML = tabs.map(function(t) {
+      return '<a class="lineup-nav-tab" href="' + t.href + '">'
+        + TAB_ICONS[t.icon]
+        + '<span class="tab-label">' + t.label + '</span></a>';
+    }).join('');
+  }
 
   nav.style.display = '';
 }
