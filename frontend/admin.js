@@ -1154,11 +1154,11 @@ function bucketDragStart(srcRow, e) {
   Object.assign(ghost.style, {
     position: 'fixed', left: rowRect.left + 'px', top: rowRect.top + 'px',
     width: rowRect.width + 'px', zIndex: '9999', pointerEvents: 'none',
-    opacity: '0.92', transform: 'rotate(1.5deg)',
+    opacity: '0.45', transform: 'rotate(1.5deg)',
     boxShadow: '0 8px 28px rgba(0,0,0,0.5)', transition: 'none'
   });
   document.body.appendChild(ghost);
-  srcRow.style.opacity = '0.25';
+  srcRow.style.opacity = '0.08';
 
   var lastInsertBeforeIdx = null;
 
