@@ -127,6 +127,26 @@ body {
 }
 .theme-toggle:hover { color: var(--text); }
 
+/* Cross-app toggle button (admin ↔ public) — shared by all pages */
+.admin-public-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.38em 0.88em;
+  border-radius: 0.2em;
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+}
+.admin-public-btn:hover { color: var(--text); border-color: var(--text-dim); }
+
 /* Results timestamp — end-justified in header name div */
 .header-timestamp {
   font-family: 'Barlow', sans-serif;

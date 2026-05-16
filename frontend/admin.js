@@ -80,10 +80,13 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
 });
 
 function syncResultsTabLabel() {
-  var tab   = document.querySelector('.admin-tab[data-tab="results"]');
+  var tab = document.querySelector('.admin-tab[data-tab="results"]');
   if (!tab) return;
   var label = tab.querySelector('.tab-label');
-  if (label) label.textContent = tab.classList.contains('active') ? 'Bucket' : 'Results';
+  if (label) {
+    var showBucket = tab.classList.contains('active') && _resultsMode === 'games';
+    label.textContent = showBucket ? 'Bucket' : 'Results';
+  }
 }
 
 // ── Settings sidebar ───────────────────────────────────────────────────
@@ -1027,6 +1030,7 @@ function setResultsMode(mode) {
   if (gBtn)   gBtn.classList.toggle('active', mode === 'games');
   if (bBtn)   bBtn.classList.toggle('active', mode === 'buckets');
   if (mode === 'buckets') renderBucketAdmin();
+  syncResultsTabLabel();
 }
 
 function getScheduleTeams() {

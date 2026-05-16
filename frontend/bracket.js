@@ -1332,4 +1332,10 @@ function renderTeamView(){
 // ══════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════
+(function() {
+  var btn = document.getElementById('adminPortalBtn');
+  if (btn && (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
+    btn.style.display = '';
+  }
+})();
 fetchAll();
