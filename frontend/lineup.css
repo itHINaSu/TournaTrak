@@ -289,7 +289,7 @@
     border-top: 0.22em solid var(--gold);
     border-bottom: none;
     box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
-    padding-bottom: max(1em, env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     padding-left: max(env(safe-area-inset-left, 0px), 1.2em);
     padding-right: max(env(safe-area-inset-right, 0px), 1.2em);
     /* Override sticky positioning from admin.css */
