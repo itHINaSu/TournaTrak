@@ -63,7 +63,11 @@ function toggleReorder() {
   isReorderMode   = !isReorderMode;
   reorderSelected = -1;
   var btn = document.getElementById('lineupReorderBtn');
-  if (btn) btn.textContent = isReorderMode ? 'Done' : 'Reorder';
+  if (btn) {
+    btn.textContent = isReorderMode ? 'Done' : 'Reorder';
+    btn.classList.toggle('lineup-tool-btn--reorder', !isReorderMode);
+    btn.classList.toggle('lineup-tool-btn--done',    isReorderMode);
+  }
   var rows = getCurrentRows();
   document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
 }
@@ -81,17 +85,20 @@ function tapRow(idx) {
     var rows = getCurrentRows();
     document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
   } else {
-    // Second tap on a different row: swap jersey + name only.
-    // Positions stay with their slots so a sub moving into a regular slot
-    // automatically inherits that slot's position, and vice-versa.
     var rows = getCurrentRows();
     var a = reorderSelected, b = idx;
+    var bothRegular = (a < 11 && b < 11);
     var tmpJersey    = rows[a].jersey;
     var tmpName      = rows[a].name;
+    var tmpPosition  = rows[a].position;
     rows[a].jersey   = rows[b].jersey;
     rows[a].name     = rows[b].name;
     rows[b].jersey   = tmpJersey;
     rows[b].name     = tmpName;
+    if (bothRegular) {
+      rows[a].position = rows[b].position;
+      rows[b].position = tmpPosition;
+    }
     reorderSelected  = -1;
     document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
   }
