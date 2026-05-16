@@ -90,6 +90,7 @@ function renderBucketView() {
   if (!out) return;
 
   var counts     = (buckets && buckets.counts) ? buckets.counts : {};
+  var hidden     = Array.isArray(buckets && buckets.hidden) ? buckets.hidden : [];
   var extraTeams = Array.isArray(buckets && buckets.bucketOnlyTeams) ? buckets.bucketOnlyTeams : [];
   var schedTeams = [];
   Object.values(GAMES).forEach(function(g) {
@@ -98,6 +99,8 @@ function renderBucketView() {
   });
   schedTeams = schedTeams.filter(function(t, i, a) { return a.indexOf(t) === i; });
   var allTeams = schedTeams.concat(extraTeams.filter(function(t) { return schedTeams.indexOf(t) === -1; }));
+  // Filter out admin-hidden teams
+  allTeams = allTeams.filter(function(t) { return hidden.indexOf(t) === -1; });
 
   // Always sort by count descending, then alphabetically as tiebreaker
   allTeams.sort(function(a, b) {

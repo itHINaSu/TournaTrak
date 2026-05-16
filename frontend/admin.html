@@ -130,6 +130,8 @@
     <div class="results-mode-bar">
       <button class="results-mode-btn active" id="modeGamesBtn" onclick="setResultsMode('games')">Games</button>
       <button class="results-mode-btn" id="modeBucketsBtn" onclick="setResultsMode('buckets')">Bucket Challenge</button>
+      <button class="sched-save-btn" id="bucketModeSaveBtn" style="display:none;margin-left:auto" onclick="saveBucketCounts()">Save</button>
+      <span class="sched-status" id="bucketModeSaveStatus" style="display:none"></span>
     </div>
     <div id="resultsGamesPanel">
       <div class="admin-subtitle">Select a winner for each completed game. Clear removes a result without confirmation.</div>

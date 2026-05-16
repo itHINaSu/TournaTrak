@@ -1021,14 +1021,18 @@ var _resultsMode = 'games';
 
 function setResultsMode(mode) {
   _resultsMode = mode;
-  var gPanel = document.getElementById('resultsGamesPanel');
-  var bPanel = document.getElementById('resultsBucketPanel');
-  var gBtn   = document.getElementById('modeGamesBtn');
-  var bBtn   = document.getElementById('modeBucketsBtn');
-  if (gPanel) gPanel.style.display = mode === 'games'   ? '' : 'none';
-  if (bPanel) bPanel.style.display = mode === 'buckets' ? '' : 'none';
-  if (gBtn)   gBtn.classList.toggle('active', mode === 'games');
-  if (bBtn)   bBtn.classList.toggle('active', mode === 'buckets');
+  var gPanel   = document.getElementById('resultsGamesPanel');
+  var bPanel   = document.getElementById('resultsBucketPanel');
+  var gBtn     = document.getElementById('modeGamesBtn');
+  var bBtn     = document.getElementById('modeBucketsBtn');
+  var saveBtn  = document.getElementById('bucketModeSaveBtn');
+  var saveStat = document.getElementById('bucketModeSaveStatus');
+  if (gPanel)   gPanel.style.display = mode === 'games'   ? '' : 'none';
+  if (bPanel)   bPanel.style.display = mode === 'buckets' ? '' : 'none';
+  if (gBtn)     gBtn.classList.toggle('active', mode === 'games');
+  if (bBtn)     bBtn.classList.toggle('active', mode === 'buckets');
+  if (saveBtn)  saveBtn.style.display  = mode === 'buckets' ? '' : 'none';
+  if (saveStat) saveStat.style.display = mode === 'buckets' ? '' : 'none';
   if (mode === 'buckets') renderBucketAdmin();
   syncResultsTabLabel();
 }
@@ -1051,10 +1055,10 @@ function renderBucketAdmin() {
   var schedTeams = getScheduleTeams();
   var extraTeams = Array.isArray(buckets.bucketOnlyTeams) ? buckets.bucketOnlyTeams.slice() : [];
   var counts     = buckets.counts || {};
-  var savedOrder = Array.isArray(buckets.order) ? buckets.order : [];
+  var savedOrder = Array.isArray(buckets.order)  ? buckets.order  : [];
+  var hidden     = Array.isArray(buckets.hidden) ? buckets.hidden : [];
   var allTeamObjs = schedTeams.map(function(t){ return { name: t, extra: false }; })
     .concat(extraTeams.map(function(t){ return { name: t, extra: true }; }));
-  // Apply saved order: start with ordered known teams, append any not in order
   if (savedOrder.length) {
     var ordered = [];
     savedOrder.forEach(function(name) {
@@ -1077,16 +1081,31 @@ function renderBucketAdmin() {
   _bucketTeams.forEach(function(team, i) {
     var rawVal = (counts[team.name] !== undefined && counts[team.name] !== null) ? parseInt(counts[team.name]) : 0;
     var val = isNaN(rawVal) ? 0 : rawVal;
-    html += '<div class="bucket-admin-row" data-idx="' + i + '">'
+    var isHidden = hidden.indexOf(team.name) !== -1;
+    var rowCls = 'bucket-admin-row' + (isHidden ? ' bucket-admin-row--hidden' : '');
+    var hideBtnCls = 'bucket-hide-btn' + (isHidden ? ' is-hidden' : '');
+    var hideLbl = isHidden ? 'Show' : 'Hide';
+    html += '<div class="' + rowCls + '" data-idx="' + i + '">'
       + '<span class="bucket-drag-handle" title="Drag to reorder"></span>'
       + '<span class="bucket-admin-name">' + esc(team.name) + '</span>'
       + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="bucket-admin-inp" id="bci-' + i + '" value="' + val + '">'
+      + '<button class="' + hideBtnCls + '" onclick="toggleBucketHidden(' + i + ')">' + hideLbl + '</button>'
       + (team.extra ? '<button class="admin-clear-btn" onclick="deleteBucketTeam(' + i + ')">Remove</button>' : '')
       + '</div>';
   });
   html += '</div>';
   wrap.innerHTML = html;
   initBucketDrag();
+}
+
+function toggleBucketHidden(idx) {
+  var team = _bucketTeams[idx];
+  if (!team) return;
+  if (!Array.isArray(buckets.hidden)) buckets.hidden = [];
+  var pos = buckets.hidden.indexOf(team.name);
+  if (pos === -1) buckets.hidden.push(team.name);
+  else            buckets.hidden.splice(pos, 1);
+  renderBucketAdmin();
 }
 
 function initBucketDrag() {
@@ -1141,6 +1160,7 @@ function bucketDragStart(srcRow, e) {
 
     if (lastTarget) {
       var targetIdx = parseInt(lastTarget.dataset.idx, 10);
+      // Capture edited counts before re-render
       _bucketTeams.forEach(function(team, i) {
         var el = document.getElementById('bci-' + i);
         if (el) { var v = parseInt(el.value, 10); team._tempCount = isNaN(v) ? 0 : v; }
@@ -1149,6 +1169,8 @@ function bucketDragStart(srcRow, e) {
       _bucketTeams.splice(targetIdx, 0, moved);
       var saved = {};
       _bucketTeams.forEach(function(t) { if (t._tempCount !== undefined) saved[t.name] = t._tempCount; });
+      // Persist new order into buckets so renderBucketAdmin() doesn't revert it
+      buckets.order = _bucketTeams.map(function(t) { return t.name; });
       renderBucketAdmin();
       _bucketTeams.forEach(function(team, i) {
         var el = document.getElementById('bci-' + i);
@@ -1170,25 +1192,33 @@ async function saveBucketCounts() {
     counts[team.name] = isNaN(v) ? 0 : Math.max(0, v);
     order.push(team.name);
   });
-  var status = document.getElementById('bucketSaveStatus');
+  var hidden = Array.isArray(buckets.hidden) ? buckets.hidden.slice() : [];
+  var statEls = [
+    document.getElementById('bucketSaveStatus'),
+    document.getElementById('bucketModeSaveStatus'),
+  ];
   var r = await apiFetch('/api/buckets/counts', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ counts: counts, order: order })
+    body: JSON.stringify({ counts: counts, order: order, hidden: hidden })
   });
   if (!r) return;
   var data = await r.json().catch(function(){ return {}; });
   if (!r.ok) {
     showToast(data.error || 'Save failed', true);
-    if (status) { status.textContent = '✗ Error'; status.style.color = 'var(--lose-color)'; }
+    statEls.forEach(function(s){ if (s) { s.textContent = '✗ Error'; s.style.color = 'var(--lose-color)'; } });
     return;
   }
   buckets.counts    = counts;
+  buckets.order     = order;
+  buckets.hidden    = hidden;
   buckets.updatedAt = new Date().toISOString();
   showToast('Bucket counts saved');
-  if (status) {
-    status.textContent = '✓ Saved'; status.style.color = '';
-    setTimeout(function(){ status.textContent = ''; }, 3000);
-  }
+  statEls.forEach(function(s) {
+    if (s) {
+      s.textContent = '✓ Saved'; s.style.color = '';
+      setTimeout(function(){ s.textContent = ''; }, 3000);
+    }
+  });
 }
 
 async function addBucketTeam() {

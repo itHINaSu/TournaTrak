@@ -628,7 +628,7 @@ app.get('/api/buckets', (req, res) => {
 });
 
 app.post('/api/buckets/counts', requireResults, (req, res) => {
-  const { counts, order } = req.body || {};
+  const { counts, order, hidden } = req.body || {};
   if (!counts || typeof counts !== 'object' || Array.isArray(counts)) {
     return res.status(400).json({ error: 'counts must be an object' });
   }
@@ -641,7 +641,8 @@ app.post('/api/buckets/counts', requireResults, (req, res) => {
   });
   const data = readJSON(BUCKETS_FILE);
   data.counts = clean;
-  if (Array.isArray(order)) data.order = order.map(String).filter(s => s.trim());
+  if (Array.isArray(order))  data.order  = order.map(String).filter(s => s.trim());
+  if (Array.isArray(hidden)) data.hidden = hidden.map(String).filter(s => s.trim());
   data.updatedAt = new Date().toISOString();
   writeJSON(BUCKETS_FILE, data);
   res.json({ ok: true });
