@@ -171,6 +171,7 @@ async function fetchAll() {
       panel.classList.add('active');
     }
   }
+  syncResultsTabLabel();
 }
 
 function applySettingsToPage() {
