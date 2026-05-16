@@ -1108,9 +1108,12 @@ function renderMobileBracket(root, dims) {
       // at approachProg=1 it sits at sharedScrollTop - _anchorLateOff (= newScroll).
       // This keeps the anchor card at a fixed screen position the whole way.
       _approachComp = _anchorLateOff * approachProg;
-    } else if (_approachIdx >= 0) {
-      // Snap settled at progress=0 — complete compensation so the timer's
-      // scrollTop adjustment lands on the same value already shown, no jump.
+    } else if (_approachIdx >= 0 && idx !== activeIdx) {
+      // Forward snap settled on a new column — complete compensation so the
+      // timer's scrollTop write lands on the same value already shown (no jump).
+      // Guard idx !== activeIdx so backward snaps (returning to same column)
+      // don't trigger this; their residual compensation is negligible and clears
+      // naturally on the next vertical scroll.
       _approachComp = _anchorLateOff;
     }
 
@@ -1120,9 +1123,10 @@ function renderMobileBracket(root, dims) {
     hSnapTimer = setTimeout(function() {
       _approachIdx  = -1;
       _approachComp = 0;
-      _anchorLateOff = 0;
+      // _anchorLateOff intentionally cleared AFTER setSpacerForCol so it can
+      // compute newScroll = sharedScrollTop - _anchorLateOff.
       if (idx !== activeIdx) { activeIdx = idx; setSpacerForCol(idx); }
-      else { syncAllColumns(); } // clear stale compensation when staying on same column
+      _anchorLateOff = 0;
     }, 200);
   }, { passive: true });
 
