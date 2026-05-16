@@ -71,25 +71,28 @@
 .lineup-tool-btn--cancel { color: var(--lose-color); border-color: var(--lose-color); }
 .lineup-tool-btn--cancel:hover { opacity: 0.8; }
 
-/* ── Reorder buttons inside order cell ── */
-.lineup-td-order--reorder {
-  padding: 0.2em 0.15em;
-  width: 2em;
-}
-.lineup-reorder-btn {
-  display: block;
-  width: 100%;
-  padding: 0.1em 0;
-  font-size: 0.65rem;
-  line-height: 1.3;
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
+/* ── Reorder tap-to-swap ── */
+.lineup-td-order--reorder { cursor: pointer; }
+.lineup-order--tap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 50%;
+  border: 0.1em solid var(--border);
+  font-size: 0.72rem;
   cursor: pointer;
-  border-radius: 0.2em;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
 }
-.lineup-reorder-btn:hover:not(:disabled) { color: var(--blue-lt); background: var(--surface2); }
-.lineup-reorder-btn:disabled { opacity: 0.2; cursor: default; }
+.lineup-row--reorder-hover .lineup-order--tap,
+.lineup-row:hover .lineup-order--tap { border-color: var(--blue-lt); color: var(--blue-lt); }
+.lineup-row--selected { background: color-mix(in srgb, var(--blue) 12%, transparent) !important; }
+.lineup-row--selected .lineup-order--tap {
+  background: var(--blue-lt);
+  border-color: var(--blue-lt);
+  color: #fff;
+}
 
 /* ── Import modal ── */
 .lineup-modal-overlay {

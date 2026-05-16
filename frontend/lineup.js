@@ -23,6 +23,7 @@ function posOptions(selected) {
 
 var lineupRowCount  = 11;
 var isReorderMode   = false;
+var reorderSelected = -1; // index of the tapped row waiting for a swap target
 
 function buildRows(rows, readOnly) {
   var html  = '';
@@ -31,18 +32,18 @@ function buildRows(rows, readOnly) {
   for (var i = 0; i < count; i++) {
     var r     = (rows && rows[i]) ? rows[i] : {};
     var isSub = i >= 11;
+    var rowCls = 'lineup-row' + (isSub ? ' lineup-row--sub' : '');
     var orderCell;
     if (isReorderMode) {
-      var upDis  = i === 0 ? ' disabled' : '';
-      var dnDis  = i === count - 1 ? ' disabled' : '';
-      orderCell = '<td class="lineup-td-order lineup-td-order--reorder">'
-        + '<button class="lineup-reorder-btn" onclick="moveRow(' + i + ',-1)"' + upDis + '>▲</button>'
-        + '<button class="lineup-reorder-btn" onclick="moveRow(' + i + ',1)"' + dnDis + '>▼</button>'
+      var isSelected = (i === reorderSelected);
+      rowCls += isSelected ? ' lineup-row--selected' : '';
+      orderCell = '<td class="lineup-td-order lineup-td-order--reorder" onclick="tapRow(' + i + ')">'
+        + '<span class="lineup-order lineup-order--tap">' + (i + 1) + '</span>'
         + '</td>';
     } else {
       orderCell = '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>';
     }
-    html += '<tr class="lineup-row' + (isSub ? ' lineup-row--sub' : '') + '">'
+    html += '<tr class="' + rowCls + '"' + (isReorderMode ? ' onclick="tapRow(' + i + ')"' : '') + '>'
       + orderCell
       + '<td class="lineup-td-num"><input type="text" class="lineup-inp lineup-inp--num" id="lj-' + i + '" maxlength="4" value="' + esc(r.jersey || '') + '" placeholder="#" inputmode="numeric"' + dis + '></td>'
       + '<td class="lineup-td-name"><input type="text" class="lineup-inp lineup-inp--name" id="ln-' + i + '" maxlength="64" value="' + esc(r.name || '') + '" placeholder="Player name"' + dis + '></td>'
@@ -59,23 +60,37 @@ function buildRows(rows, readOnly) {
 
 // ── Reorder ────────────────────────────────────────────────────────────
 function toggleReorder() {
-  isReorderMode = !isReorderMode;
+  isReorderMode   = !isReorderMode;
+  reorderSelected = -1;
   var btn = document.getElementById('lineupReorderBtn');
   if (btn) btn.textContent = isReorderMode ? 'Done' : 'Reorder';
   var rows = getCurrentRows();
   document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
 }
 
-function moveRow(idx, dir) {
-  var rows    = getCurrentRows();
-  var target  = idx + dir;
-  if (target < 0 || target >= rows.length) return;
-  var tmp     = rows[idx];
-  rows[idx]   = rows[target];
-  rows[target] = tmp;
-  // Preserve sub flag based on position in list (rows 11+ are subs)
-  for (var i = 11; i < rows.length; i++) rows[i].position = 'Sub';
-  document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+function tapRow(idx) {
+  if (!isReorderMode) return;
+  if (reorderSelected === -1) {
+    // First tap: select this row
+    reorderSelected = idx;
+    var rows = getCurrentRows();
+    document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+  } else if (reorderSelected === idx) {
+    // Tap same row: deselect
+    reorderSelected = -1;
+    var rows = getCurrentRows();
+    document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+  } else {
+    // Second tap on a different row: swap
+    var rows = getCurrentRows();
+    var tmp  = rows[reorderSelected];
+    rows[reorderSelected] = rows[idx];
+    rows[idx]             = tmp;
+    // Rows 11+ always carry Sub position regardless of where they land
+    for (var i = 11; i < rows.length; i++) rows[i].position = 'Sub';
+    reorderSelected = -1;
+    document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+  }
 }
 
 // ── Import ─────────────────────────────────────────────────────────────
@@ -197,7 +212,8 @@ function updateSubButtons(readOnly) {
   if (tools) tools.style.display = ro ? 'none' : '';
   // Reset reorder mode when game changes
   if (ro && isReorderMode) {
-    isReorderMode = false;
+    isReorderMode   = false;
+    reorderSelected = -1;
     var rb = document.getElementById('lineupReorderBtn');
     if (rb) rb.textContent = 'Reorder';
   }
