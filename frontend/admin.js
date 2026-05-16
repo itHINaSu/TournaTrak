@@ -303,7 +303,7 @@ function renderAdmin() {
         + '<div class="admin-res-footer"><button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button></div>'
         + '</div>';
     } else if (both) {
-      return '<div class="admin-res-card">' + hdr
+      return '<div class="admin-res-card upcoming">' + hdr
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
         + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" placeholder="Score"></div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
