@@ -885,6 +885,32 @@ function renderMobileBracket(root, dims) {
     });
   });
 
+  // prevOffset: where each card should be when the NEXT round is fully in view.
+  // Feeder pairs converge to earlyY of their child card, giving a stacking effect
+  // when swiping forward and an organic spreading-out when swiping backward.
+  var prevOffset = {};
+  var nextRoundForPrev = { R1:'R2', R2:'QF', QF:'SF', SF:'CHAMP' };
+  ['R1','R2','QF','SF'].forEach(function(curRound) {
+    var nextRound = nextRoundForPrev[curRound];
+    var curGids = [];
+    ['L','R'].forEach(function(side) {
+      var nums = (SLOT_DEFS[curRound] && SLOT_DEFS[curRound][side]) ? SLOT_DEFS[curRound][side] : [];
+      nums.forEach(function(num) { curGids.push(curRound + '.' + side + '.' + num); });
+    });
+    var nextGids = [];
+    var nextSides = nextRound === 'CHAMP' ? ['C'] : ['L','R'];
+    nextSides.forEach(function(side) {
+      var nums = (SLOT_DEFS[nextRound] && SLOT_DEFS[nextRound][side]) ? SLOT_DEFS[nextRound][side] : [];
+      nums.forEach(function(num) { nextGids.push(nextRound + '.' + side + '.' + num); });
+    });
+    curGids.forEach(function(gid, j) {
+      var childGid = nextGids[Math.floor(j / 2)];
+      var childEY  = childGid !== undefined ? earlyY[childGid] : undefined;
+      var selfEY   = earlyY[gid];
+      prevOffset[gid] = (childEY !== undefined && selfEY !== undefined) ? (childEY - selfEY) : 0;
+    });
+  });
+
   // Apply computed positions and inner heights to the DOM
   colEls.forEach(function(colEl, ri) {
     var round = rounds[ri];
@@ -896,12 +922,13 @@ function renderMobileBracket(root, dims) {
       var ly  = lateY[gid]  !== undefined ? lateY[gid]  : ey;
       card.style.top = ey + 'px';
       card.dataset.lateOffset = (ly - ey).toFixed(1);
+      card.dataset.prevOffset = (prevOffset[gid] || 0).toFixed(1);
     });
   });
 
   // ── Blend animation ──────────────────────────────────────────────────
-  // Cards use transform for the lateY offset (earlyY→lateY blend).
-  // The .mbc-inner transform (scroll sync below) is separate and composes on top.
+  // applyBlend   — forward convergence: earlyY → lateY  (used by right/next columns)
+  // applyPrevBlend — stacking:          earlyY → child earlyY (used by left columns)
   function applyBlend(ci, blend) {
     if (ci < 0 || ci >= colEls.length) return;
     var cards = colEls[ci].querySelectorAll('.mbc-card');
@@ -910,9 +937,18 @@ function renderMobileBracket(root, dims) {
       cards[k].style.transform = off ? 'translateY(' + (off * blend).toFixed(1) + 'px)' : '';
     }
   }
+  function applyPrevBlend(ci, blend) {
+    if (ci < 0 || ci >= colEls.length) return;
+    var cards = colEls[ci].querySelectorAll('.mbc-card');
+    for (var k = 0; k < cards.length; k++) {
+      var off = parseFloat(cards[k].dataset.prevOffset) || 0;
+      cards[k].style.transform = off ? 'translateY(' + (off * blend).toFixed(1) + 'px)' : '';
+    }
+  }
 
   var activeIdx = 0;
-  for (var i = 0; i < colEls.length; i++) { applyBlend(i, i === 0 ? 0 : 1); }
+  applyPrevBlend(0, 0);                                          // starting column: earlyY
+  for (var i = 1; i < colEls.length; i++) { applyBlend(i, 1); } // right columns: lateY
 
   // ── Single full-width scroll overlay ─────────────────────────────────
   //
@@ -1038,9 +1074,13 @@ function renderMobileBracket(root, dims) {
     var floorIdx = Math.floor(x / colW);
     var progress = (x - floorIdx * colW) / colW;
 
-    applyBlend(floorIdx,     progress);
+    // Left columns (behind): fully stacked toward their next-round child position
+    for (var j = 0; j < floorIdx; j++)                 applyPrevBlend(j, 1);
+    // Current column: spreading away as we leave, or spreading back as we return
+    applyPrevBlend(floorIdx,     progress);
+    // Next column: converging from lateY toward earlyY as we approach
     applyBlend(floorIdx + 1, 1 - progress);
-    for (var j = 0; j < floorIdx; j++)                 applyBlend(j, 0);
+    // Right columns (ahead): fully converged at lateY, ready to receive
     for (var j = floorIdx + 2; j < colEls.length; j++) applyBlend(j, 1);
 
     // Which column are we moving toward, and how far along are we?
