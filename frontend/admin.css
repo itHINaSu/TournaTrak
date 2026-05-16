@@ -397,6 +397,8 @@ input[type="time"]:focus {
 .user-role--results { background: rgba(196,154,26,0.1);  color: var(--gold-lt);  border: 0.07em solid rgba(196,154,26,0.4); }
 .user-actions { display: flex; gap: 0.4em; align-items: center; flex-shrink: 0; }
 .user-delete-btn { color: var(--clear-color) !important; border-color: var(--clear-border) !important; }
+.user-regen-btn { color: var(--gold) !important; border-color: var(--gold) !important; background: transparent !important; }
+.user-regen-btn:hover { background: rgba(196,154,26,0.10) !important; }
 .user-self-label { font-size: 0.72rem; color: var(--text-mute); font-style: italic; }
 .user-must-change { font-size: 0.68rem; color: var(--gold); font-style: italic; flex-shrink: 0; }
 

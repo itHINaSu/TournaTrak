@@ -896,12 +896,12 @@ function renderUsersList(users) {
 
     var actions = '';
     if (u.role === 'team' && u.accessToken) {
-      actions += '<button class="admin-clear-btn" onclick="copyMagicLink(\'' + esc(u.accessToken) + '\')">Copy Link</button>';
-      actions += '<button class="admin-clear-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>';
+      actions += '<button class="sched-save-btn" onclick="copyMagicLink(\'' + esc(u.accessToken) + '\')">Copy Link</button>';
+      actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>';
     } else if (u.setupToken) {
       actions += '<button class="sched-save-btn" onclick="copySetupLink(\'' + esc(u.setupToken) + '\')">Copy Setup Link</button>';
     } else if (!isSelf && u.role !== 'team') {
-      actions += '<button class="sched-save-btn" onclick="regenerateSetupLink(\'' + esc(u.username) + '\')">Regenerate Link</button>';
+      actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateSetupLink(\'' + esc(u.username) + '\')">Regenerate Link</button>';
     } else if (!isSelf) {
       actions += '<button class="admin-clear-btn" onclick="openResetPwModal(\'' + esc(u.username) + '\')">Reset PW</button>';
     }
@@ -1347,7 +1347,7 @@ function renderCoachesList(coaches) {
       + '<div class="coach-actions">'
       +   (link ? '<input type="text" class="coach-link-hidden" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly tabindex="-1" aria-hidden="true">' : '')
       +   (link ? '<button class="admin-save-btn" onclick="copyCoachLink(\'' + esc(u.username) + '\')">Copy Link</button>' : '')
-      +   (u.accessToken ? '<button class="admin-clear-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>' : '')
+      +   (u.accessToken ? '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>' : '')
       +   '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + esc(u.username) + '\')">Delete</button>'
       + '</div>'
       + '</div>';
