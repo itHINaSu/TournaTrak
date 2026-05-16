@@ -753,47 +753,29 @@ function roundCardHTML(gid) {
 // is measured so earlyY centering uses the true scrollable area height.
 // Each column scrolls independently — no cross-column scrollTop sync,
 // which was stopping iOS momentum.
-function renderMobileBracket(root, dims) {
-  var siteHdrH = document.getElementById('siteHeader').getBoundingClientRect().height;
-  var tabsH    = document.getElementById('viewTabs').getBoundingClientRect().height;
-  var viewH    = window.innerHeight - siteHdrH - tabsH;
-  var winW     = window.innerWidth;
+// ── Mobile bracket helpers ────────────────────────────────────────────
 
-  var CARD_H       = Math.max(Math.floor(viewH / 4.5), 80);
-  var CHAMP_CARD_H = Math.round(CARD_H * 1.8);
-  var GAP          = Math.max(Math.round(CARD_H * 0.07), 6);
-  document.documentElement.style.setProperty('--mbc-card-h', CARD_H + 'px');
-
-  var colW  = Math.round(winW * 0.72);
-  var padPx = 12;
-
-  var rounds = ['R1','R2','QF','SF','CHAMP'];
-
+function buildMobileColsHTML(rounds, colW, winW, viewH, padPx, CARD_H, CHAMP_CARD_H) {
   function gidsFor(round) {
     var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
     var out = [];
     sides.forEach(function(s) { out = out.concat(slotsForRoundSide(round, s)); });
     return out;
   }
-
-  // ── Pass 1: build HTML with placeholder card positions ───────────────
-  var colsHTML = rounds.map(function(round, ri) {
+  return rounds.map(function(round, ri) {
     var isChamp = round === 'CHAMP';
     var cWidth  = isChamp ? winW : colW;
     var cCardW  = cWidth - 2 * padPx;
     var cardH   = isChamp ? CHAMP_CARD_H : CARD_H;
     var gids    = gidsFor(round);
-
     var cardsHTML = gids.map(function(gid) {
       var inner = isChamp ? champCardHTML(gid) : mobileRoundCardHTML(gid);
       return '<div class="mbc-card" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0">'
         + inner + '</div>';
     }).join('');
-
     var dots = rounds.map(function(_, i) {
       return '<span class="mbc-dot' + (i === ri ? ' active' : '') + '" data-ri="' + i + '"></span>';
     }).join('');
-
     return '<div class="mbc-col" data-ri="' + ri + '" style="width:' + cWidth + 'px;flex:0 0 ' + cWidth + 'px">'
       + '<div class="mbc-hdr">'
       +   '<span class="mbc-hdr-label">' + esc(ROUND_LABELS[round]) + '</span>'
@@ -806,18 +788,9 @@ function renderMobileBracket(root, dims) {
       + '</div>'
       + '</div>';
   }).join('');
+}
 
-  root.innerHTML = '<div class="mbc-outer" id="mbcOuter" style="height:' + viewH + 'px">'
-    + colsHTML + '</div>';
-
-  var outer  = document.getElementById('mbcOuter');
-  var colEls = Array.prototype.slice.call(outer.querySelectorAll('.mbc-col'));
-
-  // ── Pass 2: measure actual header height, compute positions ──────────
-  var mbcHdrH = colEls[0] ? colEls[0].querySelector('.mbc-hdr').getBoundingClientRect().height : 36;
-  var scrollH = viewH - mbcHdrH;  // actual visible scroll area height
-
-  // earlyY: evenly spaced, centered when ≤4 slots fit without scrolling
+function computeMobilePositions(rounds, scrollH, CARD_H, CHAMP_CARD_H, GAP) {
   var earlyY = {};
   rounds.forEach(function(round) {
     var isChamp  = round === 'CHAMP';
@@ -950,13 +923,6 @@ function renderMobileBracket(root, dims) {
   applyPrevBlend(0, 0);                                          // starting column: earlyY
   for (var i = 1; i < colEls.length; i++) { applyBlend(i, 1); } // right columns: lateY
 
-  // ── Single full-width scroll overlay ─────────────────────────────────
-  //
-  // One position:fixed element covers the entire bracket scroll area
-  // (below the dot-header row). It is the ONLY element with overflow-y:scroll,
-  // so any vertical touch anywhere — earlyY or lateY — gets native iOS momentum.
-  // All .mbc-inner divs are driven by translateY transforms from its scrollTop.
-  // Horizontal column switching is handled in JS via touchmove on this element.
   var sharedScrollTop = 0;
   // Approaching-column compensation: during a horizontal swipe the approaching
   // column's inner is offset so the anchor card stays pinned at its lateY
@@ -965,16 +931,6 @@ function renderMobileBracket(root, dims) {
   var _approachComp  = 0;   // px to subtract from sharedScrollTop for that column
   var _anchorLateOff = 0;   // cached lateOffset of the anchor card
   var _scrollLeftPrev = 0;  // for direction detection
-
-  var captureEl = document.createElement('div');
-  captureEl.className = 'mbc-scroll-cap';
-  captureEl.style.cssText = 'position:fixed;left:0;width:' + winW + 'px'
-    + ';top:' + Math.round(siteHdrH + mbcHdrH) + 'px'
-    + ';height:' + scrollH + 'px';
-
-  var spacerEl = document.createElement('div');
-  captureEl.appendChild(spacerEl);
-  root.appendChild(captureEl);
 
   function setSpacerForCol(idx) {
     var maxScroll = Math.max(0, roundInnerH(rounds[idx]) - scrollH);
@@ -1131,6 +1087,66 @@ function renderMobileBracket(root, dims) {
   }, { passive: true });
 
   setSpacerForCol(0);
+}
+
+function renderMobileBracket(root, dims) {
+  var siteHdrH = document.getElementById('siteHeader').getBoundingClientRect().height;
+  var tabsH    = document.getElementById('viewTabs').getBoundingClientRect().height;
+  var viewH    = window.innerHeight - siteHdrH - tabsH;
+  var winW     = window.innerWidth;
+
+  var CARD_H       = Math.max(Math.floor(viewH / 4.5), 80);
+  var CHAMP_CARD_H = Math.round(CARD_H * 1.8);
+  var GAP          = Math.max(Math.round(CARD_H * 0.07), 6);
+  document.documentElement.style.setProperty('--mbc-card-h', CARD_H + 'px');
+
+  var colW  = Math.round(winW * 0.72);
+  var padPx = 12;
+  var rounds = ['R1','R2','QF','SF','CHAMP'];
+
+  // Pass 1: build HTML
+  var colsHTML = buildMobileColsHTML(rounds, colW, winW, viewH, padPx, CARD_H, CHAMP_CARD_H);
+  root.innerHTML = '<div class="mbc-outer" id="mbcOuter" style="height:' + viewH + 'px">'
+    + colsHTML + '</div>';
+
+  var outer  = document.getElementById('mbcOuter');
+  var colEls = Array.prototype.slice.call(outer.querySelectorAll('.mbc-col'));
+
+  // Pass 2: measure header, compute positions, apply to DOM
+  var mbcHdrH = colEls[0] ? colEls[0].querySelector('.mbc-hdr').getBoundingClientRect().height : 36;
+  var scrollH = viewH - mbcHdrH;
+
+  var pos = computeMobilePositions(rounds, scrollH, CARD_H, CHAMP_CARD_H, GAP);
+  var earlyY = pos.earlyY, lateY = pos.lateY, roundInnerH = pos.roundInnerH;
+
+  colEls.forEach(function(colEl, ri) {
+    var round = rounds[ri];
+    var inner = colEl.querySelector('.mbc-inner');
+    inner.style.height = roundInnerH(round) + 'px';
+    colEl.querySelectorAll('.mbc-card').forEach(function(card) {
+      var gid = card.dataset.gid;
+      var ey  = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+      var ly  = lateY[gid]  !== undefined ? lateY[gid]  : ey;
+      card.style.top = ey + 'px';
+      card.dataset.lateOffset = (ly - ey).toFixed(1);
+    });
+  });
+
+  // Pass 3: create scroll capture overlay and attach all event handlers
+  var captureEl = document.createElement('div');
+  captureEl.className = 'mbc-scroll-cap';
+  // One position:fixed element covers the entire bracket scroll area below the
+  // dot-header row. It is the ONLY element with overflow-y:scroll so any vertical
+  // touch gets native iOS momentum. Horizontal swipes are detected in JS.
+  captureEl.style.cssText = 'position:fixed;left:0;width:' + winW + 'px'
+    + ';top:' + Math.round(siteHdrH + mbcHdrH) + 'px'
+    + ';height:' + scrollH + 'px';
+
+  var spacerEl = document.createElement('div');
+  captureEl.appendChild(spacerEl);
+  root.appendChild(captureEl);
+
+  attachMobileScrollBehavior(outer, colEls, captureEl, spacerEl, rounds, colW, scrollH, earlyY, lateY, roundInnerH);
 }
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW
@@ -1324,7 +1340,7 @@ function buildWinChain(sid){
   return chain;
 }
 
-function makeVerticalChain(chain, team, isLosePath) {
+function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
   var GREEN = 'var(--win-color)';
 
   var html = '';
@@ -1366,9 +1382,18 @@ function makeVerticalChain(chain, team, isLosePath) {
         + '<span class="round-win-tag">WON</span>'
         + '</div>';
     } else if (teamLost) {
-      loseSide = '<div class="round-lose-side">'
-        + '<span class="round-lose-tag">LOSS</span>'
-        + '</div>';
+      var ln = findNextSlot(gid, 'loser');
+      if (ln) {
+        loseSide = '<div class="round-lose-side">'
+          + '<span class="round-lose-tag">Lost</span>'
+          + '<span class="round-lose-arrow round-lose-arrow--cont">↓</span>'
+          + '<span class="round-lose-dest">' + esc(gameLabel(ln)) + '</span>'
+          + '</div>';
+      } else {
+        loseSide = '<div class="round-lose-side">'
+          + '<span class="round-lose-tag">LOST</span>'
+          + '</div>';
+      }
     }
 
     html += '<div class="round-game-card" style="border-color:' + borderColor + '">'
@@ -1394,7 +1419,14 @@ function makeVerticalChain(chain, team, isLosePath) {
       + '</div>';
 
     // Team lost this game — win path ends here; remaining games are unreachable
-    if (played && teamLost) break;
+    if (played && teamLost) {
+      if (showElimOnLoss) {
+        html += '<div class="team-elim-inline">'
+          + '<img src="/icons/eliminated.png" class="team-elim-inline-img" alt="Eliminated">'
+          + '</div>';
+      }
+      break;
+    }
 
     if (i < chain.length - 1) {
       html += '<div class="team-path-connector">'
@@ -1497,7 +1529,7 @@ function renderTeamView(){
         if(lostR1){
           // First game was a loss with no loser bracket — show the game card before the banner
           html+='<div class="team-path-label lose-label">Loss to '+esc(lossOpp0)+'</div>';
-          html+=makeVerticalChain([gid],team,false);
+          html+=makeVerticalChain([gid],team,false,true);
         }
         teamEliminated=true;
       }
@@ -1520,15 +1552,11 @@ function renderTeamView(){
             +'<span class="team-path-win-label" style="color:var(--lose-color)">LOSS</span>'
             +'</div>';
         }
-        html+=makeVerticalChain(buildWinChain(ln),team,true);
+        html+=makeVerticalChain(buildWinChain(ln),team,true,true);
         if(teamLostHere) teamEliminated=true;
       }
     }
   });
-
-  if(isEliminated(team,results)){
-    html+='<div class="team-elim-banner"><img src="/icons/eliminated.png" class="team-elim-img" alt="Eliminated"></div>';
-  }
 
   out.innerHTML=html;
   syncLoseSideWidths();

@@ -4,7 +4,7 @@
 .admin-tab-bar {
   display: flex;
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.07em solid var(--border);
   margin-bottom: 1.2em;
 }
 .admin-tab {
@@ -41,7 +41,7 @@
 /* ── Empty slot card ── */
 .empty-slot-card {
   border: 0.07em dashed var(--border);
-  border-radius: 0.4em;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   margin-bottom: 0.75em;
   background: var(--surface);
@@ -63,7 +63,7 @@
   width: min(90vw, 340px);
   background: var(--surface);
   border: 0.07em solid var(--border);
-  border-radius: 0.5em;
+  border-radius: var(--radius-md);
   padding: 2em 1.8em;
 }
 .login-title {
@@ -124,18 +124,19 @@
 /* ── Results tab: card layout (mirrors By Round view) ── */
 .admin-res-card {
   border: 0.07em solid var(--border);
-  border-radius: 0.6em;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--surface);
   margin-bottom: 1.4em;
 }
 .admin-res-card--waiting { opacity: 0.45; }
+.admin-res-card.upcoming { opacity: 0.75; border-style: dashed; }
 
 .admin-res-hdr {
   display: flex;
   align-items: center;
   gap: 0.6em;
-  padding: 0.7em 1em 0.6em;
+  padding: 0.6em 1em;
   background: var(--surface2);
   border-bottom: 0.07em solid var(--border);
 }
@@ -231,8 +232,8 @@
 .results-mode-btn:hover:not(.active) { color: var(--text); border-color: var(--text-dim); }
 
 /* ── Schedule editor ── */
-.sched-game-card { border: 0.07em solid var(--border); border-radius: 0.4em; overflow: hidden; margin-bottom: 0.75em; background: var(--surface); }
-.sched-game-hdr { display: flex; align-items: center; gap: 0.6em; padding: 0.5em 0.75em; background: var(--surface2); border-bottom: 0.07em solid var(--border); cursor: pointer; }
+.sched-game-card { border: 0.07em solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 0.75em; background: var(--surface); }
+.sched-game-hdr { display: flex; align-items: center; gap: 0.6em; padding: 0.6em 1em; background: var(--surface2); border-bottom: 0.07em solid var(--border); cursor: pointer; }
 .sched-game-hdr-id { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.07em; color: var(--blue-lt); }
 .sched-game-hdr-sid { color: var(--text-mute); font-size: 0.65em; }
 .sched-game-hdr-time { font-size: 0.78rem; color: var(--gold-lt); font-weight: 600; }
@@ -243,8 +244,10 @@
 .sched-game-body.open { display: block; }
 .sched-field { margin-bottom: 0.6em; }
 .sched-field label { display: block; font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.25em; }
-.sched-field input { width: 100%; font-family: 'Barlow', sans-serif; font-size: 0.9rem; padding: 0.43em 0.62em; border-radius: 0.25em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); }
-.sched-field input:focus { outline: 0.13em solid var(--blue-lt); }
+.sched-field input,
+.settings-field input { width: 100%; font-family: 'Barlow', sans-serif; font-size: 0.9rem; padding: 0.43em 0.62em; border-radius: 0.25em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); }
+.sched-field input:focus,
+.settings-field input:focus { outline: 0.13em solid var(--blue-lt); }
 .sched-save-btn { font-family: 'Oswald', sans-serif; font-size: 0.74rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.38em 0.88em; border-radius: 0.2em; border: 0.07em solid var(--blue); background: var(--blue); color: #fff; cursor: pointer; }
 .sched-save-btn:hover { background: var(--blue-lt); }
 .sched-status { font-size: 0.74rem; color: var(--win-color); margin-left: 0.5em; }
@@ -323,8 +326,6 @@
 .settings-section-hdr { font-family: 'Oswald', sans-serif; font-size: 0.68em; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); padding: 0.5em 0; border-bottom: 0.07em solid var(--border); margin-bottom: 0.75em; }
 .settings-field { margin-bottom: 0.75em; }
 .settings-field label { display: block; font-family: 'Oswald', sans-serif; font-size: 0.62em; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.3em; }
-.settings-field input { width: 100%; font-family: 'Barlow', sans-serif; font-size: 0.88em; padding: 0.43em 0.62em; border-radius: 0.25em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); }
-.settings-field input:focus { outline: 0.13em solid var(--blue-lt); }
 .settings-field .field-hint { font-size: 0.65em; color: var(--text-mute); margin-top: 0.2em; }
 .settings-save-row { display: flex; align-items: center; gap: 0.6em; margin-top: 0.5em; }
 
@@ -397,6 +398,8 @@ input[type="time"]:focus {
 .user-role--results { background: rgba(196,154,26,0.1);  color: var(--gold-lt);  border: 0.07em solid rgba(196,154,26,0.4); }
 .user-actions { display: flex; gap: 0.4em; align-items: center; flex-shrink: 0; }
 .user-delete-btn { color: var(--clear-color) !important; border-color: var(--clear-border) !important; }
+.user-regen-btn { color: var(--gold) !important; border-color: var(--gold) !important; background: transparent !important; }
+.user-regen-btn:hover { background: rgba(196,154,26,0.10) !important; }
 .user-self-label { font-size: 0.72rem; color: var(--text-mute); font-style: italic; }
 .user-must-change { font-size: 0.68rem; color: var(--gold); font-style: italic; flex-shrink: 0; }
 
@@ -525,10 +528,10 @@ input[type="time"]:focus {
   gap: 0.6em;
   padding: 0.55em 0.75em;
   border: 0.07em solid var(--border);
-  border-radius: 0.35em;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   margin-bottom: 0.4em;
-  cursor: grab;
+  cursor: default;
 }
 .bucket-admin-name {
   flex: 1;
@@ -592,11 +595,20 @@ input[type="time"]:focus {
 .bucket-drag-handle {
   flex-shrink: 0;
   color: var(--text-mute);
-  font-size: 1rem;
   cursor: grab;
   user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25em;
+  min-width: 1.4em;
 }
-.bucket-drag-handle:hover { opacity: 1; color: var(--text-dim); }
+.bucket-drag-handle::before {
+  content: '⠿';
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.bucket-drag-handle:hover { color: var(--text-dim); }
 .bucket-admin-row.bucket-drag-over {
   border-color: var(--blue-lt);
   box-shadow: 0 0 0 0.1em var(--blue-lt);
@@ -691,7 +703,7 @@ input[type="time"]:focus {
     padding-left: 1em;
     padding-right: 1em;
     border-bottom: 0.07em solid var(--border);
-    top: 0;
+    top: -1em;
   }
 
   /* Settings: collapse sidebar from layout flow on mobile */
@@ -708,7 +720,7 @@ input[type="time"]:focus {
     z-index: 199;
     background: var(--surface);
     border: 0.07em solid var(--border);
-    border-radius: 0.5em;
+    border-radius: var(--radius-md);
     margin-right: 0;
     padding: 0.4em 0;
     overflow-y: auto;
