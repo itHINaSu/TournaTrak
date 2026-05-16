@@ -302,8 +302,10 @@ async function fetchAll(){
   updateTimestamp();
   populateTeamSelect();
 
-  // ?view=X from lineup page tab links overrides saved cookie
+  // ?view=X from lineup page tab links — consume once then strip from URL
+  // so subsequent fetchAll() calls (from tab clicks) don't re-override the tab
   var qView = new URLSearchParams(window.location.search).get('view');
+  if (qView) history.replaceState(null, '', window.location.pathname);
   // Restore saved tab; on mobile default to By Round if no saved preference
   var savedTab = qView || getCookie('tt_tab');
   if (!savedTab && window.innerWidth < 1024) savedTab = 'schedule';
@@ -1550,10 +1552,11 @@ function renderTeamView(){
 fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(function(sess) {
   _sessionRole = sess.role || null;
   var isPwa    = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
-  var adminBtn = document.getElementById('adminPortalBtn');
-  var editBtn  = document.getElementById('bucketEditBtn');
-  if (adminBtn) adminBtn.style.display =
-    (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
-  if (editBtn)  editBtn.style.display  = (_sessionRole === 'buckets') ? '' : 'none';
+  var adminBtn  = document.getElementById('adminPortalBtn');
+  var lineupBtn = document.getElementById('lineupPortalBtn');
+  var editBtn   = document.getElementById('bucketEditBtn');
+  if (adminBtn)  adminBtn.style.display  = (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
+  if (lineupBtn) lineupBtn.style.display = (_sessionRole === 'team') ? '' : 'none';
+  if (editBtn)   editBtn.style.display   = (_sessionRole === 'buckets') ? '' : 'none';
 }).catch(function(){});
 fetchAll();
