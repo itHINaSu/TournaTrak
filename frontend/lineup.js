@@ -212,9 +212,11 @@ function buildNavBar(role) {
     var tabs = [
       { label: 'Results',  icon: 'results',  href: '/admin?tab=results'  },
       { label: 'Lineups',  icon: 'lineups',  href: '/lineup', active: true },
-      { label: 'Schedule', icon: 'schedule', href: '/admin?tab=schedule' },
-      { label: 'Settings', icon: 'settings', href: '/admin?tab=settings' },
     ];
+    if (role === 'admin') {
+      tabs.push({ label: 'Schedule', icon: 'schedule', href: '/admin?tab=schedule' });
+      tabs.push({ label: 'Settings', icon: 'settings', href: '/admin?tab=settings' });
+    }
 
     nav.className = 'admin-tab-bar';
     nav.innerHTML = tabs.map(function(t) {
