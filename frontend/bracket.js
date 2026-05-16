@@ -858,12 +858,50 @@ function computeMobilePositions(rounds, scrollH, CARD_H, CHAMP_CARD_H, GAP) {
     });
   });
 
-  return { earlyY: earlyY, lateY: lateY, roundInnerH: roundInnerH };
-}
+  // prevOffset: where each card should be when the NEXT round is fully in view.
+  // Feeder pairs converge to earlyY of their child card, giving a stacking effect
+  // when swiping forward and an organic spreading-out when swiping backward.
+  var prevOffset = {};
+  var nextRoundForPrev = { R1:'R2', R2:'QF', QF:'SF', SF:'CHAMP' };
+  ['R1','R2','QF','SF'].forEach(function(curRound) {
+    var nextRound = nextRoundForPrev[curRound];
+    var curGids = [];
+    ['L','R'].forEach(function(side) {
+      var nums = (SLOT_DEFS[curRound] && SLOT_DEFS[curRound][side]) ? SLOT_DEFS[curRound][side] : [];
+      nums.forEach(function(num) { curGids.push(curRound + '.' + side + '.' + num); });
+    });
+    var nextGids = [];
+    var nextSides = nextRound === 'CHAMP' ? ['C'] : ['L','R'];
+    nextSides.forEach(function(side) {
+      var nums = (SLOT_DEFS[nextRound] && SLOT_DEFS[nextRound][side]) ? SLOT_DEFS[nextRound][side] : [];
+      nums.forEach(function(num) { nextGids.push(nextRound + '.' + side + '.' + num); });
+    });
+    curGids.forEach(function(gid, j) {
+      var childGid = nextGids[Math.floor(j / 2)];
+      var childEY  = childGid !== undefined ? earlyY[childGid] : undefined;
+      var selfEY   = earlyY[gid];
+      prevOffset[gid] = (childEY !== undefined && selfEY !== undefined) ? (childEY - selfEY) : 0;
+    });
+  });
 
-function attachMobileScrollBehavior(outer, colEls, captureEl, spacerEl, rounds, colW, scrollH, earlyY, lateY, roundInnerH) {
-  // Cards use transform for the lateY offset (earlyY→lateY blend).
-  // The .mbc-inner transform (scroll sync below) is separate and composes on top.
+  // Apply computed positions and inner heights to the DOM
+  colEls.forEach(function(colEl, ri) {
+    var round = rounds[ri];
+    var inner = colEl.querySelector('.mbc-inner');
+    inner.style.height = roundInnerH(round) + 'px';
+    colEl.querySelectorAll('.mbc-card').forEach(function(card) {
+      var gid = card.dataset.gid;
+      var ey  = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+      var ly  = lateY[gid]  !== undefined ? lateY[gid]  : ey;
+      card.style.top = ey + 'px';
+      card.dataset.lateOffset = (ly - ey).toFixed(1);
+      card.dataset.prevOffset = (prevOffset[gid] || 0).toFixed(1);
+    });
+  });
+
+  // ── Blend animation ──────────────────────────────────────────────────
+  // applyBlend   — forward convergence: earlyY → lateY  (used by right/next columns)
+  // applyPrevBlend — stacking:          earlyY → child earlyY (used by left columns)
   function applyBlend(ci, blend) {
     if (ci < 0 || ci >= colEls.length) return;
     var cards = colEls[ci].querySelectorAll('.mbc-card');
@@ -872,25 +910,53 @@ function attachMobileScrollBehavior(outer, colEls, captureEl, spacerEl, rounds, 
       cards[k].style.transform = off ? 'translateY(' + (off * blend).toFixed(1) + 'px)' : '';
     }
   }
+  function applyPrevBlend(ci, blend) {
+    if (ci < 0 || ci >= colEls.length) return;
+    var cards = colEls[ci].querySelectorAll('.mbc-card');
+    for (var k = 0; k < cards.length; k++) {
+      var off = parseFloat(cards[k].dataset.prevOffset) || 0;
+      cards[k].style.transform = off ? 'translateY(' + (off * blend).toFixed(1) + 'px)' : '';
+    }
+  }
 
   var activeIdx = 0;
-  for (var i = 0; i < colEls.length; i++) { applyBlend(i, i === 0 ? 0 : 1); }
+  applyPrevBlend(0, 0);                                          // starting column: earlyY
+  for (var i = 1; i < colEls.length; i++) { applyBlend(i, 1); } // right columns: lateY
 
   var sharedScrollTop = 0;
+  // Approaching-column compensation: during a horizontal swipe the approaching
+  // column's inner is offset so the anchor card stays pinned at its lateY
+  // screen position instead of drifting to earlyY (which may be off-screen).
+  var _approachIdx   = -1;  // which column is currently being approached
+  var _approachComp  = 0;   // px to subtract from sharedScrollTop for that column
+  var _anchorLateOff = 0;   // cached lateOffset of the anchor card
+  var _scrollLeftPrev = 0;  // for direction detection
 
   function setSpacerForCol(idx) {
     var maxScroll = Math.max(0, roundInnerH(rounds[idx]) - scrollH);
+    // _anchorLateOff was computed during the swipe; use it to land the scroll
+    // exactly where the continuous compensation was heading.
+    var newScroll = Math.max(0, Math.min(sharedScrollTop - _anchorLateOff, maxScroll));
+    _anchorLateOff = 0;
     spacerEl.style.height = (scrollH + maxScroll) + 'px';
-    if (sharedScrollTop > maxScroll) {
+    if (newScroll !== sharedScrollTop) {
+      sharedScrollTop = newScroll;
+      captureEl.scrollTop = newScroll;
+      // captureEl scroll event fires → syncAllColumns with compensation cleared
+    } else if (sharedScrollTop > maxScroll) {
       sharedScrollTop = maxScroll;
       captureEl.scrollTop = maxScroll;
     }
   }
 
   function syncAllColumns() {
-    var ty = sharedScrollTop > 0 ? 'translateY(-' + sharedScrollTop + 'px)' : '';
-    colEls.forEach(function(col) {
-      col.querySelector('.mbc-inner').style.transform = ty;
+    colEls.forEach(function(col, ci) {
+      var inner = col.querySelector('.mbc-inner');
+      // Approaching column gets its own offset so its anchor card stays pinned
+      var ty = (ci === _approachIdx)
+        ? Math.max(0, sharedScrollTop - _approachComp)
+        : sharedScrollTop;
+      inner.style.transform = ty > 0 ? 'translateY(-' + ty + 'px)' : '';
     });
   }
 
@@ -954,20 +1020,69 @@ function attachMobileScrollBehavior(outer, colEls, captureEl, spacerEl, rounds, 
 
   captureEl.addEventListener('touchcancel', function() { hSwipe = null; }, { passive: true });
 
-  // Horizontal scroll → blend animation + update spacer on snap settle
+  // Horizontal scroll → blend + continuous scroll compensation + snap settle
   var hSnapTimer = null;
   outer.addEventListener('scroll', function() {
     var x        = outer.scrollLeft;
+    var dir      = x >= _scrollLeftPrev ? 1 : -1;
+    _scrollLeftPrev = x;
     var idx      = Math.round(x / colW);
     var floorIdx = Math.floor(x / colW);
     var progress = (x - floorIdx * colW) / colW;
-    applyBlend(floorIdx,     progress);
+
+    // Left columns (behind): fully stacked toward their next-round child position
+    for (var j = 0; j < floorIdx; j++)                 applyPrevBlend(j, 1);
+    // Current column: spreading away as we leave, or spreading back as we return
+    applyPrevBlend(floorIdx,     progress);
+    // Next column: converging from lateY toward earlyY as we approach
     applyBlend(floorIdx + 1, 1 - progress);
-    for (var j = 0; j < floorIdx; j++)                 applyBlend(j, 0);
+    // Right columns (ahead): fully converged at lateY, ready to receive
     for (var j = floorIdx + 2; j < colEls.length; j++) applyBlend(j, 1);
+
+    // Which column are we moving toward, and how far along are we?
+    var approachIdx  = dir > 0 ? Math.min(floorIdx + 1, colEls.length - 1) : floorIdx;
+    var approachProg = dir > 0 ? progress : 1 - progress;
+
+    if (progress > 0) {
+      if (_approachIdx !== approachIdx) {
+        // First frame toward this column — lock in the anchor card.
+        // The anchor is whichever card's lateY is closest to the viewport centre;
+        // that card stays visually pinned throughout the swipe.
+        _approachIdx = approachIdx;
+        var center   = sharedScrollTop + scrollH / 2;
+        var bestDist = Infinity;
+        _anchorLateOff = 0;
+        colEls[approachIdx].querySelectorAll('.mbc-card').forEach(function(card) {
+          var gid = card.dataset.gid;
+          var ly  = lateY[gid]  !== undefined ? lateY[gid]
+                  : (earlyY[gid] !== undefined ? earlyY[gid] : 0);
+          var d = Math.abs(ly - center);
+          if (d < bestDist) { bestDist = d; _anchorLateOff = parseFloat(card.dataset.lateOffset) || 0; }
+        });
+      }
+      // Interpolate: at approachProg=0 the column sits at sharedScrollTop,
+      // at approachProg=1 it sits at sharedScrollTop - _anchorLateOff (= newScroll).
+      // This keeps the anchor card at a fixed screen position the whole way.
+      _approachComp = _anchorLateOff * approachProg;
+    } else if (_approachIdx >= 0 && idx !== activeIdx) {
+      // Forward snap settled on a new column — complete compensation so the
+      // timer's scrollTop write lands on the same value already shown (no jump).
+      // Guard idx !== activeIdx so backward snaps (returning to same column)
+      // don't trigger this; their residual compensation is negligible and clears
+      // naturally on the next vertical scroll.
+      _approachComp = _anchorLateOff;
+    }
+
+    syncAllColumns();
+
     clearTimeout(hSnapTimer);
     hSnapTimer = setTimeout(function() {
+      _approachIdx  = -1;
+      _approachComp = 0;
+      // _anchorLateOff intentionally cleared AFTER setSpacerForCol so it can
+      // compute newScroll = sharedScrollTop - _anchorLateOff.
       if (idx !== activeIdx) { activeIdx = idx; setSpacerForCol(idx); }
+      _anchorLateOff = 0;
     }, 200);
   }, { passive: true });
 
