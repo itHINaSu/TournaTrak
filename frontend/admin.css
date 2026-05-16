@@ -531,7 +531,7 @@ input[type="time"]:focus {
   border-radius: var(--radius-sm);
   background: var(--surface);
   margin-bottom: 0.4em;
-  cursor: grab;
+  cursor: default;
 }
 .bucket-admin-name {
   flex: 1;
@@ -595,11 +595,20 @@ input[type="time"]:focus {
 .bucket-drag-handle {
   flex-shrink: 0;
   color: var(--text-mute);
-  font-size: 1rem;
   cursor: grab;
   user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25em;
+  min-width: 1.4em;
 }
-.bucket-drag-handle:hover { opacity: 1; color: var(--text-dim); }
+.bucket-drag-handle::before {
+  content: '⠿';
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.bucket-drag-handle:hover { color: var(--text-dim); }
 .bucket-admin-row.bucket-drag-over {
   border-color: var(--blue-lt);
   box-shadow: 0 0 0 0.1em var(--blue-lt);
