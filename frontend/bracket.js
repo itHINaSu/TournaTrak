@@ -1047,7 +1047,11 @@ function renderMobileBracket(root, dims) {
     var approachIdx  = dir > 0 ? Math.min(floorIdx + 1, colEls.length - 1) : floorIdx;
     var approachProg = dir > 0 ? progress : 1 - progress;
 
-    if (approachProg > 0 && approachProg < 1) {
+    // Only update compensation while there is actual horizontal movement.
+    // Do NOT clear it when progress === 0 (snap landing) — the snap timer
+    // is the sole place that clears state, ensuring the captureEl.scrollTop
+    // update and the compensation reset happen together with no visible gap.
+    if (progress > 0) {
       if (_approachIdx !== approachIdx) {
         // First frame toward this column — lock in the anchor card.
         // The anchor is whichever card's lateY is closest to the viewport centre;
@@ -1068,9 +1072,6 @@ function renderMobileBracket(root, dims) {
       // at approachProg=1 it sits at sharedScrollTop - _anchorLateOff (= newScroll).
       // This keeps the anchor card at a fixed screen position the whole way.
       _approachComp = _anchorLateOff * approachProg;
-    } else {
-      _approachIdx  = -1;
-      _approachComp = 0;
     }
 
     syncAllColumns();
@@ -1080,6 +1081,7 @@ function renderMobileBracket(root, dims) {
       _approachIdx  = -1;
       _approachComp = 0;
       if (idx !== activeIdx) { activeIdx = idx; setSpacerForCol(idx); }
+      _anchorLateOff = 0;
     }, 200);
   }, { passive: true });
 
