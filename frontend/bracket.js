@@ -1220,7 +1220,7 @@ function buildWinChain(sid){
   return chain;
 }
 
-function makeVerticalChain(chain, team, isLosePath) {
+function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
   var GREEN = 'var(--win-color)';
 
   var html = '';
@@ -1263,7 +1263,7 @@ function makeVerticalChain(chain, team, isLosePath) {
         + '</div>';
     } else if (teamLost) {
       loseSide = '<div class="round-lose-side">'
-        + '<span class="round-lose-tag">LOSS</span>'
+        + '<span class="round-lose-tag">LOST</span>'
         + '</div>';
     }
 
@@ -1290,7 +1290,14 @@ function makeVerticalChain(chain, team, isLosePath) {
       + '</div>';
 
     // Team lost this game — win path ends here; remaining games are unreachable
-    if (played && teamLost) break;
+    if (played && teamLost) {
+      if (showElimOnLoss) {
+        html += '<div class="team-elim-inline">'
+          + '<img src="/icons/eliminated.png" class="team-elim-inline-img" alt="Eliminated">'
+          + '</div>';
+      }
+      break;
+    }
 
     if (i < chain.length - 1) {
       html += '<div class="team-path-connector">'
@@ -1393,7 +1400,7 @@ function renderTeamView(){
         if(lostR1){
           // First game was a loss with no loser bracket — show the game card before the banner
           html+='<div class="team-path-label lose-label">Loss to '+esc(lossOpp0)+'</div>';
-          html+=makeVerticalChain([gid],team,false);
+          html+=makeVerticalChain([gid],team,false,true);
         }
         teamEliminated=true;
       }
@@ -1416,15 +1423,11 @@ function renderTeamView(){
             +'<span class="team-path-win-label" style="color:var(--lose-color)">LOSS</span>'
             +'</div>';
         }
-        html+=makeVerticalChain(buildWinChain(ln),team,true);
+        html+=makeVerticalChain(buildWinChain(ln),team,true,true);
         if(teamLostHere) teamEliminated=true;
       }
     }
   });
-
-  if(isEliminated(team,results)){
-    html+='<div class="team-elim-banner"><img src="/icons/eliminated.png" class="team-elim-img" alt="Eliminated"></div>';
-  }
 
   out.innerHTML=html;
   syncLoseSideWidths();
