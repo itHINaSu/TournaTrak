@@ -1,0 +1,640 @@
+{
+  "Capital City Sox": {
+    "rows": [
+      {
+        "jersey": "",
+        "name": "Tim",
+        "position": "SS"
+      },
+      {
+        "jersey": "",
+        "name": "Todd",
+        "position": "EH"
+      },
+      {
+        "jersey": "",
+        "name": "James",
+        "position": "3rd"
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      }
+    ],
+    "updatedAt": "2026-05-15T14:06:49.580Z"
+  },
+  "Blue Ridge Bombers": {
+    "rows": [
+      {
+        "jersey": "",
+        "name": "Dale",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "Brennan",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "Steve",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      },
+      {
+        "jersey": "",
+        "name": "",
+        "position": ""
+      }
+    ],
+    "updatedAt": "2026-05-15T14:07:20.110Z"
+  },
+  "R1.L.6": {
+    "Eastside Heat": {
+      "rows": [
+        {
+          "jersey": "20",
+          "name": "Steve",
+          "position": "1st"
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        }
+      ],
+      "updatedAt": "2026-05-15T18:22:01.875Z"
+    }
+  },
+  "R1.L.5": {
+    "Braintree Bears": {
+      "rows": [
+        {
+          "jersey": "",
+          "name": "",
+          "position": "P"
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        }
+      ],
+      "updatedAt": "2026-05-15T20:48:48.270Z"
+    }
+  },
+  "R1.L.4": {
+    "Dedham Athletics": {
+      "rows": [
+        {
+          "jersey": "2",
+          "name": "Tim",
+          "position": "sub"
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "5",
+          "name": "Dale",
+          "position": "SS"
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        }
+      ],
+      "updatedAt": "2026-05-15T19:30:51.219Z"
+    }
+  },
+  "R1.R.4": {
+    "Abington Aces": {
+      "rows": [
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        },
+        {
+          "jersey": "",
+          "name": "",
+          "position": ""
+        }
+      ],
+      "updatedAt": "2026-05-15T20:48:36.927Z"
+    }
+  }
+}

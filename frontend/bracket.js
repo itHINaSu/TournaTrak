@@ -2,7 +2,10 @@
 // ══════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════
-var results={}, schedule={}, settings={};
+var results={}, schedule={}, settings={}, buckets={};
+var _sessionRole = null;
+var _bucketEditMode = false;
+var _bucketEditTeams = [];
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 var SETTING_DEFAULTS = {
@@ -26,17 +29,42 @@ function applySettings() {
   document.title = title;
   document.getElementById('siteName').textContent = name;
   var subEl = document.getElementById('siteSubtitle');
-  if (subtitle) { subEl.textContent = subtitle; subEl.style.display = 'block'; }
-  else { subEl.style.display = 'none'; }
+  if (subtitle) { subEl.textContent = subtitle; subEl.style.visibility = 'visible'; subEl.style.display = 'block'; }
+  else { subEl.innerHTML = '&#8203;'; subEl.style.display = 'block'; subEl.style.visibility = 'hidden'; }
 }
 
-// ── Results timestamp ─────────────────────────────────────────────────
-// Shows end-justified in header below tournament name.
-// Hidden if no results have been recorded.
+// ── Results notification bar ──────────────────────────────────────────
 function updateTimestamp() {
-  var el = document.getElementById('resultsTimestamp');
+  var bar  = document.getElementById('updateBar');
+  var text = document.getElementById('updateBarText');
+  var view = activeView();
+
+  // Buckets tab: show bucket update time or "no data" notice
+  if (view === 'buckets') {
+    var updatedAt = buckets && buckets.updatedAt;
+    var hasCounts = updatedAt && Object.keys((buckets && buckets.counts) || {}).length > 0;
+    if (text) {
+      if (hasCounts) {
+        var bd = new Date(updatedAt);
+        text.textContent = isNaN(bd.getTime())
+          ? 'Bucket results updated'
+          : 'Bucket results updated ' + formatBucketTime(bd);
+      } else {
+        text.textContent = 'No Updates Have Been Submitted';
+      }
+    }
+    if (bar) bar.style.display = '';
+    applyStickyOffsets();
+    return;
+  }
+
+  // All other tabs: show game results update time, or hide if none
   var hasResults = Object.values(results).some(function(r){ return r && r.winner; });
-  if (!hasResults) { el.style.display = 'none'; return; }
+  if (!hasResults) {
+    if (bar) bar.style.display = 'none';
+    applyStickyOffsets();
+    return;
+  }
   var now = new Date();
   var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   var m = now.getMonth()+1, d = now.getDate(), dow = days[now.getDay()];
@@ -44,8 +72,155 @@ function updateTimestamp() {
   var ampm = h >= 12 ? 'PM' : 'AM';
   var h12 = h % 12 || 12;
   var ms = min < 10 ? '0'+min : ''+min;
-  el.textContent = 'Results updated ' + m+'/'+d+' '+dow+' '+h12+':'+ms+' '+ampm;
-  el.style.display = 'block';
+  if (text) text.textContent = 'Results updated ' + m+'/'+d+' '+dow+' '+h12+':'+ms+' '+ampm;
+  if (bar) bar.style.display = '';
+  applyStickyOffsets();
+}
+
+// ── Bucket view ───────────────────────────────────────────────────────
+function formatBucketTime(d) {
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var m = d.getMonth()+1, dd = d.getDate(), dow = days[d.getDay()];
+  var h = d.getHours(), mn = d.getMinutes();
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var h12 = h % 12 || 12;
+  var ms = mn < 10 ? '0'+mn : ''+mn;
+  return m+'/'+dd+' '+dow+' '+h12+':'+ms+' '+ampm;
+}
+
+function renderBucketView() {
+  var out = document.getElementById('bucketOut');
+  if (!out) return;
+
+  var counts     = (buckets && buckets.counts) ? buckets.counts : {};
+  var hidden     = Array.isArray(buckets && buckets.hidden) ? buckets.hidden : [];
+  var extraTeams = Array.isArray(buckets && buckets.bucketOnlyTeams) ? buckets.bucketOnlyTeams : [];
+  var schedTeams = [];
+  Object.values(GAMES).forEach(function(g) {
+    if (g.t1 && g.t1.type === 'fixed' && g.t1.team) schedTeams.push(g.t1.team);
+    if (g.t2 && g.t2.type === 'fixed' && g.t2.team) schedTeams.push(g.t2.team);
+  });
+  schedTeams = schedTeams.filter(function(t, i, a) { return a.indexOf(t) === i; });
+  var allTeams = schedTeams.concat(extraTeams.filter(function(t) { return schedTeams.indexOf(t) === -1; }));
+  // Filter out admin-hidden teams
+  allTeams = allTeams.filter(function(t) { return hidden.indexOf(t) === -1; });
+
+  var top3El = document.getElementById('bucketTop3');
+
+  // Edit mode — bucket role users see count inputs
+  if (_bucketEditMode && _sessionRole === 'buckets') {
+    if (top3El) top3El.innerHTML = '';
+    var sorted = allTeams.slice().sort(function(a, b) { return a.localeCompare(b); });
+    var editHTML = '<div class="bucket-edit-wrap">';
+    sorted.forEach(function(team) {
+      var val = parseInt(counts[team]) || 0;
+      editHTML += '<div class="bucket-edit-row">'
+        + '<span class="bucket-edit-name">' + esc(team) + '</span>'
+        + '<input class="bucket-edit-inp" type="number" min="0" inputmode="numeric" data-team="' + esc(team) + '" value="' + val + '">'
+        + '</div>';
+    });
+    editHTML += '</div>'
+      + '<div class="bucket-edit-actions">'
+      + '<button class="bucket-edit-save-btn" onclick="saveBucketEdit()">Save</button>'
+      + '<button class="bucket-edit-cancel-btn" onclick="exitBucketEdit()">Cancel</button>'
+      + '<span class="bucket-edit-status" id="bucketEditStatus"></span>'
+      + '</div>';
+    out.innerHTML = editHTML;
+    return;
+  }
+
+  // Always sort by count descending, then alphabetically as tiebreaker
+  allTeams.sort(function(a, b) {
+    var ca = parseInt(counts[a]) || 0;
+    var cb = parseInt(counts[b]) || 0;
+    if (cb !== ca) return cb - ca;
+    return a.localeCompare(b);
+  });
+
+  if (!allTeams.length) {
+    if (top3El) top3El.innerHTML = '';
+    out.innerHTML = '<div class="bucket-empty">No teams in the bucket challenge yet.</div>';
+    return;
+  }
+
+  function makeRow(team, i) {
+    var count     = parseInt(counts[team]) || 0;
+    var rank      = i + 1;
+    var medalCls  = rank <= 3 ? ' bucket-row--' + rank : '';
+    return '<div class="bucket-row' + medalCls + '">'
+      + '<span class="bucket-rank">' + rank + '</span>'
+      + '<span class="bucket-team-name">' + esc(team) + '</span>'
+      + '<span class="bucket-count">' + count + '</span>'
+      + '</div>';
+  }
+
+  var topTeams  = allTeams.slice(0, 3);
+  var restTeams = allTeams.slice(3);
+
+  if (top3El) {
+    top3El.innerHTML = '<div class="bucket-leaderboard bucket-leaderboard--top3">'
+      + topTeams.map(function(t, i) { return makeRow(t, i); }).join('')
+      + '</div>';
+  }
+
+  if (restTeams.length) {
+    out.innerHTML = '<div class="bucket-leaderboard">'
+      + restTeams.map(function(t, i) { return makeRow(t, i + 3); }).join('')
+      + '</div>';
+  } else {
+    out.innerHTML = '';
+  }
+}
+
+function enterBucketEdit() {
+  document.querySelectorAll('.view-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.view-panel').forEach(function(p){ p.classList.remove('active'); });
+  var tab   = document.querySelector('.view-tab[data-view="buckets"]');
+  var panel = document.getElementById('view-buckets');
+  if (tab)   tab.classList.add('active');
+  if (panel) panel.classList.add('active');
+  setCookie('tt_tab', 'buckets');
+  _bucketEditMode = true;
+  updateTimestamp();
+  renderBucketView();
+}
+
+function exitBucketEdit() {
+  _bucketEditMode = false;
+  renderBucketView();
+  updateTimestamp();
+}
+
+function saveBucketEdit() {
+  var counts = (buckets && buckets.counts) ? Object.assign({}, buckets.counts) : {};
+  var hidden = Array.isArray(buckets && buckets.hidden) ? buckets.hidden : [];
+
+  document.querySelectorAll('.bucket-edit-inp').forEach(function(inp) {
+    var team = inp.dataset.team;
+    var val  = parseInt(inp.value, 10);
+    counts[team] = isNaN(val) || val < 0 ? 0 : val;
+  });
+
+  var statusEl = document.getElementById('bucketEditStatus');
+  if (statusEl) statusEl.textContent = 'Saving…';
+
+  fetch('/api/buckets/counts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ counts: counts, hidden: hidden })
+  }).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(data) {
+    if (buckets) {
+      buckets.counts    = data.counts    || counts;
+      buckets.updatedAt = data.updatedAt || new Date().toISOString();
+    }
+    if (statusEl) statusEl.textContent = 'Saved!';
+    setTimeout(function() { exitBucketEdit(); }, 700);
+  }).catch(function() {
+    if (statusEl) statusEl.textContent = 'Save failed.';
+  });
 }
 
 // ══════════════════════════════════════════════════════════
@@ -63,6 +238,18 @@ function getCookie(name) {
 // THEME
 // ══════════════════════════════════════════════════════════
 var themeBtn=document.getElementById('themeToggle');
+
+// Auto-apply system color scheme on first load, then follow OS changes.
+(function(){
+  var mq = window.matchMedia('(prefers-color-scheme: light)');
+  function applyScheme(light) {
+    document.body.classList.toggle('light', light);
+    if (themeBtn) themeBtn.textContent = light ? '🌙 Dark' : '☀ Light';
+  }
+  applyScheme(mq.matches);
+  mq.addEventListener('change', function(e) { applyScheme(e.matches); });
+})();
+
 themeBtn.addEventListener('click',function(){
   document.body.classList.toggle('light');
   themeBtn.textContent=document.body.classList.contains('light')?'🌙 Dark':'☀ Light';
@@ -84,13 +271,16 @@ document.querySelectorAll('.view-tab').forEach(function(tab){
     document.getElementById('view-'+tab.dataset.view).classList.add('active');
     setCookie('tt_tab', tab.dataset.view);
     renderActive();
+    fetchAll(); // refresh data on every tab tap (PWA-friendly)
   });
 });
 function renderActive(){
   var v=activeView();
+  updateTimestamp(); // keep bar in sync whenever view changes
   if(v==='bracket') renderBracket();
-  if(v==='rounds')  { renderRoundView(); setTimeout(function(){ scrollToRound(firstIncompleteRound()); }, 60); }
-  if(v==='teams')   renderTeamView();
+  if(v==='schedule')  { renderRoundView(); setTimeout(scrollToLastCompletedCard, 60); }
+  if(v==='teampath')  renderTeamView();
+  if(v==='buckets') renderBucketView();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -98,20 +288,25 @@ function renderActive(){
 // ══════════════════════════════════════════════════════════
 async function fetchAll(){
   try{
-    var [rr,sr,str]=await Promise.all([
+    var [rr,sr,str,br]=await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
+      fetch('/api/buckets'),
     ]);
     results=await rr.json(); schedule=await sr.json(); settings=await str.json();
+    buckets=br.ok ? await br.json() : {};
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; }
+  }catch(e){ results={}; schedule={}; settings={}; buckets={}; }
   applySettings();
   updateTimestamp();
   populateTeamSelect();
 
-  // Restore saved tab
-  var savedTab = getCookie('tt_tab');
+  // ?view=X from lineup page tab links overrides saved cookie
+  var qView = new URLSearchParams(window.location.search).get('view');
+  // Restore saved tab; on mobile default to By Round if no saved preference
+  var savedTab = qView || getCookie('tt_tab');
+  if (!savedTab && window.innerWidth < 1024) savedTab = 'schedule';
   if (savedTab) {
     var targetTab   = document.querySelector('.view-tab[data-view="' + savedTab + '"]');
     var targetPanel = document.getElementById('view-' + savedTab);
@@ -135,9 +330,13 @@ async function fetchAll(){
 }
 var resizeTimer;
 window.addEventListener('resize',function(){
+  applyStickyOffsets();
   clearTimeout(resizeTimer);
   resizeTimer=setTimeout(function(){if(activeView()==='bracket') renderBracket();},150);
 });
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', applyStickyOffsets, { passive: true });
+}
 
 // ══════════════════════════════════════════════════════════
 // HELPERS
@@ -299,7 +498,7 @@ function buildSideColumns(side){
   return rounds.map(function(round){
     var games=Object.keys(GAMES).filter(function(gid){
       return GAMES[gid].side===side&&GAMES[gid].round===round;
-    }).map(function(gid){ return {gid:gid,slot:GAMES[gid].num}; })
+    }).map(function(gid){ return {gid:gid,slot:parseSlotId(gid).num}; })
       .sort(function(a,b){ return a.slot-b.slot; });
     return {round:round,games:games};
   });
@@ -487,16 +686,17 @@ function mobileRoundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
-  var ft = formatTime(g.time), dayStr = '', timeStr = ft;
+  var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
-  if (m) { dayStr = m[1] + ' ' + m[2]; timeStr = m[3]; }
+  if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
   var upcoming = !r.winner ? ' upcoming' : '';
   // Header (top 25%), team 1 (37.5%), team 2 (37.5%)
   return '<div class="mbc-game-card' + upcoming + '">'
     + '<div class="mbc-game-mid">'
     +   '<span class="mbc-game-lbl">' + esc(gameLabel(gid)) + '</span>'
     +   '<span class="mbc-game-datetime">'
-    +     (dayStr  ? '<span class="mbc-game-day">'  + esc(dayStr)  + '</span>' : '')
+    +     (dateStr ? '<span class="mbc-game-day">'  + esc(dateStr) + '</span>' : '')
+    +     (dowStr  ? '<span class="mbc-game-dow">'  + esc(dowStr)  + '</span>' : '')
     +     (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
     +   '</span>'
     + '</div>'
@@ -520,14 +720,15 @@ function roundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
-  var ft = formatTime(g.time), dayStr = '', timeStr = ft;
-  var m = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
-  if (m) { dayStr = m[1]; timeStr = m[2]; }
+  var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
+  var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
+  if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
   return '<div class="round-game-card">'
     + '<div class="round-game-header">'
     + '<span class="round-game-id">' + esc(gameLabel(gid)) + '</span>'
     + '<div class="round-game-day-time">'
-    + (dayStr  ? '<span class="round-game-day">'  + esc(dayStr)  + '</span>' : '')
+    + (dateStr ? '<span class="round-game-day">'  + esc(dateStr) + '</span>' : '')
+    + (dowStr  ? '<span class="round-game-dow">'  + esc(dowStr)  + '</span>' : '')
     + (timeStr ? '<span class="round-game-time">' + esc(timeStr) + '</span>' : '')
     + '</div></div>'
     + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
@@ -684,6 +885,32 @@ function renderMobileBracket(root, dims) {
     });
   });
 
+  // prevOffset: where each card should be when the NEXT round is fully in view.
+  // Feeder pairs converge to earlyY of their child card, giving a stacking effect
+  // when swiping forward and an organic spreading-out when swiping backward.
+  var prevOffset = {};
+  var nextRoundForPrev = { R1:'R2', R2:'QF', QF:'SF', SF:'CHAMP' };
+  ['R1','R2','QF','SF'].forEach(function(curRound) {
+    var nextRound = nextRoundForPrev[curRound];
+    var curGids = [];
+    ['L','R'].forEach(function(side) {
+      var nums = (SLOT_DEFS[curRound] && SLOT_DEFS[curRound][side]) ? SLOT_DEFS[curRound][side] : [];
+      nums.forEach(function(num) { curGids.push(curRound + '.' + side + '.' + num); });
+    });
+    var nextGids = [];
+    var nextSides = nextRound === 'CHAMP' ? ['C'] : ['L','R'];
+    nextSides.forEach(function(side) {
+      var nums = (SLOT_DEFS[nextRound] && SLOT_DEFS[nextRound][side]) ? SLOT_DEFS[nextRound][side] : [];
+      nums.forEach(function(num) { nextGids.push(nextRound + '.' + side + '.' + num); });
+    });
+    curGids.forEach(function(gid, j) {
+      var childGid = nextGids[Math.floor(j / 2)];
+      var childEY  = childGid !== undefined ? earlyY[childGid] : undefined;
+      var selfEY   = earlyY[gid];
+      prevOffset[gid] = (childEY !== undefined && selfEY !== undefined) ? (childEY - selfEY) : 0;
+    });
+  });
+
   // Apply computed positions and inner heights to the DOM
   colEls.forEach(function(colEl, ri) {
     var round = rounds[ri];
@@ -695,12 +922,13 @@ function renderMobileBracket(root, dims) {
       var ly  = lateY[gid]  !== undefined ? lateY[gid]  : ey;
       card.style.top = ey + 'px';
       card.dataset.lateOffset = (ly - ey).toFixed(1);
+      card.dataset.prevOffset = (prevOffset[gid] || 0).toFixed(1);
     });
   });
 
   // ── Blend animation ──────────────────────────────────────────────────
-  // Cards use transform for the lateY offset (earlyY→lateY blend).
-  // The .mbc-inner transform (scroll sync below) is separate and composes on top.
+  // applyBlend   — forward convergence: earlyY → lateY  (used by right/next columns)
+  // applyPrevBlend — stacking:          earlyY → child earlyY (used by left columns)
   function applyBlend(ci, blend) {
     if (ci < 0 || ci >= colEls.length) return;
     var cards = colEls[ci].querySelectorAll('.mbc-card');
@@ -709,9 +937,18 @@ function renderMobileBracket(root, dims) {
       cards[k].style.transform = off ? 'translateY(' + (off * blend).toFixed(1) + 'px)' : '';
     }
   }
+  function applyPrevBlend(ci, blend) {
+    if (ci < 0 || ci >= colEls.length) return;
+    var cards = colEls[ci].querySelectorAll('.mbc-card');
+    for (var k = 0; k < cards.length; k++) {
+      var off = parseFloat(cards[k].dataset.prevOffset) || 0;
+      cards[k].style.transform = off ? 'translateY(' + (off * blend).toFixed(1) + 'px)' : '';
+    }
+  }
 
   var activeIdx = 0;
-  for (var i = 0; i < colEls.length; i++) { applyBlend(i, i === 0 ? 0 : 1); }
+  applyPrevBlend(0, 0);                                          // starting column: earlyY
+  for (var i = 1; i < colEls.length; i++) { applyBlend(i, 1); } // right columns: lateY
 
   // ── Single full-width scroll overlay ─────────────────────────────────
   //
@@ -721,6 +958,13 @@ function renderMobileBracket(root, dims) {
   // All .mbc-inner divs are driven by translateY transforms from its scrollTop.
   // Horizontal column switching is handled in JS via touchmove on this element.
   var sharedScrollTop = 0;
+  // Approaching-column compensation: during a horizontal swipe the approaching
+  // column's inner is offset so the anchor card stays pinned at its lateY
+  // screen position instead of drifting to earlyY (which may be off-screen).
+  var _approachIdx   = -1;  // which column is currently being approached
+  var _approachComp  = 0;   // px to subtract from sharedScrollTop for that column
+  var _anchorLateOff = 0;   // cached lateOffset of the anchor card
+  var _scrollLeftPrev = 0;  // for direction detection
 
   var captureEl = document.createElement('div');
   captureEl.className = 'mbc-scroll-cap';
@@ -734,17 +978,29 @@ function renderMobileBracket(root, dims) {
 
   function setSpacerForCol(idx) {
     var maxScroll = Math.max(0, roundInnerH(rounds[idx]) - scrollH);
+    // _anchorLateOff was computed during the swipe; use it to land the scroll
+    // exactly where the continuous compensation was heading.
+    var newScroll = Math.max(0, Math.min(sharedScrollTop - _anchorLateOff, maxScroll));
+    _anchorLateOff = 0;
     spacerEl.style.height = (scrollH + maxScroll) + 'px';
-    if (sharedScrollTop > maxScroll) {
+    if (newScroll !== sharedScrollTop) {
+      sharedScrollTop = newScroll;
+      captureEl.scrollTop = newScroll;
+      // captureEl scroll event fires → syncAllColumns with compensation cleared
+    } else if (sharedScrollTop > maxScroll) {
       sharedScrollTop = maxScroll;
       captureEl.scrollTop = maxScroll;
     }
   }
 
   function syncAllColumns() {
-    var ty = sharedScrollTop > 0 ? 'translateY(-' + sharedScrollTop + 'px)' : '';
-    colEls.forEach(function(col) {
-      col.querySelector('.mbc-inner').style.transform = ty;
+    colEls.forEach(function(col, ci) {
+      var inner = col.querySelector('.mbc-inner');
+      // Approaching column gets its own offset so its anchor card stays pinned
+      var ty = (ci === _approachIdx)
+        ? Math.max(0, sharedScrollTop - _approachComp)
+        : sharedScrollTop;
+      inner.style.transform = ty > 0 ? 'translateY(-' + ty + 'px)' : '';
     });
   }
 
@@ -808,20 +1064,58 @@ function renderMobileBracket(root, dims) {
 
   captureEl.addEventListener('touchcancel', function() { hSwipe = null; }, { passive: true });
 
-  // Horizontal scroll → blend animation + update spacer on snap settle
+  // Horizontal scroll → blend + continuous scroll compensation + snap settle
   var hSnapTimer = null;
   outer.addEventListener('scroll', function() {
     var x        = outer.scrollLeft;
+    var dir      = x >= _scrollLeftPrev ? 1 : -1;
+    _scrollLeftPrev = x;
     var idx      = Math.round(x / colW);
     var floorIdx = Math.floor(x / colW);
     var progress = (x - floorIdx * colW) / colW;
-    applyBlend(floorIdx,     progress);
+
+    // Left columns (behind): fully stacked toward their next-round child position
+    for (var j = 0; j < floorIdx; j++)                 applyPrevBlend(j, 1);
+    // Current column: spreading away as we leave, or spreading back as we return
+    applyPrevBlend(floorIdx,     progress);
+    // Next column: converging from lateY toward earlyY as we approach
     applyBlend(floorIdx + 1, 1 - progress);
-    for (var j = 0; j < floorIdx; j++)                 applyBlend(j, 0);
+    // Right columns (ahead): fully converged at lateY, ready to receive
     for (var j = floorIdx + 2; j < colEls.length; j++) applyBlend(j, 1);
+
+    // Which column are we moving toward, and how far along are we?
+    var approachIdx  = dir > 0 ? Math.min(floorIdx + 1, colEls.length - 1) : floorIdx;
+    var approachProg = dir > 0 ? progress : 1 - progress;
+
+    if (progress > 0) {
+      if (_approachIdx !== approachIdx) {
+        _approachIdx = approachIdx;
+        var center   = sharedScrollTop + scrollH / 2;
+        var bestDist = Infinity;
+        _anchorLateOff = 0;
+        colEls[approachIdx].querySelectorAll('.mbc-card').forEach(function(card) {
+          var gid = card.dataset.gid;
+          var ly  = lateY[gid]  !== undefined ? lateY[gid]
+                  : (earlyY[gid] !== undefined ? earlyY[gid] : 0);
+          var d = Math.abs(ly - center);
+          if (d < bestDist) { bestDist = d; _anchorLateOff = parseFloat(card.dataset.lateOffset) || 0; }
+        });
+      }
+      _approachComp = _anchorLateOff * approachProg;
+    } else if (_approachIdx >= 0 && idx !== activeIdx) {
+      // Forward snap settled on new column — complete compensation so the timer's
+      // scrollTop write lands on the same value already shown (no jump).
+      _approachComp = _anchorLateOff;
+    }
+
+    syncAllColumns();
+
     clearTimeout(hSnapTimer);
     hSnapTimer = setTimeout(function() {
+      _approachIdx  = -1;
+      _approachComp = 0;
       if (idx !== activeIdx) { activeIdx = idx; setSpacerForCol(idx); }
+      _anchorLateOff = 0;
     }, 200);
   }, { passive: true });
 
@@ -835,22 +1129,27 @@ function renderMobileBracket(root, dims) {
 // ── Sticky offset helpers ─────────────────────────────────
 function applyStickyOffsets() {
   var hdrH  = document.getElementById('siteHeader').offsetHeight;
+  var barEl = document.getElementById('updateBar');
+  var barH  = (barEl && barEl.offsetParent !== null) ? barEl.offsetHeight : 0;
   var tabsH = document.getElementById('viewTabs').offsetHeight;
   var sel   = document.querySelector('.selector-row');
   var selH  = sel ? sel.offsetHeight : 0;
   var r = document.documentElement.style;
+  r.setProperty('--app-h',  window.innerHeight + 'px');
   r.setProperty('--hdr-h',  hdrH  + 'px');
+  r.setProperty('--bar-h',  barH  + 'px');
   r.setProperty('--tabs-h', tabsH + 'px');
   r.setProperty('--sel-h',  (selH || 72) + 'px');
 }
 
 function stickyNavH() {
   var hdr  = document.getElementById('siteHeader');
+  var bar  = document.getElementById('updateBar');
   var tabs = document.getElementById('viewTabs');
   var sel  = document.querySelector('#view-rounds .selector-row');
   var mobile = window.innerWidth < 1024;
-  // On mobile: tabs + selector are fixed at bottom, only header offsets scroll target
   return (hdr ? hdr.offsetHeight : 0)
+       + (bar && bar.offsetParent !== null ? bar.offsetHeight : 0)
        + (tabs && !mobile ? tabs.offsetHeight : 0)
        + (sel && !mobile && sel.offsetParent !== null ? sel.offsetHeight : 0);
 }
@@ -870,10 +1169,48 @@ function firstIncompleteRound() {
 function scrollToRound(round) {
   var el = document.getElementById('round-section-' + round);
   if (!el) return;
-  var offset = stickyNavH();
-  var top = el.getBoundingClientRect().top + window.scrollY - offset - 4;
-  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  var mobile = window.innerWidth < 1024;
+  if (mobile) {
+    // On mobile the scrollable container is .round-panel, not #view-schedule
+    var scroller = document.querySelector('#view-schedule .round-panel');
+    if (scroller) {
+      var scrollOffset = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 4;
+      scroller.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
+    }
+  } else {
+    var offset = stickyNavH();
+    var top = el.getBoundingClientRect().top + window.scrollY - offset - 4;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }
   document.getElementById('roundSelect').value = round;
+}
+
+function scrollToLastCompletedCard() {
+  var rounds = ['R1','R2','QF','SF','CHAMP'];
+  var lastSid = null;
+  rounds.forEach(function(round) {
+    Object.keys(GAMES)
+      .filter(function(s){ return GAMES[s].round === round; })
+      .sort(function(a,b){ return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time); })
+      .forEach(function(sid) {
+        if (results[sid] && results[sid].winner) lastSid = sid;
+      });
+  });
+  if (!lastSid) return;
+  var card = document.getElementById('rgc-' + lastSid);
+  if (!card) return;
+  var mobile = window.innerWidth < 1024;
+  if (mobile) {
+    var scroller = document.querySelector('#view-schedule .round-panel');
+    if (scroller) {
+      var scrollOffset = card.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 4;
+      scroller.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
+    }
+  } else {
+    var top = card.getBoundingClientRect().top + window.scrollY - stickyNavH() - 4;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }
+  document.getElementById('roundSelect').value = GAMES[lastSid].round;
 }
 
 var roundObserver = null;
@@ -912,17 +1249,18 @@ function renderRoundView() {
       var g=GAMES[sid]; if(!g) return;
       var t1=disp(sid,g.t1), t2=disp(sid,g.t2), r=results[sid]||{};
       var ft=formatTime(g.time);
-      var dayStr='', timeStr=ft;
-      var m=ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
-      if(m){ dayStr=m[1]; timeStr=m[2]; }
+      var dateStr='', dowStr='', timeStr=ft;
+      var m=ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
+      if(m){ dateStr=m[1]; dowStr=m[2]; timeStr=m[3]; }
       var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
       var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
       var upcoming = !r.winner ? ' upcoming' : '';
-      html += '<div class="round-game-card' + upcoming + '">'
+      html += '<div class="round-game-card' + upcoming + '" id="rgc-' + sid + '">'
         +'<div class="round-game-header">'
         +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
         +'<div class="round-game-day-time">'
-        +(dayStr?'<span class="round-game-day">'+esc(dayStr)+'</span>':'')
+        +(dateStr?'<span class="round-game-day">'+esc(dateStr)+'</span>':'')
+        +(dowStr?'<span class="round-game-dow">'+esc(dowStr)+'</span>':'')
         +(timeStr?'<span class="round-game-time">'+esc(timeStr)+'</span>':'')
         +'</div></div>'
         +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
@@ -960,6 +1298,14 @@ function populateTeamSelect(){
   });
 }
 
+function syncLoseSideWidths() {
+  var sides = document.querySelectorAll('.round-lose-side, .round-win-side');
+  for (var i = 0; i < sides.length; i++) {
+    sides[i].style.width = '';
+    sides[i].style.width = sides[i].offsetHeight + 'px';
+  }
+}
+
 function buildWinChain(sid){
   var chain=[sid], cur=sid;
   for(var i=0;i<10;i++){
@@ -970,7 +1316,7 @@ function buildWinChain(sid){
   return chain;
 }
 
-function makeVerticalChain(chain, team, isLosePath) {
+function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
   var GREEN = 'var(--win-color)';
 
   var html = '';
@@ -993,23 +1339,46 @@ function makeVerticalChain(chain, team, isLosePath) {
     if (played && teamLost) borderColor = 'var(--lose-color)';
     if (!played && i === 0 && !isLosePath) borderColor = 'var(--blue-lt)';
 
-    // Lose destination sidebar (shown when team hasn't lost yet)
+    var ft2 = formatTime(g.time), mft2 = ft2.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
+    var dt2 = mft2 ? mft2[1] : '', dw2 = mft2 ? mft2[2] : '', tm2 = mft2 ? mft2[3] : ft2;
+
+    // Sidebar: loss-path indicator for upcoming games, victory box for won games
     var loseSide = '';
-    if (!played || teamWon) {
+    if (!played) {
       var ln = findNextSlot(gid, 'loser');
       var destText = ln ? gameLabel(ln) : 'OUT';
       loseSide = '<div class="round-lose-side">'
         + '<span class="round-lose-tag">LOSS</span>'
+        + '<span class="round-lose-arrow">↓</span>'
         + '<span class="round-lose-dest' + (ln ? '' : ' out') + '">' + esc(destText) + '</span>'
         + '</div>';
+    } else if (teamWon) {
+      loseSide = '<div class="round-win-side">'
+        + '<img src="/icons/victory.png" class="round-win-img" alt="">'
+        + '<span class="round-win-tag">WON</span>'
+        + '</div>';
+    } else if (teamLost) {
+      var ln = findNextSlot(gid, 'loser');
+      if (ln) {
+        loseSide = '<div class="round-lose-side">'
+          + '<span class="round-lose-tag">Lost</span>'
+          + '<span class="round-lose-arrow round-lose-arrow--cont">↓</span>'
+          + '<span class="round-lose-dest">' + esc(gameLabel(ln)) + '</span>'
+          + '</div>';
+      } else {
+        loseSide = '<div class="round-lose-side">'
+          + '<span class="round-lose-tag">LOST</span>'
+          + '</div>';
+      }
     }
 
     html += '<div class="round-game-card" style="border-color:' + borderColor + '">'
       + '<div class="round-game-main">'
       + '<div class="round-game-header">'
       + '<div class="round-game-day-time">'
-      + '<span class="round-game-day">' + esc((formatTime(g.time).match(/^(\d+\/\d+\s+\S+)/)||['',''])[1]) + '</span>'
-      + '<span class="round-game-time">' + esc((formatTime(g.time).match(/\d+:\d+\s+[AP]M$/)||[''])[0]) + '</span>'
+      + (dt2 ? '<span class="round-game-day">'  + esc(dt2) + '</span>' : '')
+      + (dw2 ? '<span class="round-game-dow">'  + esc(dw2) + '</span>' : '')
+      + (tm2 ? '<span class="round-game-time">' + esc(tm2) + '</span>' : '')
       + '</div>'
       + '<span class="round-game-id" style="margin-left:auto;flex-shrink:0">' + esc(gameLabel(gid)) + '</span>'
       + '</div>'
@@ -1026,7 +1395,14 @@ function makeVerticalChain(chain, team, isLosePath) {
       + '</div>';
 
     // Team lost this game — win path ends here; remaining games are unreachable
-    if (played && teamLost) break;
+    if (played && teamLost) {
+      if (showElimOnLoss) {
+        html += '<div class="team-elim-inline">'
+          + '<img src="/icons/eliminated.png" class="team-elim-inline-img" alt="Eliminated">'
+          + '</div>';
+      }
+      break;
+    }
 
     if (i < chain.length - 1) {
       html += '<div class="team-path-connector">'
@@ -1121,13 +1497,31 @@ function renderTeamView(){
     var ln=findNextSlot(gid,'loser');
 
     if(!ln){
-      if(!played||teamLostHere){
-        if(teamLostHere) teamEliminated=true;
+      if(teamLostHere){
+        var lgGame0 = GAMES[gid];
+        var lopp10 = resolveSlot(lgGame0.t1, results);
+        var lopp20 = resolveSlot(lgGame0.t2, results);
+        var lossOpp0 = (lopp10===team) ? (lopp20||smartLabel(lgGame0.t2,results)) : (lopp10||smartLabel(lgGame0.t1,results));
+        if(lostR1){
+          // First game was a loss with no loser bracket — show the game card before the banner
+          html+='<div class="team-path-label lose-label">Loss to '+esc(lossOpp0)+'</div>';
+          html+=makeVerticalChain([gid],team,false,true);
+        } else {
+          // Team won earlier games (already rendered in winChain) but lost here with no loser bracket
+          html+='<div class="team-elim-inline">'
+            +'<img src="/icons/eliminated.png" class="team-elim-inline-img" alt="Eliminated">'
+            +'</div>';
+        }
+        teamEliminated=true;
       }
     } else {
       if(!played||teamLostHere){
+        var lgGame = GAMES[gid];
+        var lopp1 = resolveSlot(lgGame.t1, results);
+        var lopp2 = resolveSlot(lgGame.t2, results);
+        var lossOpp = (lopp1 === team) ? (lopp2 || smartLabel(lgGame.t2, results)) : (lopp1 || smartLabel(lgGame.t1, results));
         html+='<div class="team-path-divider"></div>';
-        html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(gid)+')</div>';
+        html+='<div class="team-path-label lose-label">Loss to '+esc(lossOpp)+'</div>';
         // Show the game that put the team on the lose path, then a LOSS connector.
         // This makes the lose path section self-contained with full context.
         if(teamLostHere){
@@ -1139,21 +1533,27 @@ function renderTeamView(){
             +'<span class="team-path-win-label" style="color:var(--lose-color)">LOSS</span>'
             +'</div>';
         }
-        html+=makeVerticalChain(buildWinChain(ln),team,true);
+        html+=makeVerticalChain(buildWinChain(ln),team,true,true);
         if(teamLostHere) teamEliminated=true;
       }
     }
   });
 
-  if(isEliminated(team,results)){
-    html+='<div class="team-elim-msg">Tournament run complete.</div>';
-  }
-
   out.innerHTML=html;
+  syncLoseSideWidths();
   applyStickyOffsets();
 }
 
 // ══════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════
+fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(function(sess) {
+  _sessionRole = sess.role || null;
+  var isPwa    = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
+  var adminBtn = document.getElementById('adminPortalBtn');
+  var editBtn  = document.getElementById('bucketEditBtn');
+  if (adminBtn) adminBtn.style.display =
+    (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
+  if (editBtn)  editBtn.style.display  = (_sessionRole === 'buckets') ? '' : 'none';
+}).catch(function(){});
 fetchAll();

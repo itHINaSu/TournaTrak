@@ -4,11 +4,16 @@
 .admin-tab-bar {
   display: flex;
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.07em solid var(--border);
   margin-bottom: 1.2em;
 }
 .admin-tab {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25em;
   text-align: center;
   padding: 0.85em 0.3em;
   font-family: 'Oswald', sans-serif;
@@ -18,6 +23,7 @@
   text-transform: uppercase;
   color: var(--text-dim);
   cursor: pointer;
+  text-decoration: none;
   border-bottom: 0.18em solid transparent;
   transition: all 0.15s;
   user-select: none;
@@ -25,11 +31,17 @@
 .admin-tab.active { color: var(--blue-lt); border-bottom-color: var(--blue-lt); }
 .admin-tab-panel { display: none; }
 .admin-tab-panel.active { display: block; }
+.admin-tab .tab-icon {
+  width: 1.4em;
+  height: 1.4em;
+  flex-shrink: 0;
+  display: none; /* shown only on mobile */
+}
 
 /* ── Empty slot card ── */
 .empty-slot-card {
   border: 0.07em dashed var(--border);
-  border-radius: 0.4em;
+  border-radius: var(--radius-sm);
   overflow: hidden;
   margin-bottom: 0.75em;
   background: var(--surface);
@@ -51,7 +63,7 @@
   width: min(90vw, 340px);
   background: var(--surface);
   border: 0.07em solid var(--border);
-  border-radius: 0.5em;
+  border-radius: var(--radius-md);
   padding: 2em 1.8em;
 }
 .login-title {
@@ -89,21 +101,42 @@
 .admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.25em 0.62em; border-radius: 0.2em; border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
 .admin-clear-btn:hover { background: rgba(192,80,80,0.1); }
 
+/* Public page link button */
+.admin-public-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.38em 0.88em;
+  border-radius: 0.2em;
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+}
+.admin-public-btn:hover { color: var(--text); border-color: var(--text-dim); }
+
 /* ── Results tab: card layout (mirrors By Round view) ── */
 .admin-res-card {
   border: 0.07em solid var(--border);
-  border-radius: 0.6em;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--surface);
   margin-bottom: 1.4em;
 }
 .admin-res-card--waiting { opacity: 0.45; }
+.admin-res-card.upcoming { opacity: 0.75; border-style: dashed; }
 
 .admin-res-hdr {
   display: flex;
   align-items: center;
   gap: 0.6em;
-  padding: 0.7em 1em 0.6em;
+  padding: 0.6em 1em;
   background: var(--surface2);
   border-bottom: 0.07em solid var(--border);
 }
@@ -113,8 +146,7 @@
   gap: 0.45em;
   flex: 1;
 }
-.admin-res-day  { font-family: 'Oswald', sans-serif; font-size: clamp(1.1rem, 0.18vw + 1.05rem, 1.4rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
-.admin-res-time { font-family: 'Oswald', sans-serif; font-size: clamp(1.1rem, 0.18vw + 1.05rem, 1.4rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
+.admin-res-day, .admin-res-time { font-family: 'Oswald', sans-serif; font-size: clamp(1.1rem, 0.18vw + 1.05rem, 1.4rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
 
 .admin-res-team-row {
   display: flex;
@@ -147,6 +179,7 @@
 .admin-res-footer {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.6em;
   padding: 0.7em 1em;
   border-top: 0.07em solid var(--border);
@@ -162,12 +195,27 @@
   font-style: italic;
 }
 
-/* Public page link button */
-.admin-public-btn {
+/* ── Completed games section header ── */
+.admin-completed-hdr { margin-top: 2em; color: var(--text-mute); }
+
+/* ── Results mode bar (Games / Bucket Challenge switcher) ── */
+.results-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.6em 0 0.75em;
+  border-bottom: 0.07em solid var(--border);
+  margin-bottom: 0.75em;
+  position: sticky;
+  top: var(--hdr-h, 52px);
+  z-index: 10;
+  background: var(--bg);
+}
+.results-mode-btn {
   font-family: 'Oswald', sans-serif;
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 0.38em 0.88em;
   border-radius: 0.2em;
@@ -175,16 +223,17 @@
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3em;
 }
-.admin-public-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.results-mode-btn.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.results-mode-btn:hover:not(.active) { color: var(--text); border-color: var(--text-dim); }
 
 /* ── Schedule editor ── */
-.sched-game-card { border: 0.07em solid var(--border); border-radius: 0.4em; overflow: hidden; margin-bottom: 0.75em; background: var(--surface); }
-.sched-game-hdr { display: flex; align-items: center; gap: 0.6em; padding: 0.5em 0.75em; background: var(--surface2); border-bottom: 0.07em solid var(--border); cursor: pointer; }
+.sched-game-card { border: 0.07em solid var(--border); border-radius: var(--radius-sm); overflow: hidden; margin-bottom: 0.75em; background: var(--surface); }
+.sched-game-hdr { display: flex; align-items: center; gap: 0.6em; padding: 0.6em 1em; background: var(--surface2); border-bottom: 0.07em solid var(--border); cursor: pointer; }
 .sched-game-hdr-id { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.07em; color: var(--blue-lt); }
 .sched-game-hdr-sid { color: var(--text-mute); font-size: 0.65em; }
 .sched-game-hdr-time { font-size: 0.78rem; color: var(--gold-lt); font-weight: 600; }
@@ -195,8 +244,10 @@
 .sched-game-body.open { display: block; }
 .sched-field { margin-bottom: 0.6em; }
 .sched-field label { display: block; font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.25em; }
-.sched-field input { width: 100%; font-family: 'Barlow', sans-serif; font-size: 0.9rem; padding: 0.43em 0.62em; border-radius: 0.25em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); }
-.sched-field input:focus { outline: 0.13em solid var(--blue-lt); }
+.sched-field input,
+.settings-field input { width: 100%; font-family: 'Barlow', sans-serif; font-size: 0.9rem; padding: 0.43em 0.62em; border-radius: 0.25em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); }
+.sched-field input:focus,
+.settings-field input:focus { outline: 0.13em solid var(--blue-lt); }
 .sched-save-btn { font-family: 'Oswald', sans-serif; font-size: 0.74rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.38em 0.88em; border-radius: 0.2em; border: 0.07em solid var(--blue); background: var(--blue); color: #fff; cursor: pointer; }
 .sched-save-btn:hover { background: var(--blue-lt); }
 .sched-status { font-size: 0.74rem; color: var(--win-color); margin-left: 0.5em; }
@@ -212,13 +263,69 @@
 .admin-game-row--waiting { opacity: 0.4; }
 .admin-game-teams--ready { color: var(--text); }
 
+/* ── Settings dashboard layout ── */
+.settings-layout {
+  display: flex;
+  align-items: flex-start;
+  min-height: 100%;
+}
+
+/* ── Left sidebar (desktop: always visible) ── */
+.settings-sidebar {
+  width: 10em;
+  flex-shrink: 0;
+  padding: 0.25em 0;
+  border-right: 0.07em solid var(--border);
+  margin-right: 1.8em;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+}
+.settings-nav-item {
+  display: block;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 0.7em 0.8em 0.7em 0.6em;
+  cursor: pointer;
+  border-left: 0.2em solid transparent;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
+  user-select: none;
+}
+.settings-nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+.settings-nav-item.active {
+  color: var(--gold-lt);
+  border-left-color: var(--gold-lt);
+  background: rgba(196,154,26,0.07);
+}
+
+/* ── Content area ── */
+.settings-content {
+  flex: 1;
+  min-width: 0;
+}
+.settings-panel { display: none; }
+.settings-panel.active { display: block; }
+
+
+/* ── Backdrop (mobile only, behind the drawer) ── */
+.settings-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 198;
+  background: rgba(0,0,0,0.45);
+}
+.settings-backdrop.open { display: block; }
+
 /* ── Settings tab ── */
 .settings-section { margin-bottom: 1.6em; }
 .settings-section-hdr { font-family: 'Oswald', sans-serif; font-size: 0.68em; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); padding: 0.5em 0; border-bottom: 0.07em solid var(--border); margin-bottom: 0.75em; }
 .settings-field { margin-bottom: 0.75em; }
 .settings-field label { display: block; font-family: 'Oswald', sans-serif; font-size: 0.62em; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.3em; }
-.settings-field input { width: 100%; font-family: 'Barlow', sans-serif; font-size: 0.88em; padding: 0.43em 0.62em; border-radius: 0.25em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); }
-.settings-field input:focus { outline: 0.13em solid var(--blue-lt); }
 .settings-field .field-hint { font-size: 0.65em; color: var(--text-mute); margin-top: 0.2em; }
 .settings-save-row { display: flex; align-items: center; gap: 0.6em; margin-top: 0.5em; }
 
@@ -263,4 +370,399 @@ input[type="date"]:focus,
 input[type="time"]:focus {
   outline: none;
   border-color: var(--blue-lt);
+}
+
+/* ── User management ── */
+.users-list { margin-bottom: 0.5em; }
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.65em 0;
+  border-bottom: 0.07em solid var(--border);
+  flex-wrap: wrap;
+}
+.user-row:last-child { border-bottom: none; }
+.user-name { font-weight: 600; font-size: 0.9rem; flex: 1; min-width: 0; }
+.user-role {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.18em 0.5em;
+  border-radius: 0.25em;
+  flex-shrink: 0;
+}
+.user-role--admin   { background: rgba(59,130,246,0.12); color: var(--blue-lt); border: 0.07em solid var(--blue); }
+.user-role--results { background: rgba(196,154,26,0.1);  color: var(--gold-lt);  border: 0.07em solid rgba(196,154,26,0.4); }
+.user-actions { display: flex; gap: 0.4em; align-items: center; flex-shrink: 0; }
+.user-delete-btn { color: var(--clear-color) !important; border-color: var(--clear-border) !important; }
+.user-regen-btn { color: var(--gold) !important; border-color: var(--gold) !important; background: transparent !important; }
+.user-regen-btn:hover { background: rgba(196,154,26,0.10) !important; }
+.user-self-label { font-size: 0.72rem; color: var(--text-mute); font-style: italic; }
+.user-must-change { font-size: 0.68rem; color: var(--gold); font-style: italic; flex-shrink: 0; }
+
+/* ── User row layout update for team info ── */
+.user-info { display: flex; flex-direction: column; gap: 0.15em; flex: 1; min-width: 0; }
+.user-team-name { font-size: 0.75rem; color: var(--gold-lt); font-style: italic; }
+.user-role--team { background: rgba(74,222,128,0.1); color: #4ade80; border: 0.07em solid rgba(74,222,128,0.3); }
+
+/* ── Coach card ── */
+.coach-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  padding: 0.75em 0;
+  border-bottom: 0.07em solid var(--border);
+}
+.coach-card:last-child { border-bottom: none; }
+.coach-card-name { font-weight: 600; font-size: 0.9rem; }
+.coach-teams-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3em;
+}
+.coach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em;
+  align-items: center;
+  padding-top: 0.25em;
+}
+/* Hidden value store for the copy function — never shown */
+.coach-link-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ── Coach multi-team tags ── */
+.coach-team-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: 0.25em;
+  padding: 0.2em 0.45em 0.2em 0.55em;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+.coach-team-remove {
+  background: none;
+  border: none;
+  color: var(--text-mute);
+  cursor: pointer;
+  font-size: 0.78rem;
+  line-height: 1;
+  padding: 0 0.1em;
+  opacity: 0.7;
+}
+.coach-team-remove:hover { color: var(--lose-color); opacity: 1; }
+.coach-add-team-btn {
+  background: none;
+  border: 0.07em dashed var(--border);
+  border-radius: 0.25em;
+  color: var(--text-mute);
+  cursor: pointer;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.78rem;
+  padding: 0.25em 0.6em;
+  transition: color 0.15s, border-color 0.15s;
+}
+.coach-add-team-btn:hover { color: var(--blue-lt); border-color: var(--blue-lt); }
+.coach-add-team-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  margin-top: 0.3em;
+  flex-wrap: wrap;
+}
+.coach-add-team-row input {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.82rem;
+  padding: 0.3em 0.5em;
+  border-radius: 0.25em;
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  width: 12em;
+}
+.coach-add-team-row input:focus { outline: 0.13em solid var(--blue-lt); border-color: var(--blue-lt); }
+
+/* ── Coach link row ── */
+.coach-link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.6em 1em;
+}
+.coach-link-input {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Barlow', monospace;
+  font-size: 0.78em;
+  padding: 0.4em 0.6em;
+  border-radius: 0.25em;
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+}
+
+/* ── Bucket admin editor ── */
+.bucket-admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  max-width: 38em;
+}
+.bucket-admin-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.55em 0.75em;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  margin-bottom: 0.4em;
+  cursor: default;
+}
+.bucket-admin-name {
+  flex: 1;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bucket-admin-inp {
+  width: 5.5em;
+  padding: 0.35em 0.5em;
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: 0.25em;
+  color: var(--text);
+  font-size: 0.95rem;
+  text-align: center;
+}
+.bucket-admin-inp:focus { outline: none; border-color: var(--blue-lt); }
+.bucket-count-inp {
+  width: 5em; flex-shrink: 0;
+  font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700;
+  text-align: right; padding: 0.15em 0.4em;
+  border-radius: 0.2em; border: 0.07em solid var(--border);
+  background: var(--surface2); color: var(--text);
+}
+.bucket-count-inp:focus { outline: 0.13em solid var(--blue-lt); }
+.bucket-admin-row--hidden { opacity: 0.45; }
+.bucket-admin-row--hidden .bucket-admin-name { text-decoration: line-through; }
+.bucket-hide-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.25em 0.55em;
+  border-radius: 0.2em;
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.bucket-hide-btn:hover { border-color: var(--text-dim); color: var(--text); }
+.bucket-hide-btn.is-hidden { border-color: var(--gold); color: var(--gold-lt); }
+.bucket-admin-divider {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  padding: 0.6em 0 0.2em;
+  border-top: 0.07em solid var(--border);
+  margin-top: 0.4em;
+}
+
+/* ── Bucket drag handle ── */
+.bucket-drag-handle {
+  flex-shrink: 0;
+  color: var(--text-mute);
+  cursor: grab;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25em;
+  min-width: 1.4em;
+}
+.bucket-drag-handle::before {
+  content: '⠿';
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.bucket-drag-handle:hover { color: var(--text-dim); }
+.bucket-admin-row.bucket-drag-over {
+  border-color: var(--blue-lt);
+  box-shadow: 0 0 0 0.1em var(--blue-lt);
+}
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE ADMIN — flex-order approach (tabs at bottom)
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  /* Prevent iOS/Android auto-zoom on input focus (triggers below 16px) */
+  input, select, textarea { font-size: 16px; }
+
+  html {
+    height: 100%;
+    height: 100svh;
+    height: var(--app-h, 100svh);
+  }
+  body {
+    height: 100%;
+    height: 100svh;
+    height: var(--app-h, 100svh);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  /* position:sticky inside overflow:hidden body is a no-op and can break WebKit flex
+     layout (content starts at y=0 behind the floating header). Use relative instead. */
+  .site-header { flex-shrink: 0; position: relative; top: auto; }
+
+  #adminWrap {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .admin-tab-bar {
+    order: 10;
+    flex-shrink: 0;
+    margin-bottom: 0;
+    border-bottom: none;
+    border-top: 0.22em solid var(--gold);
+    background: var(--bg);
+    box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
+    padding-bottom: max(1em, env(safe-area-inset-bottom, 0px));
+    padding-left: max(env(safe-area-inset-left, 0px), 1.2em);
+    padding-right: max(env(safe-area-inset-right, 0px), 1.2em);
+  }
+
+  .admin-tab {
+    border-bottom: none;
+    border-top: 0.25em solid transparent;
+    padding: 0.75em 0.3em 0.9em;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    gap: 0.3em;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .admin-tab .tab-icon {
+    display: block;
+    width: 1.8em;
+    height: 1.8em;
+  }
+
+  .admin-tab.active {
+    color: var(--gold-lt);
+    border-bottom-color: transparent;
+    border-top-color: var(--gold);
+  }
+
+  /* Settings tab: show gear when inactive, hamburger when active */
+  .admin-tab[data-tab="settings"] .tab-icon--menu { display: none; }
+  .admin-tab[data-tab="settings"].active .tab-icon--gear { display: none; }
+  .admin-tab[data-tab="settings"].active .tab-icon--menu { display: block; }
+
+  .admin-tab-panel.active {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding: 1em;
+    min-height: 0;
+  }
+
+  /* Lineup tab manages its own padding via .lineup-wrap */
+  #tab-lineups.active { padding: 0; }
+
+  .results-mode-bar {
+    margin-top: -1em;
+    margin-left: -1em;
+    margin-right: -1em;
+    padding-left: 1em;
+    padding-right: 1em;
+    border-bottom: 0.07em solid var(--border);
+    top: -1em;
+  }
+
+  /* Settings: collapse sidebar from layout flow on mobile */
+  .settings-layout { display: block; }
+
+  /* Sidebar becomes a bottom-right popover on mobile */
+  .settings-sidebar {
+    position: fixed;
+    bottom: calc(var(--tabs-h, 5em) + env(safe-area-inset-bottom, 0px) + 0.5em);
+    right: 0.75em;
+    top: auto;
+    left: auto;
+    width: min(13em, 80vw);
+    z-index: 199;
+    background: var(--surface);
+    border: 0.07em solid var(--border);
+    border-radius: var(--radius-md);
+    margin-right: 0;
+    padding: 0.4em 0;
+    overflow-y: auto;
+    max-height: 60vh;
+    transform: scale(0.85) translateY(1em);
+    transform-origin: bottom right;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+  }
+  .settings-sidebar.open {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .settings-nav-item {
+    border-left: none;
+    border-radius: 0;
+    padding: 0.9em 1.1em;
+    font-size: 0.85rem;
+    border-bottom: 0.07em solid var(--border);
+  }
+  .settings-nav-item:last-child { border-bottom: none; }
+  .settings-nav-item.active { color: var(--gold-lt); background: rgba(196,154,26,0.08); }
+
+  /* iOS zoom: all admin inputs must be >= 1rem */
+  .sched-field input,
+  .sched-field select,
+  .settings-field input,
+  .settings-field select,
+  .admin-winner-sel,
+  .admin-score-inp,
+  .bucket-count-inp,
+  .coach-link-input,
+  .coach-add-team-row input,
+  input[type="date"],
+  input[type="time"] {
+    font-size: 1rem;
+  }
 }

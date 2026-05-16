@@ -3,7 +3,7 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "3018:80"
+      - "3019:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./frontend:/usr/share/nginx/html:ro

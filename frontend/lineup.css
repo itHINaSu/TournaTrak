@@ -1,0 +1,356 @@
+/* lineup.css — team lineup page */
+
+.lineup-state {
+  max-width: 36em;
+  margin: 4em auto;
+  padding: 2em 1.5em;
+  text-align: center;
+}
+.lineup-state-icon { font-size: 2.5rem; margin-bottom: 0.5em; }
+.lineup-state-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 0.5em;
+}
+.lineup-state-body { font-size: 0.9rem; color: var(--text-mute); line-height: 1.6; }
+
+.lineup-wrap {
+  max-width: 52em;
+  margin: 0 auto;
+  padding: 1.2em 1em 4em;
+}
+.lineup-team-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  margin-bottom: 1.4em;
+  padding-bottom: 0.75em;
+  border-bottom: 0.07em solid var(--border);
+}
+.lineup-team-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+.lineup-team-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--gold-lt);
+  letter-spacing: 0.05em;
+}
+
+.lineup-form-wrap { overflow-x: auto; }
+
+.lineup-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Barlow', sans-serif;
+}
+.lineup-th {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 0.4em 0.5em 0.6em;
+  text-align: left;
+  border-bottom: 0.12em solid var(--gold);
+}
+.lineup-th--order { width: 2em; text-align: center; }
+.lineup-th--num   { width: 5em; }
+.lineup-th--pos   { width: 8em; }
+
+.lineup-row { border-bottom: 0.07em solid var(--border); }
+.lineup-row:last-child { border-bottom: none; }
+
+.lineup-td-order {
+  text-align: center;
+  padding: 0.4em 0.3em;
+  width: 2em;
+}
+.lineup-order {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  color: var(--text-mute);
+  font-weight: 600;
+}
+.lineup-td-num   { padding: 0.35em 0.4em; width: 5em; }
+.lineup-td-name  { padding: 0.35em 0.4em; }
+.lineup-td-pos   { padding: 0.35em 0.4em; width: 8em; }
+
+.lineup-inp {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  width: 100%;
+  padding: 0.4em 0.5em;
+  border-radius: 0.25em;
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  box-sizing: border-box;
+}
+.lineup-inp:focus { outline: 0.13em solid var(--blue-lt); border-color: var(--blue-lt); }
+.lineup-inp--num  { text-align: center; font-weight: 700; }
+
+.lineup-sel {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  width: 100%;
+  padding: 0.4em 0.3em;
+  border-radius: 0.25em;
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.lineup-sel:focus { outline: 0.13em solid var(--blue-lt); }
+
+.lineup-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  margin-top: 1.4em;
+  padding-top: 1em;
+  border-top: 0.07em solid var(--border);
+}
+.lineup-submit-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.65em 1.6em;
+  border-radius: 0.3em;
+  border: 0.07em solid var(--blue);
+  background: var(--blue);
+  color: #fff;
+  cursor: pointer;
+}
+.lineup-submit-btn:hover { background: var(--blue-lt); border-color: var(--blue-lt); }
+.lineup-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.lineup-status {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .lineup-td-num { width: 3.5em; }
+  .lineup-inp--num { padding: 0.4em 0.2em; }
+}
+
+/* ── Selector row: team + game side by side ── */
+.lineup-selectors-row {
+  display: flex;
+  gap: 0.75em;
+  margin-bottom: 0.75em;
+}
+.lineup-sel-half {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Game info / selector box ── */
+.lineup-game-info {
+  display: flex;
+  align-items: center;
+  padding: 0.55em 0.75em;
+  background: var(--surface2);
+  border-radius: 0.3em;
+  border: 0.07em solid var(--border);
+  min-height: 2.4em;
+}
+
+/* Select filling the info box — explicit bg needed; native selects ignore 'transparent' in dark mode */
+.lineup-game-sel {
+  width: 100%;
+  background: var(--surface2);
+  border: none;
+  color: var(--text);
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  -webkit-appearance: auto;
+  appearance: auto;
+}
+.lineup-game-sel:focus { outline: none; }
+
+.lineup-game-sel-placeholder {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.82rem;
+  color: var(--text-mute);
+  font-style: italic;
+}
+
+@media (max-width: 600px) {
+  .lineup-selectors-row { flex-direction: column; gap: 0.5em; }
+}
+
+/* ── Read-only badge ── */
+.lineup-readonly-badge {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: 0.25em;
+  padding: 0.35em 0.7em;
+  margin-bottom: 0.75em;
+  display: inline-block;
+}
+
+/* ── Sign-out button ── */
+.lineup-signout-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.5em 1.1em;
+  border-radius: 0.3em;
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.lineup-signout-btn:hover { color: var(--lose-color); border-color: var(--lose-color); }
+
+/* ── No-game message ── */
+.lineup-no-game {
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.9rem;
+  color: var(--text-mute);
+  padding: 1.5em 0;
+}
+
+/* ── Navigation tab bar (injected by JS, shown after session check) ── */
+.lineup-nav {
+  display: flex;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.lineup-nav-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  text-align: center;
+  padding: 0.85em 0.3em;
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(0.78rem, 1.5vw, 0.95rem);
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-bottom: 0.18em solid transparent;
+  text-decoration: none;
+  transition: color 0.15s, border-color 0.15s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.lineup-nav-tab:hover { color: var(--text); }
+.lineup-nav-tab.active { color: var(--blue-lt); border-bottom-color: var(--blue-lt); }
+.lineup-nav-tab .tab-icon { display: none; }
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE — locked flex column, nav at bottom
+   ════════════════════════════════════════════════════════════ */
+@media (max-width: 1023px) {
+  html { height: 100dvh; height: var(--app-h, 100dvh); }
+  body { height: 100dvh; height: var(--app-h, 100dvh); overflow: hidden; display: flex; flex-direction: column; }
+  .site-header { flex-shrink: 0; }
+
+  /* Both nav bar variants move to the bottom via flex order */
+  .lineup-nav,
+  #lineupNav.admin-tab-bar {
+    order: 10;
+    flex-shrink: 0;
+    background: var(--bg);
+    border-top: 0.22em solid var(--gold);
+    border-bottom: none;
+    box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
+    padding-bottom: max(1em, env(safe-area-inset-bottom, 0px));
+    padding-left: max(env(safe-area-inset-left, 0px), 1.2em);
+    padding-right: max(env(safe-area-inset-right, 0px), 1.2em);
+    /* Override sticky positioning from admin.css */
+    position: static;
+    top: auto;
+    margin-bottom: 0;
+  }
+  #lineupNav.admin-tab-bar .admin-tab {
+    padding: 0.75em 0.3em 0.9em;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    border-bottom: none;
+    border-top: 0.25em solid transparent;
+  }
+  #lineupNav.admin-tab-bar .admin-tab.active {
+    color: var(--gold-lt);
+    border-bottom-color: transparent;
+    border-top-color: var(--gold);
+  }
+  #lineupNav.admin-tab-bar .admin-tab .tab-icon {
+    display: block;
+    width: 1.8em;
+    height: 1.8em;
+  }
+  .lineup-nav-tab {
+    flex-direction: column;
+    min-height: 0;
+    padding: 0.75em 0.3em 0.9em;
+    border-bottom: none;
+    border-top: 0.25em solid transparent;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    gap: 0.3em;
+  }
+  .lineup-nav-tab .tab-icon {
+    display: block;
+    width: 1.8em;
+    height: 1.8em;
+  }
+  .lineup-nav-tab.active {
+    color: var(--gold-lt);
+    border-bottom-color: transparent;
+    border-top-color: var(--gold);
+  }
+
+  /* Scrollable content fills remaining space between header and nav */
+  #lineupLoading,
+  #lineupInvalid { flex: 1; overflow-y: auto; }
+  #lineupContent {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+  }
+  #lineupContent::-webkit-scrollbar { display: none; }
+
+  /* Prevent iOS Safari zoom on input focus */
+  .lineup-inp,
+  .lineup-sel,
+  .lineup-game-sel {
+    font-size: 1rem;
+  }
+}

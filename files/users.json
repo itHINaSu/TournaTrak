@@ -1,0 +1,26 @@
+{
+  "users": [
+    {
+      "username": "admin",
+      "passwordHash": "$2a$12$PlNaqDDGAJCZTN4yjqDLpu90aOIvNfV2JCp90F3yHcH4ifi3RxBZC",
+      "role": "admin",
+      "mustChangePassword": false
+    },
+    {
+      "username": "Jon",
+      "role": "results",
+      "mustChangePassword": false,
+      "passwordHash": "$2a$12$ulLDDdYneDRomlQfFKZlzOEMHyIGkxYuv6Dd/s9TYWh1t7PyF/zv6"
+    },
+    {
+      "username": "Dale",
+      "role": "team",
+      "teamName": "Abington Aces",
+      "teams": [
+        "Abington Aces"
+      ],
+      "accessToken": "1f3d8317afda1d9ec232547369e7ea42eb831a9a7a53c797f39a58b3d075d607",
+      "mustChangePassword": false
+    }
+  ]
+}

@@ -1,12 +1,28 @@
 /* bracket.css — public page: tabs, bracket layout, round view, team view */
 
+/* ── Update notification bar ── */
+.update-bar {
+  background: var(--blue);
+  color: #fff;
+  text-align: center;
+  padding: 0.35em 1em;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: var(--hdr-h, 0px);
+  z-index: 95;
+  flex-shrink: 0;
+}
+
 /* ── Tabs ── */
 .view-tabs {
   display: flex;
   background: var(--surface);
   border-bottom: 0.07em solid var(--border);
   position: sticky;
-  top: var(--hdr-h, 0);
+  top: calc(var(--hdr-h, 0px) + var(--bar-h, 0px));
   z-index: 90;
 }
 .view-tab {
@@ -46,17 +62,209 @@
 
 /* ── Selectors ── */
 .selector-row {
-  display: flex;
-  gap: 0.6em;
-  align-items: center;
-  padding: 0.8em 1em;
-  flex-wrap: wrap;
   position: sticky;
-  top: calc(var(--hdr-h, 0px) + var(--tabs-h, 0px));
+  top: calc(var(--hdr-h, 0px) + var(--bar-h, 0px) + var(--tabs-h, 0px));
   z-index: 80;
   background: var(--surface);
   border-bottom: 0.15em solid var(--blue);
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.selector-inner {
+  max-width: 65em;
+  margin: 0 auto;
+  padding: 0.8em 1em;
+  display: flex;
+  gap: 0.6em;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ── Bucket Challenge leaderboard ── */
+.bucket-status-wrap {
+  flex-shrink: 0;
+  padding: 0.9em 1em 0;
+}
+.bucket-status-bar {
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  padding: 0.55em 1.5em;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  color: var(--text-dim);
+}
+.bucket-panel {
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 0.35em 1em 3em;
+}
+.bucket-leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+.bucket-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75em 1em;
+}
+.bucket-rank {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-mute);
+  min-width: 1.8em;
+  text-align: center;
+}
+/* Medal backgrounds for top-3 rows */
+.bucket-row--1 {
+  background: var(--medal-gold-bg);
+  border-color: var(--medal-gold-border);
+}
+.bucket-row--1 .bucket-rank,
+.bucket-row--1 .bucket-team-name,
+.bucket-row--1 .bucket-count { color: var(--medal-gold-text); }
+
+.bucket-row--2 {
+  background: var(--medal-silver-bg);
+  border-color: var(--medal-silver-border);
+}
+.bucket-row--2 .bucket-rank,
+.bucket-row--2 .bucket-team-name,
+.bucket-row--2 .bucket-count { color: var(--medal-silver-text); }
+
+.bucket-row--3 {
+  background: var(--medal-bronze-bg);
+  border-color: var(--medal-bronze-border);
+}
+.bucket-row--3 .bucket-rank,
+.bucket-row--3 .bucket-team-name,
+.bucket-row--3 .bucket-count { color: var(--medal-bronze-text); }
+
+/* Frozen top-3 block — desktop: sticky below tabs/bar/header */
+.bucket-frozen {
+  position: sticky;
+  top: calc(var(--hdr-h, 0px) + var(--bar-h, 0px) + var(--tabs-h, 0px));
+  z-index: 70;
+  background: var(--bg);
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 1em 1em 0.35em;
+  border-bottom: 0.07em solid var(--border);
+}
+.bucket-leaderboard--top3 { gap: 0.35em; }
+.bucket-team-name {
+  flex: 1;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bucket-count {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--blue-lt);
+  min-width: 2.5em;
+  text-align: right;
+}
+.bucket-icon-sm {
+  width: 1.1em;
+  height: 1.1em;
+  flex-shrink: 0;
+  opacity: 0.5;
+  color: var(--text-dim);
+}
+.bucket-empty {
+  text-align: center;
+  color: var(--text-mute);
+  padding: 3em 1em;
+  font-style: italic;
+}
+
+/* ── Bucket edit mode (bucket-role users) ── */
+.bucket-edit-wrap {
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 0.75em 1em 0.5em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+.bucket-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6em 0.85em;
+}
+.bucket-edit-name {
+  flex: 1;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bucket-edit-inp {
+  width: 4.5em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: right;
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: 0.25em;
+  color: var(--blue-lt);
+  padding: 0.2em 0.4em;
+  font-size: 1rem; /* prevent iOS zoom */
+}
+.bucket-edit-actions {
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 0.75em 1em 3em;
+  display: flex;
+  align-items: center;
+  gap: 0.65em;
+}
+.bucket-edit-save-btn,
+.bucket-edit-cancel-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.4em 1.1em;
+  border-radius: 0.25em;
+  border: 0.07em solid var(--border);
+  cursor: pointer;
+}
+.bucket-edit-save-btn {
+  background: var(--blue-lt);
+  color: #fff;
+  border-color: var(--blue-lt);
+}
+.bucket-edit-save-btn:hover { opacity: 0.85; }
+.bucket-edit-cancel-btn {
+  background: transparent;
+  color: var(--text-dim);
+}
+.bucket-edit-cancel-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.bucket-edit-status {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-left: 0.25em;
 }
 
 /* ── Round sections (By Round all-rounds layout) ── */
@@ -86,14 +294,13 @@ select.styled {
   font-size: 1rem;
   font-weight: 600;
   padding: 0.75em 0.9em;
-  border-radius: 0.4em;
+  border-radius: var(--radius-sm);
   border: 0.1em solid var(--blue);
   background: var(--surface2);
   color: var(--text);
   cursor: pointer;
   flex: 1;
   min-height: 3.2em;
-  max-width: 28em;
 }
 select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07em; }
 
@@ -169,7 +376,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   right: 0;
   min-height: var(--card-h);
   border: 0.07em solid var(--border);
-  border-radius: 0.35em;
+  border-radius: var(--radius-sm);
   overflow: visible;
   background: var(--surface);
   display: flex;
@@ -313,7 +520,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   overflow-x: auto;
   display: flex;
   scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
   scroll-padding-left: 0;
   scroll-padding-right: 15vw;
   padding-right: 15vw;
@@ -347,7 +553,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 
 .round-game-card {
   border: 0.07em solid var(--border);
-  border-radius: 0.6em;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--surface);
   margin-bottom: 1.4em;
@@ -360,7 +566,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   display: flex;
   align-items: center;
   gap: 0.6em;
-  padding: 0.5em 1em;
+  padding: 0.6em 1em;
   background: var(--surface2);
   border-bottom: 0.07em solid var(--border);
 }
@@ -374,6 +580,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .round-game-day-time { display: flex; align-items: baseline; gap: 0.45em; flex: 1; justify-content: flex-end; }
 .round-game-day  { font-family: 'Oswald', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--text-dim); line-height: 1; }
+.round-game-dow  { font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-game-time { font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-team-row {
   display: flex;
@@ -397,7 +604,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .round-game-main { flex: 1; min-width: 0; }
 .round-lose-side {
   flex-shrink: 0;
-  aspect-ratio: 1;
+  max-width: 25%;
   border-left: 0.07em solid var(--border);
   display: flex;
   flex-direction: column;
@@ -415,6 +622,12 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   text-transform: uppercase;
   color: var(--lose-color);
 }
+.round-lose-arrow {
+  font-size: 0.7rem;
+  color: var(--lose-color);
+  line-height: 1;
+  opacity: 0.75;
+}
 .round-lose-dest {
   font-family: 'Oswald', sans-serif;
   font-size: 0.95rem;
@@ -424,10 +637,41 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   text-align: center;
 }
 .round-lose-dest.out { color: var(--lose-color); }
+.round-lose-arrow--cont { color: var(--win-color); opacity: 1; }
+
+/* ── Victory sidebar (shown when team won the game) ── */
+.round-win-side {
+  flex-shrink: 0;
+  max-width: 25%;
+  border-left: 0.07em solid var(--win-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25em;
+  padding: 0.4em 0.2em;
+  background: rgba(60, 160, 80, 0.10);
+}
+.round-win-img {
+  width: 100%;
+  height: auto;
+  max-height: 60%;
+  object-fit: contain;
+  display: block;
+}
+.round-win-tag {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--win-color);
+  line-height: 1;
+}
 
 /* ── Team chip grid (empty state) ── */
 .team-chips-prompt {
-  max-width: 65em;
+  max-width: 42em;
   margin: 1.2em auto 0.3em;
   padding: 0 1em;
   color: var(--text-dim);
@@ -435,27 +679,34 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .team-chips-grid {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5em;
-  padding: 0.5em 1em 2em;
-  max-width: 65em;
+  flex-direction: column;
+  gap: 0.35em;
+  padding: 1em 1em 2em;
+  max-width: 42em;
   margin: 0 auto;
 }
 .team-chip {
-  background: var(--surface2);
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface);
   border: 0.07em solid var(--border);
-  border-radius: 2em;
-  padding: 0.45em 1.1em;
-  font-family: 'Barlow', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 600;
+  border-radius: var(--radius-sm);
+  padding: 0.75em 1em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--text);
   cursor: pointer;
+  text-align: left;
   transition: background 0.12s, border-color 0.12s, color 0.12s;
   -webkit-tap-highlight-color: transparent;
 }
-.team-chip:hover, .team-chip:active { background: var(--blue); border-color: var(--blue-lt); color: #fff; }
-.team-chip.elim { opacity: 0.5; text-decoration: line-through; }
+.team-chip:hover, .team-chip:active { background: var(--surface2); border-color: var(--blue-lt); color: var(--blue-lt); }
+.team-chip.elim { opacity: 0.45; }
 .team-view-name {
   padding: 0.5em 0 0.25em;
   font-family: 'Oswald', sans-serif;
@@ -465,13 +716,19 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   letter-spacing: 0.13em;
   text-transform: uppercase;
 }
-.team-elim-msg {
-  margin: 0.25em 0 1em;
-  padding: 0.5em 0.75em;
-  border-radius: 0.25em;
-  background: var(--elim-bg);
-  color: var(--elim-text);
-  font-size: 0.8em;
+.team-elim-inline {
+  max-width: 42em;
+  margin: 0.5em auto 0.5em;
+  padding: 0 1em;
+  text-align: center;
+}
+.team-elim-inline-img {
+  width: 65%;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+  border-radius: var(--radius-md);
+  object-fit: contain;
 }
 .team-path-annotation {
   padding: 0.18em 0 0 0.5em;
@@ -489,26 +746,34 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   align-items: center;
   gap: 0.4em;
   padding: 0 0 0 0.5em;
-  margin: 0.1em 0;
+  margin: 0.1em 0 0.6em;
 }
 .team-path-connector-track {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 1em;
+  padding-left: 0.4em;
 }
 .team-path-connector-line {
-  width: 0.07em;
-  height: 1.4em;
-  background: var(--win-color);
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--win-color);
+  width: auto;
+  height: auto;
+  background: none;
+}
+.team-path-connector-line::before {
+  content: '↓';
 }
 .team-path-connector-line.lose {
   background: none;
-  border-left: 0.07em dashed var(--lose-color);
+  border-left: none;
+  color: var(--lose-color);
 }
 .team-path-win-label {
   font-family: 'Oswald', sans-serif;
-  font-size: 0.72em;
+  font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   color: var(--win-color);
@@ -524,7 +789,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   letter-spacing: 0.13em;
   text-transform: uppercase;
   background: var(--surface2);
-  border-radius: 0.3em;
+  border-radius: var(--radius-sm);
   border-left: 0.2em solid currentColor;
   margin: 0.5em 0 1.4em;
   text-align: center;
@@ -534,7 +799,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .team-path-divider { margin: 1.4em 0; height: 0.07em; background: var(--border); }
 
 /* ── Championship bar (mobile/rounds) ── */
-.champ-bar { margin: 0.4em 0 0.75em; padding: 0.65em 0.9em; background: var(--surface2); border-radius: 0.5em; border: 0.07em solid var(--border); }
+.champ-bar { margin: 0.4em 0 0.75em; padding: 0.65em 0.9em; background: var(--surface2); border-radius: var(--radius-sm); border: 0.07em solid var(--border); }
 .champ-bar-label { font-family: 'Oswald', sans-serif; font-size: 0.68rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.5em; }
 .champ-bar-teams { display: flex; gap: 0.5em; align-items: center; }
 .champ-team-slot { flex: 1; border: 0.07em solid var(--border); border-radius: 0.25em; padding: 0.5em 0.75em; font-size: 0.96rem; font-weight: 600; color: var(--text); background: var(--surface); }
@@ -547,6 +812,8 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
    ════════════════════════════════════════════════════════════ */
 
 @media (max-width: 1023px) {
+  .update-bar { flex-shrink: 0; position: static; }
+
   .bracket-outer { display: none; }
 
   .bracket-side {
@@ -568,12 +835,10 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     overflow-x: auto;
     overflow-y: hidden;
     scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
     display: flex;
     flex-direction: row;
     align-items: flex-start;
     padding: 0.5em 0.5em 0.5em 0;
-    -webkit-scroll-snap-type: x mandatory;
   }
 
   .round-col {
@@ -605,7 +870,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   .bc {
     position: relative;
     margin-bottom: 0.5em;
-    border-radius: 0.4em;
+    border-radius: var(--radius-sm);
     min-height: auto;
   }
   .bc-hdr { padding: 0.33em 0.33em; font-size: 0.62rem; }
@@ -656,7 +921,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   overscroll-behavior: none;
   width: 100%;
   scrollbar-width: none;
-  -ms-overflow-style: none;
 }
 .mbc-outer::-webkit-scrollbar { display: none; }
 
@@ -675,12 +939,10 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .mbc-scroll-cap {
   overflow-y: scroll;
   overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   overscroll-behavior-x: none;
   touch-action: pan-y;
   scrollbar-width: none;
-  -ms-overflow-style: none;
 }
 .mbc-scroll-cap::-webkit-scrollbar { display: none; }
 
@@ -732,7 +994,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   flex-direction: column;
   background: linear-gradient(170deg, var(--surface2) 0%, #1e2e18 100%);
   border: 0.15em solid var(--gold);
-  border-radius: 0.7em;
+  border-radius: var(--radius-md);
   box-shadow: 0 0 32px rgba(196,154,26,0.3), inset 0 1px 0 rgba(232,184,42,0.12);
   overflow: hidden;
 }
@@ -833,7 +1095,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   display: flex;
   flex-direction: column;
   border: 0.07em solid var(--border);
-  border-radius: 0.6em;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--surface);
   box-sizing: border-box;
@@ -899,6 +1161,12 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   font-weight: 600;
   color: var(--text-dim);
 }
+.mbc-game-dow {
+  font-family: 'Oswald', sans-serif;
+  font-size: calc(var(--mbc-card-h, 120px) * 0.12);
+  font-weight: 700;
+  color: var(--gold-lt);
+}
 .mbc-game-time {
   font-family: 'Oswald', sans-serif;
   font-size: calc(var(--mbc-card-h, 120px) * 0.12);
@@ -916,38 +1184,43 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   .header-timestamp { display: none !important; }
   .site-subtitle { font-size: 0.58em; margin-top: 0.05em; letter-spacing: 0.08em; }
 
-  /* Viewport-locked flex column — body never scrolls, so position:fixed is rock-solid */
-  html { height: 100%; }
-  body { height: 100%; overflow: hidden; display: flex; flex-direction: column; }
-  .site-header { flex-shrink: 0; }
+  /* Viewport-locked flex column — body never scrolls, so position:fixed is rock-solid.
+     Use height:100% (initial containing block) rather than 100dvh — on iOS, dvh can
+     start from behind the notch/address bar and break safe-area layout. --app-h is set
+     synchronously from window.innerHeight before first paint as a JS correction. */
+  html { height: 100%; height: 100svh; height: var(--app-h, 100svh); }
+  body { height: 100%; height: 100svh; height: var(--app-h, 100svh); overflow: hidden; display: flex; flex-direction: column; }
+  /* position:sticky inside overflow:hidden body is a no-op and can break WebKit flex
+     layout (content starts at y=0 behind the floating header). Use relative instead. */
+  .site-header { flex-shrink: 0; position: relative; top: auto; }
 
   /* Tab bar: last flex item → naturally sits at the bottom, no position:fixed needed */
   .view-tabs {
     order: 10;
     flex-shrink: 0;
-    position: static;
-    top: auto;
-    bottom: auto;
-    background: #0a0e0b;
+    position: relative; top: auto; bottom: auto;
+    background: var(--bg);
     border-top: 0.22em solid var(--gold);
     border-bottom: none;
     box-shadow: 0 -6px 24px rgba(0,0,0,0.55);
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-bottom: max(1em, env(safe-area-inset-bottom, 0px));
+    padding-left: max(env(safe-area-inset-left, 0px), 1.2em);
+    padding-right: max(env(safe-area-inset-right, 0px), 1.2em);
     z-index: 90;
   }
   .view-tab {
-    min-height: 9em;
-    padding: 1.8em 0.3em 1.5em;
+    min-height: 0;
+    padding: 0.75em 0.5em 0.9em;
     border-bottom: none;
     border-top: 0.25em solid transparent;
     font-size: 0.78rem;
     letter-spacing: 0.08em;
-    gap: 0.45em;
+    gap: 0.3em;
   }
   .tab-icon {
     display: block;
-    width: 2.2em;
-    height: 2.2em;
+    width: 1.8em;
+    height: 1.8em;
   }
   .view-tab.active {
     color: var(--gold-lt);
@@ -959,42 +1232,72 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 
   /* Active panels fill remaining space between header and tab bar */
   .view-panel.active { flex: 1; min-height: 0; overflow: hidden; }
-  /* Rounds and teams panels scroll their own content */
-  #view-rounds.active, #view-teams.active {
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
+  /* Schedule and teampath: flex column so selector row can sit naturally above tab bar */
+  #view-schedule.active, #view-teampath.active {
+    display: flex;
+    flex-direction: column;
   }
+  /* Content scrolls within the flex column; selector row is a static sibling below */
+  #view-schedule.active .round-panel,
+  #view-teampath.active .team-panel {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 
-  /* Selector row: fixed just above tabs; body never scrolls → no iOS jitter */
-  .selector-row {
-    position: fixed;
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+  }
+  #view-schedule.active .round-panel::-webkit-scrollbar,
+  #view-teampath.active .team-panel::-webkit-scrollbar { display: none; }
+
+  #view-buckets.active {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  /* On mobile the frozen top-3 is a non-scrolling flex sibling */
+  #view-buckets.active .bucket-frozen {
+    position: static;
+    flex-shrink: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0.75em 1em 0.35em;
+    box-sizing: border-box;
+    background: var(--bg);
+    border-bottom: 0.07em solid var(--border);
+  }
+  #view-buckets.active .bucket-panel {
+    flex: 1;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    box-sizing: border-box;
+    overflow-y: auto;
+
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+  }
+  #view-buckets.active .bucket-panel::-webkit-scrollbar { display: none; }
+
+  /* Selector row: flex item at the bottom of its view panel — no position:fixed needed.
+     Sits naturally above the tab bar via the outer body flex layout.
+     Avoids iOS Safari safe-area timing issues that caused gaps with position:fixed. */
+  #view-schedule.active .selector-row,
+  #view-teampath.active .selector-row {
+    position: static;
     top: auto;
-    bottom: var(--tabs-h, 9em);
-    left: 0;
-    right: 0;
+    bottom: auto;
     background: var(--surface);
     border-top: 0.3em solid var(--gold);
     border-bottom: none;
     box-shadow: 0 -2px 12px rgba(0,0,0,0.4);
     z-index: 85;
-  }
-
-  /* Scrollable views: clear selector + tabs at bottom */
-  #view-rounds, #view-teams {
-    padding-bottom: calc(var(--sel-h, 5em) + 0.5em);
+    order: 10;
+    flex-shrink: 0;
   }
 
   /* ── Team view mobile overrides ── */
-  .team-chips-grid {
-    gap: 0.6em;
-    padding: 0.6em 1em 2em;
-  }
-  .team-chip {
-    padding: 0.65em 1.4em;
-    font-size: 1rem;
-    min-height: 2.75em;
-  }
   .team-path-label {
     font-size: 1.05rem;
     padding: 0.7em 1em;
@@ -1003,7 +1306,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     margin-bottom: 1em;
   }
   .round-game-header {
-    padding: 0.55em 0.9em;
+    padding: 0.6em 0.9em;
   }
   .round-team-row {
     padding: 0.85em 0.9em;

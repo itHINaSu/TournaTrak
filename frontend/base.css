@@ -21,6 +21,21 @@
   --clear-color:  #c05050;
   --clear-border: #8a3a3a;
 
+  /* Medal colors for bucket top-3 */
+  --medal-gold-bg:     #3d2d00;
+  --medal-gold-border: #7a5c10;
+  --medal-gold-text:   #f2c83a;
+  --medal-silver-bg:   #1e2630;
+  --medal-silver-border:#40566a;
+  --medal-silver-text: #a8c0d0;
+  --medal-bronze-bg:   #2d1600;
+  --medal-bronze-border:#5c3018;
+  --medal-bronze-text: #c87840;
+
+  /* Border radius scale */
+  --radius-sm: 0.35em;
+  --radius-md: 0.6em;
+
   /* Bracket slot sizing — set by JS via setProperty */
   --slot-h:    10vh;
   --card-h:    8vh;
@@ -49,6 +64,17 @@ body.light {
   --line-color:#5a8a9a;
   --clear-color:#8a2a2a;
   --clear-border:#c05050;
+
+  /* Medal colors — light mode */
+  --medal-gold-bg:     #fffacc;
+  --medal-gold-border: #c8a000;
+  --medal-gold-text:   #5a3c00;
+  --medal-silver-bg:   #e4edf5;
+  --medal-silver-border:#7090a8;
+  --medal-silver-text: #283848;
+  --medal-bronze-bg:   #f5e8d8;
+  --medal-bronze-border:#a86030;
+  --medal-bronze-text: #4a2010;
 }
 
 body {
@@ -57,13 +83,15 @@ body {
   font-family: 'Barlow', sans-serif;
   font-size: clamp(0.92rem, 0.08vw + 0.9rem, 1rem);
   min-height: 100vh;
+  min-height: 100svh;
   transition: background 0.2s, color 0.2s;
 }
 
 /* ── Header name block ── */
 .header-name-block { flex: 1; min-width: 0; }
 .site-subtitle {
-  display: none;
+  display: block;
+  visibility: hidden;
   font-size: 0.65em;
   color: var(--gold);
   font-family: 'Oswald', sans-serif;
@@ -76,6 +104,7 @@ body {
   background: var(--surface);
   border-bottom: 0.15em solid var(--gold);
   padding: 0.8em 1em;
+  padding-top: max(0.8em, calc(0.8em + env(safe-area-inset-top, 0px)));
   display: flex;
   align-items: center;
   gap: 0.8em;
@@ -105,6 +134,26 @@ body {
 }
 .theme-toggle:hover { color: var(--text); }
 
+/* Cross-app toggle button (admin ↔ public) — shared by all pages */
+.admin-public-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.38em 0.88em;
+  border-radius: 0.2em;
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+}
+.admin-public-btn:hover { color: var(--text); border-color: var(--text-dim); }
+
 /* Results timestamp — end-justified in header name div */
 .header-timestamp {
   font-family: 'Barlow', sans-serif;
@@ -119,3 +168,7 @@ body {
 .toast { position: fixed; bottom: 1.5em; left: 50%; transform: translateX(-50%) translateY(1.2em); background: var(--surface2); border: 0.07em solid var(--blue); border-radius: 0.4em; padding: 0.6em 1.2em; font-size: 0.84rem; color: var(--blue-lt); opacity: 0; transition: all 0.25s; pointer-events: none; z-index: 999; white-space: nowrap; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { border-color: var(--clear-color); color: var(--clear-color); }
+
+@media (max-width: 1023px) {
+  .toast { bottom: calc(6em + env(safe-area-inset-bottom, 0px)); }
+}
