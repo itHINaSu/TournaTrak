@@ -1170,12 +1170,13 @@ function scrollToRound(round) {
   var el = document.getElementById('round-section-' + round);
   if (!el) return;
   var mobile = window.innerWidth < 1024;
-  var panel = document.getElementById('view-schedule');
-  if (mobile && panel) {
-    var panelRect = panel.getBoundingClientRect();
-    var elRect = el.getBoundingClientRect();
-    var scrollOffset = elRect.top - panelRect.top + panel.scrollTop - 4;
-    panel.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
+  if (mobile) {
+    // On mobile the scrollable container is .round-panel, not #view-schedule
+    var scroller = document.querySelector('#view-schedule .round-panel');
+    if (scroller) {
+      var scrollOffset = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 4;
+      scroller.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
+    }
   } else {
     var offset = stickyNavH();
     var top = el.getBoundingClientRect().top + window.scrollY - offset - 4;
@@ -1199,10 +1200,12 @@ function scrollToLastCompletedCard() {
   var card = document.getElementById('rgc-' + lastSid);
   if (!card) return;
   var mobile = window.innerWidth < 1024;
-  var panel = document.getElementById('view-schedule');
-  if (mobile && panel) {
-    var scrollOffset = card.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop - 4;
-    panel.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
+  if (mobile) {
+    var scroller = document.querySelector('#view-schedule .round-panel');
+    if (scroller) {
+      var scrollOffset = card.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 4;
+      scroller.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
+    }
   } else {
     var top = card.getBoundingClientRect().top + window.scrollY - stickyNavH() - 4;
     window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });

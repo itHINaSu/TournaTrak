@@ -1191,10 +1191,11 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   .site-subtitle { font-size: 0.58em; margin-top: 0.05em; letter-spacing: 0.08em; }
 
   /* Viewport-locked flex column — body never scrolls, so position:fixed is rock-solid.
-     Three-tier fallback: 100% (all browsers) → 100dvh (iOS 15.4+) → --app-h (JS).
-     100vh is intentionally omitted — on iOS it includes the browser toolbar overlay. */
-  html { height: 100%; height: 100dvh; height: var(--app-h, 100dvh); }
-  body { height: 100%; height: 100dvh; height: var(--app-h, 100dvh); overflow: hidden; display: flex; flex-direction: column; }
+     Use height:100% (initial containing block) rather than 100dvh — on iOS, dvh can
+     start from behind the notch/address bar and break safe-area layout. --app-h is set
+     synchronously from window.innerHeight before first paint as a JS correction. */
+  html { height: 100%; height: var(--app-h, 100%); }
+  body { height: 100%; height: var(--app-h, 100%); overflow: hidden; display: flex; flex-direction: column; }
   /* position:sticky inside overflow:hidden body is a no-op and can break WebKit flex
      layout (content starts at y=0 behind the floating header). Use relative instead. */
   .site-header { flex-shrink: 0; position: relative; top: auto; }
