@@ -933,10 +933,37 @@ function renderMobileBracket(root, dims) {
   captureEl.appendChild(spacerEl);
   root.appendChild(captureEl);
 
-  function setSpacerForCol(idx) {
+  function setSpacerForCol(idx, prevIdx) {
     var maxScroll = Math.max(0, roundInnerH(rounds[idx]) - scrollH);
+    var newScroll = sharedScrollTop;
+
+    // When switching columns, find the anchor card — the card in the target
+    // column whose lateY position was closest to the viewport centre — and
+    // subtract its lateOffset so that card lands at the same screen position
+    // after the blend animation resolves to earlyY.
+    if (prevIdx !== undefined && prevIdx !== idx) {
+      var center = sharedScrollTop + scrollH / 2;
+      var bestDist = Infinity, bestLateOff = 0;
+      colEls[idx].querySelectorAll('.mbc-card').forEach(function(card) {
+        var gid = card.dataset.gid;
+        var ly = lateY[gid] !== undefined ? lateY[gid]
+               : (earlyY[gid] !== undefined ? earlyY[gid] : 0);
+        var dist = Math.abs(ly - center);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestLateOff = parseFloat(card.dataset.lateOffset) || 0;
+        }
+      });
+      newScroll = sharedScrollTop - bestLateOff;
+    }
+
+    newScroll = Math.max(0, Math.min(newScroll, maxScroll));
     spacerEl.style.height = (scrollH + maxScroll) + 'px';
-    if (sharedScrollTop > maxScroll) {
+    if (newScroll !== sharedScrollTop) {
+      sharedScrollTop = newScroll;
+      captureEl.scrollTop = newScroll;
+      syncAllColumns();
+    } else if (sharedScrollTop > maxScroll) {
       sharedScrollTop = maxScroll;
       captureEl.scrollTop = maxScroll;
     }
@@ -1022,7 +1049,11 @@ function renderMobileBracket(root, dims) {
     for (var j = floorIdx + 2; j < colEls.length; j++) applyBlend(j, 1);
     clearTimeout(hSnapTimer);
     hSnapTimer = setTimeout(function() {
-      if (idx !== activeIdx) { activeIdx = idx; setSpacerForCol(idx); }
+      if (idx !== activeIdx) {
+        var prevIdx = activeIdx;
+        activeIdx = idx;
+        setSpacerForCol(idx, prevIdx);
+      }
     }, 200);
   }, { passive: true });
 
