@@ -1,6 +1,10 @@
 # Runtime data — never commit live results or secrets
 files/results.json
 files/schedule.json
+files/buckets.json
+files/lineups.json
+files/settings.json
+files/users.json
 
 # Keep the example for reference
 !files/schedule.example.json
