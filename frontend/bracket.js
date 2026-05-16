@@ -335,7 +335,7 @@ window.addEventListener('resize',function(){
   resizeTimer=setTimeout(function(){if(activeView()==='bracket') renderBracket();},150);
 });
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', applyStickyOffsets);
+  window.visualViewport.addEventListener('resize', applyStickyOffsets, { passive: true });
 }
 
 // ══════════════════════════════════════════════════════════

@@ -1504,7 +1504,7 @@ checkSession();
   placeSidebar();
   window.addEventListener('resize', applyStickyOffsets);
   if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', applyStickyOffsets);
+    window.visualViewport.addEventListener('resize', applyStickyOffsets, { passive: true });
   }
   applyStickyOffsets();
 }());

@@ -520,7 +520,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   overflow-x: auto;
   display: flex;
   scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
   scroll-padding-left: 0;
   scroll-padding-right: 15vw;
   padding-right: 15vw;
@@ -836,12 +835,10 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     overflow-x: auto;
     overflow-y: hidden;
     scroll-snap-type: x mandatory;
-    -webkit-overflow-scrolling: touch;
     display: flex;
     flex-direction: row;
     align-items: flex-start;
     padding: 0.5em 0.5em 0.5em 0;
-    -webkit-scroll-snap-type: x mandatory;
   }
 
   .round-col {
@@ -924,7 +921,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   overscroll-behavior: none;
   width: 100%;
   scrollbar-width: none;
-  -ms-overflow-style: none;
 }
 .mbc-outer::-webkit-scrollbar { display: none; }
 
@@ -943,12 +939,10 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .mbc-scroll-cap {
   overflow-y: scroll;
   overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   overscroll-behavior-x: none;
   touch-action: pan-y;
   scrollbar-width: none;
-  -ms-overflow-style: none;
 }
 .mbc-scroll-cap::-webkit-scrollbar { display: none; }
 
@@ -1194,8 +1188,8 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
      Use height:100% (initial containing block) rather than 100dvh — on iOS, dvh can
      start from behind the notch/address bar and break safe-area layout. --app-h is set
      synchronously from window.innerHeight before first paint as a JS correction. */
-  html { height: 100%; height: var(--app-h, 100%); }
-  body { height: 100%; height: var(--app-h, 100%); overflow: hidden; display: flex; flex-direction: column; }
+  html { height: 100%; height: 100svh; height: var(--app-h, 100svh); }
+  body { height: 100%; height: 100svh; height: var(--app-h, 100svh); overflow: hidden; display: flex; flex-direction: column; }
   /* position:sticky inside overflow:hidden body is a no-op and can break WebKit flex
      layout (content starts at y=0 behind the floating header). Use relative instead. */
   .site-header { flex-shrink: 0; position: relative; top: auto; }
@@ -1249,7 +1243,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+
     overscroll-behavior-y: contain;
     scrollbar-width: none;
   }
@@ -1280,7 +1274,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     margin: 0;
     box-sizing: border-box;
     overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+
     overscroll-behavior-y: contain;
     scrollbar-width: none;
   }
