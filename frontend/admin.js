@@ -1135,6 +1135,7 @@ function initBucketDrag() {
   document.querySelectorAll('.bucket-drag-handle').forEach(function(handle) {
     handle.addEventListener('pointerdown', function(e) {
       e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
       var row = handle.closest('.bucket-admin-row');
       if (row) bucketDragStart(row, e);
     });
@@ -1174,12 +1175,19 @@ function bucketDragStart(srcRow, e) {
     }
   }
 
-  function onUp() {
+  function cleanup() {
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onCancel);
     ghost.remove();
     srcRow.style.opacity = '';
     list.querySelectorAll('.bucket-admin-row').forEach(function(r) { r.classList.remove('bucket-drag-over'); });
+  }
+
+  function onCancel() { cleanup(); }
+
+  function onUp() {
+    cleanup();
 
     if (lastTarget) {
       var targetIdx = parseInt(lastTarget.dataset.idx, 10);
@@ -1204,6 +1212,7 @@ function bucketDragStart(srcRow, e) {
 
   document.addEventListener('pointermove', onMove, { passive: false });
   document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onCancel);
 }
 
 async function saveBucketCounts() {
