@@ -1237,15 +1237,23 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 
   /* Active panels fill remaining space between header and tab bar */
   .view-panel.active { flex: 1; min-height: 0; overflow: hidden; }
-  /* Schedule and teampath panels scroll their own content */
+  /* Schedule and teampath: flex column so selector row can sit naturally above tab bar */
   #view-schedule.active, #view-teampath.active {
+    display: flex;
+    flex-direction: column;
+  }
+  /* Content scrolls within the flex column; selector row is a static sibling below */
+  #view-schedule.active .round-panel,
+  #view-teampath.active .team-panel {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     scrollbar-width: none;
   }
-  #view-schedule.active::-webkit-scrollbar,
-  #view-teampath.active::-webkit-scrollbar { display: none; }
+  #view-schedule.active .round-panel::-webkit-scrollbar,
+  #view-teampath.active .team-panel::-webkit-scrollbar { display: none; }
 
   #view-buckets.active {
     display: flex;
@@ -1277,23 +1285,21 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   }
   #view-buckets.active .bucket-panel::-webkit-scrollbar { display: none; }
 
-  /* Selector row: fixed just above tabs; body never scrolls → no iOS jitter */
-  .selector-row {
-    position: fixed;
+  /* Selector row: flex item at the bottom of its view panel — no position:fixed needed.
+     Sits naturally above the tab bar via the outer body flex layout.
+     Avoids iOS Safari safe-area timing issues that caused gaps with position:fixed. */
+  #view-schedule.active .selector-row,
+  #view-teampath.active .selector-row {
+    position: static;
     top: auto;
-    bottom: var(--tabs-h, 9em);
-    left: 0;
-    right: 0;
+    bottom: auto;
     background: var(--surface);
     border-top: 0.3em solid var(--gold);
     border-bottom: none;
     box-shadow: 0 -2px 12px rgba(0,0,0,0.4);
     z-index: 85;
-  }
-
-  /* Scrollable views: clear selector + tabs at bottom */
-  #view-schedule, #view-teampath {
-    padding-bottom: calc(var(--sel-h, 5em) + 0.5em);
+    order: 10;
+    flex-shrink: 0;
   }
 
   /* ── Team view mobile overrides ── */
