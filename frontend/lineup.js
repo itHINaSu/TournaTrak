@@ -21,17 +21,29 @@ function posOptions(selected) {
   }).join('');
 }
 
-var lineupRowCount = 11;
+var lineupRowCount  = 11;
+var isReorderMode   = false;
 
 function buildRows(rows, readOnly) {
-  var html = '';
-  var dis  = readOnly ? ' disabled' : '';
+  var html  = '';
+  var dis   = readOnly ? ' disabled' : '';
   var count = lineupRowCount;
   for (var i = 0; i < count; i++) {
-    var r      = (rows && rows[i]) ? rows[i] : {};
-    var isSub  = i >= 11;
+    var r     = (rows && rows[i]) ? rows[i] : {};
+    var isSub = i >= 11;
+    var orderCell;
+    if (isReorderMode) {
+      var upDis  = i === 0 ? ' disabled' : '';
+      var dnDis  = i === count - 1 ? ' disabled' : '';
+      orderCell = '<td class="lineup-td-order lineup-td-order--reorder">'
+        + '<button class="lineup-reorder-btn" onclick="moveRow(' + i + ',-1)"' + upDis + '>▲</button>'
+        + '<button class="lineup-reorder-btn" onclick="moveRow(' + i + ',1)"' + dnDis + '>▼</button>'
+        + '</td>';
+    } else {
+      orderCell = '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>';
+    }
     html += '<tr class="lineup-row' + (isSub ? ' lineup-row--sub' : '') + '">'
-      + '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>'
+      + orderCell
       + '<td class="lineup-td-num"><input type="text" class="lineup-inp lineup-inp--num" id="lj-' + i + '" maxlength="4" value="' + esc(r.jersey || '') + '" placeholder="#" inputmode="numeric"' + dis + '></td>'
       + '<td class="lineup-td-name"><input type="text" class="lineup-inp lineup-inp--name" id="ln-' + i + '" maxlength="64" value="' + esc(r.name || '') + '" placeholder="Player name"' + dis + '></td>'
       + '<td class="lineup-td-pos">';
@@ -43,6 +55,100 @@ function buildRows(rows, readOnly) {
     html += '</td></tr>';
   }
   return html;
+}
+
+// ── Reorder ────────────────────────────────────────────────────────────
+function toggleReorder() {
+  isReorderMode = !isReorderMode;
+  var btn = document.getElementById('lineupReorderBtn');
+  if (btn) btn.textContent = isReorderMode ? 'Done' : 'Reorder';
+  var rows = getCurrentRows();
+  document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+}
+
+function moveRow(idx, dir) {
+  var rows    = getCurrentRows();
+  var target  = idx + dir;
+  if (target < 0 || target >= rows.length) return;
+  var tmp     = rows[idx];
+  rows[idx]   = rows[target];
+  rows[target] = tmp;
+  // Preserve sub flag based on position in list (rows 11+ are subs)
+  for (var i = 11; i < rows.length; i++) rows[i].position = 'Sub';
+  document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+}
+
+// ── Import ─────────────────────────────────────────────────────────────
+var _importData = {}; // slotId → rows, cached after fetch
+
+async function openImport() {
+  var overlay = document.getElementById('lineupImportOverlay');
+  var sel     = document.getElementById('lineupImportSel');
+  if (!overlay || !sel || !viewedTeamName) return;
+
+  sel.innerHTML = '<option value="">Loading…</option>';
+  overlay.style.display = 'flex';
+
+  try {
+    var r    = await fetch('/api/lineups/by-team/' + encodeURIComponent(viewedTeamName));
+    var data = r.ok ? await r.json() : {};
+    _importData = data;
+
+    var options = Object.keys(data)
+      .filter(function(sid) { return sid !== currentSlotId; })
+      .sort(function(a, b) {
+        var ga = GAMES[a], gb = GAMES[b];
+        var ta = ga && ga.time ? new Date(ga.time).getTime() : Infinity;
+        var tb = gb && gb.time ? new Date(gb.time).getTime() : Infinity;
+        return ta - tb;
+      });
+
+    if (!options.length) {
+      sel.innerHTML = '<option value="">No saved lineups found</option>';
+      return;
+    }
+
+    sel.innerHTML = options.map(function(sid) {
+      var g    = GAMES[sid];
+      var lbl  = g ? (g.label || sid) : sid;
+      var time = g && g.time ? (' · ' + formatTime(g.time)) : '';
+      return '<option value="' + esc(sid) + '">' + esc(lbl + time) + '</option>';
+    }).join('');
+  } catch(e) {
+    sel.innerHTML = '<option value="">Error loading lineups</option>';
+  }
+}
+
+function closeImport(e) {
+  if (e && e.target !== document.getElementById('lineupImportOverlay')) return;
+  document.getElementById('lineupImportOverlay').style.display = 'none';
+}
+
+function hasCurrentData() {
+  for (var i = 0; i < lineupRowCount; i++) {
+    var n = document.getElementById('ln-' + i);
+    if (n && n.value.trim()) return true;
+  }
+  return false;
+}
+
+function confirmImport() {
+  var sel = document.getElementById('lineupImportSel');
+  if (!sel || !sel.value) return;
+  var sid = sel.value;
+  if (!_importData[sid]) return;
+
+  var doImport = function() {
+    var rows = (_importData[sid].rows || []).slice();
+    lineupRowCount = Math.max(11, rows.length);
+    document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+    updateSubButtons();
+    document.getElementById('lineupImportOverlay').style.display = 'none';
+    showStatus('Lineup imported — save to confirm');
+  };
+
+  if (hasCurrentData() && !window.confirm('Replace the current lineup with the imported one?')) return;
+  doImport();
 }
 
 function getCurrentRows() {
@@ -83,8 +189,17 @@ function updateSubButtons(readOnly) {
   var delBtn = document.getElementById('lineupDelSubBtn');
   if (addBtn) addBtn.style.display = ro ? 'none' : '';
   if (delBtn) {
-    delBtn.style.display    = ro ? 'none' : '';
-    delBtn.disabled         = lineupRowCount <= 11;
+    delBtn.style.display = ro ? 'none' : '';
+    delBtn.disabled      = lineupRowCount <= 11;
+  }
+  // Tool buttons (Import / Reorder) only shown when editable
+  var tools = document.getElementById('lineupTools');
+  if (tools) tools.style.display = ro ? 'none' : '';
+  // Reset reorder mode when game changes
+  if (ro && isReorderMode) {
+    isReorderMode = false;
+    var rb = document.getElementById('lineupReorderBtn');
+    if (rb) rb.textContent = 'Reorder';
   }
 }
 

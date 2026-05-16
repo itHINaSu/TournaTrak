@@ -57,7 +57,26 @@
     No upcoming games scheduled for your team.
   </div>
 
+  <!-- Import modal -->
+  <div id="lineupImportOverlay" class="lineup-modal-overlay" style="display:none" onclick="closeImport(event)">
+    <div class="lineup-modal" onclick="event.stopPropagation()">
+      <div class="lineup-modal-title">Import Lineup</div>
+      <div class="lineup-modal-body">
+        <div class="lineup-modal-label">Copy lineup from:</div>
+        <select id="lineupImportSel" class="lineup-modal-sel"></select>
+      </div>
+      <div class="lineup-modal-footer">
+        <button class="lineup-tool-btn" onclick="confirmImport()">Import</button>
+        <button class="lineup-tool-btn lineup-tool-btn--cancel" onclick="closeImport()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div class="lineup-form-wrap">
+    <div class="lineup-tools" id="lineupTools" style="display:none">
+      <button class="lineup-tool-btn" id="lineupImportBtn" onclick="openImport()">Import Lineup</button>
+      <button class="lineup-tool-btn lineup-tool-btn--right" id="lineupReorderBtn" onclick="toggleReorder()">Reorder</button>
+    </div>
     <table class="lineup-table">
       <thead>
         <tr>
