@@ -1247,11 +1247,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   #view-schedule.active::-webkit-scrollbar,
   #view-teampath.active::-webkit-scrollbar { display: none; }
 
-  /* Selector sticky is scoped to its overflow-y:auto scroll container, so top:0
-     places it at the top of that container (just below the tab bar). */
-  #view-schedule .selector-row,
-  #view-teampath .selector-row { top: 0; }
-
   #view-buckets.active {
     display: flex;
     flex-direction: column;
