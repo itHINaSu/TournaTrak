@@ -278,8 +278,8 @@ function renderActive(){
   var v=activeView();
   updateTimestamp(); // keep bar in sync whenever view changes
   if(v==='bracket') renderBracket();
-  if(v==='rounds')  { renderRoundView(); setTimeout(scrollToLastCompletedCard, 60); }
-  if(v==='teams')   renderTeamView();
+  if(v==='schedule')  { renderRoundView(); setTimeout(scrollToLastCompletedCard, 60); }
+  if(v==='teampath')  renderTeamView();
   if(v==='buckets') renderBucketView();
 }
 
@@ -306,7 +306,7 @@ async function fetchAll(){
   var qView = new URLSearchParams(window.location.search).get('view');
   // Restore saved tab; on mobile default to By Round if no saved preference
   var savedTab = qView || getCookie('tt_tab');
-  if (!savedTab && window.innerWidth < 1024) savedTab = 'rounds';
+  if (!savedTab && window.innerWidth < 1024) savedTab = 'schedule';
   if (savedTab) {
     var targetTab   = document.querySelector('.view-tab[data-view="' + savedTab + '"]');
     var targetPanel = document.getElementById('view-' + savedTab);
@@ -1077,7 +1077,7 @@ function scrollToRound(round) {
   var el = document.getElementById('round-section-' + round);
   if (!el) return;
   var mobile = window.innerWidth < 1024;
-  var panel = document.getElementById('view-rounds');
+  var panel = document.getElementById('view-schedule');
   if (mobile && panel) {
     var panelRect = panel.getBoundingClientRect();
     var elRect = el.getBoundingClientRect();
@@ -1106,7 +1106,7 @@ function scrollToLastCompletedCard() {
   var card = document.getElementById('rgc-' + lastSid);
   if (!card) return;
   var mobile = window.innerWidth < 1024;
-  var panel = document.getElementById('view-rounds');
+  var panel = document.getElementById('view-schedule');
   if (mobile && panel) {
     var scrollOffset = card.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop - 4;
     panel.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
@@ -1385,8 +1385,17 @@ function renderTeamView(){
     var ln=findNextSlot(gid,'loser');
 
     if(!ln){
-      if(!played||teamLostHere){
-        if(teamLostHere) teamEliminated=true;
+      if(teamLostHere){
+        var lgGame0 = GAMES[gid];
+        var lopp10 = resolveSlot(lgGame0.t1, results);
+        var lopp20 = resolveSlot(lgGame0.t2, results);
+        var lossOpp0 = (lopp10===team) ? (lopp20||smartLabel(lgGame0.t2,results)) : (lopp10||smartLabel(lgGame0.t1,results));
+        if(lostR1){
+          // First game was a loss with no loser bracket — show the game card before the banner
+          html+='<div class="team-path-label lose-label">Loss to '+esc(lossOpp0)+'</div>';
+          html+=makeVerticalChain([gid],team,false);
+        }
+        teamEliminated=true;
       }
     } else {
       if(!played||teamLostHere){

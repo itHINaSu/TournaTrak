@@ -77,6 +77,7 @@
   gap: 0.6em;
   align-items: center;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 /* ── Bucket Challenge leaderboard ── */
@@ -300,7 +301,6 @@ select.styled {
   cursor: pointer;
   flex: 1;
   min-height: 3.2em;
-  max-width: 28em;
 }
 select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07em; }
 
@@ -1236,15 +1236,15 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 
   /* Active panels fill remaining space between header and tab bar */
   .view-panel.active { flex: 1; min-height: 0; overflow: hidden; }
-  /* Rounds and teams panels scroll their own content */
-  #view-rounds.active, #view-teams.active {
+  /* Schedule and teampath panels scroll their own content */
+  #view-schedule.active, #view-teampath.active {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     scrollbar-width: none;
   }
-  #view-rounds.active::-webkit-scrollbar,
-  #view-teams.active::-webkit-scrollbar { display: none; }
+  #view-schedule.active::-webkit-scrollbar,
+  #view-teampath.active::-webkit-scrollbar { display: none; }
 
   #view-buckets.active {
     display: flex;
@@ -1291,7 +1291,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   }
 
   /* Scrollable views: clear selector + tabs at bottom */
-  #view-rounds, #view-teams {
+  #view-schedule, #view-teampath {
     padding-bottom: calc(var(--sel-h, 5em) + 0.5em);
   }
 
