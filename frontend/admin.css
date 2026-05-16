@@ -634,7 +634,9 @@ input[type="time"]:focus {
     display: flex;
     flex-direction: column;
   }
-  .site-header { flex-shrink: 0; }
+  /* position:sticky inside overflow:hidden body is a no-op and can break WebKit flex
+     layout (content starts at y=0 behind the floating header). Use relative instead. */
+  .site-header { flex-shrink: 0; position: relative; top: auto; }
 
   #adminWrap {
     flex: 1;
