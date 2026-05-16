@@ -6,6 +6,9 @@
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   margin-bottom: 1.2em;
+  position: sticky;
+  top: var(--hdr-h, 52px);
+  z-index: 89;
 }
 .admin-tab {
   flex: 1;
@@ -162,6 +165,73 @@
   font-style: italic;
 }
 
+/* ── Results mode bar (Games / Bucket Challenge switcher) ── */
+.results-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.6em 0 0.75em;
+  border-bottom: 0.07em solid var(--border);
+  margin-bottom: 0.75em;
+  position: sticky;
+  top: calc(var(--hdr-h, 52px) + var(--admin-tabbar-h, 50px));
+  z-index: 10;
+  background: var(--bg);
+}
+.results-mode-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.38em 0.88em;
+  border-radius: 0.2em;
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.results-mode-btn.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.results-mode-btn:hover:not(.active) { color: var(--text); border-color: var(--text-dim); }
+
+/* ── Bucket admin rows ── */
+.bucket-admin-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.55em 0.75em;
+  border: 0.07em solid var(--border);
+  border-radius: 0.35em;
+  background: var(--surface);
+  margin-bottom: 0.4em;
+  cursor: grab;
+}
+.bucket-admin-row--hidden { opacity: 0.45; }
+.bucket-admin-row.bucket-drag-over { border-color: var(--blue-lt); }
+.bucket-drag-handle { color: var(--text-mute); font-size: 1rem; cursor: grab; user-select: none; flex-shrink: 0; }
+.bucket-admin-name { flex: 1; font-family: 'Oswald', sans-serif; font-size: 0.9rem; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }
+.bucket-count-inp {
+  width: 5em; flex-shrink: 0;
+  font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700;
+  text-align: right; padding: 0.15em 0.4em;
+  border-radius: 0.2em; border: 0.07em solid var(--border);
+  background: var(--surface2); color: var(--text);
+}
+.bucket-count-inp:focus { outline: 0.13em solid var(--blue-lt); }
+.bucket-hide-btn {
+  font-family: 'Oswald', sans-serif; font-size: 0.62rem; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 0.18em 0.5em; border-radius: 0.2em;
+  border: 0.07em solid var(--border); background: transparent;
+  color: var(--text-mute); cursor: pointer; flex-shrink: 0;
+}
+.bucket-hide-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.bucket-hide-btn.is-hidden { color: var(--blue-lt); border-color: var(--blue-lt); }
+
 /* ── Schedule editor ── */
 .sched-game-card { border: 0.07em solid var(--border); border-radius: 0.4em; overflow: hidden; margin-bottom: 0.75em; background: var(--surface); }
 .sched-game-hdr { display: flex; align-items: center; gap: 0.6em; padding: 0.5em 0.75em; background: var(--surface2); border-bottom: 0.07em solid var(--border); cursor: pointer; }
@@ -262,4 +332,15 @@ input[type="time"]:focus {
   border: 0.07em solid var(--border);
   background: var(--surface2);
   color: var(--text-dim);
+}
+
+/* ── iOS zoom prevention: all admin inputs must be ≥ 1rem ── */
+@media (max-width: 1023px) {
+  .sched-field input,
+  .settings-field input,
+  .admin-winner-sel,
+  .admin-score-inp,
+  .bucket-count-inp,
+  .coach-link-input,
+  .datetime-pair input { font-size: 1rem; }
 }

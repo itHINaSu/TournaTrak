@@ -652,6 +652,14 @@ function resetIOSZoom() {
   }, 60);
 }
 
+function applyStickyOffsets() {
+  var hdr    = document.getElementById('siteHeader');
+  var tabBar = document.querySelector('.admin-tab-bar');
+  var r      = document.documentElement.style;
+  r.setProperty('--hdr-h',           (hdr    ? hdr.offsetHeight    : 52) + 'px');
+  r.setProperty('--admin-tabbar-h',  (tabBar ? tabBar.offsetHeight : 50) + 'px');
+}
+
 function showAdmin(username, role, teamName) {
   resetIOSZoom();
   if (role !== undefined) currentRole = role;
@@ -659,6 +667,7 @@ function showAdmin(username, role, teamName) {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = '';
+  applyStickyOffsets();
   var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = '';
   var unEl = document.getElementById('accountUsername');
   if (unEl) unEl.textContent = username || 'admin';
@@ -1480,4 +1489,5 @@ checkSession();
   }
   window.addEventListener('resize', placeSidebar);
   placeSidebar();
+  window.addEventListener('resize', applyStickyOffsets);
 }());

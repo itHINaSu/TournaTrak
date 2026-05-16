@@ -196,17 +196,22 @@ var TAB_ICONS = {
   settings: '<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>',
 };
 
-function buildNavBar(adminMode) {
+function buildNavBar(role) {
   var nav = document.getElementById('lineupNav');
   if (!nav) return;
 
   var tabs;
-  if (adminMode) {
+  if (role === 'admin') {
     tabs = [
       { label: 'Results',  icon: 'results',  href: '/admin?tab=results'  },
       { label: 'Lineups',  icon: 'lineups',  href: '/lineup', active: true },
       { label: 'Schedule', icon: 'schedule', href: '/admin?tab=schedule' },
       { label: 'Settings', icon: 'settings', href: '/admin?tab=settings' },
+    ];
+  } else if (role === 'results') {
+    tabs = [
+      { label: 'Results',  icon: 'results',  href: '/admin?tab=results'  },
+      { label: 'Lineups',  icon: 'lineups',  href: '/lineup', active: true },
     ];
   } else {
     tabs = [
@@ -290,7 +295,7 @@ async function init() {
     }
 
     isAdmin         = session.role === 'admin' || session.role === 'results';
-    buildNavBar(isAdmin);
+    buildNavBar(session.role);
     currentTeamName = session.teamName || null;
     myTeams = isAdmin
       ? [] // admin can edit any team — checked in isSlotEditable
