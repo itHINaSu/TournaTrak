@@ -1258,7 +1258,7 @@ function makeVerticalChain(chain, team, isLosePath) {
         + '</div>';
     } else if (teamWon) {
       loseSide = '<div class="round-win-side">'
-        + '<img src="/victory.png" class="round-win-img" alt="">'
+        + '<img src="/icons/victory.png" class="round-win-img" alt="">'
         + '<span class="round-win-tag">WON</span>'
         + '</div>';
     }
@@ -1410,7 +1410,7 @@ function renderTeamView(){
   });
 
   if(isEliminated(team,results)){
-    html+='<div class="team-elim-banner"><img src="/eliminated.png" class="team-elim-img" alt="Eliminated"></div>';
+    html+='<div class="team-elim-banner"><img src="/icons/eliminated.png" class="team-elim-img" alt="Eliminated"></div>';
   }
 
   out.innerHTML=html;

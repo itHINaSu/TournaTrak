@@ -54,9 +54,9 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     tab.classList.add('active');
     document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
     syncResultsTabLabel();
-    if (tab.dataset.tab === 'lineups') {
-      window.location.href = '/lineup';
-      return;
+    if (tab.dataset.tab === 'lineups' && !window._lineupInitDone) {
+      window._lineupInitDone = true;
+      lineupInit();
     }
     // Reset results to games mode when re-entering the results tab
     if (tab.dataset.tab === 'results') setResultsMode('games');

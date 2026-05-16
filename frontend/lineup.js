@@ -299,7 +299,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
-async function init() {
+async function lineupInit() {
   setAppHeight();
   try {
     var sr      = await fetch('/api/session');
@@ -339,7 +339,8 @@ async function init() {
 
     if (typeof applySchedule === 'function') applySchedule(sched);
 
-    if (settingsData.tournamentName) document.getElementById('siteName').textContent = settingsData.tournamentName;
+    var siteNameEl = document.getElementById('siteName');
+    if (siteNameEl && settingsData.tournamentName) siteNameEl.textContent = settingsData.tournamentName;
     document.title = (settingsData.pageTitle || settingsData.tournamentName || 'Team Lineup') + ' — Lineup';
 
     // Build team selector: for coaches, pin their teams at top then show all others
@@ -395,4 +396,4 @@ async function init() {
   }
 }
 
-init();
+if (!document.getElementById('adminWrap')) lineupInit();

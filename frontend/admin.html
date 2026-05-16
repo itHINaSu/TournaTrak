@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/fonts.css">
 <link rel="stylesheet" href="base.css">
 <link rel="stylesheet" href="admin.css">
+<link rel="stylesheet" href="lineup.css">
 </head>
 <body>
 
@@ -178,8 +179,55 @@
     </div>
   </div>
 
-  <!-- ── LINEUPS TAB ── (navigates to /lineup) -->
-  <div class="admin-tab-panel" id="tab-lineups"></div>
+  <!-- ── LINEUPS TAB ── -->
+  <div class="admin-tab-panel" id="tab-lineups">
+    <div id="lineupLoading" class="lineup-state">
+      <div class="lineup-state-body">Loading…</div>
+    </div>
+    <div id="lineupInvalid" style="display:none" class="lineup-state">
+      <div class="lineup-state-icon">🔗</div>
+      <div class="lineup-state-title">Access Error</div>
+      <div class="lineup-state-body">Could not load lineup data.</div>
+    </div>
+    <div id="lineupContent" style="display:none" class="lineup-wrap">
+      <div class="lineup-team-header">
+        <div class="lineup-team-label">Team</div>
+        <div id="lineupTeamName" class="lineup-team-name"></div>
+      </div>
+      <div id="lineupSelectorsRow" class="lineup-selectors-row" style="display:none">
+        <div class="lineup-game-info lineup-sel-half">
+          <select id="lineupTeamSel" class="lineup-game-sel"></select>
+        </div>
+        <div class="lineup-game-info lineup-sel-half" id="lineupGameInfo">
+          <span class="lineup-game-sel-placeholder" id="lineupGamePlaceholder">Select a team first</span>
+          <select id="lineupGameSelect" class="lineup-game-sel" style="display:none"></select>
+        </div>
+      </div>
+      <div id="lineupReadOnlyBadge" style="display:none" class="lineup-readonly-badge">
+        View Only — Game Complete
+      </div>
+      <div id="lineupNoGame" style="display:none" class="lineup-no-game">
+        No upcoming games scheduled for your team.
+      </div>
+      <div class="lineup-form-wrap">
+        <table class="lineup-table">
+          <thead>
+            <tr>
+              <th class="lineup-th lineup-th--order"></th>
+              <th class="lineup-th lineup-th--num">#</th>
+              <th class="lineup-th lineup-th--name">Player Name</th>
+              <th class="lineup-th lineup-th--pos">Position</th>
+            </tr>
+          </thead>
+          <tbody id="lineupBody"></tbody>
+        </table>
+        <div class="lineup-actions">
+          <button class="lineup-submit-btn" id="lineupSubmitBtn" onclick="submitLineup()">Save Lineup</button>
+          <span class="lineup-status" id="lineupStatus"></span>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ── SETTINGS TAB ── -->
   <div class="admin-tab-panel" id="tab-settings">
@@ -351,6 +399,7 @@
 
 <script src="bracket-data.js"></script>
 <script src="admin.js"></script>
+<script src="lineup.js"></script>
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {

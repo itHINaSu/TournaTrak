@@ -714,6 +714,9 @@ input[type="time"]:focus {
     min-height: 0;
   }
 
+  /* Lineup tab manages its own padding via .lineup-wrap */
+  #tab-lineups.active { padding: 0; }
+
   .results-mode-bar {
     margin-top: -1em;
     margin-left: -1em;
