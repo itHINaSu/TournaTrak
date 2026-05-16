@@ -330,9 +330,13 @@ async function fetchAll(){
 }
 var resizeTimer;
 window.addEventListener('resize',function(){
+  applyStickyOffsets();
   clearTimeout(resizeTimer);
   resizeTimer=setTimeout(function(){if(activeView()==='bracket') renderBracket();},150);
 });
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', applyStickyOffsets);
+}
 
 // ══════════════════════════════════════════════════════════
 // HELPERS
@@ -1038,6 +1042,7 @@ function applyStickyOffsets() {
   var sel   = document.querySelector('.selector-row');
   var selH  = sel ? sel.offsetHeight : 0;
   var r = document.documentElement.style;
+  r.setProperty('--app-h',  window.innerHeight + 'px');
   r.setProperty('--hdr-h',  hdrH  + 'px');
   r.setProperty('--bar-h',  barH  + 'px');
   r.setProperty('--tabs-h', tabsH + 'px');

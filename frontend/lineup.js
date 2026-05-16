@@ -196,6 +196,14 @@ var TAB_ICONS = {
   settings: '<svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M2 12h3M19 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/></svg>',
 };
 
+function setAppHeight() {
+  document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');
+}
+window.addEventListener('resize', setAppHeight);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', setAppHeight);
+}
+
 function buildNavBar(role) {
   var nav = document.getElementById('lineupNav');
   if (!nav) return;
@@ -292,6 +300,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 async function init() {
+  setAppHeight();
   try {
     var sr      = await fetch('/api/session');
     var session = await sr.json();
