@@ -610,10 +610,8 @@ input[type="time"]:focus {
   line-height: 1;
 }
 .bucket-drag-handle:hover { color: var(--text-dim); }
-.bucket-admin-row.bucket-drag-over {
-  border-color: var(--blue-lt);
-  box-shadow: 0 0 0 0.1em var(--blue-lt);
-}
+.bucket-admin-row.drop-before { box-shadow: 0 -3px 0 0 var(--blue-lt); }
+.bucket-admin-row.drop-after  { box-shadow: 0  3px 0 0 var(--blue-lt); }
 
 /* ════════════════════════════════════════════════════════════
    MOBILE ADMIN — flex-order approach (tabs at bottom)
