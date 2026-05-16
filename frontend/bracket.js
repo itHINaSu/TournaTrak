@@ -29,8 +29,8 @@ function applySettings() {
   document.title = title;
   document.getElementById('siteName').textContent = name;
   var subEl = document.getElementById('siteSubtitle');
-  if (subtitle) { subEl.textContent = subtitle; subEl.style.display = 'block'; }
-  else { subEl.style.display = 'none'; }
+  if (subtitle) { subEl.textContent = subtitle; subEl.style.visibility = 'visible'; subEl.style.display = 'block'; }
+  else { subEl.innerHTML = '&#8203;'; subEl.style.display = 'block'; subEl.style.visibility = 'hidden'; }
 }
 
 // ── Results notification bar ──────────────────────────────────────────

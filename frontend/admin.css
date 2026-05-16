@@ -714,6 +714,15 @@ input[type="time"]:focus {
     min-height: 0;
   }
 
+  .results-mode-bar {
+    margin-top: -1em;
+    margin-left: -1em;
+    margin-right: -1em;
+    padding-left: 1em;
+    padding-right: 1em;
+    border-bottom: 0.07em solid var(--border);
+  }
+
   /* Settings: show mobile bar, collapse sidebar from layout flow */
   .settings-mobile-bar { display: flex; }
   .settings-layout { display: block; }

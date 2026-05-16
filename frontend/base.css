@@ -85,7 +85,8 @@ body {
 /* ── Header name block ── */
 .header-name-block { flex: 1; min-width: 0; }
 .site-subtitle {
-  display: none;
+  display: block;
+  visibility: hidden;
   font-size: 0.65em;
   color: var(--gold);
   font-family: 'Oswald', sans-serif;
