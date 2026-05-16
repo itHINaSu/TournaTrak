@@ -1198,7 +1198,7 @@ function populateTeamSelect(){
 }
 
 function syncLoseSideWidths() {
-  var sides = document.querySelectorAll('.round-lose-side');
+  var sides = document.querySelectorAll('.round-lose-side, .round-win-side');
   for (var i = 0; i < sides.length; i++) {
     sides[i].style.width = '';
     sides[i].style.width = sides[i].offsetHeight + 'px';
@@ -1241,15 +1241,20 @@ function makeVerticalChain(chain, team, isLosePath) {
     var ft2 = formatTime(g.time), mft2 = ft2.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
     var dt2 = mft2 ? mft2[1] : '', dw2 = mft2 ? mft2[2] : '', tm2 = mft2 ? mft2[3] : ft2;
 
-    // Lose destination sidebar (shown when team hasn't lost yet)
+    // Sidebar: loss-path indicator for upcoming games, victory box for won games
     var loseSide = '';
-    if (!played || teamWon) {
+    if (!played) {
       var ln = findNextSlot(gid, 'loser');
       var destText = ln ? gameLabel(ln) : 'OUT';
       loseSide = '<div class="round-lose-side">'
         + '<span class="round-lose-tag">LOSS</span>'
         + '<span class="round-lose-arrow">↓</span>'
         + '<span class="round-lose-dest' + (ln ? '' : ' out') + '">' + esc(destText) + '</span>'
+        + '</div>';
+    } else if (teamWon) {
+      loseSide = '<div class="round-win-side">'
+        + '<img src="/victory.png" class="round-win-img" alt="">'
+        + '<span class="round-win-tag">WON</span>'
         + '</div>';
     }
 
@@ -1400,7 +1405,7 @@ function renderTeamView(){
   });
 
   if(isEliminated(team,results)){
-    html+='<div class="team-elim-msg">Tournament run complete.</div>';
+    html+='<div class="team-elim-banner"><img src="/eliminated.png" class="team-elim-img" alt="Eliminated"></div>';
   }
 
   out.innerHTML=html;
