@@ -32,6 +32,10 @@
   --medal-bronze-border:#5c3018;
   --medal-bronze-text: #c87840;
 
+  /* Border radius scale */
+  --radius-sm: 0.35em;
+  --radius-md: 0.6em;
+
   /* Bracket slot sizing — set by JS via setProperty */
   --slot-h:    10vh;
   --card-h:    8vh;

@@ -5,6 +5,7 @@
 // Team source: { type:'winner'|'loser', slot:'R1.L.1' } or { type:'fixed', team:'...' }
 // Time format: ISO local datetime 'YYYY-MM-DDTHH:MM' — set via admin panel
 
+// IMPORTANT: Keep in sync with api/slot-defs.js (API container cannot import this file).
 const SLOT_DEFS = {
   R1:    { L:[1,2,3,4,5,6,7,8], R:[1,2,3,4,5,6,7,8] },
   R2:    { L:[1,2,3,4],         R:[1,2,3,4] },
