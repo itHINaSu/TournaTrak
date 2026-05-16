@@ -397,6 +397,16 @@ app.post('/api/users/:username/reset-password', requireAdmin, async (req, res) =
   }
 });
 
+app.post('/api/users/:username/setup-link', requireAdmin, (req, res) => {
+  const { username } = req.params;
+  const user = findUser(username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role === 'team') return res.status(400).json({ error: 'Team users use access tokens' });
+  const setupToken = crypto.randomBytes(32).toString('hex');
+  updateUser(username, { setupToken, mustChangePassword: true });
+  res.json({ ok: true, setupToken });
+});
+
 app.post('/api/users/:username/regenerate-token', requireAdmin, (req, res) => {
   const { username } = req.params;
   const user = findUser(username);

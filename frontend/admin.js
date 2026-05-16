@@ -899,7 +899,9 @@ function renderUsersList(users) {
       actions += '<button class="admin-clear-btn" onclick="copyMagicLink(\'' + esc(u.accessToken) + '\')">Copy Link</button>';
       actions += '<button class="admin-clear-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>';
     } else if (u.setupToken) {
-      actions += '<button class="admin-clear-btn" onclick="copySetupLink(\'' + esc(u.setupToken) + '\')">Copy Setup Link</button>';
+      actions += '<button class="sched-save-btn" onclick="copySetupLink(\'' + esc(u.setupToken) + '\')">Copy Setup Link</button>';
+    } else if (!isSelf && u.role !== 'team') {
+      actions += '<button class="sched-save-btn" onclick="regenerateSetupLink(\'' + esc(u.username) + '\')">Regenerate Link</button>';
     } else if (!isSelf) {
       actions += '<button class="admin-clear-btn" onclick="openResetPwModal(\'' + esc(u.username) + '\')">Reset PW</button>';
     }
@@ -939,6 +941,16 @@ function copySetupLink(token) {
   var link = window.location.origin + '/api/setup-password/' + token;
   copyText(link);
   showToast('Setup link copied to clipboard');
+}
+
+async function regenerateSetupLink(username) {
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/setup-link', { method: 'POST' });
+  var d = await r.json().catch(function() { return {}; });
+  if (!r.ok) { showToast((d.error || 'Failed to regenerate link'), true); return; }
+  var link = window.location.origin + '/api/setup-password/' + d.setupToken;
+  copyText(link);
+  showToast('Setup link copied to clipboard');
+  loadUsers();
 }
 
 function fallbackCopy(text) {
