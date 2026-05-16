@@ -44,9 +44,9 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       toggleSettingsSidebar();
       return;
     }
-    // Results tab while already active → switch to bucket mode
+    // Results tab while already active → toggle between games and bucket mode
     if (tab.dataset.tab === 'results' && tab.classList.contains('active')) {
-      setResultsMode('buckets');
+      setResultsMode(_resultsMode === 'buckets' ? 'games' : 'buckets');
       return;
     }
     document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });

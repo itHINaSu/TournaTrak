@@ -280,8 +280,9 @@
   body { height: 100dvh; overflow: hidden; display: flex; flex-direction: column; }
   .site-header { flex-shrink: 0; }
 
-  /* Nav bar moves to the bottom via flex order */
-  .lineup-nav {
+  /* Both nav bar variants move to the bottom via flex order */
+  .lineup-nav,
+  #lineupNav.admin-tab-bar {
     order: 10;
     flex-shrink: 0;
     background: var(--bg);
@@ -291,6 +292,27 @@
     padding-bottom: max(1em, env(safe-area-inset-bottom, 0px));
     padding-left: max(env(safe-area-inset-left, 0px), 1.2em);
     padding-right: max(env(safe-area-inset-right, 0px), 1.2em);
+    /* Override sticky positioning from admin.css */
+    position: static;
+    top: auto;
+    margin-bottom: 0;
+  }
+  #lineupNav.admin-tab-bar .admin-tab {
+    padding: 0.75em 0.3em 0.9em;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    border-bottom: none;
+    border-top: 0.25em solid transparent;
+  }
+  #lineupNav.admin-tab-bar .admin-tab.active {
+    color: var(--gold-lt);
+    border-bottom-color: transparent;
+    border-top-color: var(--gold);
+  }
+  #lineupNav.admin-tab-bar .admin-tab .tab-icon {
+    display: block;
+    width: 1.8em;
+    height: 1.8em;
   }
   .lineup-nav-tab {
     flex-direction: column;

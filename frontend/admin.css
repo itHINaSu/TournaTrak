@@ -6,12 +6,14 @@
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   margin-bottom: 1.2em;
-  position: sticky;
-  top: var(--hdr-h, 52px);
-  z-index: 89;
 }
 .admin-tab {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25em;
   text-align: center;
   padding: 0.85em 0.3em;
   font-family: 'Oswald', sans-serif;
@@ -21,6 +23,7 @@
   text-transform: uppercase;
   color: var(--text-dim);
   cursor: pointer;
+  text-decoration: none;
   border-bottom: 0.18em solid transparent;
   transition: all 0.15s;
   user-select: none;
@@ -28,6 +31,12 @@
 .admin-tab.active { color: var(--blue-lt); border-bottom-color: var(--blue-lt); }
 .admin-tab-panel { display: none; }
 .admin-tab-panel.active { display: block; }
+.admin-tab .tab-icon {
+  width: 1.4em;
+  height: 1.4em;
+  flex-shrink: 0;
+  display: none; /* shown only on mobile */
+}
 
 /* ── Empty slot card ── */
 .empty-slot-card {
@@ -174,7 +183,7 @@
   border-bottom: 0.07em solid var(--border);
   margin-bottom: 0.75em;
   position: sticky;
-  top: calc(var(--hdr-h, 52px) + var(--admin-tabbar-h, 50px));
+  top: var(--hdr-h, 52px);
   z-index: 10;
   background: var(--bg);
 }
