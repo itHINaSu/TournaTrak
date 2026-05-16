@@ -656,8 +656,10 @@ function applyStickyOffsets() {
   var hdr    = document.getElementById('siteHeader');
   var tabBar = document.querySelector('.admin-tab-bar');
   var r      = document.documentElement.style;
-  r.setProperty('--hdr-h',           (hdr    ? hdr.offsetHeight    : 52) + 'px');
-  r.setProperty('--admin-tabbar-h',  (tabBar ? tabBar.offsetHeight : 50) + 'px');
+  r.setProperty('--app-h',          window.innerHeight + 'px');
+  r.setProperty('--hdr-h',          (hdr    ? hdr.offsetHeight    : 52) + 'px');
+  r.setProperty('--admin-tabbar-h', (tabBar ? tabBar.offsetHeight : 50) + 'px');
+  r.setProperty('--tabs-h',         (tabBar ? tabBar.offsetHeight : 50) + 'px');
 }
 
 function showAdmin(username, role, teamName) {
@@ -1490,4 +1492,8 @@ checkSession();
   window.addEventListener('resize', placeSidebar);
   placeSidebar();
   window.addEventListener('resize', applyStickyOffsets);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', applyStickyOffsets);
+  }
+  applyStickyOffsets();
 }());
