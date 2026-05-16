@@ -81,14 +81,18 @@ function tapRow(idx) {
     var rows = getCurrentRows();
     document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
   } else {
-    // Second tap on a different row: swap
+    // Second tap on a different row: swap jersey + name only.
+    // Positions stay with their slots so a sub moving into a regular slot
+    // automatically inherits that slot's position, and vice-versa.
     var rows = getCurrentRows();
-    var tmp  = rows[reorderSelected];
-    rows[reorderSelected] = rows[idx];
-    rows[idx]             = tmp;
-    // Rows 11+ always carry Sub position regardless of where they land
-    for (var i = 11; i < rows.length; i++) rows[i].position = 'Sub';
-    reorderSelected = -1;
+    var a = reorderSelected, b = idx;
+    var tmpJersey    = rows[a].jersey;
+    var tmpName      = rows[a].name;
+    rows[a].jersey   = rows[b].jersey;
+    rows[a].name     = rows[b].name;
+    rows[b].jersey   = tmpJersey;
+    rows[b].name     = tmpName;
+    reorderSelected  = -1;
     document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
   }
 }
