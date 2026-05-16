@@ -3,6 +3,9 @@
 // STATE
 // ══════════════════════════════════════════════════════════
 var results={}, schedule={}, settings={}, buckets={};
+var _sessionRole = null;
+var _bucketEditMode = false;
+var _bucketEditTeams = [];
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 var SETTING_DEFAULTS = {
@@ -102,6 +105,30 @@ function renderBucketView() {
   // Filter out admin-hidden teams
   allTeams = allTeams.filter(function(t) { return hidden.indexOf(t) === -1; });
 
+  var top3El = document.getElementById('bucketTop3');
+
+  // Edit mode — bucket role users see count inputs
+  if (_bucketEditMode && _sessionRole === 'buckets') {
+    if (top3El) top3El.innerHTML = '';
+    var sorted = allTeams.slice().sort(function(a, b) { return a.localeCompare(b); });
+    var editHTML = '<div class="bucket-edit-wrap">';
+    sorted.forEach(function(team) {
+      var val = parseInt(counts[team]) || 0;
+      editHTML += '<div class="bucket-edit-row">'
+        + '<span class="bucket-edit-name">' + esc(team) + '</span>'
+        + '<input class="bucket-edit-inp" type="number" min="0" inputmode="numeric" data-team="' + esc(team) + '" value="' + val + '">'
+        + '</div>';
+    });
+    editHTML += '</div>'
+      + '<div class="bucket-edit-actions">'
+      + '<button class="bucket-edit-save-btn" onclick="saveBucketEdit()">Save</button>'
+      + '<button class="bucket-edit-cancel-btn" onclick="exitBucketEdit()">Cancel</button>'
+      + '<span class="bucket-edit-status" id="bucketEditStatus"></span>'
+      + '</div>';
+    out.innerHTML = editHTML;
+    return;
+  }
+
   // Always sort by count descending, then alphabetically as tiebreaker
   allTeams.sort(function(a, b) {
     var ca = parseInt(counts[a]) || 0;
@@ -109,8 +136,6 @@ function renderBucketView() {
     if (cb !== ca) return cb - ca;
     return a.localeCompare(b);
   });
-
-  var top3El = document.getElementById('bucketTop3');
 
   if (!allTeams.length) {
     if (top3El) top3El.innerHTML = '';
@@ -145,6 +170,57 @@ function renderBucketView() {
   } else {
     out.innerHTML = '';
   }
+}
+
+function enterBucketEdit() {
+  document.querySelectorAll('.view-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.view-panel').forEach(function(p){ p.classList.remove('active'); });
+  var tab   = document.querySelector('.view-tab[data-view="buckets"]');
+  var panel = document.getElementById('view-buckets');
+  if (tab)   tab.classList.add('active');
+  if (panel) panel.classList.add('active');
+  setCookie('tt_tab', 'buckets');
+  _bucketEditMode = true;
+  updateTimestamp();
+  renderBucketView();
+}
+
+function exitBucketEdit() {
+  _bucketEditMode = false;
+  renderBucketView();
+  updateTimestamp();
+}
+
+function saveBucketEdit() {
+  var counts = (buckets && buckets.counts) ? Object.assign({}, buckets.counts) : {};
+  var hidden = Array.isArray(buckets && buckets.hidden) ? buckets.hidden : [];
+
+  document.querySelectorAll('.bucket-edit-inp').forEach(function(inp) {
+    var team = inp.dataset.team;
+    var val  = parseInt(inp.value, 10);
+    counts[team] = isNaN(val) || val < 0 ? 0 : val;
+  });
+
+  var statusEl = document.getElementById('bucketEditStatus');
+  if (statusEl) statusEl.textContent = 'Saving…';
+
+  fetch('/api/buckets/counts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ counts: counts, hidden: hidden })
+  }).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(data) {
+    if (buckets) {
+      buckets.counts    = data.counts    || counts;
+      buckets.updatedAt = data.updatedAt || new Date().toISOString();
+    }
+    if (statusEl) statusEl.textContent = 'Saved!';
+    setTimeout(function() { exitBucketEdit(); }, 700);
+  }).catch(function() {
+    if (statusEl) statusEl.textContent = 'Save failed.';
+  });
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1335,10 +1411,13 @@ function renderTeamView(){
 // ══════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════
-(function() {
-  var btn = document.getElementById('adminPortalBtn');
-  if (btn && (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone)) {
-    btn.style.display = '';
-  }
-})();
+fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(function(sess) {
+  _sessionRole = sess.role || null;
+  var isPwa    = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
+  var adminBtn = document.getElementById('adminPortalBtn');
+  var editBtn  = document.getElementById('bucketEditBtn');
+  if (adminBtn) adminBtn.style.display =
+    (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) ? '' : 'none';
+  if (editBtn)  editBtn.style.display  = (_sessionRole === 'buckets') ? '' : 'none';
+}).catch(function(){});
 fetchAll();

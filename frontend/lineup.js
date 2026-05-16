@@ -301,8 +301,6 @@ async function init() {
     var teamHeader = document.getElementById('lineupTeamName');
     if (teamHeader) teamHeader.textContent = isAdmin ? 'All Teams' : (currentTeamName || '');
     document.getElementById('lineupContent').style.display = '';
-    var adminBack = document.getElementById('lineupAdminBack');
-    if (adminBack) adminBack.style.display = isAdmin ? '' : 'none';
 
     var [rr, schedR, settingsR] = await Promise.all([
       fetch('/api/results'),

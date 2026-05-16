@@ -190,6 +190,82 @@
   font-style: italic;
 }
 
+/* ── Bucket edit mode (bucket-role users) ── */
+.bucket-edit-wrap {
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 0.75em 1em 0.5em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+.bucket-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: 0.4em;
+  padding: 0.6em 0.85em;
+}
+.bucket-edit-name {
+  flex: 1;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bucket-edit-inp {
+  width: 4.5em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  text-align: right;
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: 0.25em;
+  color: var(--blue-lt);
+  padding: 0.2em 0.4em;
+  font-size: 1rem; /* prevent iOS zoom */
+}
+.bucket-edit-actions {
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 0.75em 1em 3em;
+  display: flex;
+  align-items: center;
+  gap: 0.65em;
+}
+.bucket-edit-save-btn,
+.bucket-edit-cancel-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.4em 1.1em;
+  border-radius: 0.25em;
+  border: 0.07em solid var(--border);
+  cursor: pointer;
+}
+.bucket-edit-save-btn {
+  background: var(--blue-lt);
+  color: #fff;
+  border-color: var(--blue-lt);
+}
+.bucket-edit-save-btn:hover { opacity: 0.85; }
+.bucket-edit-cancel-btn {
+  background: transparent;
+  color: var(--text-dim);
+}
+.bucket-edit-cancel-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.bucket-edit-status {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-left: 0.25em;
+}
+
 /* ── Round sections (By Round all-rounds layout) ── */
 .round-section { max-width: 65em; margin: 0 auto; padding: 0 1em; }
 .round-section-hdr {

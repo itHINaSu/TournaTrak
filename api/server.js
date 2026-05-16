@@ -22,7 +22,7 @@ const SETTINGS_DEFAULTS = {
   rightLabel:     'Right Bracket',
 };
 
-const VALID_ROLES = ['admin', 'results', 'team'];
+const VALID_ROLES = ['admin', 'results', 'team', 'buckets'];
 
 function readJSON(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
@@ -198,9 +198,10 @@ function requireRole(...roles) {
   };
 }
 
-const requireAdmin      = requireRole('admin');
-const requireResults    = requireRole('admin', 'results');
-const requireLineupRead = requireRole('admin', 'results', 'team');
+const requireAdmin        = requireRole('admin');
+const requireResults      = requireRole('admin', 'results');
+const requireBucketsEdit  = requireRole('admin', 'results', 'buckets');
+const requireLineupRead   = requireRole('admin', 'results', 'team');
 
 // Lineup access: team users can only read/write their own team; admin and results can access any.
 function requireLineupAccess(req, res, next) {
@@ -627,7 +628,7 @@ app.get('/api/buckets', (req, res) => {
   res.json(readJSON(BUCKETS_FILE));
 });
 
-app.post('/api/buckets/counts', requireResults, (req, res) => {
+app.post('/api/buckets/counts', requireBucketsEdit, (req, res) => {
   const { counts, order, hidden } = req.body || {};
   if (!counts || typeof counts !== 'object' || Array.isArray(counts)) {
     return res.status(400).json({ error: 'counts must be an object' });

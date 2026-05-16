@@ -659,7 +659,7 @@ function showAdmin(username, role, teamName) {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = '';
-  document.getElementById('logoutBtn').style.display = '';
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = '';
   var unEl = document.getElementById('accountUsername');
   if (unEl) unEl.textContent = username || 'admin';
   applyRoleRestrictions(currentRole);
@@ -677,7 +677,7 @@ function showLogin() {
   document.getElementById('loginOverlay').style.display = 'flex';
   document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = 'none';
-  document.getElementById('logoutBtn').style.display = 'none';
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = 'none';
   document.getElementById('loginPass').value = '';
   document.getElementById('loginError').style.display = 'none';
   var blockMsg = document.getElementById('coachBlockMsg');
@@ -690,7 +690,7 @@ function showCoachBlock(username) {
   document.getElementById('loginOverlay').style.display = 'flex';
   document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = 'none';
-  document.getElementById('logoutBtn').style.display = 'none';
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = 'none';
   var blockMsg  = document.getElementById('coachBlockMsg');
   var blockText = document.getElementById('coachBlockText');
   var loginForm = document.getElementById('loginForm');
@@ -703,7 +703,7 @@ function showChangePassword() {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('changePasswordOverlay').style.display = 'flex';
   document.getElementById('adminWrap').style.display = 'none';
-  document.getElementById('logoutBtn').style.display = '';
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = '';
   document.getElementById('cpError').style.display = 'none';
   document.getElementById('cpNewPass1').value = '';
   document.getElementById('cpNewPass2').value = '';
@@ -728,7 +728,8 @@ async function doLogin(e) {
       currentRole = data.role || null;
       currentTeamName = data.teamName || null;
       if (data.mustChangePassword) showChangePassword();
-      else if (data.role === 'team') { showCoachBlock(data.username); return; }
+      else if (data.role === 'team')    { showCoachBlock(data.username); return; }
+      else if (data.role === 'buckets') { window.location.href = '/'; return; }
       else showAdmin(data.username, data.role, data.teamName);
     } else {
       var data = await r.json().catch(function(){ return {}; });
