@@ -883,6 +883,7 @@ function renderUsersList(users) {
   var el = document.getElementById('usersList');
   if (!el) return;
   var me = (document.getElementById('accountUsername') || {}).textContent || '';
+  users = users.filter(function(u) { return u.role !== 'team'; });
   if (!users.length) {
     el.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No additional users.</div>';
     return;
@@ -1135,6 +1136,7 @@ function initBucketDrag() {
   document.querySelectorAll('.bucket-drag-handle').forEach(function(handle) {
     handle.addEventListener('pointerdown', function(e) {
       e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
       var row = handle.closest('.bucket-admin-row');
       if (row) bucketDragStart(row, e);
     });
@@ -1152,47 +1154,70 @@ function bucketDragStart(srcRow, e) {
   Object.assign(ghost.style, {
     position: 'fixed', left: rowRect.left + 'px', top: rowRect.top + 'px',
     width: rowRect.width + 'px', zIndex: '9999', pointerEvents: 'none',
-    opacity: '0.92', transform: 'rotate(1.5deg)',
+    opacity: '0.45', transform: 'rotate(1.5deg)',
     boxShadow: '0 8px 28px rgba(0,0,0,0.5)', transition: 'none'
   });
   document.body.appendChild(ghost);
-  srcRow.style.opacity = '0.25';
+  srcRow.style.opacity = '0.08';
 
-  var lastTarget = null;
+  var lastInsertBeforeIdx = null;
 
   function onMove(e2) {
     e2.preventDefault();
     ghost.style.top = (e2.clientY - offsetY) + 'px';
-    ghost.style.visibility = 'hidden';
-    var el = document.elementFromPoint(e2.clientX, e2.clientY);
-    ghost.style.visibility = '';
-    var overRow = el && el.closest('.bucket-admin-row');
-    list.querySelectorAll('.bucket-admin-row').forEach(function(r) { r.classList.remove('bucket-drag-over'); });
-    if (overRow && overRow !== srcRow) {
-      overRow.classList.add('bucket-drag-over');
-      lastTarget = overRow;
+
+    list.querySelectorAll('.bucket-admin-row').forEach(function(r) {
+      r.classList.remove('drop-before', 'drop-after');
+    });
+
+    var rows = Array.from(list.querySelectorAll('.bucket-admin-row'));
+    if (!rows.length) return;
+
+    var insertBeforeRow = null;
+    for (var i = 0; i < rows.length; i++) {
+      var rect = rows[i].getBoundingClientRect();
+      if (e2.clientY < rect.top + rect.height / 2) {
+        insertBeforeRow = rows[i];
+        break;
+      }
+    }
+
+    if (insertBeforeRow) {
+      insertBeforeRow.classList.add('drop-before');
+      lastInsertBeforeIdx = parseInt(insertBeforeRow.dataset.idx, 10);
+    } else {
+      rows[rows.length - 1].classList.add('drop-after');
+      lastInsertBeforeIdx = _bucketTeams.length;
     }
   }
 
-  function onUp() {
+  function cleanup() {
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onCancel);
     ghost.remove();
     srcRow.style.opacity = '';
-    list.querySelectorAll('.bucket-admin-row').forEach(function(r) { r.classList.remove('bucket-drag-over'); });
+    list.querySelectorAll('.bucket-admin-row').forEach(function(r) {
+      r.classList.remove('drop-before', 'drop-after');
+    });
+  }
 
-    if (lastTarget) {
-      var targetIdx = parseInt(lastTarget.dataset.idx, 10);
-      // Capture edited counts before re-render
+  function onCancel() { cleanup(); }
+
+  function onUp() {
+    cleanup();
+
+    if (lastInsertBeforeIdx !== null) {
+      var insertAt = lastInsertBeforeIdx;
       _bucketTeams.forEach(function(team, i) {
         var el = document.getElementById('bci-' + i);
         if (el) { var v = parseInt(el.value, 10); team._tempCount = isNaN(v) ? 0 : v; }
       });
       var moved = _bucketTeams.splice(srcIdx, 1)[0];
-      _bucketTeams.splice(targetIdx, 0, moved);
+      if (srcIdx < insertAt) insertAt--;
+      _bucketTeams.splice(insertAt, 0, moved);
       var saved = {};
       _bucketTeams.forEach(function(t) { if (t._tempCount !== undefined) saved[t.name] = t._tempCount; });
-      // Persist new order into buckets so renderBucketAdmin() doesn't revert it
       buckets.order = _bucketTeams.map(function(t) { return t.name; });
       renderBucketAdmin();
       _bucketTeams.forEach(function(team, i) {
@@ -1204,6 +1229,7 @@ function bucketDragStart(srcRow, e) {
 
   document.addEventListener('pointermove', onMove, { passive: false });
   document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onCancel);
 }
 
 async function saveBucketCounts() {

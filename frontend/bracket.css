@@ -1113,7 +1113,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   gap: 0.4em;
   padding: 0 0.7em;
   font-family: 'Barlow', sans-serif;
-  font-size: calc(var(--mbc-card-h, 120px) * 0.155);
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--text);
   min-height: 0;
@@ -1123,7 +1123,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   color: var(--text-mute);
   font-style: italic;
   font-weight: 400;
-  font-size: calc(var(--mbc-card-h, 120px) * 0.115);
+  font-size: 0.88rem;
 }
 .mbc-game-team.won  { color: var(--win-color); }
 .mbc-game-team.lost { color: var(--lose-color); }
@@ -1148,28 +1148,28 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .mbc-game-lbl {
   font-family: 'Oswald', sans-serif;
-  font-size: calc(var(--mbc-card-h, 120px) * 0.10);
+  font-size: 0.72rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: var(--blue-lt);
   flex-shrink: 0;
 }
 .mbc-game-datetime { display: flex; align-items: baseline; gap: 0.3em; }
 .mbc-game-day {
   font-family: 'Oswald', sans-serif;
-  font-size: calc(var(--mbc-card-h, 120px) * 0.10);
+  font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-dim);
 }
 .mbc-game-dow {
   font-family: 'Oswald', sans-serif;
-  font-size: calc(var(--mbc-card-h, 120px) * 0.12);
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--gold-lt);
 }
 .mbc-game-time {
   font-family: 'Oswald', sans-serif;
-  font-size: calc(var(--mbc-card-h, 120px) * 0.12);
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--gold-lt);
 }
