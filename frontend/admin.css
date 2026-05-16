@@ -724,6 +724,7 @@ input[type="time"]:focus {
     padding-left: 1em;
     padding-right: 1em;
     border-bottom: 0.07em solid var(--border);
+    top: 0;
   }
 
   /* Settings: show mobile bar, collapse sidebar from layout flow */

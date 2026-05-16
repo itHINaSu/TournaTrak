@@ -1427,7 +1427,7 @@ fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(fun
   var adminBtn = document.getElementById('adminPortalBtn');
   var editBtn  = document.getElementById('bucketEditBtn');
   if (adminBtn) adminBtn.style.display =
-    (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) ? '' : 'none';
+    (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
   if (editBtn)  editBtn.style.display  = (_sessionRole === 'buckets') ? '' : 'none';
 }).catch(function(){});
 fetchAll();
