@@ -8,7 +8,7 @@ var currentSlotId   = null;
 var isReadOnly      = false;
 var lineupResults   = {};
 
-var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
+var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH'];
 
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -21,19 +21,71 @@ function posOptions(selected) {
   }).join('');
 }
 
+var lineupRowCount = 11;
+
 function buildRows(rows, readOnly) {
   var html = '';
   var dis  = readOnly ? ' disabled' : '';
-  for (var i = 0; i < 20; i++) {
-    var r = (rows && rows[i]) ? rows[i] : {};
-    html += '<tr class="lineup-row">'
+  var count = lineupRowCount;
+  for (var i = 0; i < count; i++) {
+    var r      = (rows && rows[i]) ? rows[i] : {};
+    var isSub  = i >= 11;
+    html += '<tr class="lineup-row' + (isSub ? ' lineup-row--sub' : '') + '">'
       + '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>'
       + '<td class="lineup-td-num"><input type="text" class="lineup-inp lineup-inp--num" id="lj-' + i + '" maxlength="4" value="' + esc(r.jersey || '') + '" placeholder="#" inputmode="numeric"' + dis + '></td>'
       + '<td class="lineup-td-name"><input type="text" class="lineup-inp lineup-inp--name" id="ln-' + i + '" maxlength="64" value="' + esc(r.name || '') + '" placeholder="Player name"' + dis + '></td>'
-      + '<td class="lineup-td-pos"><select class="lineup-sel" id="lp-' + i + '"' + dis + '>' + posOptions(r.position) + '</select></td>'
-      + '</tr>';
+      + '<td class="lineup-td-pos">';
+    if (isSub) {
+      html += '<span class="lineup-sub-tag">Sub</span>';
+    } else {
+      html += '<select class="lineup-sel" id="lp-' + i + '"' + dis + '>' + posOptions(r.position) + '</select>';
+    }
+    html += '</td></tr>';
   }
   return html;
+}
+
+function getCurrentRows() {
+  var rows = [];
+  for (var i = 0; i < lineupRowCount; i++) {
+    var j = document.getElementById('lj-' + i);
+    var n = document.getElementById('ln-' + i);
+    var p = document.getElementById('lp-' + i);
+    rows.push({
+      jersey:   j ? j.value : '',
+      name:     n ? n.value : '',
+      position: i >= 11 ? 'Sub' : (p ? p.value : ''),
+    });
+  }
+  return rows;
+}
+
+function addSubRow() {
+  var rows = getCurrentRows();
+  lineupRowCount++;
+  rows.push({ jersey: '', name: '', position: 'Sub' });
+  document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+  updateSubButtons();
+}
+
+function deleteSubRow() {
+  if (lineupRowCount <= 11) return;
+  var rows = getCurrentRows();
+  lineupRowCount--;
+  rows.pop();
+  document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+  updateSubButtons();
+}
+
+function updateSubButtons(readOnly) {
+  var ro     = (readOnly !== undefined) ? readOnly : isReadOnly;
+  var addBtn = document.getElementById('lineupAddSubBtn');
+  var delBtn = document.getElementById('lineupDelSubBtn');
+  if (addBtn) addBtn.style.display = ro ? 'none' : '';
+  if (delBtn) {
+    delBtn.style.display    = ro ? 'none' : '';
+    delBtn.disabled         = lineupRowCount <= 11;
+  }
 }
 
 function showStatus(msg, err) {
@@ -148,10 +200,14 @@ async function loadLineupForGame(slotId, teamName, readOnly, readOnlyReason) {
   try {
     var r    = await fetch('/api/lineups/game/' + encodeURIComponent(slotId) + '/' + encodeURIComponent(teamName));
     var data = r.ok ? await r.json() : { rows: [] };
-    document.getElementById('lineupBody').innerHTML = buildRows(data.rows || [], readOnly);
+    var rows = data.rows || [];
+    lineupRowCount = Math.max(11, rows.length);
+    document.getElementById('lineupBody').innerHTML = buildRows(rows, readOnly);
   } catch(e) {
+    lineupRowCount = 11;
     document.getElementById('lineupBody').innerHTML = buildRows([], readOnly);
   }
+  updateSubButtons(readOnly);
 }
 
 
@@ -159,14 +215,7 @@ async function submitLineup() {
   if (!viewedTeamName || !currentSlotId || isReadOnly) return;
   var btn = document.getElementById('lineupSubmitBtn');
   btn.disabled = true;
-  var rows = [];
-  for (var i = 0; i < 20; i++) {
-    rows.push({
-      jersey:   (document.getElementById('lj-' + i) || {}).value || '',
-      name:     (document.getElementById('ln-' + i) || {}).value || '',
-      position: (document.getElementById('lp-' + i) || {}).value || '',
-    });
-  }
+  var rows = getCurrentRows();
   try {
     var r = await fetch(
       '/api/lineups/game/' + encodeURIComponent(currentSlotId) + '/' + encodeURIComponent(viewedTeamName),
@@ -379,6 +428,7 @@ async function lineupInit() {
       if (!slotId) {
         document.getElementById('lineupNoGame').style.display = '';
         document.getElementById('lineupSubmitBtn').style.display = 'none';
+        updateSubButtons(true);
         return;
       }
 

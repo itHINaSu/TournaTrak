@@ -67,7 +67,7 @@
 }
 .lineup-th--order { width: 2em; text-align: center; }
 .lineup-th--num   { width: 5em; }
-.lineup-th--pos   { width: 8em; }
+.lineup-th--pos   { width: 5.5em; }
 
 .lineup-row { border-bottom: 0.07em solid var(--border); }
 .lineup-row:last-child { border-bottom: none; }
@@ -85,7 +85,17 @@
 }
 .lineup-td-num   { padding: 0.35em 0.4em; width: 5em; }
 .lineup-td-name  { padding: 0.35em 0.4em; }
-.lineup-td-pos   { padding: 0.35em 0.4em; width: 8em; }
+.lineup-td-pos   { padding: 0.35em 0.4em; width: 5.5em; }
+
+.lineup-row--sub { background: var(--surface2); }
+.lineup-sub-tag {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
 
 .lineup-inp {
   font-family: 'Barlow', sans-serif;
@@ -140,6 +150,31 @@
 }
 .lineup-submit-btn:hover { background: var(--blue-lt); border-color: var(--blue-lt); }
 .lineup-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.lineup-sub-add-btn,
+.lineup-sub-del-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.65em 1.2em;
+  border-radius: 0.3em;
+  background: transparent;
+  cursor: pointer;
+}
+.lineup-sub-add-btn {
+  border: 0.07em solid var(--win-color);
+  color: var(--win-color);
+}
+.lineup-sub-add-btn:hover { opacity: 0.8; }
+.lineup-sub-del-btn {
+  border: 0.07em solid var(--lose-color);
+  color: var(--lose-color);
+}
+.lineup-sub-del-btn:hover { opacity: 0.8; }
+.lineup-sub-del-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
 .lineup-status {
   font-size: 0.82rem;
   font-weight: 600;
