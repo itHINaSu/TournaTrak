@@ -99,8 +99,6 @@ function showSettingsSection(section) {
   document.querySelectorAll('.settings-nav-item').forEach(function(n) {
     n.classList.toggle('active', n.dataset.section === section);
   });
-  var titleEl = document.getElementById('settingsMobileSection');
-  if (titleEl) titleEl.textContent = SETTINGS_SECTION_TITLES[section] || section;
   closeSettingsSidebar();
   if (section === 'coaches') loadCoaches();
   if (section === 'users')   loadUsers();
