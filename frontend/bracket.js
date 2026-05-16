@@ -1261,6 +1261,10 @@ function makeVerticalChain(chain, team, isLosePath) {
         + '<img src="/icons/victory.png" class="round-win-img" alt="">'
         + '<span class="round-win-tag">WON</span>'
         + '</div>';
+    } else if (teamLost) {
+      loseSide = '<div class="round-lose-side">'
+        + '<span class="round-lose-tag">LOSS</span>'
+        + '</div>';
     }
 
     html += '<div class="round-game-card" style="border-color:' + borderColor + '">'
