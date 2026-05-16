@@ -2,7 +2,10 @@
 // ══════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════
-var results={}, schedule={}, settings={};
+var results={}, schedule={}, settings={}, buckets={};
+var _sessionRole = null;
+var _bucketEditMode = false;
+var _bucketEditTeams = [];
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 var SETTING_DEFAULTS = {
@@ -30,13 +33,38 @@ function applySettings() {
   else { subEl.style.display = 'none'; }
 }
 
-// ── Results timestamp ─────────────────────────────────────────────────
-// Shows end-justified in header below tournament name.
-// Hidden if no results have been recorded.
+// ── Results notification bar ──────────────────────────────────────────
 function updateTimestamp() {
-  var el = document.getElementById('resultsTimestamp');
+  var bar  = document.getElementById('updateBar');
+  var text = document.getElementById('updateBarText');
+  var view = activeView();
+
+  // Buckets tab: show bucket update time or "no data" notice
+  if (view === 'buckets') {
+    var updatedAt = buckets && buckets.updatedAt;
+    var hasCounts = updatedAt && Object.keys((buckets && buckets.counts) || {}).length > 0;
+    if (text) {
+      if (hasCounts) {
+        var bd = new Date(updatedAt);
+        text.textContent = isNaN(bd.getTime())
+          ? 'Bucket results updated'
+          : 'Bucket results updated ' + formatBucketTime(bd);
+      } else {
+        text.textContent = 'No Updates Have Been Submitted';
+      }
+    }
+    if (bar) bar.style.display = '';
+    applyStickyOffsets();
+    return;
+  }
+
+  // All other tabs: show game results update time, or hide if none
   var hasResults = Object.values(results).some(function(r){ return r && r.winner; });
-  if (!hasResults) { el.style.display = 'none'; return; }
+  if (!hasResults) {
+    if (bar) bar.style.display = 'none';
+    applyStickyOffsets();
+    return;
+  }
   var now = new Date();
   var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
   var m = now.getMonth()+1, d = now.getDate(), dow = days[now.getDay()];
@@ -44,8 +72,155 @@ function updateTimestamp() {
   var ampm = h >= 12 ? 'PM' : 'AM';
   var h12 = h % 12 || 12;
   var ms = min < 10 ? '0'+min : ''+min;
-  el.textContent = 'Results updated ' + m+'/'+d+' '+dow+' '+h12+':'+ms+' '+ampm;
-  el.style.display = 'block';
+  if (text) text.textContent = 'Results updated ' + m+'/'+d+' '+dow+' '+h12+':'+ms+' '+ampm;
+  if (bar) bar.style.display = '';
+  applyStickyOffsets();
+}
+
+// ── Bucket view ───────────────────────────────────────────────────────
+function formatBucketTime(d) {
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var m = d.getMonth()+1, dd = d.getDate(), dow = days[d.getDay()];
+  var h = d.getHours(), mn = d.getMinutes();
+  var ampm = h >= 12 ? 'PM' : 'AM';
+  var h12 = h % 12 || 12;
+  var ms = mn < 10 ? '0'+mn : ''+mn;
+  return m+'/'+dd+' '+dow+' '+h12+':'+ms+' '+ampm;
+}
+
+function renderBucketView() {
+  var out = document.getElementById('bucketOut');
+  if (!out) return;
+
+  var counts     = (buckets && buckets.counts) ? buckets.counts : {};
+  var hidden     = Array.isArray(buckets && buckets.hidden) ? buckets.hidden : [];
+  var extraTeams = Array.isArray(buckets && buckets.bucketOnlyTeams) ? buckets.bucketOnlyTeams : [];
+  var schedTeams = [];
+  Object.values(GAMES).forEach(function(g) {
+    if (g.t1 && g.t1.type === 'fixed' && g.t1.team) schedTeams.push(g.t1.team);
+    if (g.t2 && g.t2.type === 'fixed' && g.t2.team) schedTeams.push(g.t2.team);
+  });
+  schedTeams = schedTeams.filter(function(t, i, a) { return a.indexOf(t) === i; });
+  var allTeams = schedTeams.concat(extraTeams.filter(function(t) { return schedTeams.indexOf(t) === -1; }));
+  // Filter out admin-hidden teams
+  allTeams = allTeams.filter(function(t) { return hidden.indexOf(t) === -1; });
+
+  var top3El = document.getElementById('bucketTop3');
+
+  // Edit mode — bucket role users see count inputs
+  if (_bucketEditMode && _sessionRole === 'buckets') {
+    if (top3El) top3El.innerHTML = '';
+    var sorted = allTeams.slice().sort(function(a, b) { return a.localeCompare(b); });
+    var editHTML = '<div class="bucket-edit-wrap">';
+    sorted.forEach(function(team) {
+      var val = parseInt(counts[team]) || 0;
+      editHTML += '<div class="bucket-edit-row">'
+        + '<span class="bucket-edit-name">' + esc(team) + '</span>'
+        + '<input class="bucket-edit-inp" type="number" min="0" inputmode="numeric" data-team="' + esc(team) + '" value="' + val + '">'
+        + '</div>';
+    });
+    editHTML += '</div>'
+      + '<div class="bucket-edit-actions">'
+      + '<button class="bucket-edit-save-btn" onclick="saveBucketEdit()">Save</button>'
+      + '<button class="bucket-edit-cancel-btn" onclick="exitBucketEdit()">Cancel</button>'
+      + '<span class="bucket-edit-status" id="bucketEditStatus"></span>'
+      + '</div>';
+    out.innerHTML = editHTML;
+    return;
+  }
+
+  // Always sort by count descending, then alphabetically as tiebreaker
+  allTeams.sort(function(a, b) {
+    var ca = parseInt(counts[a]) || 0;
+    var cb = parseInt(counts[b]) || 0;
+    if (cb !== ca) return cb - ca;
+    return a.localeCompare(b);
+  });
+
+  if (!allTeams.length) {
+    if (top3El) top3El.innerHTML = '';
+    out.innerHTML = '<div class="bucket-empty">No teams in the bucket challenge yet.</div>';
+    return;
+  }
+
+  function makeRow(team, i) {
+    var count     = parseInt(counts[team]) || 0;
+    var rank      = i + 1;
+    var medalCls  = rank <= 3 ? ' bucket-row--' + rank : '';
+    return '<div class="bucket-row' + medalCls + '">'
+      + '<span class="bucket-rank">' + rank + '</span>'
+      + '<span class="bucket-team-name">' + esc(team) + '</span>'
+      + '<span class="bucket-count">' + count + '</span>'
+      + '</div>';
+  }
+
+  var topTeams  = allTeams.slice(0, 3);
+  var restTeams = allTeams.slice(3);
+
+  if (top3El) {
+    top3El.innerHTML = '<div class="bucket-leaderboard bucket-leaderboard--top3">'
+      + topTeams.map(function(t, i) { return makeRow(t, i); }).join('')
+      + '</div>';
+  }
+
+  if (restTeams.length) {
+    out.innerHTML = '<div class="bucket-leaderboard">'
+      + restTeams.map(function(t, i) { return makeRow(t, i + 3); }).join('')
+      + '</div>';
+  } else {
+    out.innerHTML = '';
+  }
+}
+
+function enterBucketEdit() {
+  document.querySelectorAll('.view-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.view-panel').forEach(function(p){ p.classList.remove('active'); });
+  var tab   = document.querySelector('.view-tab[data-view="buckets"]');
+  var panel = document.getElementById('view-buckets');
+  if (tab)   tab.classList.add('active');
+  if (panel) panel.classList.add('active');
+  setCookie('tt_tab', 'buckets');
+  _bucketEditMode = true;
+  updateTimestamp();
+  renderBucketView();
+}
+
+function exitBucketEdit() {
+  _bucketEditMode = false;
+  renderBucketView();
+  updateTimestamp();
+}
+
+function saveBucketEdit() {
+  var counts = (buckets && buckets.counts) ? Object.assign({}, buckets.counts) : {};
+  var hidden = Array.isArray(buckets && buckets.hidden) ? buckets.hidden : [];
+
+  document.querySelectorAll('.bucket-edit-inp').forEach(function(inp) {
+    var team = inp.dataset.team;
+    var val  = parseInt(inp.value, 10);
+    counts[team] = isNaN(val) || val < 0 ? 0 : val;
+  });
+
+  var statusEl = document.getElementById('bucketEditStatus');
+  if (statusEl) statusEl.textContent = 'Saving…';
+
+  fetch('/api/buckets/counts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ counts: counts, hidden: hidden })
+  }).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function(data) {
+    if (buckets) {
+      buckets.counts    = data.counts    || counts;
+      buckets.updatedAt = data.updatedAt || new Date().toISOString();
+    }
+    if (statusEl) statusEl.textContent = 'Saved!';
+    setTimeout(function() { exitBucketEdit(); }, 700);
+  }).catch(function() {
+    if (statusEl) statusEl.textContent = 'Save failed.';
+  });
 }
 
 // ══════════════════════════════════════════════════════════
@@ -63,6 +238,18 @@ function getCookie(name) {
 // THEME
 // ══════════════════════════════════════════════════════════
 var themeBtn=document.getElementById('themeToggle');
+
+// Auto-apply system color scheme on first load, then follow OS changes.
+(function(){
+  var mq = window.matchMedia('(prefers-color-scheme: light)');
+  function applyScheme(light) {
+    document.body.classList.toggle('light', light);
+    if (themeBtn) themeBtn.textContent = light ? '🌙 Dark' : '☀ Light';
+  }
+  applyScheme(mq.matches);
+  mq.addEventListener('change', function(e) { applyScheme(e.matches); });
+})();
+
 themeBtn.addEventListener('click',function(){
   document.body.classList.toggle('light');
   themeBtn.textContent=document.body.classList.contains('light')?'🌙 Dark':'☀ Light';
@@ -84,13 +271,16 @@ document.querySelectorAll('.view-tab').forEach(function(tab){
     document.getElementById('view-'+tab.dataset.view).classList.add('active');
     setCookie('tt_tab', tab.dataset.view);
     renderActive();
+    fetchAll(); // refresh data on every tab tap (PWA-friendly)
   });
 });
 function renderActive(){
   var v=activeView();
+  updateTimestamp(); // keep bar in sync whenever view changes
   if(v==='bracket') renderBracket();
-  if(v==='rounds')  { renderRoundView(); setTimeout(function(){ scrollToRound(firstIncompleteRound()); }, 60); }
+  if(v==='rounds')  { renderRoundView(); setTimeout(scrollToLastCompletedCard, 60); }
   if(v==='teams')   renderTeamView();
+  if(v==='buckets') renderBucketView();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -98,30 +288,25 @@ function renderActive(){
 // ══════════════════════════════════════════════════════════
 async function fetchAll(){
   try{
-    var [rr,sr,str]=await Promise.all([
+    var [rr,sr,str,br]=await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
+      fetch('/api/buckets'),
     ]);
     results=await rr.json(); schedule=await sr.json(); settings=await str.json();
+    buckets=br.ok ? await br.json() : {};
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; }
+  }catch(e){ results={}; schedule={}; settings={}; buckets={}; }
   applySettings();
   updateTimestamp();
   populateTeamSelect();
 
-  // On the /lineup route, override tab and team from the magic-link token.
-  // This takes priority over saved cookies so coaches land directly on their team.
-  if (window.location.pathname === '/lineup') {
-    var lineupHandled = await handleLineupToken();
-    if (lineupHandled) {
-      applyStickyOffsets();
-      return;
-    }
-  }
-
-  // Restore saved tab
-  var savedTab = getCookie('tt_tab');
+  // ?view=X from lineup page tab links overrides saved cookie
+  var qView = new URLSearchParams(window.location.search).get('view');
+  // Restore saved tab; on mobile default to By Round if no saved preference
+  var savedTab = qView || getCookie('tt_tab');
+  if (!savedTab && window.innerWidth < 1024) savedTab = 'rounds';
   if (savedTab) {
     var targetTab   = document.querySelector('.view-tab[data-view="' + savedTab + '"]');
     var targetPanel = document.getElementById('view-' + savedTab);
@@ -148,36 +333,6 @@ window.addEventListener('resize',function(){
   clearTimeout(resizeTimer);
   resizeTimer=setTimeout(function(){if(activeView()==='bracket') renderBracket();},150);
 });
-
-// ══════════════════════════════════════════════════════════
-// LINEUP MAGIC-LINK
-// ══════════════════════════════════════════════════════════
-async function handleLineupToken() {
-  var params = new URLSearchParams(window.location.search);
-  var token  = params.get('token');
-  if (!token) return false;
-  try {
-    var r = await fetch('/api/coach?token=' + encodeURIComponent(token));
-    if (!r.ok) return false;
-    var data = await r.json();
-    if (!data.team) return false;
-
-    // Switch to teams tab
-    document.querySelectorAll('.view-tab').forEach(function(t){ t.classList.remove('active'); });
-    document.querySelectorAll('.view-panel').forEach(function(p){ p.classList.remove('active'); });
-    var teamsTab   = document.querySelector('.view-tab[data-view="teams"]');
-    var teamsPanel = document.getElementById('view-teams');
-    if (teamsTab)   teamsTab.classList.add('active');
-    if (teamsPanel) teamsPanel.classList.add('active');
-
-    // Select the coach's team
-    var tSel = document.getElementById('teamSelect');
-    if (tSel) tSel.value = data.team;
-
-    renderTeamView();
-    return true;
-  } catch(e) { return false; }
-}
 
 // ══════════════════════════════════════════════════════════
 // HELPERS
@@ -339,7 +494,7 @@ function buildSideColumns(side){
   return rounds.map(function(round){
     var games=Object.keys(GAMES).filter(function(gid){
       return GAMES[gid].side===side&&GAMES[gid].round===round;
-    }).map(function(gid){ return {gid:gid,slot:GAMES[gid].num}; })
+    }).map(function(gid){ return {gid:gid,slot:parseSlotId(gid).num}; })
       .sort(function(a,b){ return a.slot-b.slot; });
     return {round:round,games:games};
   });
@@ -527,16 +682,17 @@ function mobileRoundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
-  var ft = formatTime(g.time), dayStr = '', timeStr = ft;
+  var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
-  if (m) { dayStr = m[1] + ' ' + m[2]; timeStr = m[3]; }
+  if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
   var upcoming = !r.winner ? ' upcoming' : '';
   // Header (top 25%), team 1 (37.5%), team 2 (37.5%)
   return '<div class="mbc-game-card' + upcoming + '">'
     + '<div class="mbc-game-mid">'
     +   '<span class="mbc-game-lbl">' + esc(gameLabel(gid)) + '</span>'
     +   '<span class="mbc-game-datetime">'
-    +     (dayStr  ? '<span class="mbc-game-day">'  + esc(dayStr)  + '</span>' : '')
+    +     (dateStr ? '<span class="mbc-game-day">'  + esc(dateStr) + '</span>' : '')
+    +     (dowStr  ? '<span class="mbc-game-dow">'  + esc(dowStr)  + '</span>' : '')
     +     (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
     +   '</span>'
     + '</div>'
@@ -560,14 +716,15 @@ function roundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
-  var ft = formatTime(g.time), dayStr = '', timeStr = ft;
-  var m = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
-  if (m) { dayStr = m[1]; timeStr = m[2]; }
+  var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
+  var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
+  if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
   return '<div class="round-game-card">'
     + '<div class="round-game-header">'
     + '<span class="round-game-id">' + esc(gameLabel(gid)) + '</span>'
     + '<div class="round-game-day-time">'
-    + (dayStr  ? '<span class="round-game-day">'  + esc(dayStr)  + '</span>' : '')
+    + (dateStr ? '<span class="round-game-day">'  + esc(dateStr) + '</span>' : '')
+    + (dowStr  ? '<span class="round-game-dow">'  + esc(dowStr)  + '</span>' : '')
     + (timeStr ? '<span class="round-game-time">' + esc(timeStr) + '</span>' : '')
     + '</div></div>'
     + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
@@ -875,22 +1032,26 @@ function renderMobileBracket(root, dims) {
 // ── Sticky offset helpers ─────────────────────────────────
 function applyStickyOffsets() {
   var hdrH  = document.getElementById('siteHeader').offsetHeight;
+  var barEl = document.getElementById('updateBar');
+  var barH  = (barEl && barEl.offsetParent !== null) ? barEl.offsetHeight : 0;
   var tabsH = document.getElementById('viewTabs').offsetHeight;
   var sel   = document.querySelector('.selector-row');
   var selH  = sel ? sel.offsetHeight : 0;
   var r = document.documentElement.style;
   r.setProperty('--hdr-h',  hdrH  + 'px');
+  r.setProperty('--bar-h',  barH  + 'px');
   r.setProperty('--tabs-h', tabsH + 'px');
   r.setProperty('--sel-h',  (selH || 72) + 'px');
 }
 
 function stickyNavH() {
   var hdr  = document.getElementById('siteHeader');
+  var bar  = document.getElementById('updateBar');
   var tabs = document.getElementById('viewTabs');
   var sel  = document.querySelector('#view-rounds .selector-row');
   var mobile = window.innerWidth < 1024;
-  // On mobile: tabs + selector are fixed at bottom, only header offsets scroll target
   return (hdr ? hdr.offsetHeight : 0)
+       + (bar && bar.offsetParent !== null ? bar.offsetHeight : 0)
        + (tabs && !mobile ? tabs.offsetHeight : 0)
        + (sel && !mobile && sel.offsetParent !== null ? sel.offsetHeight : 0);
 }
@@ -910,10 +1071,45 @@ function firstIncompleteRound() {
 function scrollToRound(round) {
   var el = document.getElementById('round-section-' + round);
   if (!el) return;
-  var offset = stickyNavH();
-  var top = el.getBoundingClientRect().top + window.scrollY - offset - 4;
-  window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  var mobile = window.innerWidth < 1024;
+  var panel = document.getElementById('view-rounds');
+  if (mobile && panel) {
+    var panelRect = panel.getBoundingClientRect();
+    var elRect = el.getBoundingClientRect();
+    var scrollOffset = elRect.top - panelRect.top + panel.scrollTop - 4;
+    panel.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
+  } else {
+    var offset = stickyNavH();
+    var top = el.getBoundingClientRect().top + window.scrollY - offset - 4;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }
   document.getElementById('roundSelect').value = round;
+}
+
+function scrollToLastCompletedCard() {
+  var rounds = ['R1','R2','QF','SF','CHAMP'];
+  var lastSid = null;
+  rounds.forEach(function(round) {
+    Object.keys(GAMES)
+      .filter(function(s){ return GAMES[s].round === round; })
+      .sort(function(a,b){ return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time); })
+      .forEach(function(sid) {
+        if (results[sid] && results[sid].winner) lastSid = sid;
+      });
+  });
+  if (!lastSid) return;
+  var card = document.getElementById('rgc-' + lastSid);
+  if (!card) return;
+  var mobile = window.innerWidth < 1024;
+  var panel = document.getElementById('view-rounds');
+  if (mobile && panel) {
+    var scrollOffset = card.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop - 4;
+    panel.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
+  } else {
+    var top = card.getBoundingClientRect().top + window.scrollY - stickyNavH() - 4;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }
+  document.getElementById('roundSelect').value = GAMES[lastSid].round;
 }
 
 var roundObserver = null;
@@ -952,17 +1148,18 @@ function renderRoundView() {
       var g=GAMES[sid]; if(!g) return;
       var t1=disp(sid,g.t1), t2=disp(sid,g.t2), r=results[sid]||{};
       var ft=formatTime(g.time);
-      var dayStr='', timeStr=ft;
-      var m=ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
-      if(m){ dayStr=m[1]; timeStr=m[2]; }
+      var dateStr='', dowStr='', timeStr=ft;
+      var m=ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
+      if(m){ dateStr=m[1]; dowStr=m[2]; timeStr=m[3]; }
       var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
       var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
       var upcoming = !r.winner ? ' upcoming' : '';
-      html += '<div class="round-game-card' + upcoming + '">'
+      html += '<div class="round-game-card' + upcoming + '" id="rgc-' + sid + '">'
         +'<div class="round-game-header">'
         +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
         +'<div class="round-game-day-time">'
-        +(dayStr?'<span class="round-game-day">'+esc(dayStr)+'</span>':'')
+        +(dateStr?'<span class="round-game-day">'+esc(dateStr)+'</span>':'')
+        +(dowStr?'<span class="round-game-dow">'+esc(dowStr)+'</span>':'')
         +(timeStr?'<span class="round-game-time">'+esc(timeStr)+'</span>':'')
         +'</div></div>'
         +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
@@ -1000,6 +1197,14 @@ function populateTeamSelect(){
   });
 }
 
+function syncLoseSideWidths() {
+  var sides = document.querySelectorAll('.round-lose-side');
+  for (var i = 0; i < sides.length; i++) {
+    sides[i].style.width = '';
+    sides[i].style.width = sides[i].offsetHeight + 'px';
+  }
+}
+
 function buildWinChain(sid){
   var chain=[sid], cur=sid;
   for(var i=0;i<10;i++){
@@ -1033,6 +1238,9 @@ function makeVerticalChain(chain, team, isLosePath) {
     if (played && teamLost) borderColor = 'var(--lose-color)';
     if (!played && i === 0 && !isLosePath) borderColor = 'var(--blue-lt)';
 
+    var ft2 = formatTime(g.time), mft2 = ft2.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
+    var dt2 = mft2 ? mft2[1] : '', dw2 = mft2 ? mft2[2] : '', tm2 = mft2 ? mft2[3] : ft2;
+
     // Lose destination sidebar (shown when team hasn't lost yet)
     var loseSide = '';
     if (!played || teamWon) {
@@ -1040,6 +1248,7 @@ function makeVerticalChain(chain, team, isLosePath) {
       var destText = ln ? gameLabel(ln) : 'OUT';
       loseSide = '<div class="round-lose-side">'
         + '<span class="round-lose-tag">LOSS</span>'
+        + '<span class="round-lose-arrow">↓</span>'
         + '<span class="round-lose-dest' + (ln ? '' : ' out') + '">' + esc(destText) + '</span>'
         + '</div>';
     }
@@ -1048,8 +1257,9 @@ function makeVerticalChain(chain, team, isLosePath) {
       + '<div class="round-game-main">'
       + '<div class="round-game-header">'
       + '<div class="round-game-day-time">'
-      + '<span class="round-game-day">' + esc((formatTime(g.time).match(/^(\d+\/\d+\s+\S+)/)||['',''])[1]) + '</span>'
-      + '<span class="round-game-time">' + esc((formatTime(g.time).match(/\d+:\d+\s+[AP]M$/)||[''])[0]) + '</span>'
+      + (dt2 ? '<span class="round-game-day">'  + esc(dt2) + '</span>' : '')
+      + (dw2 ? '<span class="round-game-dow">'  + esc(dw2) + '</span>' : '')
+      + (tm2 ? '<span class="round-game-time">' + esc(tm2) + '</span>' : '')
       + '</div>'
       + '<span class="round-game-id" style="margin-left:auto;flex-shrink:0">' + esc(gameLabel(gid)) + '</span>'
       + '</div>'
@@ -1166,8 +1376,12 @@ function renderTeamView(){
       }
     } else {
       if(!played||teamLostHere){
+        var lgGame = GAMES[gid];
+        var lopp1 = resolveSlot(lgGame.t1, results);
+        var lopp2 = resolveSlot(lgGame.t2, results);
+        var lossOpp = (lopp1 === team) ? (lopp2 || smartLabel(lgGame.t2, results)) : (lopp1 || smartLabel(lgGame.t1, results));
         html+='<div class="team-path-divider"></div>';
-        html+='<div class="team-path-label lose-label">Lose path (after '+gameLabel(gid)+')</div>';
+        html+='<div class="team-path-label lose-label">Loss to '+esc(lossOpp)+'</div>';
         // Show the game that put the team on the lose path, then a LOSS connector.
         // This makes the lose path section self-contained with full context.
         if(teamLostHere){
@@ -1190,10 +1404,20 @@ function renderTeamView(){
   }
 
   out.innerHTML=html;
+  syncLoseSideWidths();
   applyStickyOffsets();
 }
 
 // ══════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════
+fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(function(sess) {
+  _sessionRole = sess.role || null;
+  var isPwa    = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
+  var adminBtn = document.getElementById('adminPortalBtn');
+  var editBtn  = document.getElementById('bucketEditBtn');
+  if (adminBtn) adminBtn.style.display =
+    (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) ? '' : 'none';
+  if (editBtn)  editBtn.style.display  = (_sessionRole === 'buckets') ? '' : 'none';
+}).catch(function(){});
 fetchAll();

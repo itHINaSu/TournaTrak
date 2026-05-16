@@ -162,26 +162,6 @@
   font-style: italic;
 }
 
-/* Public page link button */
-.admin-public-btn {
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.74rem;
-  font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  padding: 0.38em 0.88em;
-  border-radius: 0.2em;
-  border: 0.07em solid var(--border);
-  background: transparent;
-  color: var(--text-dim);
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3em;
-}
-.admin-public-btn:hover { color: var(--text); border-color: var(--text-dim); }
-
 /* ── Schedule editor ── */
 .sched-game-card { border: 0.07em solid var(--border); border-radius: 0.4em; overflow: hidden; margin-bottom: 0.75em; background: var(--surface); }
 .sched-game-hdr { display: flex; align-items: center; gap: 0.6em; padding: 0.5em 0.75em; background: var(--surface2); border-bottom: 0.07em solid var(--border); cursor: pointer; }

@@ -1,5 +1,10 @@
 // admin.js — admin panel logic
-var results = {}, schedule = {}, settings = {};
+var results = {}, schedule = {}, settings = {}, buckets = {};
+var currentRole = null;
+var currentTeamName = null;
+var _bucketTeams = [];
+
+var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
 
 var SETTING_DEFAULTS = {
   tournamentName: 'Tournament Bracket',
@@ -16,22 +21,113 @@ function getSetting(key) {
 }
 
 // ── Theme ──────────────────────────────────────────────────────────────
-document.getElementById('themeToggle').addEventListener('click', function(){
-  document.body.classList.toggle('light');
-  document.getElementById('themeToggle').textContent =
-    document.body.classList.contains('light') ? '🌙 Dark' : '☀ Light';
-});
+(function(){
+  var btn = document.getElementById('themeToggle');
+  var mq  = window.matchMedia('(prefers-color-scheme: light)');
+  function applyScheme(light) {
+    document.body.classList.toggle('light', light);
+    if (btn) btn.textContent = light ? '🌙 Dark' : '☀ Light';
+  }
+  applyScheme(mq.matches);
+  mq.addEventListener('change', function(e) { applyScheme(e.matches); });
+  if (btn) btn.addEventListener('click', function(){
+    document.body.classList.toggle('light');
+    btn.textContent = document.body.classList.contains('light') ? '🌙 Dark' : '☀ Light';
+  });
+})();
 
 // ── Tabs ───────────────────────────────────────────────────────────────
 document.querySelectorAll('.admin-tab').forEach(function(tab){
   tab.addEventListener('click', function(){
+    // On mobile: if Settings tab already active, toggle sidebar instead of re-navigating
+    if (window.innerWidth < 1024 && tab.dataset.tab === 'settings' && tab.classList.contains('active')) {
+      toggleSettingsSidebar();
+      return;
+    }
+    // Results tab while already active → switch to bucket mode
+    if (tab.dataset.tab === 'results' && tab.classList.contains('active')) {
+      setResultsMode('buckets');
+      return;
+    }
     document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
     document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
     tab.classList.add('active');
     document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
-    if (tab.dataset.tab === 'coaches') loadCoaches();
+    syncResultsTabLabel();
+    if (tab.dataset.tab === 'lineups') {
+      window.location.href = '/lineup';
+      return;
+    }
+    // Reset results to games mode when re-entering the results tab
+    if (tab.dataset.tab === 'results') setResultsMode('games');
+    if (tab.dataset.tab === 'settings') {
+      var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
+      var anyActive = document.querySelector('.settings-panel.active');
+      if (!anyActive) showSettingsSection(defaultSection);
+      if (window.innerWidth < 1024) {
+        var visibleNavItems = Array.prototype.filter.call(
+          document.querySelectorAll('.settings-nav-item'),
+          function(n) { return n.style.display !== 'none'; }
+        );
+        if (visibleNavItems.length === 1) {
+          showSettingsSection(visibleNavItems[0].dataset.section);
+        } else {
+          openSettingsSidebar();
+        }
+      }
+    }
   });
 });
+
+function syncResultsTabLabel() {
+  var tab = document.querySelector('.admin-tab[data-tab="results"]');
+  if (!tab) return;
+  var label = tab.querySelector('.tab-label');
+  if (label) {
+    var showBucket = tab.classList.contains('active') && _resultsMode === 'games';
+    label.textContent = showBucket ? 'Bucket' : 'Results';
+  }
+}
+
+// ── Settings sidebar ───────────────────────────────────────────────────
+var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users', coaches: 'Coaches' };
+
+function showSettingsSection(section) {
+  document.querySelectorAll('.settings-panel').forEach(function(p) {
+    p.classList.toggle('active', p.id === 'sp-' + section);
+  });
+  document.querySelectorAll('.settings-nav-item').forEach(function(n) {
+    n.classList.toggle('active', n.dataset.section === section);
+  });
+  var titleEl = document.getElementById('settingsMobileSection');
+  if (titleEl) titleEl.textContent = SETTINGS_SECTION_TITLES[section] || section;
+  closeSettingsSidebar();
+  if (section === 'coaches') loadCoaches();
+  if (section === 'users')   loadUsers();
+}
+
+function openSettingsSidebar() {
+  var sidebar = document.getElementById('settingsSidebar');
+  var backdrop = document.getElementById('settingsBackdrop');
+  if (sidebar)  sidebar.classList.add('open');
+  if (backdrop) backdrop.classList.add('open');
+}
+
+function closeSettingsSidebar() {
+  var sidebar = document.getElementById('settingsSidebar');
+  var backdrop = document.getElementById('settingsBackdrop');
+  if (sidebar)  sidebar.classList.remove('open');
+  if (backdrop) backdrop.classList.remove('open');
+}
+
+function toggleSettingsSidebar() {
+  var sidebar = document.getElementById('settingsSidebar');
+  if (sidebar && sidebar.classList.contains('open')) {
+    closeSettingsSidebar();
+  } else {
+    openSettingsSidebar();
+  }
+}
 
 // ── Toast ──────────────────────────────────────────────────────────────
 function showToast(msg, err) {
@@ -42,23 +138,39 @@ function showToast(msg, err) {
   setTimeout(function(){ t.classList.remove('show'); }, 2500);
 }
 
+
 // ── Fetch ──────────────────────────────────────────────────────────────
 async function fetchAll() {
   try {
-    var [rr, sr, str] = await Promise.all([
+    var [rr, sr, str, br] = await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
+      fetch('/api/buckets'),
     ]);
     results  = await rr.json();
     schedule = await sr.json();
     settings = await str.json();
+    buckets  = br.ok ? await br.json() : {};
     if (typeof applySchedule === 'function') applySchedule(schedule);
-  } catch(e) { results = {}; schedule = {}; settings = {}; }
+  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; }
   applySettingsToPage();
   renderAdmin();
   renderScheduleEditor();
   populateSettingsFields();
+
+  // ?tab=X from lineup page tab links: activate that tab on load
+  var qTab = new URLSearchParams(window.location.search).get('tab');
+  if (qTab) {
+    var target = document.querySelector('.admin-tab[data-tab="' + qTab + '"]');
+    var panel  = document.getElementById('tab-' + qTab);
+    if (target && panel) {
+      document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
+      document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
+      target.classList.add('active');
+      panel.classList.add('active');
+    }
+  }
 }
 
 function applySettingsToPage() {
@@ -147,69 +259,72 @@ function renderAdmin() {
   var wrap = document.getElementById('adminGames');
   var html = '';
 
-  ROUND_ORDER.forEach(function(round){
-    var sids = Object.keys(GAMES)
-      .filter(function(s){ return GAMES[s].round === round; })
-      .sort(function(a,b){ return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time) || GAMES[a].num - GAMES[b].num; });
-    if (!sids.length) return;
-
-    html += '<div class="admin-round-hdr">' + ROUND_LABELS[round] + '</div>';
-
-    sids.forEach(function(sid){
-      var g    = GAMES[sid];
-      var t1   = resolveSlot(g.t1, results);
-      var t2   = resolveSlot(g.t2, results);
-      var l1   = slotLabel(g.t1);
-      var l2   = slotLabel(g.t2);
-      var r    = results[sid] || {};
-      var set  = !!r.winner;
-      var both = t1 && t2;
-      var lbl  = g.label || sid;
-
-      var ft  = (typeof formatTime === 'function') ? formatTime(g.time) : (g.time || '');
-      var dayStr = '', timeStr = ft;
-      var tm = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
-      if (tm) { dayStr = tm[1]; timeStr = tm[2]; }
-
-      var hdr = '<div class="admin-res-hdr">'
-        + '<span class="admin-game-id">' + esc(lbl) + '</span>'
-        + '<div class="admin-res-dt">'
-        + (dayStr  ? '<span class="admin-res-day">'  + esc(dayStr)  + '</span>' : '')
-        + (timeStr ? '<span class="admin-res-time">' + esc(timeStr) + '</span>' : '')
-        + '</div></div>';
-
-      if (set) {
-        var c1 = r.winner === t1 ? 'won' : 'lost';
-        var c2 = r.winner === t2 ? 'won' : 'lost';
-        var sc1 = (r.t1score !== undefined && r.t1score !== null) ? '<span class="admin-score-disp">' + r.t1score + '</span>' : '';
-        var sc2 = (r.t2score !== undefined && r.t2score !== null) ? '<span class="admin-score-disp">' + r.t2score + '</span>' : '';
-        html += '<div class="admin-res-card">' + hdr
-          + '<div class="admin-res-team-row"><span class="admin-res-team ' + c1 + '">' + esc(t1) + '</span>'
-          + sc1
-          + '</div>'
-          + '<div class="admin-res-team-row"><span class="admin-res-team ' + c2 + '">' + esc(t2) + '</span>'
-          + sc2
-          + '</div>'
-          + '<div class="admin-res-footer">'
-          + '<button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button>'
-          + '</div></div>';
-      } else if (both) {
-        html += '<div class="admin-res-card">' + hdr
-          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
-          + '<input type="number" class="admin-score-inp" id="sc1-' + sid + '" min="0" max="9999" placeholder="Score"></div>'
-          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
-          + '<input type="number" class="admin-score-inp" id="sc2-' + sid + '" min="0" max="9999" placeholder="Score"></div>'
-          + '<div class="admin-res-footer">'
-          + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Save</button>'
-          + '</div></div>';
-      } else {
-        var missing = [!t1&&l1, !t2&&l2].filter(Boolean);
-        html += '<div class="admin-res-card admin-res-card--waiting">' + hdr
-          + '<div class="admin-res-waiting">Waiting: ' + esc(missing.join(', ')) + '</div>'
-          + '</div>';
-      }
-    });
+  // Sort all games by date/time, then by game num as tiebreak
+  var allSids = Object.keys(GAMES).sort(function(a, b) {
+    var ta = parseTimeVal(GAMES[a].time);
+    var tb = parseTimeVal(GAMES[b].time);
+    if (ta !== tb) return ta - tb;
+    return (GAMES[a].num || 0) - (GAMES[b].num || 0);
   });
+
+  var pending   = allSids.filter(function(s) { return !(results[s] && results[s].winner); });
+  var completed = allSids.filter(function(s) { return !!(results[s] && results[s].winner); });
+
+  function buildCard(sid) {
+    var g    = GAMES[sid];
+    var t1   = resolveSlot(g.t1, results);
+    var t2   = resolveSlot(g.t2, results);
+    var l1   = slotLabel(g.t1);
+    var l2   = slotLabel(g.t2);
+    var r    = results[sid] || {};
+    var set  = !!r.winner;
+    var both = t1 && t2;
+    var lbl  = g.label || sid;
+
+    var ft  = (typeof formatTime === 'function') ? formatTime(g.time) : (g.time || '');
+    var dayStr = '', timeStr = ft;
+    var tm = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
+    if (tm) { dayStr = tm[1]; timeStr = tm[2]; }
+
+    var hdr = '<div class="admin-res-hdr">'
+      + '<span class="admin-game-id">' + esc(lbl) + '</span>'
+      + '<div class="admin-res-dt">'
+      + (dayStr  ? '<span class="admin-res-day">'  + esc(dayStr)  + '</span>' : '')
+      + (timeStr ? '<span class="admin-res-time">' + esc(timeStr) + '</span>' : '')
+      + '</div></div>';
+
+    if (set) {
+      var c1 = r.winner === t1 ? 'won' : 'lost';
+      var c2 = r.winner === t2 ? 'won' : 'lost';
+      var sc1 = (r.t1score !== undefined && r.t1score !== null) ? '<span class="admin-score-disp">' + r.t1score + '</span>' : '';
+      var sc2 = (r.t2score !== undefined && r.t2score !== null) ? '<span class="admin-score-disp">' + r.t2score + '</span>' : '';
+      return '<div class="admin-res-card">' + hdr
+        + '<div class="admin-res-team-row"><span class="admin-res-team ' + c1 + '">' + esc(t1) + '</span>' + sc1 + '</div>'
+        + '<div class="admin-res-team-row"><span class="admin-res-team ' + c2 + '">' + esc(t2) + '</span>' + sc2 + '</div>'
+        + '<div class="admin-res-footer"><button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button></div>'
+        + '</div>';
+    } else if (both) {
+      return '<div class="admin-res-card">' + hdr
+        + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" placeholder="Score"></div>'
+        + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" placeholder="Score"></div>'
+        + '<div class="admin-res-footer"><button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Save</button></div>'
+        + '</div>';
+    } else {
+      var missing = [!t1 && l1, !t2 && l2].filter(Boolean);
+      return '<div class="admin-res-card admin-res-card--waiting">' + hdr
+        + '<div class="admin-res-waiting">Waiting: ' + esc(missing.join(', ')) + '</div>'
+        + '</div>';
+    }
+  }
+
+  pending.forEach(function(sid) { html += buildCard(sid); });
+
+  if (completed.length) {
+    html += '<div class="admin-round-hdr admin-completed-hdr">Completed</div>';
+    completed.forEach(function(sid) { html += buildCard(sid); });
+  }
 
   wrap.innerHTML = html;
 }
@@ -304,7 +419,7 @@ function occupiedCard(sid) {
   var t1disp = t1f ? (over.t1name||g.t1.team) : slotLabel(g.t1);
   var t2disp = t2f ? (over.t2name||g.t2.team) : slotLabel(g.t2);
 
-  var h = '<div class="sched-game-card">';
+  var h = '<div class="sched-game-card" data-sid="' + sid + '">';
   h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
     + '<span class="sched-game-hdr-id">' + esc(lbl) + '</span>'
     + '<span class="sched-game-hdr-sid">' + esc(sid) + '</span>'
@@ -342,7 +457,7 @@ function occupiedCard(sid) {
 
 function emptyCard(sid) {
   var over = schedule[sid] || {};
-  var h = '<div class="empty-slot-card">';
+  var h = '<div class="empty-slot-card" data-sid="' + sid + '">';
   h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
     + '<span class="sched-game-hdr-sid">' + sid + '</span>'
     + '<span class="sched-game-hdr-teams empty">— empty slot —</span>'
@@ -497,13 +612,64 @@ async function apiFetch(url, opts) {
   return r;
 }
 
-function showAdmin(username) {
+// Apply role-based visibility restrictions. Idempotent — safe to call multiple times.
+function applyRoleRestrictions(role) {
+  // Schedule tab is admin-only
+  document.querySelectorAll('.admin-tab').forEach(function(tab) {
+    var hide = role !== 'admin' && tab.dataset.tab === 'schedule';
+    tab.style.display = hide ? 'none' : '';
+    if (hide && tab.classList.contains('active')) {
+      tab.classList.remove('active');
+      document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
+      document.querySelector('.admin-tab[data-tab="results"]').classList.add('active');
+      document.getElementById('tab-results').classList.add('active');
+    }
+  });
+  // Settings sidebar: pageinfo, users, coaches are admin-only
+  var adminOnlySections = ['pageinfo', 'users', 'coaches'];
+  adminOnlySections.forEach(function(section) {
+    var navItem = document.querySelector('.settings-nav-item[data-section="' + section + '"]');
+    if (navItem) navItem.style.display = role === 'admin' ? '' : 'none';
+  });
+  if (role !== 'admin') {
+    var activePanel = document.querySelector('.settings-panel.active');
+    if (activePanel) {
+      var activeSection = activePanel.id.replace('sp-', '');
+      if (adminOnlySections.indexOf(activeSection) !== -1) showSettingsSection('account');
+    }
+  }
+}
+
+function resetIOSZoom() {
+  // iOS Safari stays zoomed after an input is dismissed. Briefly locking
+  // maximum-scale to 1 forces an immediate zoom-out, then we remove the lock.
+  if (document.activeElement) document.activeElement.blur();
+  var meta = document.querySelector('meta[name=viewport]');
+  if (!meta) return;
+  meta.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1');
+  setTimeout(function() {
+    meta.setAttribute('content', 'width=device-width, initial-scale=1.0');
+  }, 60);
+}
+
+function showAdmin(username, role, teamName) {
+  resetIOSZoom();
+  if (role !== undefined) currentRole = role;
+  if (teamName !== undefined) currentTeamName = teamName;
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = '';
-  document.getElementById('logoutBtn').style.display = '';
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = '';
   var unEl = document.getElementById('accountUsername');
   if (unEl) unEl.textContent = username || 'admin';
+  applyRoleRestrictions(currentRole);
+  var roleEl = document.getElementById('newUserRole');
+  if (roleEl) {
+    roleEl.removeEventListener('change', onNewUserRoleChange);
+    roleEl.addEventListener('change', onNewUserRoleChange);
+    onNewUserRoleChange();
+  }
+  if (currentRole === 'admin') loadUsers();
   fetchAll();
 }
 
@@ -511,16 +677,33 @@ function showLogin() {
   document.getElementById('loginOverlay').style.display = 'flex';
   document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = 'none';
-  document.getElementById('logoutBtn').style.display = 'none';
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = 'none';
   document.getElementById('loginPass').value = '';
   document.getElementById('loginError').style.display = 'none';
+  var blockMsg = document.getElementById('coachBlockMsg');
+  var loginForm = document.getElementById('loginForm');
+  if (blockMsg) blockMsg.style.display = 'none';
+  if (loginForm) loginForm.style.display = '';
+}
+
+function showCoachBlock(username) {
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('changePasswordOverlay').style.display = 'none';
+  document.getElementById('adminWrap').style.display = 'none';
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = 'none';
+  var blockMsg  = document.getElementById('coachBlockMsg');
+  var blockText = document.getElementById('coachBlockText');
+  var loginForm = document.getElementById('loginForm');
+  if (loginForm) loginForm.style.display = 'none';
+  if (blockText) blockText.textContent = 'You are signed in as ' + (username || 'coach') + ' and do not have access to this page.';
+  if (blockMsg)  blockMsg.style.display = '';
 }
 
 function showChangePassword() {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('changePasswordOverlay').style.display = 'flex';
   document.getElementById('adminWrap').style.display = 'none';
-  document.getElementById('logoutBtn').style.display = '';
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = '';
   document.getElementById('cpError').style.display = 'none';
   document.getElementById('cpNewPass1').value = '';
   document.getElementById('cpNewPass2').value = '';
@@ -542,8 +725,12 @@ async function doLogin(e) {
     });
     if (r.ok) {
       var data = await r.json().catch(function(){ return {}; });
+      currentRole = data.role || null;
+      currentTeamName = data.teamName || null;
       if (data.mustChangePassword) showChangePassword();
-      else showAdmin(data.username);
+      else if (data.role === 'team')    { showCoachBlock(data.username); return; }
+      else if (data.role === 'buckets') { window.location.href = '/'; return; }
+      else showAdmin(data.username, data.role, data.teamName);
     } else {
       var data = await r.json().catch(function(){ return {}; });
       errEl.textContent = data.error || 'Login failed';
@@ -600,7 +787,9 @@ async function doFirstLoginPasswordChange(e) {
     document.getElementById('cpNewPass1').value,
     document.getElementById('cpNewPass2').value,
     document.getElementById('cpError'),
-    function() { showAdmin(); }
+    function() {
+      showAdmin(document.getElementById('accountUsername').textContent, currentRole, currentTeamName);
+    }
   );
   if (!ok) btn.disabled = false;
 }
@@ -623,122 +812,672 @@ async function savePassword() {
   );
 }
 
-// ── Coaches tab ────────────────────────────────────────────────────────
-var coachTokens = {};
-
-async function loadCoaches() {
-  try {
-    var r = await apiFetch('/api/coaches');
-    if (!r || !r.ok) return;
-    coachTokens = await r.json();
-  } catch(e) { coachTokens = {}; }
-  renderCoaches();
-}
-
-function getBaseUrl() {
-  return window.location.protocol + '//' + window.location.host;
-}
-
-function renderCoaches() {
-  var wrap = document.getElementById('coachesPanel');
-  if (!wrap) return;
-
-  // Collect all fixed teams from schedule
-  var teams = {};
-  Object.values(GAMES).forEach(function(g) {
-    if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams[g.t1.team] = 1;
-    if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams[g.t2.team] = 1;
-  });
-  var teamNames = Object.keys(teams).sort();
-
-  // Build a reverse map: team → token
-  var teamToToken = {};
-  Object.entries(coachTokens).forEach(function(e) {
-    var token = e[0], entry = e[1];
-    if (entry.team) teamToToken[entry.team] = token;
-  });
-
-  var base = getBaseUrl();
-  var html = '';
-
-  if (!teamNames.length) {
-    html = '<div class="admin-res-waiting">No fixed teams found in the schedule.</div>';
-  } else {
-    teamNames.forEach(function(team) {
-      var token = teamToToken[team];
-      var link  = token ? base + '/lineup?token=' + token : '';
-      html += '<div class="admin-res-card">'
-        + '<div class="admin-res-hdr"><span class="admin-game-id">' + esc(team) + '</span></div>';
-      if (token) {
-        html += '<div class="coach-link-row">'
-          + '<input type="text" class="coach-link-input" id="cl-' + esc(token) + '" value="' + esc(link) + '" readonly>'
-          + '<button class="admin-save-btn" onclick="copyCoachLink(\'' + esc(token) + '\')">Copy</button>'
-          + '</div>'
-          + '<div class="admin-res-footer">'
-          + '<button class="admin-clear-btn" onclick="revokeCoachLink(\'' + esc(token) + '\', \'' + esc(team) + '\')">Revoke</button>'
-          + '</div>';
-      } else {
-        html += '<div class="admin-res-footer">'
-          + '<button class="admin-save-btn" onclick="generateCoachLink(\'' + esc(team) + '\')">Generate Link</button>'
-          + '</div>';
-      }
-      html += '</div>';
-    });
+async function saveUsername() {
+  var username = (document.getElementById('setNewUsername').value || '').trim();
+  var statusEl = document.getElementById('usernameStatus');
+  statusEl.textContent = '';
+  statusEl.style.color = '';
+  if (!username) {
+    statusEl.textContent = '✗ Enter a username';
+    statusEl.style.color = 'var(--lose-color)';
+    return;
   }
-
-  wrap.innerHTML = html;
-}
-
-async function generateCoachLink(team) {
-  try {
-    var r = await apiFetch('/api/coaches', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ team: team })
-    });
-    if (!r) return;
-    if (!r.ok) { showToast('Generate failed', true); return; }
-    var data = await r.json();
-    coachTokens[data.token] = { team: team, created: new Date().toISOString() };
-    renderCoaches();
-    showToast('Link generated for ' + team);
-  } catch(e) { showToast('Generate failed', true); }
-}
-
-function copyCoachLink(token) {
-  var el = document.getElementById('cl-' + token);
-  if (!el) return;
-  el.select();
-  el.setSelectionRange(0, 99999);
-  navigator.clipboard.writeText(el.value).then(function() {
-    showToast('Link copied');
-  }).catch(function() {
-    document.execCommand('copy');
-    showToast('Link copied');
+  var r = await apiFetch('/api/change-username', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: username })
   });
-}
-
-async function revokeCoachLink(token, team) {
-  try {
-    var r = await apiFetch('/api/coaches/' + encodeURIComponent(token), { method: 'DELETE' });
-    if (!r) return;
-    if (!r.ok) { showToast('Revoke failed', true); return; }
-    delete coachTokens[token];
-    renderCoaches();
-    showToast('Link revoked for ' + team);
-  } catch(e) { showToast('Revoke failed', true); }
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    statusEl.textContent = '✗ ' + (data.error || 'Failed');
+    statusEl.style.color = 'var(--lose-color)';
+    return;
+  }
+  var unEl = document.getElementById('accountUsername');
+  if (unEl) unEl.textContent = username;
+  document.getElementById('setNewUsername').value = '';
+  statusEl.textContent = '✓ Username updated';
+  setTimeout(function(){ statusEl.textContent = ''; }, 3000);
+  showToast('Username changed to ' + username);
 }
 
 async function checkSession() {
   try {
     var r    = await fetch('/api/session');
     var data = await r.json();
-    if (data.authenticated && data.mustChangePassword) showChangePassword();
-    else if (data.authenticated) showAdmin(data.username);
-    else showLogin();
+    if (data.authenticated) {
+      if (data.role === 'team') { showCoachBlock(data.username); return; }
+      currentRole = data.role || null;
+      currentTeamName = data.teamName || null;
+      if (data.mustChangePassword) showChangePassword();
+      else showAdmin(data.username, data.role, data.teamName);
+    } else {
+      showLogin();
+    }
   } catch(e) {
     showLogin();
   }
 }
 
+// ── User management ────────────────────────────────────────────────────
+
+async function loadUsers() {
+  var r = await apiFetch('/api/users');
+  if (!r || !r.ok) return;
+  var users = await r.json().catch(function(){ return []; });
+  renderUsersList(users);
+}
+
+function renderUsersList(users) {
+  var el = document.getElementById('usersList');
+  if (!el) return;
+  var me = (document.getElementById('accountUsername') || {}).textContent || '';
+  if (!users.length) {
+    el.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No additional users.</div>';
+    return;
+  }
+  el.innerHTML = users.map(function(u) {
+    var isSelf = u.username === me;
+    var roleLabel = { admin: 'Admin', results: 'Results', team: 'Team' }[u.role] || u.role;
+    var teamLine = u.role === 'team' && u.teamName
+      ? '<span class="user-team-name">' + esc(u.teamName) + '</span>' : '';
+    var statusLine = u.mustChangePassword ? '<span class="user-must-change">pw change pending</span>' : '';
+
+    var actions = '';
+    if (u.role === 'team' && u.accessToken) {
+      actions += '<button class="admin-clear-btn" onclick="copyMagicLink(\'' + esc(u.accessToken) + '\')">Copy Link</button>';
+      actions += '<button class="admin-clear-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>';
+    } else if (u.setupToken) {
+      actions += '<button class="admin-clear-btn" onclick="copySetupLink(\'' + esc(u.setupToken) + '\')">Copy Setup Link</button>';
+    } else if (!isSelf) {
+      actions += '<button class="admin-clear-btn" onclick="openResetPwModal(\'' + esc(u.username) + '\')">Reset PW</button>';
+    }
+    if (!isSelf) {
+      actions += '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + esc(u.username) + '\')">Delete</button>';
+    } else {
+      actions += '<span class="user-self-label">(you)</span>';
+    }
+
+    return '<div class="user-row">'
+      + '<div class="user-info">'
+      +   '<span class="user-name">' + esc(u.username) + '</span>'
+      +   teamLine
+      + '</div>'
+      + '<span class="user-role user-role--' + esc(u.role) + '">' + esc(roleLabel) + '</span>'
+      + statusLine
+      + '<div class="user-actions">' + actions + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).catch(function() { fallbackCopy(text); });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+function copyMagicLink(token) {
+  var link = window.location.origin + '/api/team-access/' + token;
+  copyText(link);
+  showToast('Link copied to clipboard');
+}
+
+function copySetupLink(token) {
+  var link = window.location.origin + '/api/setup-password/' + token;
+  copyText(link);
+  showToast('Setup link copied to clipboard');
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); showToast('Link copied'); }
+  catch(e) { showToast('Copy failed — link in console', true); console.log(text); }
+  document.body.removeChild(ta);
+}
+
+async function regenerateToken(username) {
+  if (!confirm('Regenerate access link for "' + username + '"?\nThe old link will stop working immediately.')) return;
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/regenerate-token', { method: 'POST' });
+  if (!r) return;
+  if (!r.ok) {
+    var data = await r.json().catch(function(){ return {}; });
+    showToast(data.error || 'Regenerate failed', true);
+    return;
+  }
+  showToast('New link generated for ' + username);
+  loadUsers();
+}
+
+async function addUser() {
+  var username = (document.getElementById('newUserUsername').value || '').trim();
+  var role     = document.getElementById('newUserRole').value;
+  var teamName = (document.getElementById('newTeamName') ? document.getElementById('newTeamName').value : '').trim();
+  var status   = document.getElementById('addUserStatus');
+  status.textContent = '';
+  status.style.color = '';
+
+  var body = { username: username, role: role };
+  if (role === 'team') body.teamName = teamName;
+
+  var r = await apiFetch('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    status.textContent = '✗ ' + (data.error || 'Failed');
+    status.style.color = 'var(--lose-color)';
+    return;
+  }
+  document.getElementById('newUserUsername').value = '';
+  if (document.getElementById('newTeamName')) document.getElementById('newTeamName').value = '';
+
+  if (data.setupToken) {
+    var setupLink = window.location.origin + '/api/setup-password/' + data.setupToken;
+    copyText(setupLink);
+    showToast('User created — setup link copied to clipboard');
+    status.textContent = '✓ Created — setup link copied';
+    setTimeout(function(){ status.textContent = ''; }, 5000);
+  } else if (data.accessToken) {
+    copyMagicLink(data.accessToken);
+    status.textContent = '✓ Created — magic link copied';
+    setTimeout(function(){ status.textContent = ''; }, 5000);
+  } else {
+    status.textContent = '✓ Added';
+    setTimeout(function(){ status.textContent = ''; }, 3000);
+  }
+  loadUsers();
+}
+
+function onNewUserRoleChange() {
+  var role = document.getElementById('newUserRole') ? document.getElementById('newUserRole').value : 'results';
+  var teamField = document.getElementById('newTeamNameField');
+  if (teamField) teamField.style.display = role === 'team' ? '' : 'none';
+}
+
+async function deleteUser(username) {
+  if (!confirm('Delete user "' + username + '"? This cannot be undone.')) return;
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username), { method: 'DELETE' });
+  if (!r) return;
+  if (!r.ok) {
+    var data = await r.json().catch(function(){ return {}; });
+    showToast(data.error || 'Delete failed', true);
+    return;
+  }
+  showToast('User ' + username + ' deleted');
+  loadUsers();
+}
+
+// ── Bucket challenge admin ─────────────────────────────────────────────
+var _resultsMode = 'games';
+
+function setResultsMode(mode) {
+  _resultsMode = mode;
+  var gPanel   = document.getElementById('resultsGamesPanel');
+  var bPanel   = document.getElementById('resultsBucketPanel');
+  var gBtn     = document.getElementById('modeGamesBtn');
+  var bBtn     = document.getElementById('modeBucketsBtn');
+  var saveBtn  = document.getElementById('bucketModeSaveBtn');
+  var saveStat = document.getElementById('bucketModeSaveStatus');
+  if (gPanel)   gPanel.style.display = mode === 'games'   ? '' : 'none';
+  if (bPanel)   bPanel.style.display = mode === 'buckets' ? '' : 'none';
+  if (gBtn)     gBtn.classList.toggle('active', mode === 'games');
+  if (bBtn)     bBtn.classList.toggle('active', mode === 'buckets');
+  if (saveBtn)  saveBtn.style.display  = mode === 'buckets' ? '' : 'none';
+  if (saveStat) saveStat.style.display = mode === 'buckets' ? '' : 'none';
+  if (mode === 'buckets') renderBucketAdmin();
+  syncResultsTabLabel();
+}
+
+function getScheduleTeams() {
+  var teams = [];
+  if (typeof GAMES !== 'undefined') {
+    Object.values(GAMES).forEach(function(g) {
+      if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams.push(g.t1.team);
+      if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams.push(g.t2.team);
+    });
+    teams = teams.filter(function(t, i, a) { return a.indexOf(t) === i; }).sort();
+  }
+  return teams;
+}
+
+function renderBucketAdmin() {
+  var wrap = document.getElementById('bucketAdminWrap');
+  if (!wrap) return;
+  var schedTeams = getScheduleTeams();
+  var extraTeams = Array.isArray(buckets.bucketOnlyTeams) ? buckets.bucketOnlyTeams.slice() : [];
+  var counts     = buckets.counts || {};
+  var savedOrder = Array.isArray(buckets.order)  ? buckets.order  : [];
+  var hidden     = Array.isArray(buckets.hidden) ? buckets.hidden : [];
+  var allTeamObjs = schedTeams.map(function(t){ return { name: t, extra: false }; })
+    .concat(extraTeams.map(function(t){ return { name: t, extra: true }; }));
+  if (savedOrder.length) {
+    var ordered = [];
+    savedOrder.forEach(function(name) {
+      var obj = allTeamObjs.find(function(t){ return t.name === name; });
+      if (obj) ordered.push(obj);
+    });
+    allTeamObjs.forEach(function(obj) {
+      if (savedOrder.indexOf(obj.name) === -1) ordered.push(obj);
+    });
+    _bucketTeams = ordered;
+  } else {
+    _bucketTeams = allTeamObjs;
+  }
+
+  if (!_bucketTeams.length) {
+    wrap.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No teams yet. Add schedule games or outside teams below.</div>';
+    return;
+  }
+  var html = '<div class="bucket-admin-list">';
+  _bucketTeams.forEach(function(team, i) {
+    var rawVal = (counts[team.name] !== undefined && counts[team.name] !== null) ? parseInt(counts[team.name]) : 0;
+    var val = isNaN(rawVal) ? 0 : rawVal;
+    var isHidden = hidden.indexOf(team.name) !== -1;
+    var rowCls = 'bucket-admin-row' + (isHidden ? ' bucket-admin-row--hidden' : '');
+    var hideBtnCls = 'bucket-hide-btn' + (isHidden ? ' is-hidden' : '');
+    var hideLbl = isHidden ? 'Show' : 'Hide';
+    html += '<div class="' + rowCls + '" data-idx="' + i + '">'
+      + '<span class="bucket-drag-handle" title="Drag to reorder"></span>'
+      + '<span class="bucket-admin-name">' + esc(team.name) + '</span>'
+      + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="bucket-admin-inp" id="bci-' + i + '" value="' + val + '">'
+      + '<button class="' + hideBtnCls + '" onclick="toggleBucketHidden(' + i + ')">' + hideLbl + '</button>'
+      + (team.extra ? '<button class="admin-clear-btn" onclick="deleteBucketTeam(' + i + ')">Remove</button>' : '')
+      + '</div>';
+  });
+  html += '</div>';
+  wrap.innerHTML = html;
+  initBucketDrag();
+}
+
+function toggleBucketHidden(idx) {
+  var team = _bucketTeams[idx];
+  if (!team) return;
+  if (!Array.isArray(buckets.hidden)) buckets.hidden = [];
+  var pos = buckets.hidden.indexOf(team.name);
+  if (pos === -1) buckets.hidden.push(team.name);
+  else            buckets.hidden.splice(pos, 1);
+  renderBucketAdmin();
+}
+
+function initBucketDrag() {
+  document.querySelectorAll('.bucket-drag-handle').forEach(function(handle) {
+    handle.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      var row = handle.closest('.bucket-admin-row');
+      if (row) bucketDragStart(row, e);
+    });
+  });
+}
+
+function bucketDragStart(srcRow, e) {
+  var list    = srcRow.parentElement;
+  var srcIdx  = parseInt(srcRow.dataset.idx, 10);
+  var rowRect = srcRow.getBoundingClientRect();
+  var offsetY = e.clientY - rowRect.top;
+
+  var ghost = srcRow.cloneNode(true);
+  ghost.removeAttribute('id');
+  Object.assign(ghost.style, {
+    position: 'fixed', left: rowRect.left + 'px', top: rowRect.top + 'px',
+    width: rowRect.width + 'px', zIndex: '9999', pointerEvents: 'none',
+    opacity: '0.92', transform: 'rotate(1.5deg)',
+    boxShadow: '0 8px 28px rgba(0,0,0,0.5)', transition: 'none'
+  });
+  document.body.appendChild(ghost);
+  srcRow.style.opacity = '0.25';
+
+  var lastTarget = null;
+
+  function onMove(e2) {
+    e2.preventDefault();
+    ghost.style.top = (e2.clientY - offsetY) + 'px';
+    ghost.style.visibility = 'hidden';
+    var el = document.elementFromPoint(e2.clientX, e2.clientY);
+    ghost.style.visibility = '';
+    var overRow = el && el.closest('.bucket-admin-row');
+    list.querySelectorAll('.bucket-admin-row').forEach(function(r) { r.classList.remove('bucket-drag-over'); });
+    if (overRow && overRow !== srcRow) {
+      overRow.classList.add('bucket-drag-over');
+      lastTarget = overRow;
+    }
+  }
+
+  function onUp() {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    ghost.remove();
+    srcRow.style.opacity = '';
+    list.querySelectorAll('.bucket-admin-row').forEach(function(r) { r.classList.remove('bucket-drag-over'); });
+
+    if (lastTarget) {
+      var targetIdx = parseInt(lastTarget.dataset.idx, 10);
+      // Capture edited counts before re-render
+      _bucketTeams.forEach(function(team, i) {
+        var el = document.getElementById('bci-' + i);
+        if (el) { var v = parseInt(el.value, 10); team._tempCount = isNaN(v) ? 0 : v; }
+      });
+      var moved = _bucketTeams.splice(srcIdx, 1)[0];
+      _bucketTeams.splice(targetIdx, 0, moved);
+      var saved = {};
+      _bucketTeams.forEach(function(t) { if (t._tempCount !== undefined) saved[t.name] = t._tempCount; });
+      // Persist new order into buckets so renderBucketAdmin() doesn't revert it
+      buckets.order = _bucketTeams.map(function(t) { return t.name; });
+      renderBucketAdmin();
+      _bucketTeams.forEach(function(team, i) {
+        var el = document.getElementById('bci-' + i);
+        if (el && saved[team.name] !== undefined) el.value = saved[team.name];
+      });
+    }
+  }
+
+  document.addEventListener('pointermove', onMove, { passive: false });
+  document.addEventListener('pointerup', onUp);
+}
+
+async function saveBucketCounts() {
+  var counts = {};
+  var order  = [];
+  _bucketTeams.forEach(function(team, i) {
+    var el = document.getElementById('bci-' + i);
+    var v  = el ? parseInt(el.value, 10) : 0;
+    counts[team.name] = isNaN(v) ? 0 : Math.max(0, v);
+    order.push(team.name);
+  });
+  var hidden = Array.isArray(buckets.hidden) ? buckets.hidden.slice() : [];
+  var statEls = [
+    document.getElementById('bucketSaveStatus'),
+    document.getElementById('bucketModeSaveStatus'),
+  ];
+  var r = await apiFetch('/api/buckets/counts', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ counts: counts, order: order, hidden: hidden })
+  });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    showToast(data.error || 'Save failed', true);
+    statEls.forEach(function(s){ if (s) { s.textContent = '✗ Error'; s.style.color = 'var(--lose-color)'; } });
+    return;
+  }
+  buckets.counts    = counts;
+  buckets.order     = order;
+  buckets.hidden    = hidden;
+  buckets.updatedAt = new Date().toISOString();
+  showToast('Bucket counts saved');
+  statEls.forEach(function(s) {
+    if (s) {
+      s.textContent = '✓ Saved'; s.style.color = '';
+      setTimeout(function(){ s.textContent = ''; }, 3000);
+    }
+  });
+}
+
+async function addBucketTeam() {
+  var inp    = document.getElementById('newBucketTeam');
+  var name   = (inp ? inp.value : '').trim();
+  var status = document.getElementById('addBucketTeamStatus');
+  if (!name) {
+    if (status) { status.textContent = '✗ Name required'; status.style.color = 'var(--lose-color)'; }
+    return;
+  }
+  var r = await apiFetch('/api/buckets/teams', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ teamName: name })
+  });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    showToast(data.error || 'Add failed', true);
+    if (status) { status.textContent = '✗ ' + (data.error || 'Failed'); status.style.color = 'var(--lose-color)'; }
+    return;
+  }
+  if (!Array.isArray(buckets.bucketOnlyTeams)) buckets.bucketOnlyTeams = [];
+  buckets.bucketOnlyTeams.push(name);
+  if (inp) inp.value = '';
+  if (status) { status.textContent = '✓ Added'; status.style.color = ''; setTimeout(function(){ status.textContent = ''; }, 3000); }
+  showToast(name + ' added');
+  renderBucketAdmin();
+}
+
+async function deleteBucketTeam(idx) {
+  var team = _bucketTeams[idx];
+  if (!team || !team.extra) return;
+  if (!confirm('Remove "' + team.name + '" from the bucket challenge?')) return;
+  var r = await apiFetch('/api/buckets/teams/' + encodeURIComponent(team.name), { method: 'DELETE' });
+  if (!r) return;
+  if (!r.ok) { var d = await r.json().catch(function(){ return {}; }); showToast(d.error || 'Remove failed', true); return; }
+  if (buckets.bucketOnlyTeams) {
+    var ti = buckets.bucketOnlyTeams.indexOf(team.name);
+    if (ti !== -1) buckets.bucketOnlyTeams.splice(ti, 1);
+  }
+  if (buckets.counts) delete buckets.counts[team.name];
+  showToast(team.name + ' removed');
+  renderBucketAdmin();
+}
+
+// ── Coaches section ────────────────────────────────────────────────────
+
+function populateCoachTeamSelect() {
+  var sel = document.getElementById('newCoachTeamName');
+  if (!sel) return;
+  var teams = [];
+  if (typeof GAMES !== 'undefined') {
+    Object.values(GAMES).forEach(function(g) {
+      if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams.push(g.t1.team);
+      if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams.push(g.t2.team);
+    });
+    teams = teams.filter(function(t, i, a) { return a.indexOf(t) === i; }).sort();
+  }
+  var current = sel.value;
+  sel.innerHTML = '<option value="">— select team —</option>'
+    + teams.map(function(t) {
+        return '<option value="' + esc(t) + '"' + (t === current ? ' selected' : '') + '>' + esc(t) + '</option>';
+      }).join('');
+}
+
+async function loadCoaches() {
+  try {
+    var r = await apiFetch('/api/users');
+    if (!r || !r.ok) return;
+    var users = await r.json().catch(function(){ return []; });
+    renderCoachesList(users.filter(function(u) { return u.role === 'team'; }));
+    populateCoachTeamSelect();
+  } catch(e) {}
+}
+
+function renderCoachesList(coaches) {
+  var el = document.getElementById('coachesList');
+  if (!el) return;
+  if (!coaches.length) {
+    el.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No coaches added yet.</div>';
+    return;
+  }
+  el.innerHTML = coaches.map(function(u) {
+    var teams = Array.isArray(u.teams) && u.teams.length ? u.teams : (u.teamName ? [u.teamName] : []);
+    var link  = u.accessToken ? (window.location.origin + '/api/team-access/' + u.accessToken) : '';
+    var teamTags = teams.map(function(t) {
+      var canRemove = teams.length > 1;
+      return '<span class="coach-team-tag">' + esc(t)
+        + (canRemove ? '<button class="coach-team-remove" onclick="removeCoachTeam(\'' + esc(u.username) + '\',\'' + esc(t) + '\')" title="Remove team">✕</button>' : '')
+        + '</span>';
+    }).join('');
+    return '<div class="coach-card">'
+      + '<span class="coach-card-name">' + esc(u.username) + '</span>'
+      + '<div class="coach-teams-wrap">'
+      +   teamTags
+      +   '<button class="coach-add-team-btn" onclick="showAddCoachTeam(\'' + esc(u.username) + '\')">+ Team</button>'
+      + '</div>'
+      + '<div class="coach-add-team-row" id="cat-' + esc(u.username) + '" style="display:none">'
+      +   '<select class="styled" id="cat-sel-' + esc(u.username) + '"></select>'
+      +   '<button class="admin-save-btn" onclick="addCoachTeam(\'' + esc(u.username) + '\')">Add</button>'
+      +   '<button class="admin-clear-btn" onclick="hideAddCoachTeam(\'' + esc(u.username) + '\')">Cancel</button>'
+      + '</div>'
+      + '<div class="coach-actions">'
+      +   (link ? '<input type="text" class="coach-link-hidden" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly tabindex="-1" aria-hidden="true">' : '')
+      +   (link ? '<button class="admin-save-btn" onclick="copyCoachLink(\'' + esc(u.username) + '\')">Copy Link</button>' : '')
+      +   (u.accessToken ? '<button class="admin-clear-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>' : '')
+      +   '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + esc(u.username) + '\')">Delete</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function showAddCoachTeam(username) {
+  var row = document.getElementById('cat-' + username);
+  var sel = document.getElementById('cat-sel-' + username);
+  if (!row || !sel) return;
+  var schedTeams = typeof getScheduleTeams === 'function' ? getScheduleTeams() : [];
+  sel.innerHTML = schedTeams.length
+    ? schedTeams.map(function(t){ return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('')
+    : '<option value="">No schedule loaded</option>';
+  row.style.display = '';
+}
+
+function hideAddCoachTeam(username) {
+  var row = document.getElementById('cat-' + username);
+  if (row) row.style.display = 'none';
+}
+
+async function addCoachTeam(username) {
+  var sel = document.getElementById('cat-sel-' + username);
+  var teamName = sel ? sel.value : '';
+  if (!teamName) return;
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/teams', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ teamName: teamName })
+  });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { showToast(data.error || 'Failed', true); return; }
+  showToast('Team added');
+  loadCoaches();
+}
+
+async function removeCoachTeam(username, teamName) {
+  if (!confirm('Remove "' + teamName + '" from ' + username + '?')) return;
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/teams/' + encodeURIComponent(teamName), { method: 'DELETE' });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { showToast(data.error || 'Failed', true); return; }
+  showToast('Team removed');
+  loadCoaches();
+}
+
+function copyCoachLink(username) {
+  var el = document.getElementById('cl-' + username);
+  if (!el) return;
+  var text = el.value;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() { showToast('Link copied'); }).catch(function() { fallbackCopy(text); });
+  } else {
+    fallbackCopy(text);
+  }
+}
+
+async function addCoach() {
+  var username = (document.getElementById('newCoachUsername').value || '').trim();
+  var teamName = (document.getElementById('newCoachTeamName').value || '').trim();
+  var status   = document.getElementById('addCoachStatus');
+  status.textContent = '';
+  if (!username || !teamName) {
+    status.textContent = '✗ Username and team name required';
+    status.style.color = 'var(--lose-color)';
+    return;
+  }
+  var r = await apiFetch('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: username, role: 'team', teamName: teamName })
+  });
+  if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    status.textContent = '✗ ' + (data.error || 'Failed');
+    status.style.color = 'var(--lose-color)';
+    return;
+  }
+  document.getElementById('newCoachUsername').value = '';
+  document.getElementById('newCoachTeamName').value = '';
+  status.textContent = '✓ Added';
+  setTimeout(function(){ status.textContent = ''; }, 3000);
+  showToast('Coach ' + username + ' added');
+  loadCoaches();
+}
+
+var resetPwTarget = null;
+
+function openResetPwModal(username) {
+  resetPwTarget = username;
+  document.getElementById('resetPwTitle').textContent = 'Reset Password';
+  document.getElementById('resetPwDesc').textContent = 'Set a new password for "' + username + '". They will be required to change it on next login.';
+  document.getElementById('resetPwInput').value = '';
+  document.getElementById('resetPwError').style.display = 'none';
+  document.getElementById('resetPwModal').style.display = 'flex';
+}
+
+function closeResetPwModal() {
+  resetPwTarget = null;
+  document.getElementById('resetPwModal').style.display = 'none';
+}
+
+async function submitResetPassword(e) {
+  if (e) e.preventDefault();
+  if (!resetPwTarget) return;
+  var pw    = document.getElementById('resetPwInput').value;
+  var errEl = document.getElementById('resetPwError');
+  errEl.style.display = 'none';
+  if (!pw || pw.length < 8) {
+    errEl.textContent = 'Password must be at least 8 characters';
+    errEl.style.display = 'block';
+    return;
+  }
+  var r = await apiFetch('/api/users/' + encodeURIComponent(resetPwTarget) + '/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: pw })
+  });
+  if (!r) return;
+  if (!r.ok) {
+    var data = await r.json().catch(function(){ return {}; });
+    errEl.textContent = data.error || 'Reset failed';
+    errEl.style.display = 'block';
+    return;
+  }
+  closeResetPwModal();
+  showToast('Password reset for ' + resetPwTarget);
+  loadUsers();
+}
+
 checkSession();
+
+// Move the settings sidebar to <body> on mobile so its z-index is evaluated
+// in the root stacking context, not inside the overflow:auto panel which
+// creates a stacking context that traps it below the backdrop.
+// On desktop the sidebar is restored to its original flex-layout position.
+(function() {
+  var sidebar = document.getElementById('settingsSidebar');
+  if (!sidebar) return;
+  var origParent = sidebar.parentElement;
+  var origNext   = sidebar.nextElementSibling;
+  function placeSidebar() {
+    var mobile = window.innerWidth < 1024;
+    if (mobile && sidebar.parentElement !== document.body) {
+      document.body.appendChild(sidebar);
+    } else if (!mobile && sidebar.parentElement === document.body) {
+      if (origNext) origParent.insertBefore(sidebar, origNext);
+      else          origParent.appendChild(sidebar);
+    }
+  }
+  window.addEventListener('resize', placeSidebar);
+  placeSidebar();
+}());
