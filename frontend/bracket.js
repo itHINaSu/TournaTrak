@@ -1506,6 +1506,11 @@ function renderTeamView(){
           // First game was a loss with no loser bracket — show the game card before the banner
           html+='<div class="team-path-label lose-label">Loss to '+esc(lossOpp0)+'</div>';
           html+=makeVerticalChain([gid],team,false,true);
+        } else {
+          // Team won earlier games (already rendered in winChain) but lost here with no loser bracket
+          html+='<div class="team-elim-inline">'
+            +'<img src="/icons/eliminated.png" class="team-elim-inline-img" alt="Eliminated">'
+            +'</div>';
         }
         teamEliminated=true;
       }
