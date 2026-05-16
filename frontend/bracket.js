@@ -753,29 +753,47 @@ function roundCardHTML(gid) {
 // is measured so earlyY centering uses the true scrollable area height.
 // Each column scrolls independently — no cross-column scrollTop sync,
 // which was stopping iOS momentum.
-// ── Mobile bracket helpers ────────────────────────────────────────────
+function renderMobileBracket(root, dims) {
+  var siteHdrH = document.getElementById('siteHeader').getBoundingClientRect().height;
+  var tabsH    = document.getElementById('viewTabs').getBoundingClientRect().height;
+  var viewH    = window.innerHeight - siteHdrH - tabsH;
+  var winW     = window.innerWidth;
 
-function buildMobileColsHTML(rounds, colW, winW, viewH, padPx, CARD_H, CHAMP_CARD_H) {
+  var CARD_H       = Math.max(Math.floor(viewH / 4.5), 80);
+  var CHAMP_CARD_H = Math.round(CARD_H * 1.8);
+  var GAP          = Math.max(Math.round(CARD_H * 0.07), 6);
+  document.documentElement.style.setProperty('--mbc-card-h', CARD_H + 'px');
+
+  var colW  = Math.round(winW * 0.72);
+  var padPx = 12;
+
+  var rounds = ['R1','R2','QF','SF','CHAMP'];
+
   function gidsFor(round) {
     var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
     var out = [];
     sides.forEach(function(s) { out = out.concat(slotsForRoundSide(round, s)); });
     return out;
   }
-  return rounds.map(function(round, ri) {
+
+  // ── Pass 1: build HTML with placeholder card positions ───────────────
+  var colsHTML = rounds.map(function(round, ri) {
     var isChamp = round === 'CHAMP';
     var cWidth  = isChamp ? winW : colW;
     var cCardW  = cWidth - 2 * padPx;
     var cardH   = isChamp ? CHAMP_CARD_H : CARD_H;
     var gids    = gidsFor(round);
+
     var cardsHTML = gids.map(function(gid) {
       var inner = isChamp ? champCardHTML(gid) : mobileRoundCardHTML(gid);
       return '<div class="mbc-card" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0">'
         + inner + '</div>';
     }).join('');
+
     var dots = rounds.map(function(_, i) {
       return '<span class="mbc-dot' + (i === ri ? ' active' : '') + '" data-ri="' + i + '"></span>';
     }).join('');
+
     return '<div class="mbc-col" data-ri="' + ri + '" style="width:' + cWidth + 'px;flex:0 0 ' + cWidth + 'px">'
       + '<div class="mbc-hdr">'
       +   '<span class="mbc-hdr-label">' + esc(ROUND_LABELS[round]) + '</span>'
@@ -788,9 +806,18 @@ function buildMobileColsHTML(rounds, colW, winW, viewH, padPx, CARD_H, CHAMP_CAR
       + '</div>'
       + '</div>';
   }).join('');
-}
 
-function computeMobilePositions(rounds, scrollH, CARD_H, CHAMP_CARD_H, GAP) {
+  root.innerHTML = '<div class="mbc-outer" id="mbcOuter" style="height:' + viewH + 'px">'
+    + colsHTML + '</div>';
+
+  var outer  = document.getElementById('mbcOuter');
+  var colEls = Array.prototype.slice.call(outer.querySelectorAll('.mbc-col'));
+
+  // ── Pass 2: measure actual header height, compute positions ──────────
+  var mbcHdrH = colEls[0] ? colEls[0].querySelector('.mbc-hdr').getBoundingClientRect().height : 36;
+  var scrollH = viewH - mbcHdrH;  // actual visible scroll area height
+
+  // earlyY: evenly spaced, centered when ≤4 slots fit without scrolling
   var earlyY = {};
   rounds.forEach(function(round) {
     var isChamp  = round === 'CHAMP';
@@ -923,6 +950,13 @@ function computeMobilePositions(rounds, scrollH, CARD_H, CHAMP_CARD_H, GAP) {
   applyPrevBlend(0, 0);                                          // starting column: earlyY
   for (var i = 1; i < colEls.length; i++) { applyBlend(i, 1); } // right columns: lateY
 
+  // ── Single full-width scroll overlay ─────────────────────────────────
+  //
+  // One position:fixed element covers the entire bracket scroll area
+  // (below the dot-header row). It is the ONLY element with overflow-y:scroll,
+  // so any vertical touch anywhere — earlyY or lateY — gets native iOS momentum.
+  // All .mbc-inner divs are driven by translateY transforms from its scrollTop.
+  // Horizontal column switching is handled in JS via touchmove on this element.
   var sharedScrollTop = 0;
   // Approaching-column compensation: during a horizontal swipe the approaching
   // column's inner is offset so the anchor card stays pinned at its lateY
@@ -931,6 +965,16 @@ function computeMobilePositions(rounds, scrollH, CARD_H, CHAMP_CARD_H, GAP) {
   var _approachComp  = 0;   // px to subtract from sharedScrollTop for that column
   var _anchorLateOff = 0;   // cached lateOffset of the anchor card
   var _scrollLeftPrev = 0;  // for direction detection
+
+  var captureEl = document.createElement('div');
+  captureEl.className = 'mbc-scroll-cap';
+  captureEl.style.cssText = 'position:fixed;left:0;width:' + winW + 'px'
+    + ';top:' + Math.round(siteHdrH + mbcHdrH) + 'px'
+    + ';height:' + scrollH + 'px';
+
+  var spacerEl = document.createElement('div');
+  captureEl.appendChild(spacerEl);
+  root.appendChild(captureEl);
 
   function setSpacerForCol(idx) {
     var maxScroll = Math.max(0, roundInnerH(rounds[idx]) - scrollH);
@@ -1045,9 +1089,6 @@ function computeMobilePositions(rounds, scrollH, CARD_H, CHAMP_CARD_H, GAP) {
 
     if (progress > 0) {
       if (_approachIdx !== approachIdx) {
-        // First frame toward this column — lock in the anchor card.
-        // The anchor is whichever card's lateY is closest to the viewport centre;
-        // that card stays visually pinned throughout the swipe.
         _approachIdx = approachIdx;
         var center   = sharedScrollTop + scrollH / 2;
         var bestDist = Infinity;
@@ -1060,16 +1101,10 @@ function computeMobilePositions(rounds, scrollH, CARD_H, CHAMP_CARD_H, GAP) {
           if (d < bestDist) { bestDist = d; _anchorLateOff = parseFloat(card.dataset.lateOffset) || 0; }
         });
       }
-      // Interpolate: at approachProg=0 the column sits at sharedScrollTop,
-      // at approachProg=1 it sits at sharedScrollTop - _anchorLateOff (= newScroll).
-      // This keeps the anchor card at a fixed screen position the whole way.
       _approachComp = _anchorLateOff * approachProg;
     } else if (_approachIdx >= 0 && idx !== activeIdx) {
-      // Forward snap settled on a new column — complete compensation so the
-      // timer's scrollTop write lands on the same value already shown (no jump).
-      // Guard idx !== activeIdx so backward snaps (returning to same column)
-      // don't trigger this; their residual compensation is negligible and clears
-      // naturally on the next vertical scroll.
+      // Forward snap settled on new column — complete compensation so the timer's
+      // scrollTop write lands on the same value already shown (no jump).
       _approachComp = _anchorLateOff;
     }
 
@@ -1079,74 +1114,12 @@ function computeMobilePositions(rounds, scrollH, CARD_H, CHAMP_CARD_H, GAP) {
     hSnapTimer = setTimeout(function() {
       _approachIdx  = -1;
       _approachComp = 0;
-      // _anchorLateOff intentionally cleared AFTER setSpacerForCol so it can
-      // compute newScroll = sharedScrollTop - _anchorLateOff.
       if (idx !== activeIdx) { activeIdx = idx; setSpacerForCol(idx); }
       _anchorLateOff = 0;
     }, 200);
   }, { passive: true });
 
   setSpacerForCol(0);
-}
-
-function renderMobileBracket(root, dims) {
-  var siteHdrH = document.getElementById('siteHeader').getBoundingClientRect().height;
-  var tabsH    = document.getElementById('viewTabs').getBoundingClientRect().height;
-  var viewH    = window.innerHeight - siteHdrH - tabsH;
-  var winW     = window.innerWidth;
-
-  var CARD_H       = Math.max(Math.floor(viewH / 4.5), 80);
-  var CHAMP_CARD_H = Math.round(CARD_H * 1.8);
-  var GAP          = Math.max(Math.round(CARD_H * 0.07), 6);
-  document.documentElement.style.setProperty('--mbc-card-h', CARD_H + 'px');
-
-  var colW  = Math.round(winW * 0.72);
-  var padPx = 12;
-  var rounds = ['R1','R2','QF','SF','CHAMP'];
-
-  // Pass 1: build HTML
-  var colsHTML = buildMobileColsHTML(rounds, colW, winW, viewH, padPx, CARD_H, CHAMP_CARD_H);
-  root.innerHTML = '<div class="mbc-outer" id="mbcOuter" style="height:' + viewH + 'px">'
-    + colsHTML + '</div>';
-
-  var outer  = document.getElementById('mbcOuter');
-  var colEls = Array.prototype.slice.call(outer.querySelectorAll('.mbc-col'));
-
-  // Pass 2: measure header, compute positions, apply to DOM
-  var mbcHdrH = colEls[0] ? colEls[0].querySelector('.mbc-hdr').getBoundingClientRect().height : 36;
-  var scrollH = viewH - mbcHdrH;
-
-  var pos = computeMobilePositions(rounds, scrollH, CARD_H, CHAMP_CARD_H, GAP);
-  var earlyY = pos.earlyY, lateY = pos.lateY, roundInnerH = pos.roundInnerH;
-
-  colEls.forEach(function(colEl, ri) {
-    var round = rounds[ri];
-    var inner = colEl.querySelector('.mbc-inner');
-    inner.style.height = roundInnerH(round) + 'px';
-    colEl.querySelectorAll('.mbc-card').forEach(function(card) {
-      var gid = card.dataset.gid;
-      var ey  = earlyY[gid] !== undefined ? earlyY[gid] : 0;
-      var ly  = lateY[gid]  !== undefined ? lateY[gid]  : ey;
-      card.style.top = ey + 'px';
-      card.dataset.lateOffset = (ly - ey).toFixed(1);
-    });
-  });
-
-  // Pass 3: create scroll capture overlay and attach all event handlers
-  var captureEl = document.createElement('div');
-  captureEl.className = 'mbc-scroll-cap';
-  // One position:fixed element covers the entire bracket scroll area below the
-  // dot-header row. It is the ONLY element with overflow-y:scroll so any vertical
-  // touch gets native iOS momentum. Horizontal swipes are detected in JS.
-  captureEl.style.cssText = 'position:fixed;left:0;width:' + winW + 'px'
-    + ';top:' + Math.round(siteHdrH + mbcHdrH) + 'px'
-    + ';height:' + scrollH + 'px';
-
-  var spacerEl = document.createElement('div');
-  captureEl.appendChild(spacerEl);
-  root.appendChild(captureEl);
-
-  attachMobileScrollBehavior(outer, colEls, captureEl, spacerEl, rounds, colW, scrollH, earlyY, lateY, roundInnerH);
 }
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW
