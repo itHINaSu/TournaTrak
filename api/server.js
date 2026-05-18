@@ -534,7 +534,7 @@ app.post('/api/results', requireResults, (req, res) => {
   if (err) return res.status(400).json({ error: err });
   const { game, winner, loser, t1score, t2score } = req.body;
   const data = readJSON(RESULTS_FILE);
-  const entry = { winner: winner.trim(), loser: loser.trim() };
+  const entry = { winner: winner.trim(), loser: loser.trim(), savedAt: new Date().toISOString() };
   if (t1score !== undefined && t1score !== null && t1score !== '') entry.t1score = parseInt(t1score, 10);
   if (t2score !== undefined && t2score !== null && t2score !== '') entry.t2score = parseInt(t2score, 10);
   data[game] = entry;
