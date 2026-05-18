@@ -171,6 +171,45 @@
       <a href="/" class="admin-public-btn">↗ Public Page</a>
       <span class="sched-status" id="schedStatus"></span>
     </div>
+    <!-- Shift-by-date panel -->
+    <div class="shift-day-panel" id="shiftDayPanel">
+      <div class="shift-day-header" onclick="toggleShiftPanel()">
+        <span class="shift-day-title">Shift Games by Date</span>
+        <button class="shift-day-toggle" id="shiftDayToggle">▼</button>
+      </div>
+      <div class="shift-day-body" id="shiftDayBody" style="display:none">
+        <div class="shift-day-fields">
+          <div class="shift-day-field">
+            <label for="shiftDate">Date</label>
+            <select id="shiftDate" onchange="updateShiftPreview()"></select>
+          </div>
+          <div class="shift-day-field shift-day-field--amount">
+            <label for="shiftAmount">Amount</label>
+            <input type="number" id="shiftAmount" value="2" min="1" max="365" oninput="updateShiftPreview()">
+          </div>
+          <div class="shift-day-field">
+            <label>Unit</label>
+            <div class="shift-unit-toggle">
+              <input type="radio" name="shiftUnit" id="shiftUnitH" value="hours" checked onchange="updateShiftPreview()">
+              <label for="shiftUnitH">Hours</label>
+              <input type="radio" name="shiftUnit" id="shiftUnitD" value="days" onchange="updateShiftPreview()">
+              <label for="shiftUnitD">Days</label>
+            </div>
+          </div>
+        </div>
+        <div class="shift-day-preview" id="shiftPreview"></div>
+        <div class="shift-day-actions" id="shiftActions">
+          <button class="sched-save-btn shift-apply-btn" onclick="applyShiftDay()">Apply Shift →</button>
+        </div>
+        <div class="shift-day-confirm" id="shiftConfirm" style="display:none">
+          <div class="shift-confirm-text" id="shiftConfirmText"></div>
+          <div class="shift-day-actions">
+            <button class="sched-save-btn" onclick="cancelShiftDay()">← Cancel</button>
+            <button class="sched-save-btn shift-confirm-btn" id="shiftConfirmBtn" onclick="confirmShiftDay()">Confirm Shift</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="scheduleEditor"></div>
     <!-- Bottom action row (duplicated) -->
     <div class="sched-action-row sched-action-row--bottom">

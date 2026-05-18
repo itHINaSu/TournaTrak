@@ -155,6 +155,7 @@ async function fetchAll() {
   applySettingsToPage();
   renderAdmin();
   renderScheduleEditor();
+  initShiftPanel();
   populateSettingsFields();
 
   // ?tab=X from lineup page tab links: activate that tab on load
@@ -365,6 +366,194 @@ async function clearResult(sid) {
     showToast(gameLabel(sid) + ' cleared');
     renderAdmin();
   } catch(e) { showToast('Clear failed', true); }
+}
+
+// ── Shift-by-date panel ────────────────────────────────────────────────
+function initShiftPanel() {
+  var sel = document.getElementById('shiftDate');
+  if (!sel) return;
+
+  // Collect unique dates from the current schedule
+  var dateMap = {};
+  Object.keys(GAMES).forEach(function(sid) {
+    var t = GAMES[sid].time;
+    if (!t) return;
+    var m = t.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (!m) return;
+    dateMap[m[1]] = (dateMap[m[1]] || 0) + 1;
+  });
+
+  var dates = Object.keys(dateMap).sort();
+  if (!dates.length) {
+    sel.innerHTML = '<option value="">No games scheduled</option>';
+    updateShiftPreview();
+    return;
+  }
+
+  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  sel.innerHTML = dates.map(function(d) {
+    var parsed = new Date(d + 'T12:00'); // noon to avoid DST edge
+    var dow = days[parsed.getDay()];
+    var label = (parsed.getMonth()+1) + '/' + parsed.getDate() + ' ' + dow + ' · ' + dateMap[d] + ' game' + (dateMap[d] !== 1 ? 's' : '');
+    return '<option value="' + d + '">' + label + '</option>';
+  }).join('');
+
+  updateShiftPreview();
+}
+
+function toggleShiftPanel() {
+  var body   = document.getElementById('shiftDayBody');
+  var toggle = document.getElementById('shiftDayToggle');
+  var header = document.querySelector('.shift-day-header');
+  var open   = body.style.display !== 'none';
+  body.style.display   = open ? 'none' : '';
+  toggle.textContent   = open ? '▼' : '▲';
+  header.style.borderBottom = open ? 'none' : '';
+}
+
+function updateShiftPreview() {
+  var preview = document.getElementById('shiftPreview');
+  if (!preview) return;
+
+  var dateVal = document.getElementById('shiftDate').value;
+  var amount  = parseInt(document.getElementById('shiftAmount').value, 10);
+  var unit    = document.querySelector('input[name="shiftUnit"]:checked');
+  if (!unit) return;
+  var unitVal = unit.value;
+
+  if (!dateVal || isNaN(amount) || amount < 1) {
+    preview.innerHTML = 'Select a date and amount to preview.';
+    return;
+  }
+
+  // Count games and compute new time range
+  var times = [];
+  Object.keys(GAMES).forEach(function(sid) {
+    var t = GAMES[sid].time;
+    if (!t) return;
+    var m = t.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (m && m[1] === dateVal) times.push(t);
+  });
+
+  if (!times.length) {
+    preview.innerHTML = 'No games found on that date.';
+    return;
+  }
+
+  times.sort();
+  var earliest = new Date(times[0]);
+  var latest   = new Date(times[times.length - 1]);
+  var shifted  = [];
+  var crossMidnight = 0;
+
+  times.forEach(function(t) {
+    var d = new Date(t);
+    if (unitVal === 'hours') d.setTime(d.getTime() + amount * 3600000);
+    else d.setDate(d.getDate() + amount);
+    shifted.push(d);
+    var origDate = t.substring(0, 10);
+    var pad = function(n) { return n < 10 ? '0'+n : ''+n; };
+    var newDate = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+    if (newDate !== origDate) crossMidnight++;
+  });
+
+  function fmtTime(d) {
+    var h = d.getHours(), min = d.getMinutes();
+    var ampm = h >= 12 ? 'PM' : 'AM';
+    var h12  = h % 12 || 12;
+    return h12 + ':' + (min < 10 ? '0' : '') + min + ' ' + ampm;
+  }
+
+  var dateDisplay = formatTime(dateVal + 'T12:00').split(' ').slice(0,2).join(' ');
+  var unitLabel   = amount === 1 ? unitVal.replace(/s$/,'') : unitVal;
+  var shiftedMin  = shifted.reduce(function(a,b){ return a < b ? a : b; });
+  var shiftedMax  = shifted.reduce(function(a,b){ return a > b ? a : b; });
+
+  var html = 'Shift <strong>' + times.length + ' game' + (times.length !== 1 ? 's' : '') + '</strong>'
+    + ' on <strong>' + dateDisplay + '</strong>'
+    + ' forward by <strong>' + amount + ' ' + unitLabel + '</strong>.'
+    + '<br>New times: <strong>' + fmtTime(shiftedMin) + '</strong>'
+    + (times.length > 1 ? ' → <strong>' + fmtTime(shiftedMax) + '</strong>' : '') + '.';
+
+  if (crossMidnight > 0) {
+    html += '<span class="shift-warn">⚠ ' + crossMidnight + ' game' + (crossMidnight !== 1 ? 's' : '')
+      + ' will cross midnight onto the next calendar day.</span>';
+  }
+
+  preview.innerHTML = html;
+}
+
+function applyShiftDay() {
+  var dateVal = document.getElementById('shiftDate').value;
+  var amount  = parseInt(document.getElementById('shiftAmount').value, 10);
+  var unit    = document.querySelector('input[name="shiftUnit"]:checked');
+  if (!dateVal || isNaN(amount) || amount < 1 || !unit) return;
+
+  var dateDisplay = formatTime(dateVal + 'T12:00').split(' ').slice(0,2).join(' ');
+  var unitLabel   = amount === 1 ? unit.value.replace(/s$/,'') : unit.value;
+
+  // Count games for confirm message
+  var count = Object.keys(GAMES).filter(function(sid) {
+    var t = GAMES[sid].time;
+    return t && t.substring(0, 10) === dateVal;
+  }).length;
+
+  var text = document.getElementById('shiftConfirmText');
+  text.innerHTML = 'Shift <strong>' + count + ' game' + (count !== 1 ? 's' : '') + '</strong>'
+    + ' on <strong>' + dateDisplay + '</strong>'
+    + ' forward by <strong>' + amount + ' ' + unitLabel + '</strong>?'
+    + '<br><span style="font-size:0.78rem;color:var(--text-mute);font-style:italic">This cannot be undone.</span>';
+
+  document.getElementById('shiftActions').style.display  = 'none';
+  document.getElementById('shiftConfirm').style.display  = '';
+}
+
+function cancelShiftDay() {
+  document.getElementById('shiftActions').style.display = '';
+  document.getElementById('shiftConfirm').style.display = 'none';
+}
+
+async function confirmShiftDay() {
+  var btn     = document.getElementById('shiftConfirmBtn');
+  var dateVal = document.getElementById('shiftDate').value;
+  var amount  = parseInt(document.getElementById('shiftAmount').value, 10);
+  var unit    = document.querySelector('input[name="shiftUnit"]:checked');
+  if (!dateVal || isNaN(amount) || !unit) return;
+
+  btn.disabled = true;
+  btn.textContent = 'Shifting…';
+
+  try {
+    var r = await apiFetch('/api/schedule/shift-day', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date: dateVal, amount: amount, unit: unit.value })
+    });
+    if (!r || !r.ok) throw new Error();
+    var data = await r.json();
+
+    // Reload schedule into GAMES
+    var sr = await apiFetch('/api/schedule');
+    if (sr && sr.ok) {
+      var newSched = await sr.json();
+      schedule = newSched;
+      if (typeof applySchedule === 'function') applySchedule(newSched);
+    }
+
+    cancelShiftDay();
+    initShiftPanel();
+    renderScheduleEditor();
+    renderAdmin();
+
+    var msg = data.shifted + ' game' + (data.shifted !== 1 ? 's' : '') + ' shifted';
+    if (data.crossedMidnight) msg += ' (' + data.crossedMidnight + ' crossed midnight)';
+    showToast(msg);
+  } catch(e) {
+    showToast('Shift failed', true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirm Shift';
+  }
 }
 
 // ── Schedule editor ────────────────────────────────────────────────────
@@ -595,6 +784,7 @@ async function saveAllSchedule() {
     }, 3000);
     renderAdmin();
     renderScheduleEditor();
+    initShiftPanel();
   } catch(e) {
     showToast('Save failed', true);
     status.textContent = '✗ Error';

@@ -254,6 +254,129 @@
 .sched-action-row { display: flex; align-items: center; gap: 0.6em; flex-wrap: wrap; }
 .sched-action-row--top  { margin-bottom: 1em; }
 .sched-action-row--bottom { margin-top: 1.5em; padding-top: 1em; border-top: 0.07em solid var(--border); }
+
+/* ── Shift-by-date panel ── */
+.shift-day-panel {
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 1.2em;
+}
+.shift-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6em 1em;
+  background: var(--surface2);
+  border-bottom: 0.07em solid var(--border);
+  cursor: pointer;
+}
+.shift-day-header:hover { background: var(--surface); }
+.shift-day-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold-lt);
+}
+.shift-day-toggle {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  cursor: pointer;
+  padding: 0;
+}
+.shift-day-body {
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+}
+.shift-day-fields {
+  display: flex;
+  gap: 0.7em;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.shift-day-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  flex: 1;
+  min-width: 8em;
+}
+.shift-day-field--amount { max-width: 7em; }
+.shift-day-field label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.shift-day-field select,
+.shift-day-field input[type="number"] {
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.92rem;
+  padding: 0.45em 0.65em;
+  width: 100%;
+}
+.shift-day-field select:focus,
+.shift-day-field input[type="number"]:focus { outline: none; border-color: var(--blue-lt); }
+.shift-unit-toggle {
+  display: flex;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.shift-unit-toggle input[type="radio"] { display: none; }
+.shift-unit-toggle label {
+  flex: 1;
+  text-align: center;
+  padding: 0.45em 0.75em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  background: var(--bg);
+  transition: background 0.15s, color 0.15s;
+}
+.shift-unit-toggle input[type="radio"]:checked + label {
+  background: var(--blue);
+  color: #fff;
+}
+.shift-day-preview {
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.55em 0.85em;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  min-height: 2.4em;
+}
+.shift-day-preview strong { color: var(--gold-lt); }
+.shift-day-preview .shift-warn { color: var(--clear-color); font-size: 0.76rem; display: block; margin-top: 0.2em; }
+.shift-day-actions { display: flex; gap: 0.6em; }
+.shift-apply-btn { background: var(--blue); border-color: var(--blue); }
+.shift-apply-btn:hover { background: var(--blue-lt); border-color: var(--blue-lt); }
+.shift-confirm-btn { background: var(--clear-color); border-color: var(--clear-color); }
+.shift-confirm-btn:hover { opacity: 0.85; }
+.shift-confirm-text {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-bottom: 0.6em;
+}
+.shift-confirm-text strong { color: var(--text); }
 .sched-game-footer { margin-top: 0.6em; padding-top: 0.6em; border-top: 0.07em solid var(--border); }
 .sched-footer-note { font-size: 0.65em; color: var(--text-mute); margin-left: 0.6em; }
 .sched-side-label { font-family: 'Oswald', sans-serif; font-size: 0.6em; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue-lt); padding: 0.4em 0 0.2em; }

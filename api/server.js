@@ -565,6 +565,44 @@ app.post('/api/schedule', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/api/schedule/shift-day', requireAdmin, (req, res) => {
+  const { date, amount, unit } = req.body || {};
+  if (!date || !amount || !unit) return res.status(400).json({ error: 'date, amount, and unit are required' });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
+  const amt = parseInt(amount, 10);
+  if (isNaN(amt) || amt < 1 || amt > 365) return res.status(400).json({ error: 'amount must be 1-365' });
+  if (unit !== 'hours' && unit !== 'days') return res.status(400).json({ error: 'unit must be hours or days' });
+
+  const schedule = readJSON(SCHEDULE_FILE);
+  let shifted = 0;
+  let crossedMidnight = 0;
+
+  Object.keys(schedule).forEach(sid => {
+    const game = schedule[sid];
+    if (!game || !game.time) return;
+    // time is stored as 'YYYY-MM-DDTHH:MM'
+    const m = game.time.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/);
+    if (!m || m[1] !== date) return;
+
+    const d = new Date(game.time);
+    const prevDate = m[1];
+    if (unit === 'hours') d.setTime(d.getTime() + amt * 3600000);
+    else d.setDate(d.getDate() + amt);
+
+    const pad = n => n < 10 ? '0' + n : '' + n;
+    const newDate = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    const newTime = pad(d.getHours()) + ':' + pad(d.getMinutes());
+    game.time = newDate + 'T' + newTime;
+
+    if (newDate !== prevDate) crossedMidnight++;
+    shifted++;
+  });
+
+  if (shifted === 0) return res.status(400).json({ error: 'No games found on that date' });
+  writeJSON(SCHEDULE_FILE, schedule);
+  res.json({ ok: true, shifted, crossedMidnight });
+});
+
 app.post('/api/settings', requireAdmin, (req, res) => {
   const incoming = req.body || {};
   const clean = {};
