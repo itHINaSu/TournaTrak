@@ -888,3 +888,37 @@ input[type="time"]:focus {
     font-size: 1rem;
   }
 }
+
+/* ── Tournament switcher panel ─────────────────────────────────────────── */
+.tournaments-list { display: flex; flex-direction: column; gap: 0.6em; }
+.tournament-list-loading,
+.tournament-list-empty { color: var(--text-muted); font-size: 0.9rem; padding: 0.5em 0; }
+.tournament-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75em;
+  padding: 0.65em 0.85em;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.tournament-list-item--current {
+  border-color: var(--blue-lt);
+  background: color-mix(in srgb, var(--blue) 10%, var(--card-bg));
+}
+.tournament-list-info { display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; min-width: 0; }
+.tournament-list-name { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tournament-list-badges { display: flex; gap: 0.35em; flex-shrink: 0; }
+.tournament-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.15em 0.5em;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+.tournament-badge--working { background: var(--blue); color: #fff; }
+.tournament-badge--public  { background: var(--gold); color: #111; }
+.tournament-list-actions { display: flex; gap: 0.4em; flex-shrink: 0; }
+.tournament-action-btn { padding: 0.3em 0.7em; font-size: 0.82rem; white-space: nowrap; }

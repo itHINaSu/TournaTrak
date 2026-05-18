@@ -279,6 +279,7 @@
         <div class="settings-nav-item" data-section="account" onclick="showSettingsSection('account')">Account</div>
         <div class="settings-nav-item" data-section="users" onclick="showSettingsSection('users')">Users</div>
         <div class="settings-nav-item" data-section="coaches" onclick="showSettingsSection('coaches')">Coaches</div>
+        <div class="settings-nav-item" data-section="tournaments" id="nav-tournaments" style="display:none" onclick="showSettingsSection('tournaments')">Tournaments</div>
       </nav>
 
       <div class="settings-content">
@@ -392,6 +393,26 @@
             <div class="settings-save-row">
               <button class="sched-save-btn" onclick="addUser()">Add User</button>
               <span class="sched-status" id="addUserStatus"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Tournaments panel (global admin only) ── -->
+        <div class="settings-panel" id="sp-tournaments">
+          <div class="admin-subtitle">Switch your working tournament context or set which tournament is visible to the public. Only you (global admin) can see this panel.</div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Tournaments</div>
+            <div id="tournamentsList" class="tournaments-list"></div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Create Tournament</div>
+            <div class="settings-field">
+              <label>Tournament Name</label>
+              <input type="text" id="newTournamentName" autocomplete="off" placeholder="e.g. Summer 2026">
+            </div>
+            <div class="settings-save-row">
+              <button class="sched-save-btn" onclick="createTournament()">Create Tournament</button>
+              <span class="sched-status" id="createTournamentStatus"></span>
             </div>
           </div>
         </div>

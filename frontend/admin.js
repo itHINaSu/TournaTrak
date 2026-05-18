@@ -2,6 +2,8 @@
 var results = {}, schedule = {}, settings = {}, buckets = {};
 var currentRole = null;
 var currentTeamName = null;
+var currentIsGlobalAdmin = false;
+var currentTournamentId = null;
 var _bucketTeams = [];
 
 var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
@@ -90,7 +92,7 @@ function syncResultsTabLabel() {
 }
 
 // ── Settings sidebar ───────────────────────────────────────────────────
-var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users', coaches: 'Coaches' };
+var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users', coaches: 'Coaches', tournaments: 'Tournaments' };
 
 function showSettingsSection(section) {
   document.querySelectorAll('.settings-panel').forEach(function(p) {
@@ -100,8 +102,9 @@ function showSettingsSection(section) {
     n.classList.toggle('active', n.dataset.section === section);
   });
   closeSettingsSidebar();
-  if (section === 'coaches') loadCoaches();
-  if (section === 'users')   loadUsers();
+  if (section === 'coaches')     loadCoaches();
+  if (section === 'users')       loadUsers();
+  if (section === 'tournaments') renderTournamentsPanel();
 }
 
 function openSettingsSidebar() {
@@ -814,17 +817,21 @@ function applyRoleRestrictions(role) {
       document.getElementById('tab-results').classList.add('active');
     }
   });
-  // Settings sidebar: pageinfo, users, coaches are admin-only
+  // Settings sidebar: pageinfo, users, coaches are admin-only; tournaments is global-admin-only
   var adminOnlySections = ['pageinfo', 'users', 'coaches'];
   adminOnlySections.forEach(function(section) {
     var navItem = document.querySelector('.settings-nav-item[data-section="' + section + '"]');
     if (navItem) navItem.style.display = role === 'admin' ? '' : 'none';
   });
+  var tournamentsNav = document.getElementById('nav-tournaments');
+  if (tournamentsNav) tournamentsNav.style.display = currentIsGlobalAdmin ? '' : 'none';
+
+  var restrictedSections = adminOnlySections.concat(currentIsGlobalAdmin ? [] : ['tournaments']);
   if (role !== 'admin') {
     var activePanel = document.querySelector('.settings-panel.active');
     if (activePanel) {
       var activeSection = activePanel.id.replace('sp-', '');
-      if (adminOnlySections.indexOf(activeSection) !== -1) showSettingsSection('account');
+      if (restrictedSections.indexOf(activeSection) !== -1) showSettingsSection('account');
     }
   }
 }
@@ -851,10 +858,12 @@ function applyStickyOffsets() {
   r.setProperty('--tabs-h',         (tabBar ? tabBar.offsetHeight : 50) + 'px');
 }
 
-function showAdmin(username, role, teamName) {
+function showAdmin(username, role, teamName, isGlobalAdmin, tournamentId) {
   resetIOSZoom();
   if (role !== undefined) currentRole = role;
   if (teamName !== undefined) currentTeamName = teamName;
+  if (isGlobalAdmin !== undefined) currentIsGlobalAdmin = !!isGlobalAdmin;
+  if (tournamentId !== undefined) currentTournamentId = tournamentId;
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('changePasswordOverlay').style.display = 'none';
   document.getElementById('adminWrap').style.display = '';
@@ -927,10 +936,12 @@ async function doLogin(e) {
       var data = await r.json().catch(function(){ return {}; });
       currentRole = data.role || null;
       currentTeamName = data.teamName || null;
+      currentIsGlobalAdmin = !!data.isGlobalAdmin;
+      currentTournamentId = data.tournamentId || null;
       if (data.mustChangePassword) showChangePassword();
       else if (data.role === 'team')    { showCoachBlock(data.username); return; }
       else if (data.role === 'buckets') { window.location.href = '/'; return; }
-      else showAdmin(data.username, data.role, data.teamName);
+      else showAdmin(data.username, data.role, data.teamName, data.isGlobalAdmin, data.tournamentId);
     } else {
       var data = await r.json().catch(function(){ return {}; });
       errEl.textContent = data.error || 'Login failed';
@@ -1050,8 +1061,10 @@ async function checkSession() {
       if (data.role === 'team') { showCoachBlock(data.username); return; }
       currentRole = data.role || null;
       currentTeamName = data.teamName || null;
+      currentIsGlobalAdmin = !!data.isGlobalAdmin;
+      currentTournamentId = data.tournamentId || null;
       if (data.mustChangePassword) showChangePassword();
-      else showAdmin(data.username, data.role, data.teamName);
+      else showAdmin(data.username, data.role, data.teamName, data.isGlobalAdmin, data.tournamentId);
     } else {
       showLogin();
     }
@@ -1694,6 +1707,85 @@ async function submitResetPassword(e) {
   closeResetPwModal();
   showToast('Password reset for ' + resetPwTarget);
   loadUsers();
+}
+
+// ── Tournament switcher (global admin only) ────────────────────────────
+
+async function renderTournamentsPanel() {
+  var listEl = document.getElementById('tournamentsList');
+  if (!listEl) return;
+  listEl.innerHTML = '<div class="tournament-list-loading">Loading…</div>';
+  var r = await apiFetch('/api/tournaments');
+  if (!r || !r.ok) { listEl.innerHTML = '<div class="tournament-list-empty">Could not load tournaments.</div>'; return; }
+  var tournaments = await r.json().catch(function(){ return []; });
+  if (!tournaments.length) { listEl.innerHTML = '<div class="tournament-list-empty">No tournaments yet.</div>'; return; }
+  listEl.innerHTML = '';
+  tournaments.forEach(function(t) {
+    var item = document.createElement('div');
+    item.className = 'tournament-list-item' + (t.isCurrent ? ' tournament-list-item--current' : '');
+    var badges = '';
+    if (t.isCurrent)  badges += '<span class="tournament-badge tournament-badge--working">Working</span>';
+    if (t.is_public)  badges += '<span class="tournament-badge tournament-badge--public">Public</span>';
+    item.innerHTML =
+      '<div class="tournament-list-info">' +
+        '<span class="tournament-list-name">' + escHtml(t.name) + '</span>' +
+        '<span class="tournament-list-badges">' + badges + '</span>' +
+      '</div>' +
+      '<div class="tournament-list-actions">' +
+        (!t.isCurrent
+          ? '<button class="sched-save-btn tournament-action-btn" onclick="switchTournament(' + t.id + ')">Switch Here</button>'
+          : '') +
+        (!t.is_public
+          ? '<button class="admin-clear-btn tournament-action-btn" onclick="setPublicTournament(' + t.id + ')">Set Public</button>'
+          : '') +
+      '</div>';
+    listEl.appendChild(item);
+  });
+}
+
+async function switchTournament(id) {
+  var r = await apiFetch('/api/tournaments/switch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tournamentId: id })
+  });
+  if (!r || !r.ok) { showToast('Switch failed', true); return; }
+  var data = await r.json().catch(function(){ return {}; });
+  currentTournamentId = id;
+  showToast('Switched to tournament #' + id);
+  renderTournamentsPanel();
+  fetchAll();
+}
+
+async function setPublicTournament(id) {
+  var r = await apiFetch('/api/tournaments/' + id + '/public', { method: 'PATCH' });
+  if (!r || !r.ok) { showToast('Could not set public tournament', true); return; }
+  showToast('Public tournament updated');
+  renderTournamentsPanel();
+}
+
+async function createTournament() {
+  var nameEl = document.getElementById('newTournamentName');
+  var statusEl = document.getElementById('createTournamentStatus');
+  var name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { if (statusEl) { statusEl.textContent = 'Name required'; setTimeout(function(){ statusEl.textContent = ''; }, 3000); } return; }
+  var r = await apiFetch('/api/tournaments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name })
+  });
+  if (!r || !r.ok) {
+    var data = r ? await r.json().catch(function(){ return {}; }) : {};
+    if (statusEl) { statusEl.textContent = data.error || 'Create failed'; setTimeout(function(){ statusEl.textContent = ''; }, 3000); }
+    return;
+  }
+  if (nameEl) nameEl.value = '';
+  if (statusEl) { statusEl.textContent = '✓ Created'; setTimeout(function(){ statusEl.textContent = ''; }, 3000); }
+  renderTournamentsPanel();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 checkSession();
