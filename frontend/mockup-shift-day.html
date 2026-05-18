@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shift Day – UI Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:           #0f1410;
+  --surface:      #181f1a;
+  --surface2:     #1f2921;
+  --border:       #2e3d30;
+  --blue:         #1a5fa8;
+  --blue-lt:      #4a90d9;
+  --gold:         #c49a1a;
+  --gold-lt:      #e8b82a;
+  --text:         #e8ede9;
+  --text-dim:     #7a8f7d;
+  --text-mute:    #4a5e4d;
+  --win-color:    #4a9a4a;
+  --clear-color:  #c05050;
+  --radius-sm:    0.35em;
+  --radius-md:    0.6em;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: 1rem;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 2em 1em 4em;
+  gap: 2.5em;
+}
+
+/* ── label above each demo ── */
+.demo-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 0.6em;
+  text-align: center;
+}
+.demo-group { width: 100%; max-width: 420px; }
+
+/* ══════════════════════════════════════════════
+   INLINE PANEL — sits inside the Schedule tab
+   below the round selector, above the game list
+   ══════════════════════════════════════════════ */
+.shift-panel {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.shift-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7em 1em;
+  background: var(--surface2);
+  border-bottom: 0.07em solid var(--border);
+}
+.shift-panel-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold-lt);
+}
+.shift-panel-body {
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85em;
+}
+
+/* field row */
+.shift-field { display: flex; flex-direction: column; gap: 0.3em; }
+.shift-field label {
+  font-size: 0.72rem;
+  font-family: 'Oswald', sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.shift-field select,
+.shift-field input[type="number"] {
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.95rem;
+  padding: 0.55em 0.75em;
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.shift-field select:focus,
+.shift-field input[type="number"]:focus {
+  outline: none;
+  border-color: var(--blue-lt);
+}
+
+/* amount + unit on one row */
+.shift-amount-row { display: flex; gap: 0.6em; }
+.shift-amount-row .shift-field:first-child { flex: 1; }
+
+/* unit toggle */
+.unit-toggle { display: flex; border: 0.07em solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.unit-toggle input[type="radio"] { display: none; }
+.unit-toggle label {
+  flex: 1;
+  text-align: center;
+  padding: 0.55em 0.9em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  cursor: pointer;
+  background: var(--bg);
+  border: none;
+  transition: background 0.15s, color 0.15s;
+}
+.unit-toggle input[type="radio"]:checked + label {
+  background: var(--blue);
+  color: #fff;
+}
+
+/* preview banner */
+.shift-preview {
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6em 0.85em;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+.shift-preview strong { color: var(--gold-lt); font-weight: 700; }
+.shift-preview .warn { color: var(--clear-color); font-size: 0.76rem; margin-top: 0.3em; display: block; }
+
+/* action row */
+.shift-actions { display: flex; gap: 0.6em; }
+.btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.55em 1.1em;
+  border-radius: var(--radius-sm);
+  border: 0.07em solid transparent;
+  cursor: pointer;
+  flex: 1;
+}
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+.btn-primary:hover { background: var(--blue-lt); border-color: var(--blue-lt); }
+.btn-ghost {
+  background: transparent;
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--text-dim); }
+
+/* ══════════════════════════════════════════════
+   CONFIRM STATE — replaces body content
+   ══════════════════════════════════════════════ */
+.shift-confirm-body {
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85em;
+}
+.confirm-summary {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.confirm-summary strong { color: var(--text); }
+.confirm-summary .detail {
+  margin-top: 0.5em;
+  font-size: 0.78rem;
+  color: var(--text-mute);
+  font-style: italic;
+}
+.confirm-actions { display: flex; gap: 0.6em; }
+.btn-danger {
+  background: var(--clear-color);
+  color: #fff;
+  border-color: var(--clear-color);
+}
+.btn-danger:hover { opacity: 0.85; }
+
+/* ══════════════════════════════════════════════
+   CONTEXT — fake schedule tab chrome around it
+   ══════════════════════════════════════════════ */
+.fake-tab-chrome {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  width: 100%;
+}
+.fake-tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6em 1em;
+  background: var(--surface2);
+  border-bottom: 0.07em solid var(--border);
+}
+.fake-tab-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.fake-round-chip {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--gold-lt);
+  background: rgba(196,154,26,0.12);
+  border: 0.07em solid rgba(196,154,26,0.3);
+  border-radius: 1em;
+  padding: 0.2em 0.7em;
+}
+.fake-tab-body { padding: 1em; display: flex; flex-direction: column; gap: 1em; }
+.fake-game-stub {
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.fake-game-hdr {
+  background: var(--surface2);
+  padding: 0.4em 0.8em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  color: var(--blue-lt);
+  letter-spacing: 0.06em;
+  display: flex;
+  justify-content: space-between;
+}
+.fake-game-hdr span { color: var(--gold-lt); }
+.fake-game-row {
+  padding: 0.45em 0.8em;
+  font-size: 0.88rem;
+  border-bottom: 0.07em solid var(--border);
+  color: var(--text-dim);
+}
+.fake-game-row:last-child { border-bottom: none; }
+
+/* divider between shift panel and games */
+.shift-divider {
+  border: none;
+  border-top: 0.07em solid var(--border);
+  margin: 0;
+}
+</style>
+</head>
+<body>
+
+<!-- ═══ DEMO 1: Input state ═══ -->
+<div class="demo-group">
+  <p class="demo-label">State 1 — Input (collapsed inside Schedule tab)</p>
+  <div class="fake-tab-chrome">
+    <div class="fake-tab-header">
+      <span class="fake-tab-title">Schedule</span>
+      <span class="fake-round-chip">Pool Play – Day 2</span>
+    </div>
+    <div class="fake-tab-body" style="gap:0; padding:0;">
+
+      <!-- shift panel sits here, above the game list -->
+      <div class="shift-panel" style="border:none; border-bottom: 0.07em solid var(--border); border-radius:0;">
+        <div class="shift-panel-header">
+          <span class="shift-panel-title">Shift Games by Date</span>
+        </div>
+        <div class="shift-panel-body">
+          <div class="shift-field">
+            <label>Date</label>
+            <select>
+              <option>Fri May 16 · 12 games</option>
+              <option>Sat May 17 · 18 games</option>
+              <option>Sun May 18 · 9 games</option>
+            </select>
+          </div>
+          <div class="shift-amount-row">
+            <div class="shift-field">
+              <label>Amount</label>
+              <input type="number" value="2" min="1" max="72">
+            </div>
+            <div class="shift-field" style="flex-shrink:0; min-width:0;">
+              <label>Unit</label>
+              <div class="unit-toggle">
+                <input type="radio" name="unit1" id="u1h" checked>
+                <label for="u1h">Hours</label>
+                <input type="radio" name="unit1" id="u1d">
+                <label for="u1d">Days</label>
+              </div>
+            </div>
+          </div>
+          <div class="shift-preview">
+            Shift <strong>12 games</strong> on <strong>Fri May 16</strong> forward by <strong>2 hours</strong>.<br>
+            New times: <strong>8:00 AM → 10:00 AM</strong> through <strong>4:30 PM → 6:30 PM</strong>.
+          </div>
+          <div class="shift-actions">
+            <button class="btn btn-ghost">Reset</button>
+            <button class="btn btn-primary">Apply Shift →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- game list continues below -->
+      <div style="padding:1em; display:flex; flex-direction:column; gap:0.8em;">
+        <div class="fake-game-stub">
+          <div class="fake-game-hdr">G-01 · Field A <span>8:00 AM Fri</span></div>
+          <div class="fake-game-row">Team Alpha</div>
+          <div class="fake-game-row">Team Bravo</div>
+        </div>
+        <div class="fake-game-stub">
+          <div class="fake-game-hdr">G-02 · Field B <span>8:00 AM Fri</span></div>
+          <div class="fake-game-row">Team Charlie</div>
+          <div class="fake-game-row">Team Delta</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DEMO 2: Confirm state ═══ -->
+<div class="demo-group">
+  <p class="demo-label">State 2 — Confirm before applying</p>
+  <div class="shift-panel">
+    <div class="shift-panel-header">
+      <span class="shift-panel-title">Confirm Shift</span>
+    </div>
+    <div class="shift-confirm-body">
+      <div class="confirm-summary">
+        Shift <strong>12 games</strong> on <strong>Fri May 16</strong> forward by <strong>2 hours</strong>?
+        <span class="detail">This cannot be undone. Earliest game moves to 10:00 AM, latest to 6:30 PM.</span>
+      </div>
+      <div class="confirm-actions">
+        <button class="btn btn-ghost">← Cancel</button>
+        <button class="btn btn-danger">Confirm Shift</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DEMO 3: Midnight-crossing warning ═══ -->
+<div class="demo-group">
+  <p class="demo-label">State 3 — Warning: shift crosses midnight</p>
+  <div class="shift-panel">
+    <div class="shift-panel-header">
+      <span class="shift-panel-title">Shift Games by Date</span>
+    </div>
+    <div class="shift-panel-body">
+      <div class="shift-field">
+        <label>Date</label>
+        <select><option>Sat May 17 · 6 games</option></select>
+      </div>
+      <div class="shift-amount-row">
+        <div class="shift-field">
+          <label>Amount</label>
+          <input type="number" value="14" min="1" max="72">
+        </div>
+        <div class="shift-field" style="flex-shrink:0;">
+          <label>Unit</label>
+          <div class="unit-toggle">
+            <input type="radio" name="unit3" id="u3h" checked>
+            <label for="u3h">Hours</label>
+            <input type="radio" name="unit3" id="u3d">
+            <label for="u3d">Days</label>
+          </div>
+        </div>
+      </div>
+      <div class="shift-preview">
+        Shift <strong>6 games</strong> on <strong>Sat May 17</strong> forward by <strong>14 hours</strong>.<br>
+        New times: <strong>10:00 AM → 12:00 AM</strong> through <strong>2:00 PM → 4:00 AM</strong>.
+        <span class="warn">⚠ 3 games will cross midnight and land on Sun May 18.</span>
+      </div>
+      <div class="shift-actions">
+        <button class="btn btn-ghost">Reset</button>
+        <button class="btn btn-primary">Apply Shift →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DEMO 4: Days unit selected ═══ -->
+<div class="demo-group">
+  <p class="demo-label">State 4 — Days unit (rain pushes entire day)</p>
+  <div class="shift-panel">
+    <div class="shift-panel-header">
+      <span class="shift-panel-title">Shift Games by Date</span>
+    </div>
+    <div class="shift-panel-body">
+      <div class="shift-field">
+        <label>Date</label>
+        <select><option>Sat May 17 · 18 games</option></select>
+      </div>
+      <div class="shift-amount-row">
+        <div class="shift-field">
+          <label>Amount</label>
+          <input type="number" value="1" min="1" max="72">
+        </div>
+        <div class="shift-field" style="flex-shrink:0;">
+          <label>Unit</label>
+          <div class="unit-toggle">
+            <input type="radio" name="unit4" id="u4h">
+            <label for="u4h">Hours</label>
+            <input type="radio" name="unit4" id="u4d" checked>
+            <label for="u4d">Days</label>
+          </div>
+        </div>
+      </div>
+      <div class="shift-preview">
+        Shift <strong>18 games</strong> on <strong>Sat May 17</strong> forward by <strong>1 day</strong>.<br>
+        All games move to <strong>Sun May 18</strong> at the same times.
+      </div>
+      <div class="shift-actions">
+        <button class="btn btn-ghost">Reset</button>
+        <button class="btn btn-primary">Apply Shift →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
