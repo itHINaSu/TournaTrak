@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY server.js generate-hash.js validation.js slot-defs.js ./
+COPY server.js generate-hash.js validation.js slot-defs.js db.js migrate.js schema.sql ./
 
 EXPOSE 3000
 CMD ["node", "server.js"]

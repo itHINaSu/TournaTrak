@@ -25,12 +25,14 @@ services:
     # ── Environment ────────────────────────────────────────────────────────
     # Copy the example file and fill in real values before first run:
     #   mv .env.example .env
-    # Then edit .env with your SESSION_SECRET, password hash, etc.
+    # Then edit .env with your SESSION_SECRET, DB_PASSWORD, and password hash.
     #
-    # To use an external database instead of the bundled Postgres container,
-    # set DATABASE_URL in .env to your connection string and remove the db
-    # service and the depends_on block above.
+    # DATABASE_URL is constructed here from DB_PASSWORD so it only needs to
+    # be set in one place. To use an external database instead, override
+    # DATABASE_URL directly here and remove the db service and depends_on.
     env_file: ./.env
+    environment:
+      DATABASE_URL: postgres://tournatrak:${DB_PASSWORD}@db:5432/tournatrak
 
   db:
     image: postgres:16-alpine
