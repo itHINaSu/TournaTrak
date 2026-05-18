@@ -59,20 +59,26 @@ function updateTimestamp() {
   }
 
   // All other tabs: show game results update time, or hide if none
+  var latestSavedAt = null;
+  Object.values(results).forEach(function(r) {
+    if (r && r.winner && r.savedAt) {
+      if (!latestSavedAt || r.savedAt > latestSavedAt) latestSavedAt = r.savedAt;
+    }
+  });
   var hasResults = Object.values(results).some(function(r){ return r && r.winner; });
   if (!hasResults) {
     if (bar) bar.style.display = 'none';
     applyStickyOffsets();
     return;
   }
-  var now = new Date();
-  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  var m = now.getMonth()+1, d = now.getDate(), dow = days[now.getDay()];
-  var h = now.getHours(), min = now.getMinutes();
-  var ampm = h >= 12 ? 'PM' : 'AM';
-  var h12 = h % 12 || 12;
-  var ms = min < 10 ? '0'+min : ''+min;
-  if (text) text.textContent = 'Results updated ' + m+'/'+d+' '+dow+' '+h12+':'+ms+' '+ampm;
+  var ts = latestSavedAt ? new Date(latestSavedAt) : null;
+  var timeStr;
+  if (ts && !isNaN(ts.getTime())) {
+    timeStr = formatBucketTime(ts);
+  } else {
+    timeStr = null;
+  }
+  if (text) text.textContent = timeStr ? 'Results updated ' + timeStr : 'Results updated';
   if (bar) bar.style.display = '';
   applyStickyOffsets();
 }
@@ -512,7 +518,7 @@ function buildConnPcts(srcCol,dstCol,slotVh){
     var dstPct=dstMid/totalVh*100;
     var dstG=GAMES[dstEntry.gid];
     [dstG.t1,dstG.t2].forEach(function(slotDef){
-      if(!slotDef||slotDef.type!=='winner'&&slotDef.type!=='loser') return;
+      if(!slotDef||slotDef.type!=='winner') return;
       if(!GAMES[slotDef.slot]) return;
       var srcEntry=srcCol.games.find(function(g){ return g.gid===slotDef.slot; });
       if(!srcEntry) return;
