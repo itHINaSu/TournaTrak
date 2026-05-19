@@ -1322,33 +1322,34 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 
 /* ── Records tab ──────────────────────────────────────────────────────── */
-.records-panel { padding: 0.75em 0.5em 2em; max-width: 600px; margin: 0 auto; }
-.records-empty { text-align: center; color: var(--text-muted); padding: 2em; }
+.records-panel { padding: 0.75em 0.5em 2em; max-width: 38em; margin: 0 auto; overflow-x: auto; }
+.records-empty { text-align: center; color: var(--text-mute); padding: 2em; }
 .records-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.92rem;
+  font-size: 0.9rem;
 }
 .records-table thead tr {
-  border-bottom: 2px solid var(--border);
+  border-bottom: 0.15em solid var(--border);
 }
 .records-table th {
   padding: 0.45em 0.6em;
   text-align: left;
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--text-mute);
+  white-space: nowrap;
 }
 .records-table tbody tr {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 0.07em solid var(--border);
 }
 .records-table tbody tr:last-child { border-bottom: none; }
 .records-table td { padding: 0.55em 0.6em; }
 .rec-team { font-weight: 600; }
-.rec-num { text-align: right; width: 4em; }
+.rec-num { text-align: right; width: 4em; white-space: nowrap; }
 .rec-wins { color: var(--gold-lt); }
-.rec-losses { color: var(--text-muted); }
+.rec-losses { color: var(--text-mute); }
 
 @print {
   .site-header, .view-tabs, .header-controls, .theme-toggle, .selector-row { display: none; }

@@ -149,10 +149,10 @@ async function fetchAll() {
       fetch('/api/admin/settings'),
       fetch('/api/admin/buckets'),
     ]);
-    results  = await rr.json();
-    schedule = await sr.json();
-    settings = await str.json();
-    buckets  = br.ok ? await br.json() : {};
+    results  = rr.ok  ? await rr.json()  : {};
+    schedule = sr.ok  ? await sr.json()  : {};
+    settings = str.ok ? await str.json() : {};
+    buckets  = br.ok  ? await br.json()  : {};
     if (typeof applySchedule === 'function') applySchedule(schedule);
   } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; }
   applySettingsToPage();
@@ -1733,12 +1733,12 @@ async function renderTournamentsPanel() {
     if (t.isCurrent)  badges += '<span class="tournament-badge tournament-badge--working">Working</span>';
     if (t.isPublic)   badges += '<span class="tournament-badge tournament-badge--public">Public</span>';
     var userOptions = (_assignableUsers || []).map(function(u) {
-      return '<option value="' + escHtml(u.username) + '">' + escHtml(u.username) + ' (' + escHtml(u.role) + ')</option>';
+      return '<option value="' + esc(u.username) + '">' + esc(u.username) + ' (' + esc(u.role) + ')</option>';
     }).join('');
     item.innerHTML =
       '<div class="tournament-list-header" onclick="toggleTournamentExpand(this)">' +
         '<div class="tournament-list-info">' +
-          '<span class="tournament-list-name">' + escHtml(t.name) + '</span>' +
+          '<span class="tournament-list-name">' + esc(t.name) + '</span>' +
           '<span class="tournament-list-badges">' + badges + '</span>' +
         '</div>' +
         '<div class="tournament-list-actions">' +
@@ -1791,9 +1791,9 @@ async function loadTournamentUsers(tournamentId) {
   if (!users.length) { listEl.innerHTML = '<em class="tournament-no-users">No users assigned</em>'; return; }
   listEl.innerHTML = users.map(function(u) {
     return '<div class="tournament-user-row">' +
-      '<span class="tournament-user-name">' + escHtml(u.username) + '</span>' +
-      '<span class="tournament-user-role">' + escHtml(u.role) + '</span>' +
-      '<button class="admin-clear-btn tournament-action-btn" onclick="removeTournamentUser(' + tournamentId + ',\'' + escHtml(u.username) + '\')">Remove</button>' +
+      '<span class="tournament-user-name">' + esc(u.username) + '</span>' +
+      '<span class="tournament-user-role">' + esc(u.role) + '</span>' +
+      '<button class="admin-clear-btn tournament-action-btn" onclick="removeTournamentUser(' + tournamentId + ',\'' + esc(u.username) + '\')">Remove</button>' +
     '</div>';
   }).join('');
 }
@@ -1859,10 +1859,6 @@ async function createTournament() {
   if (nameEl) nameEl.value = '';
   if (statusEl) { statusEl.textContent = '✓ Created'; setTimeout(function(){ statusEl.textContent = ''; }, 3000); }
   renderTournamentsPanel();
-}
-
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 checkSession();

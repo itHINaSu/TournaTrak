@@ -336,8 +336,9 @@ function requireRole(...roles) {
 }
 
 function requireGlobalAdmin(req, res, next) {
-  if (!req.session.username)      return res.status(401).json({ error: 'Authentication required' });
-  if (!req.session.isGlobalAdmin) return res.status(403).json({ error: 'Global admin required' });
+  if (!req.session.username)           return res.status(401).json({ error: 'Authentication required' });
+  if (req.session.mustChangePassword)  return res.status(403).json({ error: 'Password change required', mustChangePassword: true });
+  if (!req.session.isGlobalAdmin)      return res.status(403).json({ error: 'Global admin required' });
   next();
 }
 
@@ -752,25 +753,17 @@ app.get('/api/settings', ah(async (req, res) => {
 // ── Authenticated read routes (use session tournament, no public caching) ─
 // These mirror the public GET routes but serve the session's working tournament.
 // The admin panel calls these so switching tournaments shows the right data.
-
-function requireAnyStaff(req, res, next) {
-  if (!req.session.username)            return res.status(401).json({ error: 'Authentication required' });
-  if (req.session.mustChangePassword)   return res.status(403).json({ error: 'Password change required', mustChangePassword: true });
-  if (req.session.role === 'team')       return res.status(403).json({ error: 'Insufficient permissions' });
-  next();
-}
-
 app.get('/api/admin/results', requireResults, ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.json(await getResults(tid(req)));
 }));
 
-app.get('/api/admin/schedule', requireAnyStaff, ah(async (req, res) => {
+app.get('/api/admin/schedule', requireResults, ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.json(await getSchedule(tid(req)));
 }));
 
-app.get('/api/admin/settings', requireAnyStaff, ah(async (req, res) => {
+app.get('/api/admin/settings', requireBucketsEdit, ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const s = await getSettings(tid(req));
   res.json(Object.assign({}, SETTINGS_DEFAULTS, s));

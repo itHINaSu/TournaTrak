@@ -890,64 +890,67 @@ input[type="time"]:focus {
 }
 
 /* ── Tournament switcher panel ─────────────────────────────────────────── */
-.tournaments-list { display: flex; flex-direction: column; gap: 0.6em; }
+.tournaments-list { display: flex; flex-direction: column; gap: 0.5em; }
 .tournament-list-loading,
-.tournament-list-empty { color: var(--text-muted); font-size: 0.9rem; padding: 0.5em 0; }
+.tournament-list-empty { color: var(--text-mute); font-size: 0.88rem; padding: 0.5em 0; }
 .tournament-list-item {
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
   overflow: hidden;
+}
+.tournament-list-item--current {
+  border-color: var(--blue-lt);
+  background: color-mix(in srgb, var(--blue) 10%, var(--surface2));
 }
 .tournament-list-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75em;
+  gap: 0.6em;
   padding: 0.65em 0.85em;
   cursor: pointer;
   user-select: none;
+  flex-wrap: wrap;
 }
-.tournament-list-header:hover { background: color-mix(in srgb, var(--border) 30%, transparent); }
-.tournament-expand-arrow { font-size: 0.7rem; color: var(--text-muted); margin-left: 0.25em; flex-shrink: 0; }
+.tournament-list-header:hover { background: color-mix(in srgb, var(--border) 25%, transparent); }
+.tournament-expand-arrow { font-size: 0.7rem; color: var(--text-mute); flex-shrink: 0; }
 .tournament-expand-body {
-  border-top: 1px solid var(--border);
-  padding: 0.7em 0.85em;
+  border-top: 0.07em solid var(--border);
+  padding: 0.65em 0.85em;
   display: flex;
   flex-direction: column;
   gap: 0.5em;
 }
 .tournament-assigned-list { display: flex; flex-direction: column; gap: 0.3em; min-height: 1.2em; }
-.tournament-no-users { color: var(--text-muted); font-size: 0.85rem; }
-.tournament-user-row { display: flex; align-items: center; gap: 0.5em; }
+.tournament-no-users { color: var(--text-mute); font-size: 0.82rem; font-style: italic; }
+.tournament-user-row { display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; }
 .tournament-user-name { font-weight: 600; font-size: 0.88rem; }
-.tournament-user-role { color: var(--text-muted); font-size: 0.8rem; flex: 1; }
-.tournament-assign-row { display: flex; gap: 0.4em; align-items: center; margin-top: 0.25em; }
+.tournament-user-role { color: var(--text-mute); font-size: 0.78rem; flex: 1; }
+.tournament-assign-row { display: flex; gap: 0.4em; align-items: center; margin-top: 0.2em; flex-wrap: wrap; }
 .tournament-assign-sel {
   flex: 1;
-  background: var(--input-bg);
+  min-width: 8em;
+  background: var(--surface2);
   color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  border: 0.07em solid var(--border);
+  border-radius: 0.25em;
   padding: 0.3em 0.5em;
   font-size: 0.85rem;
 }
-.tournament-list-item--current {
-  border-color: var(--blue-lt);
-  background: color-mix(in srgb, var(--blue) 10%, var(--card-bg));
-}
+.tournament-assign-sel:focus { outline: none; border-color: var(--blue-lt); }
 .tournament-list-info { display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; min-width: 0; }
-.tournament-list-name { font-weight: 600; font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tournament-list-badges { display: flex; gap: 0.35em; flex-shrink: 0; }
+.tournament-list-name { font-weight: 600; font-size: 0.92rem; }
+.tournament-list-badges { display: flex; gap: 0.3em; flex-shrink: 0; }
 .tournament-badge {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   padding: 0.15em 0.5em;
-  border-radius: 3px;
+  border-radius: 0.2em;
   text-transform: uppercase;
 }
 .tournament-badge--working { background: var(--blue); color: #fff; }
 .tournament-badge--public  { background: var(--gold); color: #111; }
-.tournament-list-actions { display: flex; gap: 0.4em; flex-shrink: 0; }
-.tournament-action-btn { padding: 0.3em 0.7em; font-size: 0.82rem; white-space: nowrap; }
+.tournament-list-actions { display: flex; gap: 0.35em; flex-shrink: 0; flex-wrap: wrap; }
+.tournament-action-btn { padding: 0.28em 0.65em; font-size: 0.78rem; white-space: nowrap; }
