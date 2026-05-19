@@ -168,6 +168,29 @@ async function saveResult(tid, slotId, winner, loser, t1score, t2score) {
   );
 }
 
+// ── Team records helpers ──────────────────────────────────────────────
+async function recalcTeamRecords(tid) {
+  const { rows } = await db.query(
+    `SELECT winner, loser FROM results WHERE tournament_id = $1 AND winner IS NOT NULL`, [tid]
+  );
+  const counts = {};
+  const bump = (name, field) => {
+    if (!name) return;
+    if (!counts[name]) counts[name] = { wins: 0, losses: 0 };
+    counts[name][field]++;
+  };
+  for (const r of rows) { bump(r.winner, 'wins'); bump(r.loser, 'losses'); }
+  await db.withTransaction(async (client) => {
+    await client.query('DELETE FROM team_records WHERE tournament_id = $1', [tid]);
+    for (const [team, rec] of Object.entries(counts)) {
+      await client.query(
+        `INSERT INTO team_records (tournament_id, team_name, wins, losses) VALUES ($1,$2,$3,$4)`,
+        [tid, team, rec.wins, rec.losses]
+      );
+    }
+  });
+}
+
 // ── User helpers ──────────────────────────────────────────────────────
 
 function toUserShape(row, teams) {
@@ -198,9 +221,8 @@ async function findUser(username) {
     'SELECT * FROM users WHERE region_id = $1 AND username = $2', [REGION_ID, username]
   );
   if (!rows.length) return null;
-  // For finding a user (auth), use tournament 1 as the base for team lookup
-  const teams = await fetchUserTeams(rows[0].id, 1);
-  return toUserShape(rows[0], teams);
+  // Teams are loaded separately after resolving the tournament (Phase 2 dynamic scoping)
+  return toUserShape(rows[0], []);
 }
 
 async function findUserByToken(tokenField, token) {
@@ -210,8 +232,7 @@ async function findUserByToken(tokenField, token) {
     `SELECT * FROM users WHERE region_id = $1 AND ${tokenField} = $2`, [REGION_ID, token]
   );
   if (!rows.length) return null;
-  const teams = await fetchUserTeams(rows[0].id, 1);
-  return toUserShape(rows[0], teams);
+  return toUserShape(rows[0], []);
 }
 
 async function updateUser(username, updates) {
@@ -373,6 +394,7 @@ app.post('/api/login', loginRateLimit, ah(async (req, res) => {
   }
   if (req._loginEntry) req._loginEntry.count = 0;
   const tournamentId = await resolveTournamentId(user);
+  const teams = user.role === 'team' ? await fetchUserTeams(user.id, tournamentId) : [];
   req.session.regenerate(err => {
     if (err) return res.status(500).json({ error: 'Session error' });
     req.session.username           = user.username;
@@ -381,8 +403,8 @@ app.post('/api/login', loginRateLimit, ah(async (req, res) => {
     req.session.tournamentId       = tournamentId;
     req.session.mustChangePassword = !!user.mustChangePassword;
     if (user.role === 'team') {
-      req.session.teamName = user.teamName;
-      req.session.teams    = user.teams;
+      req.session.teamName = teams[0] || null;
+      req.session.teams    = teams;
     }
     res.json({
       ok:                 true,
@@ -554,13 +576,14 @@ app.get('/api/team-access/:token', ah(async (req, res) => {
   const user = await findUserByToken('access_token', token);
   if (!user || user.role !== 'team') return res.redirect('/lineup?invalid=1');
   const tournamentId = await resolveTournamentId(user);
+  const teams = await fetchUserTeams(user.id, tournamentId);
   req.session.regenerate(err => {
     if (err) return res.redirect('/lineup?invalid=1');
     req.session.username     = user.username;
     req.session.role         = user.role;
     req.session.tournamentId = tournamentId;
-    req.session.teamName     = user.teamName;
-    req.session.teams        = user.teams;
+    req.session.teamName     = teams[0] || null;
+    req.session.teams        = teams;
     res.redirect('/lineup');
   });
 }));
@@ -624,6 +647,60 @@ app.post('/api/tournaments/switch', requireGlobalAdmin, ah(async (req, res) => {
   res.json({ ok: true, tournament: { id: rows[0].id, name: rows[0].name } });
 }));
 
+// ── Tournament user assignment (global admin only) ─────────────────────
+app.get('/api/tournaments/:id/users', requireGlobalAdmin, ah(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid tournament id' });
+  const { rows } = await db.query(
+    `SELECT u.username, u.role
+     FROM user_tournament_roles utr
+     JOIN users u ON u.id = utr.user_id
+     WHERE utr.tournament_id = $1 AND u.region_id = $2
+     ORDER BY u.username`,
+    [id, REGION_ID]
+  );
+  res.json(rows);
+}));
+
+app.post('/api/tournaments/:id/users', requireGlobalAdmin, ah(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid tournament id' });
+  const { username } = req.body || {};
+  if (!username) return res.status(400).json({ error: 'username required' });
+  const tRow = await db.query('SELECT id FROM tournaments WHERE id = $1 AND region_id = $2', [id, REGION_ID]);
+  if (!tRow.rows.length) return res.status(404).json({ error: 'Tournament not found' });
+  const user = await findUser(username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role === 'team') return res.status(400).json({ error: 'Team users are assigned to tournaments via user_teams' });
+  await db.query(
+    `INSERT INTO user_tournament_roles (user_id, tournament_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+    [user.id, id]
+  );
+  res.json({ ok: true });
+}));
+
+app.delete('/api/tournaments/:id/users/:username', requireGlobalAdmin, ah(async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) return res.status(400).json({ error: 'Invalid tournament id' });
+  const user = await findUser(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  await db.query(
+    `DELETE FROM user_tournament_roles WHERE user_id = $1 AND tournament_id = $2`, [user.id, id]
+  );
+  res.json({ ok: true });
+}));
+
+// All non-team, non-global admin users (for the assignment dropdown)
+app.get('/api/users/assignable', requireGlobalAdmin, ah(async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT username, role FROM users
+     WHERE region_id = $1 AND role != 'team' AND is_global_admin = FALSE
+     ORDER BY username`,
+    [REGION_ID]
+  );
+  res.json(rows);
+}));
+
 // ── Root HTML ─────────────────────────────────────────────────────────
 const FRONTEND_INDEX = '/frontend/index.html';
 
@@ -677,7 +754,9 @@ app.post('/api/results', requireResults, ah(async (req, res) => {
   const err = validateResult(req.body);
   if (err) return res.status(400).json({ error: err });
   const { game, winner, loser, t1score, t2score } = req.body;
-  await saveResult(tid(req), game, winner.trim(), loser.trim(), t1score, t2score);
+  const t = tid(req);
+  await saveResult(t, game, winner.trim(), loser.trim(), t1score, t2score);
+  await recalcTeamRecords(t);
   res.json({ ok: true });
 }));
 
@@ -686,10 +765,12 @@ app.delete('/api/results/:slot', requireResults, ah(async (req, res) => {
   if (!isValidSlotId(game)) return res.status(400).json({ error: 'invalid slot ID' });
   const results = await getResults(tid(req));
   if (results[game] === undefined) return res.status(404).json({ error: 'game not found' });
+  const t = tid(req);
   await db.query(
     `UPDATE results SET winner = NULL, loser = NULL WHERE tournament_id = $1 AND slot_id = $2`,
-    [tid(req), game]
+    [t, game]
   );
+  await recalcTeamRecords(t);
   res.json({ ok: true });
 }));
 
@@ -790,14 +871,61 @@ app.post('/api/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (r
     name:     String(r.name     || '').slice(0, 64),
     position: String(r.position || '').slice(0, 8),
   }));
+  const t = tid(req);
   await db.query(
     `INSERT INTO lineups (tournament_id, slot_id, team_name, rows, updated_at)
      VALUES ($1,$2,$3,$4,NOW())
      ON CONFLICT (tournament_id, slot_id, team_name) DO UPDATE SET
        rows = EXCLUDED.rows, updated_at = EXCLUDED.updated_at`,
-    [tid(req), slotId, teamName, JSON.stringify(clean)]
+    [t, slotId, teamName, JSON.stringify(clean)]
+  );
+  // Append to history so coaches can import this lineup in future tournaments
+  await db.query(
+    `INSERT INTO submitted_lineups (tournament_id, slot_id, team_name, rows) VALUES ($1,$2,$3,$4)`,
+    [t, slotId, teamName, JSON.stringify(clean)]
   );
   res.json({ ok: true });
+}));
+
+// Lineup history across tournaments — for cross-tournament import
+app.get('/api/lineups/history/:teamName', requireLineupAccess, ah(async (req, res) => {
+  const { teamName } = req.params;
+  const t = tid(req);
+  const { rows } = await db.query(
+    `SELECT sl.id, sl.tournament_id, sl.slot_id, sl.rows, sl.submitted_at,
+            t.name AS tournament_name,
+            s.label AS game_label, s.game_time
+     FROM submitted_lineups sl
+     JOIN tournaments t ON t.id = sl.tournament_id
+     LEFT JOIN schedule s ON s.tournament_id = sl.tournament_id AND s.slot_id = sl.slot_id
+     WHERE sl.tournament_id != $1
+       AND sl.team_name = $2
+       AND t.region_id = $3
+     ORDER BY sl.submitted_at DESC
+     LIMIT 50`,
+    [t, teamName, REGION_ID]
+  );
+  res.json(rows.map(r => ({
+    id:             r.id,
+    tournamentId:   r.tournament_id,
+    slotId:         r.slot_id,
+    rows:           r.rows,
+    submittedAt:    r.submitted_at,
+    tournamentName: r.tournament_name,
+    gameLabel:      r.game_label || r.slot_id,
+    gameTime:       r.game_time || null,
+  })));
+}));
+
+// ── Team records (public) ─────────────────────────────────────────────
+app.get('/api/team-records', ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const ptid = await getPublicTournamentId();
+  const { rows } = await db.query(
+    `SELECT team_name, wins, losses FROM team_records WHERE tournament_id = $1 ORDER BY wins DESC, losses ASC, team_name`,
+    [ptid]
+  );
+  res.json(rows);
 }));
 
 // ── Bucket endpoints ──────────────────────────────────────────────────

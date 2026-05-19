@@ -57,7 +57,7 @@
     No upcoming games scheduled for your team.
   </div>
 
-  <!-- Import modal -->
+  <!-- Import from current tournament modal -->
   <div id="lineupImportOverlay" class="lineup-modal-overlay" style="display:none" onclick="closeImport(event)">
     <div class="lineup-modal" onclick="event.stopPropagation()">
       <div class="lineup-modal-title">Import Lineup</div>
@@ -72,9 +72,25 @@
     </div>
   </div>
 
+  <!-- Import from past tournaments modal -->
+  <div id="lineupHistoryOverlay" class="lineup-modal-overlay" style="display:none" onclick="closeHistoryImport(event)">
+    <div class="lineup-modal" onclick="event.stopPropagation()">
+      <div class="lineup-modal-title">Past Tournament Lineups</div>
+      <div class="lineup-modal-body">
+        <div class="lineup-modal-label">Select a past submission:</div>
+        <select id="lineupHistorySel" class="lineup-modal-sel"></select>
+      </div>
+      <div class="lineup-modal-footer">
+        <button class="lineup-tool-btn" onclick="confirmHistoryImport()">Import</button>
+        <button class="lineup-tool-btn lineup-tool-btn--cancel" onclick="closeHistoryImport()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
   <div class="lineup-form-wrap">
     <div class="lineup-tools" id="lineupTools" style="display:none">
-      <button class="lineup-tool-btn lineup-tool-btn--import" id="lineupImportBtn" onclick="openImport()">Import Lineup</button>
+      <button class="lineup-tool-btn lineup-tool-btn--import" id="lineupImportBtn" onclick="openImport()">Import</button>
+      <button class="lineup-tool-btn lineup-tool-btn--import" id="lineupHistoryBtn" onclick="openHistoryImport()" style="display:none">Past</button>
       <button class="lineup-tool-btn lineup-tool-btn--right lineup-tool-btn--reorder" id="lineupReorderBtn" onclick="toggleReorder()">Reorder</button>
     </div>
     <table class="lineup-table">

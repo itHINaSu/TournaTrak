@@ -177,6 +177,62 @@ function confirmImport() {
   doImport();
 }
 
+// ── History import (past tournaments) ──────────────────────────────────
+var _historyData = []; // array of history entries from /api/lineups/history/:teamName
+
+async function openHistoryImport() {
+  var overlay = document.getElementById('lineupHistoryOverlay');
+  var sel     = document.getElementById('lineupHistorySel');
+  if (!overlay || !sel || !viewedTeamName) return;
+
+  sel.innerHTML = '<option value="">Loading…</option>';
+  overlay.style.display = 'flex';
+
+  try {
+    var r = await fetch('/api/lineups/history/' + encodeURIComponent(viewedTeamName));
+    var data = r.ok ? await r.json() : [];
+    _historyData = data;
+
+    if (!data.length) {
+      sel.innerHTML = '<option value="">No past tournament lineups found</option>';
+      return;
+    }
+
+    sel.innerHTML = data.map(function(entry, idx) {
+      var label = entry.tournamentName + ' · ' + entry.gameLabel;
+      if (entry.gameTime) label += ' · ' + formatTime(entry.gameTime);
+      return '<option value="' + idx + '">' + esc(label) + '</option>';
+    }).join('');
+  } catch(e) {
+    sel.innerHTML = '<option value="">Error loading history</option>';
+  }
+}
+
+function closeHistoryImport(e) {
+  if (e && e.target !== document.getElementById('lineupHistoryOverlay')) return;
+  document.getElementById('lineupHistoryOverlay').style.display = 'none';
+}
+
+function confirmHistoryImport() {
+  var sel = document.getElementById('lineupHistorySel');
+  if (!sel || sel.value === '') return;
+  var entry = _historyData[parseInt(sel.value, 10)];
+  if (!entry) return;
+
+  var doImport = function() {
+    var rows = entry.rows || [];
+    lineupRowCount = Math.max(11, rows.length);
+    document.getElementById('lineupBody').innerHTML = buildRows(rows, false);
+    updateSubButtons(false);
+    document.getElementById('lineupHistoryOverlay').style.display = 'none';
+  };
+
+  if (hasCurrentData()) {
+    if (!confirm('This will overwrite your current lineup. Continue?')) return;
+  }
+  doImport();
+}
+
 function getCurrentRows() {
   var rows = [];
   for (var i = 0; i < lineupRowCount; i++) {
@@ -221,6 +277,9 @@ function updateSubButtons(readOnly) {
   // Tool buttons (Import / Reorder) only shown when editable
   var tools = document.getElementById('lineupTools');
   if (tools) tools.style.display = ro ? 'none' : '';
+  // Past-tournament import only for coaches (non-admin), since they have a persistent team
+  var histBtn = document.getElementById('lineupHistoryBtn');
+  if (histBtn) histBtn.style.display = (!ro && !isAdmin) ? '' : 'none';
   // Reset reorder mode when game changes
   if (ro && isReorderMode) {
     isReorderMode   = false;

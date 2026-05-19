@@ -894,14 +894,43 @@ input[type="time"]:focus {
 .tournament-list-loading,
 .tournament-list-empty { color: var(--text-muted); font-size: 0.9rem; padding: 0.5em 0; }
 .tournament-list-item {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tournament-list-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.75em;
   padding: 0.65em 0.85em;
-  background: var(--card-bg);
+  cursor: pointer;
+  user-select: none;
+}
+.tournament-list-header:hover { background: color-mix(in srgb, var(--border) 30%, transparent); }
+.tournament-expand-arrow { font-size: 0.7rem; color: var(--text-muted); margin-left: 0.25em; flex-shrink: 0; }
+.tournament-expand-body {
+  border-top: 1px solid var(--border);
+  padding: 0.7em 0.85em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+.tournament-assigned-list { display: flex; flex-direction: column; gap: 0.3em; min-height: 1.2em; }
+.tournament-no-users { color: var(--text-muted); font-size: 0.85rem; }
+.tournament-user-row { display: flex; align-items: center; gap: 0.5em; }
+.tournament-user-name { font-weight: 600; font-size: 0.88rem; }
+.tournament-user-role { color: var(--text-muted); font-size: 0.8rem; flex: 1; }
+.tournament-assign-row { display: flex; gap: 0.4em; align-items: center; margin-top: 0.25em; }
+.tournament-assign-sel {
+  flex: 1;
+  background: var(--input-bg);
+  color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
+  padding: 0.3em 0.5em;
+  font-size: 0.85rem;
 }
 .tournament-list-item--current {
   border-color: var(--blue-lt);

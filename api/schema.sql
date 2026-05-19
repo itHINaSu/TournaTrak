@@ -53,8 +53,7 @@ CREATE TABLE IF NOT EXISTS user_teams (
 CREATE TABLE IF NOT EXISTS user_tournament_roles (
   user_id       INTEGER NOT NULL REFERENCES users(id)       ON DELETE CASCADE,
   tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
-  role          TEXT    NOT NULL CHECK (role IN ('admin','results','team','buckets')),
-  PRIMARY KEY (user_id, tournament_id, role)
+  PRIMARY KEY (user_id, tournament_id)
 );
 
 CREATE TABLE IF NOT EXISTS schedule (
@@ -121,11 +120,11 @@ CREATE TABLE IF NOT EXISTS teams (
   UNIQUE(region_id, name)
 );
 
--- Win/loss records accumulated per team per tournament (Phase 2)
+-- Win/loss records accumulated per team per tournament
 CREATE TABLE IF NOT EXISTS team_records (
-  team_id       INTEGER NOT NULL REFERENCES teams(id)       ON DELETE CASCADE,
   tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  team_name     TEXT    NOT NULL,
   wins          INTEGER NOT NULL DEFAULT 0,
   losses        INTEGER NOT NULL DEFAULT 0,
-  PRIMARY KEY (team_id, tournament_id)
+  PRIMARY KEY (tournament_id, team_name)
 );

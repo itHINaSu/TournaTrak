@@ -1711,13 +1711,19 @@ async function submitResetPassword(e) {
 
 // ── Tournament switcher (global admin only) ────────────────────────────
 
+var _assignableUsers = null;
+
 async function renderTournamentsPanel() {
   var listEl = document.getElementById('tournamentsList');
   if (!listEl) return;
   listEl.innerHTML = '<div class="tournament-list-loading">Loading…</div>';
-  var r = await apiFetch('/api/tournaments');
-  if (!r || !r.ok) { listEl.innerHTML = '<div class="tournament-list-empty">Could not load tournaments.</div>'; return; }
-  var tournaments = await r.json().catch(function(){ return []; });
+  var [tr, ur] = await Promise.all([
+    apiFetch('/api/tournaments'),
+    apiFetch('/api/users/assignable'),
+  ]);
+  if (!tr || !tr.ok) { listEl.innerHTML = '<div class="tournament-list-empty">Could not load tournaments.</div>'; return; }
+  var tournaments = await tr.json().catch(function(){ return []; });
+  _assignableUsers = ur && ur.ok ? await ur.json().catch(function(){ return []; }) : [];
   if (!tournaments.length) { listEl.innerHTML = '<div class="tournament-list-empty">No tournaments yet.</div>'; return; }
   listEl.innerHTML = '';
   tournaments.forEach(function(t) {
@@ -1725,22 +1731,93 @@ async function renderTournamentsPanel() {
     item.className = 'tournament-list-item' + (t.isCurrent ? ' tournament-list-item--current' : '');
     var badges = '';
     if (t.isCurrent)  badges += '<span class="tournament-badge tournament-badge--working">Working</span>';
-    if (t.is_public)  badges += '<span class="tournament-badge tournament-badge--public">Public</span>';
+    if (t.isPublic)   badges += '<span class="tournament-badge tournament-badge--public">Public</span>';
+    var userOptions = (_assignableUsers || []).map(function(u) {
+      return '<option value="' + escHtml(u.username) + '">' + escHtml(u.username) + ' (' + escHtml(u.role) + ')</option>';
+    }).join('');
     item.innerHTML =
-      '<div class="tournament-list-info">' +
-        '<span class="tournament-list-name">' + escHtml(t.name) + '</span>' +
-        '<span class="tournament-list-badges">' + badges + '</span>' +
+      '<div class="tournament-list-header" onclick="toggleTournamentExpand(this)">' +
+        '<div class="tournament-list-info">' +
+          '<span class="tournament-list-name">' + escHtml(t.name) + '</span>' +
+          '<span class="tournament-list-badges">' + badges + '</span>' +
+        '</div>' +
+        '<div class="tournament-list-actions">' +
+          (!t.isCurrent
+            ? '<button class="sched-save-btn tournament-action-btn" onclick="event.stopPropagation();switchTournament(' + t.id + ')">Switch Here</button>'
+            : '') +
+          (!t.isPublic
+            ? '<button class="admin-clear-btn tournament-action-btn" onclick="event.stopPropagation();setPublicTournament(' + t.id + ')">Set Public</button>'
+            : '') +
+          '<span class="tournament-expand-arrow">▶</span>' +
+        '</div>' +
       '</div>' +
-      '<div class="tournament-list-actions">' +
-        (!t.isCurrent
-          ? '<button class="sched-save-btn tournament-action-btn" onclick="switchTournament(' + t.id + ')">Switch Here</button>'
-          : '') +
-        (!t.is_public
-          ? '<button class="admin-clear-btn tournament-action-btn" onclick="setPublicTournament(' + t.id + ')">Set Public</button>'
-          : '') +
+      '<div class="tournament-expand-body" style="display:none">' +
+        '<div class="tournament-assigned-list" id="t-users-' + t.id + '"><em>Loading…</em></div>' +
+        '<div class="tournament-assign-row">' +
+          '<select class="tournament-assign-sel" id="t-assign-sel-' + t.id + '">' +
+            '<option value="">— assign user —</option>' + userOptions +
+          '</select>' +
+          '<button class="sched-save-btn tournament-action-btn" onclick="assignTournamentUser(' + t.id + ')">Assign</button>' +
+        '</div>' +
       '</div>';
     listEl.appendChild(item);
   });
+}
+
+function toggleTournamentExpand(headerEl) {
+  var item = headerEl.parentElement;
+  var body = item.querySelector('.tournament-expand-body');
+  var arrow = item.querySelector('.tournament-expand-arrow');
+  if (!body) return;
+  var opening = body.style.display === 'none';
+  body.style.display = opening ? '' : 'none';
+  if (arrow) arrow.textContent = opening ? '▼' : '▶';
+  if (opening) {
+    // Load assigned users for this tournament
+    var match = item.querySelector('.tournament-assigned-list');
+    if (match) {
+      var idMatch = match.id.match(/t-users-(\d+)/);
+      if (idMatch) loadTournamentUsers(parseInt(idMatch[1], 10));
+    }
+  }
+}
+
+async function loadTournamentUsers(tournamentId) {
+  var listEl = document.getElementById('t-users-' + tournamentId);
+  if (!listEl) return;
+  var r = await apiFetch('/api/tournaments/' + tournamentId + '/users');
+  if (!r || !r.ok) { listEl.innerHTML = '<em>Failed to load</em>'; return; }
+  var users = await r.json().catch(function(){ return []; });
+  if (!users.length) { listEl.innerHTML = '<em class="tournament-no-users">No users assigned</em>'; return; }
+  listEl.innerHTML = users.map(function(u) {
+    return '<div class="tournament-user-row">' +
+      '<span class="tournament-user-name">' + escHtml(u.username) + '</span>' +
+      '<span class="tournament-user-role">' + escHtml(u.role) + '</span>' +
+      '<button class="admin-clear-btn tournament-action-btn" onclick="removeTournamentUser(' + tournamentId + ',\'' + escHtml(u.username) + '\')">Remove</button>' +
+    '</div>';
+  }).join('');
+}
+
+async function assignTournamentUser(tournamentId) {
+  var sel = document.getElementById('t-assign-sel-' + tournamentId);
+  if (!sel || !sel.value) return;
+  var username = sel.value;
+  var r = await apiFetch('/api/tournaments/' + tournamentId + '/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: username })
+  });
+  if (!r || !r.ok) { showToast('Assignment failed', true); return; }
+  sel.value = '';
+  showToast(username + ' assigned');
+  loadTournamentUsers(tournamentId);
+}
+
+async function removeTournamentUser(tournamentId, username) {
+  var r = await apiFetch('/api/tournaments/' + tournamentId + '/users/' + encodeURIComponent(username), { method: 'DELETE' });
+  if (!r || !r.ok) { showToast('Remove failed', true); return; }
+  showToast(username + ' removed');
+  loadTournamentUsers(tournamentId);
 }
 
 async function switchTournament(id) {

@@ -2,7 +2,7 @@
 // ══════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════
-var results={}, schedule={}, settings={}, buckets={};
+var results={}, schedule={}, settings={}, buckets={}, teamRecords=[];
 var _sessionRole = null;
 var _bucketEditMode = false;
 var _bucketEditTeams = [];
@@ -230,6 +230,39 @@ function saveBucketEdit() {
 }
 
 // ══════════════════════════════════════════════════════════
+// RECORDS VIEW
+// ══════════════════════════════════════════════════════════
+function renderRecordsView() {
+  var out = document.getElementById('recordsOut');
+  if (!out) return;
+  var records = teamRecords || [];
+  if (!records.length) {
+    out.innerHTML = '<div class="records-empty">No results recorded yet.</div>';
+    return;
+  }
+  var rows = records.map(function(r) {
+    var total = r.wins + r.losses;
+    var pct = total > 0 ? Math.round(r.wins / total * 1000) / 10 : 0;
+    return '<tr>' +
+      '<td class="rec-team">' + esc(r.team_name) + '</td>' +
+      '<td class="rec-num rec-wins">' + r.wins + '</td>' +
+      '<td class="rec-num rec-losses">' + r.losses + '</td>' +
+      '<td class="rec-num rec-pct">' + pct.toFixed(1) + '%</td>' +
+    '</tr>';
+  }).join('');
+  out.innerHTML =
+    '<table class="records-table">' +
+      '<thead><tr>' +
+        '<th class="rec-team">Team</th>' +
+        '<th class="rec-num">W</th>' +
+        '<th class="rec-num">L</th>' +
+        '<th class="rec-num">Win%</th>' +
+      '</tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+    '</table>';
+}
+
+// ══════════════════════════════════════════════════════════
 // COOKIES
 // ══════════════════════════════════════════════════════════
 function setCookie(name, val) {
@@ -287,6 +320,7 @@ function renderActive(){
   if(v==='schedule')  { renderRoundView(); setTimeout(scrollToLastCompletedCard, 60); }
   if(v==='teampath')  renderTeamView();
   if(v==='buckets') renderBucketView();
+  if(v==='records') renderRecordsView();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -294,16 +328,18 @@ function renderActive(){
 // ══════════════════════════════════════════════════════════
 async function fetchAll(){
   try{
-    var [rr,sr,str,br]=await Promise.all([
+    var [rr,sr,str,br,recr]=await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
       fetch('/api/buckets'),
+      fetch('/api/team-records'),
     ]);
     results=await rr.json(); schedule=await sr.json(); settings=await str.json();
     buckets=br.ok ? await br.json() : {};
+    teamRecords=recr.ok ? await recr.json() : [];
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; buckets={}; }
+  }catch(e){ results={}; schedule={}; settings={}; buckets={}; teamRecords=[]; }
   applySettings();
   updateTimestamp();
   populateTeamSelect();
