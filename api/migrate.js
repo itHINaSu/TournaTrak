@@ -2,7 +2,7 @@
 // Called at server startup. Safe to run on every start (idempotent).
 const fs   = require('fs');
 const path = require('path');
-const { pool } = require('./db');
+const { pool, withTransaction } = require('./db');
 
 const SCHEMA = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
 
@@ -76,6 +76,28 @@ async function ensureAdminUser(regionId, tournamentId) {
   console.log('migrate: bootstrapped admin user:', ADMIN_USERNAME);
 }
 
+async function recalcTeamRecordsMigrate(tournamentId) {
+  const { rows } = await pool.query(
+    `SELECT winner, loser FROM results WHERE tournament_id = $1 AND winner IS NOT NULL`, [tournamentId]
+  );
+  const counts = {};
+  const bump = (name, field) => {
+    if (!name) return;
+    if (!counts[name]) counts[name] = { wins: 0, losses: 0 };
+    counts[name][field]++;
+  };
+  for (const r of rows) { bump(r.winner, 'wins'); bump(r.loser, 'losses'); }
+  await withTransaction(async (client) => {
+    await client.query('DELETE FROM team_records WHERE tournament_id = $1', [tournamentId]);
+    for (const [team, rec] of Object.entries(counts)) {
+      await client.query(
+        `INSERT INTO team_records (tournament_id, team_name, wins, losses) VALUES ($1,$2,$3,$4)`,
+        [tournamentId, team, rec.wins, rec.losses]
+      );
+    }
+  });
+}
+
 async function seedFromJson(regionId, tournamentId) {
   console.log('migrate: seeding from JSON files...');
 
@@ -104,7 +126,7 @@ async function seedFromJson(regionId, tournamentId) {
         u.username,
         u.passwordHash || null,
         u.role,
-        u.role === 'admin',
+        !!u.isGlobalAdmin,   // explicit flag only; seeded users are never global admin by default
         !!u.mustChangePassword,
         u.setupToken   || null,
         u.accessToken  || null,
@@ -153,7 +175,8 @@ async function seedFromJson(regionId, tournamentId) {
 
   // Results
   const resultsData = readJSON(RESULTS_FILE) || {};
-  for (const [slotId, result] of Object.entries(resultsData)) {
+  const resultEntries = Object.entries(resultsData);
+  for (const [slotId, result] of resultEntries) {
     if (!result) continue;
     await pool.query(
       `INSERT INTO results (tournament_id, slot_id, winner, loser, t1_score, t2_score, saved_at)
@@ -168,6 +191,8 @@ async function seedFromJson(regionId, tournamentId) {
       ]
     );
   }
+  // Build team_records from the seeded results
+  if (resultEntries.length) await recalcTeamRecordsMigrate(tournamentId);
 
   // Lineups — shape: { slotId: { teamName: { rows, updatedAt } } }
   const lineupsData = readJSON(LINEUPS_FILE) || {};

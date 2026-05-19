@@ -144,10 +144,10 @@ function showToast(msg, err) {
 async function fetchAll() {
   try {
     var [rr, sr, str, br] = await Promise.all([
-      fetch('/api/results'),
-      fetch('/api/schedule'),
-      fetch('/api/settings'),
-      fetch('/api/buckets'),
+      fetch('/api/admin/results'),
+      fetch('/api/admin/schedule'),
+      fetch('/api/admin/settings'),
+      fetch('/api/admin/buckets'),
     ]);
     results  = await rr.json();
     schedule = await sr.json();

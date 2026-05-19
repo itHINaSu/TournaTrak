@@ -577,10 +577,11 @@ async function lineupInit() {
     if (teamHeader) teamHeader.textContent = isAdmin ? 'All Teams' : (currentTeamName || '');
     document.getElementById('lineupContent').style.display = '';
 
+    var apiBase = isAdmin ? '/api/admin' : '/api';
     var [rr, schedR, settingsR] = await Promise.all([
-      fetch('/api/results'),
-      fetch('/api/schedule'),
-      fetch('/api/settings'),
+      fetch(apiBase + '/results'),
+      fetch(apiBase + '/schedule'),
+      fetch(apiBase + '/settings'),
     ]);
     lineupResults    = rr.ok       ? await rr.json()       : {};
     var sched        = schedR.ok   ? await schedR.json()   : {};
