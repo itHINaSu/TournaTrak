@@ -473,8 +473,8 @@ function updateShiftPreview() {
   var shiftedMax  = shifted.reduce(function(a,b){ return a > b ? a : b; });
 
   var html = 'Shift <strong>' + times.length + ' game' + (times.length !== 1 ? 's' : '') + '</strong>'
-    + ' on <strong>' + dateDisplay + '</strong>'
-    + ' forward by <strong>' + amount + ' ' + unitLabel + '</strong>.'
+    + ' on <strong>' + esc(dateDisplay) + '</strong>'
+    + ' forward by <strong>' + amount + ' ' + esc(unitLabel) + '</strong>.'
     + '<br>New times: <strong>' + fmtTime(shiftedMin) + '</strong>'
     + (times.length > 1 ? ' → <strong>' + fmtTime(shiftedMax) + '</strong>' : '') + '.';
 
@@ -503,8 +503,8 @@ function applyShiftDay() {
 
   var text = document.getElementById('shiftConfirmText');
   text.innerHTML = 'Shift <strong>' + count + ' game' + (count !== 1 ? 's' : '') + '</strong>'
-    + ' on <strong>' + dateDisplay + '</strong>'
-    + ' forward by <strong>' + amount + ' ' + unitLabel + '</strong>?'
+    + ' on <strong>' + esc(dateDisplay) + '</strong>'
+    + ' forward by <strong>' + amount + ' ' + esc(unitLabel) + '</strong>?'
     + '<br><span style="font-size:0.78rem;color:var(--text-mute);font-style:italic">This cannot be undone.</span>';
 
   document.getElementById('shiftActions').style.display  = 'none';
@@ -536,7 +536,7 @@ async function confirmShiftDay() {
     var data = await r.json();
 
     // Reload schedule into GAMES
-    var sr = await apiFetch('/api/schedule');
+    var sr = await apiFetch('/api/admin/schedule');
     if (sr && sr.ok) {
       var newSched = await sr.json();
       schedule = newSched;
@@ -1099,11 +1099,11 @@ function renderUsersList(users) {
     var statusLine = u.mustChangePassword ? '<span class="user-must-change">pw change pending</span>' : '';
 
     var actions = '';
-    if (u.role === 'team' && u.accessToken) {
-      actions += '<button class="sched-save-btn" onclick="copyMagicLink(\'' + esc(u.accessToken) + '\')">Copy Link</button>';
+    if (u.role === 'team' && u.hasAccessToken) {
+      actions += '<button class="sched-save-btn" onclick="copyMagicLink(\'' + esc(u.username) + '\')">Copy Link</button>';
       actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>';
-    } else if (u.setupToken) {
-      actions += '<button class="sched-save-btn" onclick="copySetupLink(\'' + esc(u.setupToken) + '\')">Copy Setup Link</button>';
+    } else if (u.hasSetupToken) {
+      actions += '<button class="sched-save-btn" onclick="copySetupLink(\'' + esc(u.username) + '\')">Copy Setup Link</button>';
     } else if (!isSelf && u.role !== 'team') {
       actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateSetupLink(\'' + esc(u.username) + '\')">Regenerate Link</button>';
     } else if (!isSelf) {
@@ -1135,15 +1135,21 @@ function copyText(text) {
   }
 }
 
-function copyMagicLink(token) {
-  var link = window.location.origin + '/api/team-access/' + token;
-  copyText(link);
+async function copyMagicLink(username) {
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/access-token');
+  if (!r || !r.ok) { showToast('Failed to retrieve link', true); return; }
+  var d = await r.json().catch(function() { return {}; });
+  if (!d.accessToken) { showToast('No access token found', true); return; }
+  copyText(window.location.origin + '/api/team-access/' + d.accessToken);
   showToast('Link copied to clipboard');
 }
 
-function copySetupLink(token) {
-  var link = window.location.origin + '/api/setup-password/' + token;
-  copyText(link);
+async function copySetupLink(username) {
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/setup-token');
+  if (!r || !r.ok) { showToast('Failed to retrieve setup link', true); return; }
+  var d = await r.json().catch(function() { return {}; });
+  if (!d.setupToken) { showToast('No setup token found', true); return; }
+  copyText(window.location.origin + '/api/setup-password/' + d.setupToken);
   showToast('Setup link copied to clipboard');
 }
 
@@ -1172,12 +1178,17 @@ async function regenerateToken(username) {
   if (!confirm('Regenerate access link for "' + username + '"?\nThe old link will stop working immediately.')) return;
   var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/regenerate-token', { method: 'POST' });
   if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
   if (!r.ok) {
-    var data = await r.json().catch(function(){ return {}; });
     showToast(data.error || 'Regenerate failed', true);
     return;
   }
-  showToast('New link generated for ' + username);
+  if (data.accessToken) {
+    copyText(window.location.origin + '/api/team-access/' + data.accessToken);
+    showToast('New link generated and copied for ' + username);
+  } else {
+    showToast('New link generated for ' + username);
+  }
   loadUsers();
 }
 
@@ -1208,13 +1219,13 @@ async function addUser() {
   if (document.getElementById('newTeamName')) document.getElementById('newTeamName').value = '';
 
   if (data.setupToken) {
-    var setupLink = window.location.origin + '/api/setup-password/' + data.setupToken;
-    copyText(setupLink);
+    copyText(window.location.origin + '/api/setup-password/' + data.setupToken);
     showToast('User created — setup link copied to clipboard');
     status.textContent = '✓ Created — setup link copied';
     setTimeout(function(){ status.textContent = ''; }, 5000);
   } else if (data.accessToken) {
-    copyMagicLink(data.accessToken);
+    copyText(window.location.origin + '/api/team-access/' + data.accessToken);
+    showToast('User created — magic link copied to clipboard');
     status.textContent = '✓ Created — magic link copied';
     setTimeout(function(){ status.textContent = ''; }, 5000);
   } else {
@@ -1555,7 +1566,7 @@ function renderCoachesList(coaches) {
   }
   el.innerHTML = coaches.map(function(u) {
     var teams = Array.isArray(u.teams) && u.teams.length ? u.teams : (u.teamName ? [u.teamName] : []);
-    var link  = u.accessToken ? (window.location.origin + '/api/team-access/' + u.accessToken) : '';
+    var hasLink = !!u.hasAccessToken;
     var teamTags = teams.map(function(t) {
       var canRemove = teams.length > 1;
       return '<span class="coach-team-tag">' + esc(t)
@@ -1574,9 +1585,8 @@ function renderCoachesList(coaches) {
       +   '<button class="admin-clear-btn" onclick="hideAddCoachTeam(\'' + esc(u.username) + '\')">Cancel</button>'
       + '</div>'
       + '<div class="coach-actions">'
-      +   (link ? '<input type="text" class="coach-link-hidden" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly tabindex="-1" aria-hidden="true">' : '')
-      +   (link ? '<button class="admin-save-btn" onclick="copyCoachLink(\'' + esc(u.username) + '\')">Copy Link</button>' : '')
-      +   (u.accessToken ? '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>' : '')
+      +   (hasLink ? '<button class="admin-save-btn" onclick="copyMagicLink(\'' + esc(u.username) + '\')">Copy Link</button>' : '')
+      +   (hasLink ? '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>' : '')
       +   '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + esc(u.username) + '\')">Delete</button>'
       + '</div>'
       + '</div>';
@@ -1624,16 +1634,6 @@ async function removeCoachTeam(username, teamName) {
   loadCoaches();
 }
 
-function copyCoachLink(username) {
-  var el = document.getElementById('cl-' + username);
-  if (!el) return;
-  var text = el.value;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(function() { showToast('Link copied'); }).catch(function() { fallbackCopy(text); });
-  } else {
-    fallbackCopy(text);
-  }
-}
 
 async function addCoach() {
   var username = (document.getElementById('newCoachUsername').value || '').trim();

@@ -265,9 +265,9 @@ async function getAllUsersPublic(tid) {
     const teams = await fetchUserTeams(row.id, tid);
     const out = { username: row.username, role: row.role, mustChangePassword: row.must_change_password };
     if (row.role === 'team') {
-      out.teamName = teams[0] || null; out.teams = teams; out.accessToken = row.access_token;
+      out.teamName = teams[0] || null; out.teams = teams; out.hasAccessToken = !!row.access_token;
     } else if (row.must_change_password && row.setup_token) {
-      out.setupToken = row.setup_token;
+      out.hasSetupToken = true;
     }
     result.push(out);
   }
@@ -308,6 +308,22 @@ function loginRateLimit(req, res, next) {
   }
   loginAttempts.set(ip, entry);
   req._loginEntry = entry;
+  next();
+}
+
+const tokenAttempts = new Map();
+const TOKEN_WINDOW_MS = 60 * 1000;
+const TOKEN_MAX_REQS  = 10;
+function tokenRateLimit(req, res, next) {
+  const ip = req.ip, now = Date.now();
+  const entry = tokenAttempts.get(ip) || { count: 0, windowStart: now };
+  if (now - entry.windowStart > TOKEN_WINDOW_MS) { entry.count = 0; entry.windowStart = now; }
+  if (entry.count >= TOKEN_MAX_REQS) {
+    res.setHeader('Retry-After', Math.ceil((entry.windowStart + TOKEN_WINDOW_MS - now) / 1000));
+    return res.status(429).json({ error: 'Too many requests. Try again later.' });
+  }
+  entry.count++;
+  tokenAttempts.set(ip, entry);
   next();
 }
 
@@ -388,7 +404,12 @@ app.post('/api/login', loginRateLimit, ah(async (req, res) => {
     return res.status(400).json({ error: 'username and password required' });
   }
   const user = await findUser(username);
-  const passwordOk = await bcrypt.compare(password, user ? user.passwordHash : SENTINEL_HASH);
+  let passwordOk;
+  try {
+    passwordOk = await bcrypt.compare(password, user ? user.passwordHash : SENTINEL_HASH);
+  } catch (e) {
+    passwordOk = false;
+  }
   if (!user || !passwordOk) {
     if (req._loginEntry) req._loginEntry.count++;
     return res.status(401).json({ error: 'Invalid credentials' });
@@ -433,8 +454,23 @@ app.post('/api/change-password', ah(async (req, res) => {
   const user = await findUser(req.session.username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   await updateUser(req.session.username, { passwordHash: hash, mustChangePassword: false, setupToken: null });
-  req.session.mustChangePassword = false;
-  res.json({ ok: true });
+  const _username     = req.session.username;
+  const _role         = req.session.role;
+  const _isGlobalAdmin = req.session.isGlobalAdmin;
+  const _tournamentId = req.session.tournamentId;
+  const _teams        = req.session.teams;
+  const _teamName     = req.session.teamName;
+  req.session.regenerate(err => {
+    if (err) return res.status(500).json({ error: 'Session error' });
+    req.session.username           = _username;
+    req.session.role               = _role;
+    req.session.isGlobalAdmin      = !!_isGlobalAdmin;
+    req.session.tournamentId       = _tournamentId;
+    req.session.mustChangePassword = false;
+    if (_teams)    req.session.teams    = _teams;
+    if (_teamName) req.session.teamName = _teamName;
+    res.json({ ok: true });
+  });
 }));
 
 app.post('/api/change-username', ah(async (req, res) => {
@@ -526,6 +562,22 @@ app.post('/api/users/:username/regenerate-token', requireAdmin, ah(async (req, r
   res.json({ ok: true, accessToken });
 }));
 
+app.get('/api/users/:username/access-token', requireAdmin, ah(async (req, res) => {
+  const user = await findUser(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role !== 'team') return res.status(400).json({ error: 'Only team users have access tokens' });
+  if (!user.accessToken) return res.status(404).json({ error: 'No access token' });
+  res.json({ accessToken: user.accessToken });
+}));
+
+app.get('/api/users/:username/setup-token', requireAdmin, ah(async (req, res) => {
+  const user = await findUser(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (user.role === 'team') return res.status(400).json({ error: 'Team users use access tokens' });
+  if (!user.setupToken) return res.status(404).json({ error: 'No setup token' });
+  res.json({ setupToken: user.setupToken });
+}));
+
 app.post('/api/users/:username/teams', requireAdmin, ah(async (req, res) => {
   const { teamName } = req.body || {};
   if (!teamName || typeof teamName !== 'string' || !teamName.trim())
@@ -554,7 +606,7 @@ app.delete('/api/users/:username/teams/:teamName', requireAdmin, ah(async (req, 
   res.json({ ok: true });
 }));
 
-app.get('/api/setup-password/:token', ah(async (req, res) => {
+app.get('/api/setup-password/:token', tokenRateLimit, ah(async (req, res) => {
   const { token } = req.params;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return res.redirect('/admin?setup=invalid');
   const user = await findUserByToken('setup_token', token);
@@ -567,11 +619,13 @@ app.get('/api/setup-password/:token', ah(async (req, res) => {
     req.session.isGlobalAdmin      = !!user.isGlobalAdmin;
     req.session.tournamentId       = tournamentId;
     req.session.mustChangePassword = true;
+    // Invalidate the setup token so the link cannot be reused
+    updateUser(user.username, { setupToken: null }).catch(() => {});
     res.redirect('/admin?setup=1');
   });
 }));
 
-app.get('/api/team-access/:token', ah(async (req, res) => {
+app.get('/api/team-access/:token', tokenRateLimit, ah(async (req, res) => {
   const { token } = req.params;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return res.redirect('/lineup?invalid=1');
   const user = await findUserByToken('access_token', token);
@@ -793,7 +847,7 @@ app.delete('/api/results/:slot', requireResults, ah(async (req, res) => {
   if (results[game] === undefined) return res.status(404).json({ error: 'game not found' });
   const t = tid(req);
   await db.query(
-    `UPDATE results SET winner = NULL, loser = NULL WHERE tournament_id = $1 AND slot_id = $2`,
+    `UPDATE results SET winner = NULL, loser = NULL, t1_score = NULL, t2_score = NULL WHERE tournament_id = $1 AND slot_id = $2`,
     [t, game]
   );
   await recalcTeamRecords(t);
@@ -823,17 +877,19 @@ app.post('/api/schedule/shift-day', requireAdmin, ah(async (req, res) => {
 
   let shifted = 0, crossedMidnight = 0;
   const pad = n => n < 10 ? '0' + n : '' + n;
-  for (const row of rows) {
-    const d = new Date(row.game_time);
-    const origDate = row.game_time.substring(0, 10);
-    if (unit === 'hours') d.setTime(d.getTime() + amt * 3600000);
-    else d.setDate(d.getDate() + amt);
-    const newDate = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
-    const newTime = pad(d.getHours()) + ':' + pad(d.getMinutes());
-    await db.query(`UPDATE schedule SET game_time = $1 WHERE id = $2`, [newDate + 'T' + newTime, row.id]);
-    if (newDate !== origDate) crossedMidnight++;
-    shifted++;
-  }
+  await db.withTransaction(async (client) => {
+    for (const row of rows) {
+      const d = new Date(row.game_time);
+      const origDate = row.game_time.substring(0, 10);
+      if (unit === 'hours') d.setTime(d.getTime() + amt * 3600000);
+      else d.setDate(d.getDate() + amt);
+      const newDate = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+      const newTime = pad(d.getHours()) + ':' + pad(d.getMinutes());
+      await client.query(`UPDATE schedule SET game_time = $1 WHERE id = $2`, [newDate + 'T' + newTime, row.id]);
+      if (newDate !== origDate) crossedMidnight++;
+      shifted++;
+    }
+  });
   res.json({ ok: true, shifted, crossedMidnight });
 }));
 
@@ -870,7 +926,7 @@ app.get('/api/lineups/game/:slotId', requireResults, ah(async (req, res) => {
   res.json(out);
 }));
 
-app.get('/api/lineups/game/:slotId/:teamName', requireLineupRead, ah(async (req, res) => {
+app.get('/api/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, res) => {
   const { slotId, teamName } = req.params;
   if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
   const { rows } = await db.query(
@@ -988,8 +1044,8 @@ app.post('/api/buckets/counts', requireBucketsEdit, ah(async (req, res) => {
   });
   const data = await getBucketData(tid(req));
   data.counts = clean;
-  if (Array.isArray(order))  data.order  = order.map(String).filter(s => s.trim());
-  if (Array.isArray(hidden)) data.hidden = hidden.map(String).filter(s => s.trim());
+  if (Array.isArray(order))  data.order  = order.slice(0, 500).map(String).map(s => s.slice(0, 200)).filter(s => s.trim());
+  if (Array.isArray(hidden)) data.hidden = hidden.slice(0, 500).map(String).map(s => s.slice(0, 200)).filter(s => s.trim());
   data.updatedAt = new Date().toISOString();
   await saveBucketData(tid(req), data);
   res.json({ ok: true });
