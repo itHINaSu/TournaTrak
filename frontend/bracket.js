@@ -1638,6 +1638,16 @@ function buildWinChain(sid){
   return chain;
 }
 
+// Celebratory championship banner for the team path. crowned=true once the
+// team has actually won it (drops the "WIN →" prefix).
+function champBannerHTML(crowned) {
+  return '<div class="team-path-champion' + (crowned ? ' is-crowned' : '') + '">'
+    + (crowned ? '' : '<span class="tpc-pre">WIN</span><span class="tpc-pre">→</span>')
+    + '<span class="tpc-trophy">🏆</span>'
+    + '<span class="tpc-word">Champion</span>'
+    + '</div>';
+}
+
 function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
   var GREEN = 'var(--win-color)';
 
@@ -1670,11 +1680,14 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
     var champElim = isLosePath && g && g.round === 'CHAMP';
     if (!played) {
       var ln = findNextSlot(gid, 'loser');
-      var destText = (!champElim && ln) ? gameLabel(ln) : 'OUT';
-      loseSide = '<div class="round-lose-side">'
+      var canNav = !champElim && ln;
+      var destText = canNav ? gameLabel(ln) : 'OUT';
+      loseSide = '<div class="round-lose-side"'
+        + (canNav ? ' data-lose-anchor="tp-lose-' + esc(gid) + '" role="button" title="Jump to this path"' : '')
+        + '>'
         + '<span class="round-lose-tag">LOSS</span>'
         + '<span class="round-lose-arrow">↓</span>'
-        + '<span class="round-lose-dest' + ((!champElim && ln) ? '' : ' out') + '">' + esc(destText) + '</span>'
+        + '<span class="round-lose-dest' + (canNav ? '' : ' out') + '">' + esc(destText) + '</span>'
         + '</div>';
     } else if (teamWon) {
       loseSide = '<div class="round-win-side">'
@@ -1684,7 +1697,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
     } else if (teamLost) {
       var ln = findNextSlot(gid, 'loser');
       if (ln && !champElim) {
-        loseSide = '<div class="round-lose-side">'
+        loseSide = '<div class="round-lose-side" data-lose-anchor="tp-lose-' + esc(gid) + '" role="button" title="Jump to this path">'
           + '<span class="round-lose-tag">Lost</span>'
           + '<span class="round-lose-arrow round-lose-arrow--cont">↓</span>'
           + '<span class="round-lose-dest">' + esc(gameLabel(ln)) + '</span>'
@@ -1732,8 +1745,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
     // CHAMP2 only applies if they LOSE CHAMP — that continuation is shown via the
     // loser path in renderTeamView. LB finalist (isLosePath=true) continues past CHAMP.
     if (!isLosePath && g && g.round === 'CHAMP') {
-      html += '<div class="team-path-annotation team-path-annotation--terminal color-gold">'
-        + 'WIN → CHAMPION 🏆</div>';
+      html += champBannerHTML(teamWon);
       break;
     }
 
@@ -1755,8 +1767,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
           + '<span class="color-win">' + esc(gameLabel(wn)) + '</span>'
           + '</div>';
       } else {
-        html += '<div class="team-path-annotation team-path-annotation--terminal color-gold">'
-          + 'WIN → CHAMP 🏆</div>';
+        html += champBannerHTML(teamWon);
       }
     }
   }
@@ -1854,7 +1865,7 @@ function renderTeamView(){
         var lopp2 = resolveSlot(lgGame.t2, results);
         var lossOpp = (lopp1 === team) ? (lopp2 || smartLabel(lgGame.t2, results)) : (lopp1 || smartLabel(lgGame.t1, results));
         html+='<div class="team-path-divider"></div>';
-        html+='<div class="team-path-label lose-label">Loss to '+esc(lossOpp)+'</div>';
+        html+='<div class="team-path-label lose-label" id="tp-lose-'+esc(gid)+'">Loss to '+esc(lossOpp)+'</div>';
         // Show the game that put the team on the lose path, then a LOSS connector.
         // This makes the lose path section self-contained with full context.
         if(teamLostHere){
@@ -1875,6 +1886,22 @@ function renderTeamView(){
   out.innerHTML=html;
   syncLoseSideWidths();
   applyStickyOffsets();
+
+  // Clicking a "LOSS ↓ G#" box jumps to that game's section further down
+  // the team path. Bound once; survives innerHTML re-renders.
+  if(!out._loseNavBound){
+    out._loseNavBound=true;
+    out.addEventListener('click',function(e){
+      var box=e.target.closest ? e.target.closest('[data-lose-anchor]') : null;
+      if(!box) return;
+      var target=document.getElementById(box.getAttribute('data-lose-anchor'));
+      if(!target) return;
+      target.scrollIntoView({behavior:'smooth',block:'center'});
+      target.classList.remove('tp-target-flash');
+      void target.offsetWidth; // restart the highlight animation
+      target.classList.add('tp-target-flash');
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════════════

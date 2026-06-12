@@ -854,6 +854,53 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .team-path-label.lose-label { color: var(--lose-color); }
 .team-path-divider { margin: 1.4em 0; height: 0.07em; background: var(--border); }
 
+/* ── Championship banner (team path terminal) ── */
+.team-path-champion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  margin: 0.9em 0 0.5em;
+  padding: 0.7em 1.4em;
+  background: linear-gradient(135deg, rgba(196,154,26,0.16), rgba(196,154,26,0.04));
+  border: 0.1em solid var(--gold);
+  border-radius: var(--radius-md);
+  box-shadow: 0 0 16px rgba(196,154,26,0.22);
+}
+.team-path-champion .tpc-pre {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--win-color);
+}
+.team-path-champion .tpc-trophy { font-size: 1.7rem; line-height: 1; }
+.team-path-champion .tpc-word {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold-lt);
+}
+.team-path-champion.is-crowned {
+  box-shadow: 0 0 24px rgba(196,154,26,0.4);
+}
+.team-path-champion.is-crowned .tpc-word { font-size: 1.55rem; }
+
+/* ── Clickable loss-destination boxes (team path navigation) ── */
+.round-lose-side[data-lose-anchor] { cursor: pointer; }
+.round-lose-side[data-lose-anchor]:hover .round-lose-dest,
+.round-lose-side[data-lose-anchor]:active .round-lose-dest {
+  text-decoration: underline;
+  color: var(--lose-color);
+}
+.tp-target-flash { animation: tpTargetFlash 1.4s ease-out; }
+@keyframes tpTargetFlash {
+  0%   { box-shadow: 0 0 0 0.25em var(--gold); }
+  100% { box-shadow: 0 0 0 0.25em transparent; }
+}
+
 /* ── Championship bar (mobile/rounds) ── */
 .champ-bar { margin: 0.4em 0 0.75em; padding: 0.65em 0.9em; background: var(--surface2); border-radius: var(--radius-sm); border: 0.07em solid var(--border); }
 .champ-bar-label { font-family: 'Oswald', sans-serif; font-size: 0.68rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--gold); margin-bottom: 0.5em; }
