@@ -418,9 +418,11 @@ function occupiedCard(sid) {
   var t1disp = t1f ? (over.t1name||g.t1.team) : slotLabel(g.t1);
   var t2disp = t2f ? (over.t2name||g.t2.team) : slotLabel(g.t2);
 
+  var field = over.field || g.field || '';
   var h = '<div class="sched-game-card" data-sid="' + sid + '">';
   h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
     + '<span class="sched-game-hdr-id">' + esc(lbl) + '</span>'
+    + (field ? '<span class="sched-game-hdr-field">' + esc(field) + '</span>' : '')
     + '<span class="sched-game-hdr-sid">' + esc(sid) + '</span>'
     + '<span class="sched-game-hdr-time">' + esc(formatTime(time)) + '</span>'
     + '<span class="sched-game-hdr-teams">' + esc(t1disp) + ' vs ' + esc(t2disp) + '</span>'
