@@ -1023,6 +1023,28 @@ function renderMobileBracket(root, dims) {
   var outer  = document.getElementById('mbcOuter');
   var colEls = Array.prototype.slice.call(outer.querySelectorAll('.mbc-col'));
 
+  // colStarts[i] = scrollLeft value that puts column i at the left edge.
+  // Needed because CHAMP/CHAMP2 columns are winW wide, not colW.
+  var colStarts = [];
+  (function() {
+    var acc = 0;
+    rounds.forEach(function(round, ri) {
+      colStarts[ri] = acc;
+      acc += (round === 'CHAMP' || round === 'CHAMP2') ? winW : colW;
+    });
+  }());
+  var maxScrollLeft = colStarts[colStarts.length - 1];
+
+  // Returns the column index whose left edge is nearest to scrollLeft x.
+  function colIndexAt(x) {
+    var best = 0, bestDist = Math.abs(x - colStarts[0]);
+    for (var ci = 1; ci < colStarts.length; ci++) {
+      var d = Math.abs(x - colStarts[ci]);
+      if (d < bestDist) { bestDist = d; best = ci; }
+    }
+    return best;
+  }
+
   // ── Pass 2: measure actual header height, compute positions ──────────
   var mbcHdrH = colEls[0] ? colEls[0].querySelector('.mbc-hdr').getBoundingClientRect().height : 36;
   var scrollH = viewH - mbcHdrH;  // actual visible scroll area height
@@ -1031,7 +1053,7 @@ function renderMobileBracket(root, dims) {
   // Uses actual games in GAMES so the layout adapts to any bracket structure.
   var earlyY = {};
   rounds.forEach(function(round) {
-    var isChamp  = round === 'CHAMP';
+    var isChamp  = round === 'CHAMP' || round === 'CHAMP2';
     var gids     = gidsFor(round);
     var numSlots = gids.length;
     var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
@@ -1046,7 +1068,7 @@ function renderMobileBracket(root, dims) {
 
   // innerH: exact content height so there's no excess blank space at bottom
   function roundInnerH(round) {
-    var isChamp  = round === 'CHAMP';
+    var isChamp  = round === 'CHAMP' || round === 'CHAMP2';
     var numSlots = gidsFor(round).length;
     var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
     var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
@@ -1056,22 +1078,30 @@ function renderMobileBracket(root, dims) {
     return Math.max(offset + totalH + GAP, scrollH);
   }
 
-  // lateY: each game i centered between its two feeder slots (2i and 2i+1).
-  // Falls back to earlyY when feeder slots can't be paired (e.g. double-elim
-  // games that draw from non-adjacent rounds or cross-bracket sources).
+  // lateY: where each game's card sits when the PREVIOUS round is active
+  // (i.e. this round is the right-peek column). Positioned at the midpoint
+  // of its actual feeder games' earlyY values, following t1/t2 connections
+  // so cross-bracket DE games (LB drawing from both LB and WB losers) are
+  // placed correctly instead of using a sequential array-index pairing.
   var lateY = {};
-  var prevRoundFor = { R2:'R1', QF:'R2', QF2:'QF', SF:'QF2', CHAMP:'SF', CHAMP2:'CHAMP' };
-  ['R2','QF','QF2','SF','CHAMP','CHAMP2'].forEach(function(round) {
-    var prevKeys = gidsFor(prevRoundFor[round]);
-    var curKeys  = gidsFor(round);
-    curKeys.forEach(function(gid, i) {
+  rounds.forEach(function(round) {
+    var gids = gidsFor(round);
+    gids.forEach(function(gid) {
       if (round === 'CHAMP' || round === 'CHAMP2') {
         lateY[gid] = earlyY[gid] !== undefined ? earlyY[gid] : 0;
         return;
       }
-      var p0 = prevKeys[2 * i], p1 = prevKeys[2 * i + 1];
-      lateY[gid] = (p0 && p1 && earlyY[p0] !== undefined && earlyY[p1] !== undefined)
-        ? (earlyY[p0] + earlyY[p1]) / 2
+      var g = GAMES[gid];
+      if (!g) { lateY[gid] = earlyY[gid] !== undefined ? earlyY[gid] : 0; return; }
+      var feeders = [];
+      [g.t1, g.t2].forEach(function(slot) {
+        if (!slot) return;
+        var srcGid = slot.type === 'fixed' ? null : slot.slot;
+        if (srcGid && earlyY[srcGid] !== undefined) feeders.push(earlyY[srcGid]);
+      });
+      lateY[gid] = feeders.length >= 2
+        ? (feeders[0] + feeders[1]) / 2
+        : feeders.length === 1 ? feeders[0]
         : (earlyY[gid] !== undefined ? earlyY[gid] : 0);
     });
   });
@@ -1196,8 +1226,8 @@ function renderMobileBracket(root, dims) {
     dot.addEventListener('click', function(e) {
       e.stopPropagation();
       var ri = parseInt(dot.dataset.ri, 10);
-      outer.scrollTo ? outer.scrollTo({ left: ri * colW, behavior: 'smooth' })
-                     : (outer.scrollLeft = ri * colW);
+      outer.scrollTo ? outer.scrollTo({ left: colStarts[ri], behavior: 'smooth' })
+                     : (outer.scrollLeft = colStarts[ri]);
     });
   });
 
@@ -1228,19 +1258,20 @@ function renderMobileBracket(root, dims) {
     if (dt > 0) hSwipe.velocity = (t.clientX - hSwipe.lastX) / dt;
     hSwipe.lastX = t.clientX;
     hSwipe.lastTime = now;
-    var maxLeft = (colEls.length - 1) * colW;
-    outer.scrollLeft = Math.max(0, Math.min(hSwipe.startLeft - dx, maxLeft));
+    outer.scrollLeft = Math.max(0, Math.min(hSwipe.startLeft - dx, maxScrollLeft));
   }, { passive: true });
 
   captureEl.addEventListener('touchend', function(e) {
     if (!hSwipe || !hSwipe.isHoriz) { hSwipe = null; return; }
-    var dx  = e.changedTouches[0].clientX - hSwipe.startX;
-    var vel = hSwipe.velocity; // px/ms, positive = moving right
-    var raw = (hSwipe.startLeft - dx) / colW;
-    var snap = vel < -0.25 ? Math.ceil(raw) : vel > 0.25 ? Math.floor(raw) : Math.round(raw);
-    snap = Math.max(0, Math.min(snap, colEls.length - 1));
-    outer.scrollTo ? outer.scrollTo({ left: snap * colW, behavior: 'smooth' })
-                   : (outer.scrollLeft = snap * colW);
+    var dx   = e.changedTouches[0].clientX - hSwipe.startX;
+    var vel  = hSwipe.velocity; // px/ms, positive = moving right
+    var endX = hSwipe.startLeft - dx;
+    var base = colIndexAt(endX);
+    var snap = vel < -0.25 ? Math.min(base + 1, colEls.length - 1)
+             : vel > 0.25  ? Math.max(base - 1, 0)
+             : base;
+    outer.scrollTo ? outer.scrollTo({ left: colStarts[snap], behavior: 'smooth' })
+                   : (outer.scrollLeft = colStarts[snap]);
     hSwipe = null;
   }, { passive: true });
 
@@ -1252,9 +1283,13 @@ function renderMobileBracket(root, dims) {
     var x        = outer.scrollLeft;
     var dir      = x >= _scrollLeftPrev ? 1 : -1;
     _scrollLeftPrev = x;
-    var idx      = Math.round(x / colW);
-    var floorIdx = Math.floor(x / colW);
-    var progress = (x - floorIdx * colW) / colW;
+    var idx      = colIndexAt(x);
+    var floorIdx = (function() {
+      for (var ci = colStarts.length - 1; ci >= 0; ci--) { if (colStarts[ci] <= x) return ci; }
+      return 0;
+    }());
+    var segW     = (floorIdx + 1 < colStarts.length ? colStarts[floorIdx + 1] : colStarts[floorIdx] + colW) - colStarts[floorIdx];
+    var progress = Math.min((x - colStarts[floorIdx]) / segW, 1);
 
     // Left columns (behind): fully stacked toward their next-round child position
     for (var j = 0; j < floorIdx; j++)                 applyPrevBlend(j, 1);
@@ -1327,7 +1362,7 @@ function renderMobileBracket(root, dims) {
   prevArrowEl.addEventListener('click', function(e) {
     e.stopPropagation();
     if (activeIdx > 0) {
-      var target = (activeIdx - 1) * colW;
+      var target = colStarts[activeIdx - 1];
       outer.scrollTo ? outer.scrollTo({ left: target, behavior: 'smooth' })
                      : (outer.scrollLeft = target);
     }
@@ -1335,7 +1370,7 @@ function renderMobileBracket(root, dims) {
   nextArrowEl.addEventListener('click', function(e) {
     e.stopPropagation();
     if (activeIdx < colEls.length - 1) {
-      var target = (activeIdx + 1) * colW;
+      var target = colStarts[activeIdx + 1];
       outer.scrollTo ? outer.scrollTo({ left: target, behavior: 'smooth' })
                      : (outer.scrollLeft = target);
     }
@@ -1350,15 +1385,12 @@ function renderMobileBracket(root, dims) {
     var adx = Math.abs(e.deltaX), ady = Math.abs(e.deltaY);
     if (adx <= ady) return; // vertical gesture — let captureEl scroll naturally
     e.preventDefault();
-    var maxLeft = (colEls.length - 1) * colW;
-    outer.scrollLeft = Math.max(0, Math.min(outer.scrollLeft + e.deltaX, maxLeft));
+    outer.scrollLeft = Math.max(0, Math.min(outer.scrollLeft + e.deltaX, maxScrollLeft));
     clearTimeout(_wheelSnapTimer);
     _wheelSnapTimer = setTimeout(function() {
-      var raw  = outer.scrollLeft / colW;
-      var snap = Math.round(raw);
-      snap = Math.max(0, Math.min(snap, colEls.length - 1));
-      outer.scrollTo ? outer.scrollTo({ left: snap * colW, behavior: 'smooth' })
-                     : (outer.scrollLeft = snap * colW);
+      var snap = colIndexAt(outer.scrollLeft);
+      outer.scrollTo ? outer.scrollTo({ left: colStarts[snap], behavior: 'smooth' })
+                     : (outer.scrollLeft = colStarts[snap]);
     }, 150);
   }, { passive: false });
 
@@ -1386,8 +1418,7 @@ function renderMobileBracket(root, dims) {
     if (dt > 0) mDrag.velocity = (e.clientX - mDrag.lastX) / dt;
     mDrag.lastX    = e.clientX;
     mDrag.lastTime = now;
-    var maxLeft = (colEls.length - 1) * colW;
-    outer.scrollLeft = Math.max(0, Math.min(mDrag.startLeft - dx, maxLeft));
+    outer.scrollLeft = Math.max(0, Math.min(mDrag.startLeft - dx, maxScrollLeft));
   }
 
   function onDragUp(e) {
@@ -1398,12 +1429,14 @@ function renderMobileBracket(root, dims) {
     captureEl.style.cursor = '';
     if (!mDrag.isHoriz) { mDrag = null; return; }
     if (Math.abs(dx) > 5) { _dragSuppressClick = true; }
-    var vel  = mDrag.velocity; // px/ms positive = rightward
-    var raw  = (mDrag.startLeft - dx) / colW;
-    var snap = vel < -0.25 ? Math.ceil(raw) : vel > 0.25 ? Math.floor(raw) : Math.round(raw);
-    snap = Math.max(0, Math.min(snap, colEls.length - 1));
-    outer.scrollTo ? outer.scrollTo({ left: snap * colW, behavior: 'smooth' })
-                   : (outer.scrollLeft = snap * colW);
+    var vel   = mDrag.velocity; // px/ms positive = rightward
+    var endX  = mDrag.startLeft - dx;
+    var base  = colIndexAt(endX);
+    var snap  = vel < -0.25 ? Math.min(base + 1, colEls.length - 1)
+              : vel > 0.25  ? Math.max(base - 1, 0)
+              : base;
+    outer.scrollTo ? outer.scrollTo({ left: colStarts[snap], behavior: 'smooth' })
+                   : (outer.scrollLeft = colStarts[snap]);
     mDrag = null;
     // Allow the click suppression flag to clear after the click event fires
     setTimeout(function() { _dragSuppressClick = false; }, 0);
@@ -1445,7 +1478,7 @@ function renderMobileBracket(root, dims) {
     if (!g) return;
     var ri = rounds.indexOf(g.round);
     if (ri < 0) return;
-    outer.scrollLeft = ri * colW; // instant jump; scroll listener settles activeIdx
+    outer.scrollLeft = colStarts[ri]; // instant jump; scroll listener settles activeIdx
     setTimeout(function() {
       var maxScroll = Math.max(0, roundInnerH(rounds[ri]) - scrollH);
       var y = earlyY[gid] !== undefined ? earlyY[gid] : 0;
