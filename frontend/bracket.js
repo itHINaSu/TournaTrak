@@ -557,9 +557,11 @@ function cardHTML(gid){
   var t1=disp(gid,g.t1), t2=disp(gid,g.t2), r=results[gid]||{};
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
+  var isChampSlot = gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
   return '<div class="bc-hdr"><span class="bc-id">'+esc(gameLabel(gid))+'</span>'
     +fieldTagHTML(gid)
-    +'<span class="bc-time">'+esc(bracketTime(g.time))+'</span></div>'
+    +(isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>')
+    +'</div>'
     +'<div class="bc-team '+c1+'"><span class="bc-name">'+esc(t1.name)+'</span>'+scoreHTML(r.t1score)+'</div>'
     +'<div class="bc-team '+c2+'"><span class="bc-name">'+esc(t2.name)+'</span>'+scoreHTML(r.t2score)+'</div>';
 }
@@ -2077,6 +2079,32 @@ function renderTeamView(){
   out.innerHTML=html;
   syncLoseSideWidths();
   applyStickyOffsets();
+
+  // Scroll to the first upcoming (unplayed) game so users land on what matters next.
+  setTimeout(function(){
+    var cards = out.querySelectorAll('[data-jump-gid]');
+    var nextCard = null;
+    for (var ci = 0; ci < cards.length; ci++) {
+      var cgid = cards[ci].getAttribute('data-jump-gid');
+      if (cgid && !(results[cgid] && results[cgid].winner)) { nextCard = cards[ci]; break; }
+    }
+    if (!nextCard) return;
+    var pad = 10;
+    var panel = nextCard.closest('.team-panel');
+    if (panel && panel.scrollHeight > panel.clientHeight + 1) {
+      var newTop = panel.scrollTop + (nextCard.getBoundingClientRect().top - panel.getBoundingClientRect().top) - pad;
+      if (panel.scrollTo) panel.scrollTo({ top: Math.max(0, newTop), behavior: 'smooth' });
+      else panel.scrollTop = Math.max(0, newTop);
+    } else {
+      var stack = 0;
+      ['siteHeader','updateBar','viewTabs'].forEach(function(id){
+        var el = document.getElementById(id); if (el) stack += el.offsetHeight;
+      });
+      out.querySelectorAll('.selector-row').forEach(function(el){ stack += el.offsetHeight; });
+      var winTop = nextCard.getBoundingClientRect().top + window.scrollY - stack - pad;
+      window.scrollTo({ top: Math.max(0, winTop), behavior: 'smooth' });
+    }
+  }, 60);
 
   // Clicking a "LOSS ↓ G#" box jumps to that game's section further down
   // the team path; clicking anywhere else on a game card opens that game
