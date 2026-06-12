@@ -1065,6 +1065,41 @@ function renderMobileBracket(root, dims) {
     });
   });
 
+  // ── Reorder each column so games feeding the same next-column game sit
+  // adjacent (t1 feeder above t2 feeder). Plain L-then-R ordering makes
+  // lines cross (e.g. R3 shows G21,G22,G23,G24 while R4 pairs G21/G23 and
+  // G22/G24). Processed right-to-left so each column sorts against the
+  // already-final order of the one after it. Games with no destination in
+  // the adjacent column (bye-throughs) keep their original positions.
+  (function() {
+    for (var ci = cols.length - 2; ci >= 0; ci--) {
+      var nextPos = {};
+      cols[ci + 1].gids.forEach(function(gid, i) { nextPos[gid] = i; });
+      var keyed = [], holes = [];
+      cols[ci].gids.forEach(function(gid, idx) {
+        var key = null;
+        ['winner', 'loser'].some(function(type) {
+          var d = findNextSlot(gid, type);
+          if (d == null || nextPos[d] === undefined) return false;
+          var dg = GAMES[d];
+          var bit = (dg.t1 && dg.t1.slot === gid && dg.t1.type === type) ? 0 : 1;
+          key = nextPos[d] * 2 + bit;
+          return true;
+        });
+        if (key === null) holes.push({ gid: gid, idx: idx });
+        else keyed.push({ gid: gid, key: key, idx: idx });
+      });
+      keyed.sort(function(a, b) { return a.key - b.key || a.idx - b.idx; });
+      var holeAt = {};
+      holes.forEach(function(h) { holeAt[h.idx] = h.gid; });
+      var order = [], ki = 0;
+      for (var i = 0; i < cols[ci].gids.length; i++) {
+        order.push(holeAt[i] !== undefined ? holeAt[i] : keyed[ki++].gid);
+      }
+      cols[ci].gids = order;
+    }
+  })();
+
   // ── Pass 1: build HTML with placeholder card positions ───────────────
   var colsHTML = cols.map(function(col, ri) {
     var round   = col.round;
