@@ -365,17 +365,14 @@ function disp(gid,slot){
 var CARD_RATIO=0.82, CARD_ASPECT=2.6;
 
 // slotTopVh: positions a card within its round column.
-// Uses the actual count of games in GAMES for that round+side so the layout
-// adapts automatically to any number of slots (single elim, double elim, etc.).
-// All rounds are laid out against an 8-slot reference height; the formula
-// spaces slots evenly and the centre of the distribution always lands at 3.5*slotVh.
+// Uses SLOT_DEFS capacity for the round+side so slots are always laid out on
+// the correct grid (e.g. R1.R uses an 8-slot grid even when fewer games are
+// configured), keeping spacing consistent and connector lines aligned.
 function slotTopVh(round, slot, slotVh, side) {
   if (round === 'CHAMP' || round === 'CHAMP2') return 3.5 * slotVh;
   var s = side || 'L';
-  var n = Object.keys(GAMES).filter(function(gid) {
-    var p = gid.split('.');
-    return p[0] === round && p[1] === s;
-  }).length || 1;
+  var defs = SLOT_DEFS[round] && SLOT_DEFS[round][s];
+  var n = (defs && defs.length) || 1;
   var spacing = 8 / n;
   return ((slot - 1) * spacing + spacing / 2 - 0.5) * slotVh;
 }
@@ -1418,6 +1415,24 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
     if (!isLosePath && g && g.round === 'CHAMP') {
       html += '<div class="team-path-annotation team-path-annotation--terminal color-gold">'
         + 'WIN → CHAMPION 🏆</div>';
+      break;
+    }
+
+    // LB finalist (isLosePath=true) at CHAMP: only advance to CHAMP2 once they
+    // have actually won CHAMP. Before the result is in, stop the chain here so
+    // CHAMP2 is not shown as a prospective game — a second loss = elimination.
+    if (isLosePath && g && g.round === 'CHAMP' && !played) {
+      var wn = findNextSlot(gid, 'winner');
+      if (wn) {
+        html += '<div class="team-path-annotation team-path-annotation--terminal">'
+          + '<span class="color-win">WIN</span>'
+          + '<span class="color-win">→</span>'
+          + '<span class="color-win">' + esc(gameLabel(wn)) + '</span>'
+          + '</div>';
+      } else {
+        html += '<div class="team-path-annotation team-path-annotation--terminal color-gold">'
+          + 'WIN → CHAMPION 🏆</div>';
+      }
       break;
     }
 
