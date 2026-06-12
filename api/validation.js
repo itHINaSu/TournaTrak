@@ -1,12 +1,17 @@
 // validation.js — slot ID constants and input validators shared by API routes
 const { SLOT_DEFS } = require('./slot-defs');
 
+const _VALID_ROUNDS = new Set(['R1','R2','QF','SF','CHAMP']);
+
 function isValidSlotId(sid) {
   if (typeof sid !== 'string') return false;
   const p = sid.split('.');
   if (p.length !== 3) return false;
-  const defs = SLOT_DEFS[p[0]];
-  return !!(defs && defs[p[1]] && defs[p[1]].includes(parseInt(p[2])));
+  const [round, side, numStr] = p;
+  if (!_VALID_ROUNDS.has(round)) return false;
+  if (round === 'CHAMP' ? side !== 'C' : side !== 'L' && side !== 'R') return false;
+  const num = parseInt(numStr, 10);
+  return !isNaN(num) && num >= 1 && num <= 20;
 }
 
 function validateResult({ game, winner, loser, t1score, t2score } = {}) {

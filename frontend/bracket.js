@@ -364,16 +364,23 @@ function disp(gid,slot){
 // ══════════════════════════════════════════════════════════
 var CARD_RATIO=0.82, CARD_ASPECT=2.6;
 
-function slotTopVh(round,slot,slotVh){
-  if(round==='R1')    return (slot-1)*slotVh;
-  if(round==='R2')    return ((slot-1)*2+0.5)*slotVh;
-  if(round==='QF')    return ((slot-1)*4+1.5)*slotVh;
-  if(round==='SF')    return 3.5*slotVh;
-  if(round==='CHAMP') return 3.5*slotVh;
-  return 0;
+// slotTopVh: positions a card within its round column.
+// Uses the actual count of games in GAMES for that round+side so the layout
+// adapts automatically to any number of slots (single elim, double elim, etc.).
+// All rounds are laid out against an 8-slot reference height; the formula
+// spaces slots evenly and the centre of the distribution always lands at 3.5*slotVh.
+function slotTopVh(round, slot, slotVh, side) {
+  if (round === 'CHAMP') return 3.5 * slotVh;
+  var s = side || 'L';
+  var n = Object.keys(GAMES).filter(function(gid) {
+    var p = gid.split('.');
+    return p[0] === round && p[1] === s;
+  }).length || 1;
+  var spacing = 8 / n;
+  return ((slot - 1) * spacing + spacing / 2 - 0.5) * slotVh;
 }
-function cardMidVh(round,slot,slotVh){
-  return slotTopVh(round,slot,slotVh)+slotVh*CARD_RATIO/2;
+function cardMidVh(round, slot, slotVh, side) {
+  return slotTopVh(round, slot, slotVh, side) + slotVh * CARD_RATIO / 2;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -508,13 +515,13 @@ function buildSideColumns(side){
       return GAMES[gid].side===side&&GAMES[gid].round===round;
     }).map(function(gid){ return {gid:gid,slot:parseSlotId(gid).num}; })
       .sort(function(a,b){ return a.slot-b.slot; });
-    return {round:round,games:games};
+    return {round:round,side:side,games:games};
   });
 }
 function buildConnPcts(srcCol,dstCol,slotVh){
   var totalVh=slotVh*8, conns=[];
   dstCol.games.forEach(function(dstEntry){
-    var dstMid=cardMidVh(dstCol.round,dstEntry.slot,slotVh);
+    var dstMid=cardMidVh(dstCol.round,dstEntry.slot,slotVh,dstCol.side);
     var dstPct=dstMid/totalVh*100;
     var dstG=GAMES[dstEntry.gid];
     [dstG.t1,dstG.t2].forEach(function(slotDef){
@@ -522,7 +529,7 @@ function buildConnPcts(srcCol,dstCol,slotVh){
       if(!GAMES[slotDef.slot]) return;
       var srcEntry=srcCol.games.find(function(g){ return g.gid===slotDef.slot; });
       if(!srcEntry) return;
-      conns.push({srcPct:cardMidVh(srcCol.round,srcEntry.slot,slotVh)/totalVh*100, dstPct:dstPct});
+      conns.push({srcPct:cardMidVh(srcCol.round,srcEntry.slot,slotVh,srcCol.side)/totalVh*100, dstPct:dstPct});
     });
   });
   return conns;
@@ -557,7 +564,7 @@ function renderDesktopBracket(root,dims){
       var col=ordCols[ci];
       var cardsHTML='';
       col.games.forEach(function(entry){
-        cardsHTML+='<div class="bc" style="top:'+slotTopVh(col.round,entry.slot,slotVh)+'vh">'+cardHTML(entry.gid)+'</div>';
+        cardsHTML+='<div class="bc" style="top:'+slotTopVh(col.round,entry.slot,slotVh,col.side)+'vh">'+cardHTML(entry.gid)+'</div>';
       });
       html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
         +'<div class="round-col-hdr">'+ROUND_LABELS[col.round]+'</div>'+cardsHTML+'</div>';
@@ -589,7 +596,7 @@ function renderDesktopBracket(root,dims){
   } else {
     champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;align-items:flex-start;'
       +'justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
-      +'<div style="width:100%;margin-top:'+slotTopVh('SF',1,slotVh)+'vh">'
+      +'<div style="width:100%;margin-top:'+(3.5*slotVh)+'vh">'
       +'<div style="text-align:center;margin-bottom:0.3vh">'
       +'<div style="font-size:clamp(1rem,1.5vw,1.6rem)">🏆</div>'
       +'<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:0.15em">Championship</div>'
@@ -636,11 +643,11 @@ function renderTabletBracket(root,dims){
     var L=byRound[round].L, R=byRound[round].R, C=byRound[round].C;
     var colHTML='';
     Object.keys(L).sort(function(a,b){return a-b;}).forEach(function(num){
-      var top=slotTopVh(round,parseInt(num),slotVh)+cardGapVh;
+      var top=slotTopVh(round,parseInt(num),slotVh,'L')+cardGapVh;
       colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(L[num])+'</div>';
     });
     Object.keys(R).sort(function(a,b){return a-b;}).forEach(function(num){
-      var top=rOffset+slotTopVh(round,parseInt(num),slotVh)+cardGapVh;
+      var top=rOffset+slotTopVh(round,parseInt(num),slotVh,'R')+cardGapVh;
       colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(R[num])+'</div>';
     });
     Object.keys(C).sort(function(a,b){return a-b;}).forEach(function(num){
@@ -825,62 +832,43 @@ function renderMobileBracket(root, dims) {
   var mbcHdrH = colEls[0] ? colEls[0].querySelector('.mbc-hdr').getBoundingClientRect().height : 36;
   var scrollH = viewH - mbcHdrH;  // actual visible scroll area height
 
-  // earlyY: evenly spaced, centered when ≤4 slots fit without scrolling
+  // earlyY: evenly spaced, centered when ≤4 slots fit without scrolling.
+  // Uses actual games in GAMES so the layout adapts to any bracket structure.
   var earlyY = {};
   rounds.forEach(function(round) {
     var isChamp  = round === 'CHAMP';
-    var sides    = isChamp ? ['C'] : ['L', 'R'];
-    var numSlots = 0;
-    sides.forEach(function(side) {
-      numSlots += (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side].length : 0;
-    });
-    var cardH  = isChamp ? CHAMP_CARD_H : CARD_H;
-    var totalH = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
-    var offset = numSlots <= 4
+    var gids     = gidsFor(round);
+    var numSlots = gids.length;
+    var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
+    var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
+    var offset   = numSlots <= 4
       ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
       : GAP;
-    var idx = 0;
-    sides.forEach(function(side) {
-      var nums = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
-      nums.forEach(function(num) {
-        earlyY[round + '.' + side + '.' + num] = offset + idx * (cardH + GAP);
-        idx++;
-      });
+    gids.forEach(function(gid, idx) {
+      earlyY[gid] = offset + idx * (cardH + GAP);
     });
   });
 
   // innerH: exact content height so there's no excess blank space at bottom
   function roundInnerH(round) {
     var isChamp  = round === 'CHAMP';
-    var sides    = isChamp ? ['C'] : ['L', 'R'];
-    var numSlots = 0;
-    sides.forEach(function(side) {
-      numSlots += (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side].length : 0;
-    });
-    var cardH  = isChamp ? CHAMP_CARD_H : CARD_H;
-    var totalH = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
-    var offset = numSlots <= 4
+    var numSlots = gidsFor(round).length;
+    var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
+    var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
+    var offset   = numSlots <= 4
       ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
       : GAP;
     return Math.max(offset + totalH + GAP, scrollH);
   }
 
-  // lateY: each game i centered between its two feeder slots (2i and 2i+1)
+  // lateY: each game i centered between its two feeder slots (2i and 2i+1).
+  // Falls back to earlyY when feeder slots can't be paired (e.g. double-elim
+  // games that draw from non-adjacent rounds or cross-bracket sources).
   var lateY = {};
   var prevRoundFor = { R2:'R1', QF:'R2', SF:'QF', CHAMP:'SF' };
   ['R2','QF','SF','CHAMP'].forEach(function(round) {
-    var prev     = prevRoundFor[round];
-    var prevKeys = [];
-    ['L','R'].forEach(function(side) {
-      var nums = (SLOT_DEFS[prev] && SLOT_DEFS[prev][side]) ? SLOT_DEFS[prev][side] : [];
-      nums.forEach(function(num) { prevKeys.push(prev + '.' + side + '.' + num); });
-    });
-    var curKeys = [];
-    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
-    sides.forEach(function(side) {
-      var nums = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
-      nums.forEach(function(num) { curKeys.push(round + '.' + side + '.' + num); });
-    });
+    var prevKeys = gidsFor(prevRoundFor[round]);
+    var curKeys  = gidsFor(round);
     curKeys.forEach(function(gid, i) {
       if (round === 'CHAMP') {
         lateY[gid] = earlyY[gid] !== undefined ? earlyY[gid] : 0;
@@ -900,17 +888,8 @@ function renderMobileBracket(root, dims) {
   var nextRoundForPrev = { R1:'R2', R2:'QF', QF:'SF', SF:'CHAMP' };
   ['R1','R2','QF','SF'].forEach(function(curRound) {
     var nextRound = nextRoundForPrev[curRound];
-    var curGids = [];
-    ['L','R'].forEach(function(side) {
-      var nums = (SLOT_DEFS[curRound] && SLOT_DEFS[curRound][side]) ? SLOT_DEFS[curRound][side] : [];
-      nums.forEach(function(num) { curGids.push(curRound + '.' + side + '.' + num); });
-    });
-    var nextGids = [];
-    var nextSides = nextRound === 'CHAMP' ? ['C'] : ['L','R'];
-    nextSides.forEach(function(side) {
-      var nums = (SLOT_DEFS[nextRound] && SLOT_DEFS[nextRound][side]) ? SLOT_DEFS[nextRound][side] : [];
-      nums.forEach(function(num) { nextGids.push(nextRound + '.' + side + '.' + num); });
-    });
+    var curGids  = gidsFor(curRound);
+    var nextGids = gidsFor(nextRound);
     curGids.forEach(function(gid, j) {
       var childGid = nextGids[Math.floor(j / 2)];
       var childEY  = childGid !== undefined ? earlyY[childGid] : undefined;
