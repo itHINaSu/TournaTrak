@@ -573,33 +573,100 @@ function buildSideColumns(side){
 //                       offset downward so the cards don't stack
 //   • no LB feeders   → canonical even spacing (first LB round)
 // Returns {gid → topVh} for every LB game.
+// computeLBPositions: paper-bracket layout for the loser's bracket.
+// Every LB game is treated as having exactly TWO feeders. A cross-bracket
+// drop-in (WB loser) is a phantom "bye" occupying the slot adjacent to the
+// real feeder:
+//   - The first LB column is laid out on a virtual grid of
+//     2 x (next column's game count) slots. Each game occupies the virtual
+//     slot its consumer pairing dictates (drop-in as t1 -> bye above, real
+//     feeder in the lower slot; t2 -> mirrored).
+//   - Every later game sits at the midpoint of its two feeder positions.
+//     With one real feeder, the phantom mirrors it at half the feeder
+//     column's game gap (above when the drop-in is t1, below when t2),
+//     so the game lands a quarter-gap off its real feeder.
 function computeLBPositions(slotVh) {
   var posMap = {};
   var cols = buildSideColumns('R');
+  if (!cols.length) return posMap;
   var maxTop = 8 * slotVh - slotVh * CARD_RATIO; // keep cards inside the column
 
+  function clamp(v) { return Math.max(0, Math.min(v, maxTop)); }
+
+  // Smallest gap between consecutive placed games in column ci; walks back
+  // to earlier columns when a column has fewer than 2 placed games.
+  function colGap(ci) {
+    for (; ci >= 0; ci--) {
+      var tops = cols[ci].games
+        .map(function(e) { return posMap[e.gid]; })
+        .filter(function(t) { return t !== undefined; })
+        .sort(function(a, b) { return a - b; });
+      if (tops.length >= 2) {
+        var gap = Infinity;
+        for (var i = 1; i < tops.length; i++) gap = Math.min(gap, tops[i] - tops[i - 1]);
+        if (gap > 0 && isFinite(gap)) return gap;
+      }
+    }
+    return 2 * slotVh;
+  }
+
+  function colIndexOfRound(round) {
+    for (var i = 0; i < cols.length; i++) if (cols[i].round === round) return i;
+    return -1;
+  }
+
+  // ── First column: virtual grid derived from second-column consumers ──
+  var first = cols[0];
+  if (cols.length > 1) {
+    var consumers = cols[1].games; // already sorted by slot in buildSideColumns
+    var vGrid = 2 * consumers.length;
+    var vSpacing = 8 / vGrid;
+    consumers.forEach(function(entry, idx) {
+      var cg = GAMES[entry.gid];
+      if (!cg) return;
+      [cg.t1, cg.t2].forEach(function(slotDef, ti) {
+        if (!slotDef || (slotDef.type !== 'winner' && slotDef.type !== 'loser')) return;
+        var fg = GAMES[slotDef.slot];
+        if (!fg || fg.side !== 'R' || fg.round !== first.round) return;
+        var v = 2 * idx + 1 + ti; // t1 -> upper virtual slot, t2 -> lower
+        posMap[slotDef.slot] = clamp(((v - 1) * vSpacing + vSpacing / 2 - 0.5) * slotVh);
+      });
+    });
+  }
+  // First-column games without a consumer fall back to even slot spacing.
+  first.games.forEach(function(entry) {
+    if (posMap[entry.gid] === undefined) {
+      posMap[entry.gid] = clamp(slotTopVh(first.round, entry.slot, slotVh, first.side));
+    }
+  });
+
+  // ── Later columns: midpoint of the two feeders (real or phantom) ──
   cols.forEach(function(col, ci) {
+    if (ci === 0) return;
     col.games.forEach(function(entry) {
       var g = GAMES[entry.gid];
-      var feeders = [];
-      if (g && ci > 0) {
-        [g.t1, g.t2].forEach(function(slotDef) {
-          if (!slotDef || slotDef.type !== 'winner') return;
+      var real = []; // { pos, ti, round } for positioned LB feeders
+      if (g) {
+        [g.t1, g.t2].forEach(function(slotDef, ti) {
+          if (!slotDef || (slotDef.type !== 'winner' && slotDef.type !== 'loser')) return;
           var fg = GAMES[slotDef.slot];
-          if (!fg || fg.side !== 'R') return;            // ignore WB drops (phantom bye)
+          if (!fg || fg.side !== 'R') return;
           if (posMap[slotDef.slot] === undefined) return;
-          feeders.push({ pos: posMap[slotDef.slot], sameCol: fg.round === col.round });
+          real.push({ pos: posMap[slotDef.slot], ti: ti, round: fg.round });
         });
       }
       var top;
-      if (feeders.length >= 2) {
-        top = (feeders[0].pos + feeders[1].pos) / 2;
-      } else if (feeders.length === 1) {
-        top = feeders[0].sameCol ? feeders[0].pos + 1.5 * slotVh : feeders[0].pos;
+      if (real.length >= 2) {
+        top = (real[0].pos + real[1].pos) / 2;
+      } else if (real.length === 1) {
+        var f = real[0];
+        var gap = colGap(colIndexOfRound(f.round));
+        // Real feeder is t2 -> drop-in/bye above -> game lands above feeder.
+        top = f.ti === 1 ? f.pos - gap / 4 : f.pos + gap / 4;
       } else {
         top = slotTopVh(col.round, entry.slot, slotVh, col.side);
       }
-      posMap[entry.gid] = Math.max(0, Math.min(top, maxTop));
+      posMap[entry.gid] = clamp(top);
     });
   });
 
