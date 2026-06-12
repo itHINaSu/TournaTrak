@@ -370,7 +370,7 @@ var CARD_RATIO=0.82, CARD_ASPECT=2.6;
 // All rounds are laid out against an 8-slot reference height; the formula
 // spaces slots evenly and the centre of the distribution always lands at 3.5*slotVh.
 function slotTopVh(round, slot, slotVh, side) {
-  if (round === 'CHAMP') return 3.5 * slotVh;
+  if (round === 'CHAMP' || round === 'CHAMP2') return 3.5 * slotVh;
   var s = side || 'L';
   var n = Object.keys(GAMES).filter(function(gid) {
     var p = gid.split('.');
@@ -584,7 +584,8 @@ function renderDesktopBracket(root,dims){
       +'</div></div>';
   }
 
-  var champG=GAMES['CHAMP.C.1'], cr=results['CHAMP.C.1']||{};
+  var champG=GAMES['CHAMP.C.1'],  cr=results['CHAMP.C.1']||{};
+  var champ2G=GAMES['CHAMP2.C.1'], cr2=results['CHAMP2.C.1']||{};
   var champHTML;
   if(!champG){
     champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;align-items:center;'
@@ -594,9 +595,21 @@ function renderDesktopBracket(root,dims){
       +'<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold)">Championship</div>'
       +'</div></div>';
   } else {
+    var ifNecHTML='';
+    if(champ2G){
+      ifNecHTML='<div style="width:100%;margin-top:1.5vh">'
+        +'<div style="text-align:center;margin-bottom:0.3vh">'
+        +'<div style="font-family:Oswald,sans-serif;font-size:0.55em;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-mute);margin-bottom:0.15em">If Necessary</div>'
+        +(champ2G.time?'<div style="font-size:0.62em;color:var(--gold-lt);font-weight:600;margin-bottom:0.3em">'+esc(formatTime(champ2G.time))+'</div>':'')
+        +'</div>'
+        +'<div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP2.C.1')+'</div>'
+        +(cr2.winner?'<div style="font-family:Oswald,sans-serif;font-size:0.85em;color:var(--gold-lt);text-align:center;margin-top:0.4em;letter-spacing:0.07em">'+esc(cr2.winner)+'</div>':'')
+        +'</div>';
+    }
     champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;align-items:flex-start;'
       +'justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
-      +'<div style="width:100%;margin-top:'+(3.5*slotVh)+'vh">'
+      +'<div style="width:100%">'
+      +'<div style="margin-top:'+(3.5*slotVh)+'vh">'
       +'<div style="text-align:center;margin-bottom:0.3vh">'
       +'<div style="font-size:clamp(1rem,1.5vw,1.6rem)">🏆</div>'
       +'<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:0.15em">Championship</div>'
@@ -604,6 +617,8 @@ function renderDesktopBracket(root,dims){
       +'</div>'
       +'<div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP.C.1')+'</div>'
       +(cr.winner?'<div style="font-family:Oswald,sans-serif;font-size:0.85em;color:var(--gold-lt);text-align:center;margin-top:0.4em;letter-spacing:0.07em">'+esc(cr.winner)+'</div>':'')
+      +'</div>'
+      +ifNecHTML
       +'</div></div>';
   }
 
@@ -630,7 +645,7 @@ function buildByRound(rounds){
 // ── Tablet: all rounds side-by-side, total width = window width ──────
 function renderTabletBracket(root,dims){
   var slotVh=dims.slotVh;
-  var rounds=['R1','R2','QF','QF2','SF','CHAMP'];
+  var rounds=['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
   var byRound=buildByRound(rounds);
   var colH=slotVh*16;
   var rOffset=slotVh*8;
@@ -782,10 +797,10 @@ function renderMobileBracket(root, dims) {
   var colW  = Math.round(winW * 0.72);
   var padPx = 12;
 
-  var rounds = ['R1','R2','QF','QF2','SF','CHAMP'];
+  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
 
   function gidsFor(round) {
-    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
+    var sides = (round === 'CHAMP' || round === 'CHAMP2') ? ['C'] : ['L','R'];
     var out = [];
     sides.forEach(function(s) { out = out.concat(slotsForRoundSide(round, s)); });
     return out;
@@ -793,7 +808,7 @@ function renderMobileBracket(root, dims) {
 
   // ── Pass 1: build HTML with placeholder card positions ───────────────
   var colsHTML = rounds.map(function(round, ri) {
-    var isChamp = round === 'CHAMP';
+    var isChamp = round === 'CHAMP' || round === 'CHAMP2';
     var cWidth  = isChamp ? winW : colW;
     var cCardW  = cWidth - 2 * padPx;
     var cardH   = isChamp ? CHAMP_CARD_H : CARD_H;
@@ -865,12 +880,12 @@ function renderMobileBracket(root, dims) {
   // Falls back to earlyY when feeder slots can't be paired (e.g. double-elim
   // games that draw from non-adjacent rounds or cross-bracket sources).
   var lateY = {};
-  var prevRoundFor = { R2:'R1', QF:'R2', QF2:'QF', SF:'QF2', CHAMP:'SF' };
-  ['R2','QF','QF2','SF','CHAMP'].forEach(function(round) {
+  var prevRoundFor = { R2:'R1', QF:'R2', QF2:'QF', SF:'QF2', CHAMP:'SF', CHAMP2:'CHAMP' };
+  ['R2','QF','QF2','SF','CHAMP','CHAMP2'].forEach(function(round) {
     var prevKeys = gidsFor(prevRoundFor[round]);
     var curKeys  = gidsFor(round);
     curKeys.forEach(function(gid, i) {
-      if (round === 'CHAMP') {
+      if (round === 'CHAMP' || round === 'CHAMP2') {
         lateY[gid] = earlyY[gid] !== undefined ? earlyY[gid] : 0;
         return;
       }
@@ -885,8 +900,8 @@ function renderMobileBracket(root, dims) {
   // Feeder pairs converge to earlyY of their child card, giving a stacking effect
   // when swiping forward and an organic spreading-out when swiping backward.
   var prevOffset = {};
-  var nextRoundForPrev = { R1:'R2', R2:'QF', QF:'QF2', QF2:'SF', SF:'CHAMP' };
-  ['R1','R2','QF','QF2','SF'].forEach(function(curRound) {
+  var nextRoundForPrev = { R1:'R2', R2:'QF', QF:'QF2', QF2:'SF', SF:'CHAMP', CHAMP:'CHAMP2' };
+  ['R1','R2','QF','QF2','SF','CHAMP'].forEach(function(curRound) {
     var nextRound = nextRoundForPrev[curRound];
     var curGids  = gidsFor(curRound);
     var nextGids = gidsFor(nextRound);
@@ -1143,7 +1158,7 @@ function stickyNavH() {
 
 // ── Round navigation ──────────────────────────────────────
 function firstIncompleteRound() {
-  var rounds = ['R1','R2','QF','QF2','SF','CHAMP'];
+  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
   for (var i = 0; i < rounds.length; i++) {
     var r = rounds[i];
     var sids = Object.keys(GAMES).filter(function(s){ return GAMES[s].round === r; });
@@ -1173,7 +1188,7 @@ function scrollToRound(round) {
 }
 
 function scrollToLastCompletedCard() {
-  var rounds = ['R1','R2','QF','QF2','SF','CHAMP'];
+  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
   var lastSid = null;
   rounds.forEach(function(round) {
     Object.keys(GAMES)
@@ -1210,7 +1225,7 @@ function setupRoundObserver() {
       if (e.isIntersecting) document.getElementById('roundSelect').value = e.target.dataset.round;
     });
   }, { rootMargin: '-' + (navH + 1) + 'px 0px -70% 0px', threshold: 0 });
-  ['R1','R2','QF','QF2','SF','CHAMP'].forEach(function(r) {
+  ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].forEach(function(r) {
     var el = document.getElementById('round-section-' + r);
     if (el) roundObserver.observe(el);
   });
@@ -1222,7 +1237,7 @@ document.getElementById('roundSelect').addEventListener('change', function() {
 });
 
 function renderRoundView() {
-  var rounds = ['R1','R2','QF','QF2','SF','CHAMP'];
+  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
   var html = '';
   rounds.forEach(function(round) {
     var sids = Object.keys(GAMES)

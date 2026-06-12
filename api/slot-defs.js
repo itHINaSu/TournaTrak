@@ -6,7 +6,8 @@ const SLOT_DEFS = {
   QF:    { L:[1,2,3,4],         R:[1,2,3,4] },
   QF2:   { L:[1,2],             R:[1,2] },
   SF:    { L:[1,2,3],           R:[1,2,3] },
-  CHAMP: { C:[1] },
+  CHAMP:  { C:[1] },
+  CHAMP2: { C:[1] },
 };
 
 module.exports = { SLOT_DEFS };
