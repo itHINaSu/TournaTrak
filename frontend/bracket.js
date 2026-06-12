@@ -1934,7 +1934,27 @@ function renderTeamView(){
       if(box){
         var target=document.getElementById(box.getAttribute('data-lose-anchor'));
         if(!target) return;
-        target.scrollIntoView({behavior:'smooth',block:'center'});
+        // Land the "Loss to ..." banner at the top of the visible area.
+        // Mobile: .team-panel is the scroll container (no sticky chrome
+        // inside it). Desktop: the window scrolls beneath the sticky
+        // header/bar/tabs/selector stack, so offset by its height.
+        var pad=10;
+        var panel=target.closest('.team-panel');
+        if(panel && panel.scrollHeight>panel.clientHeight+1){
+          var newTop=panel.scrollTop
+            +(target.getBoundingClientRect().top-panel.getBoundingClientRect().top)-pad;
+          if(panel.scrollTo) panel.scrollTo({top:Math.max(0,newTop),behavior:'smooth'});
+          else panel.scrollTop=Math.max(0,newTop);
+        } else {
+          var stack=0;
+          ['siteHeader','updateBar','viewTabs'].forEach(function(id){
+            var el=document.getElementById(id);
+            if(el) stack+=el.offsetHeight;
+          });
+          document.querySelectorAll('.selector-row').forEach(function(el){ stack+=el.offsetHeight; });
+          var winTop=target.getBoundingClientRect().top+window.scrollY-stack-pad;
+          window.scrollTo({top:Math.max(0,winTop),behavior:'smooth'});
+        }
         target.classList.remove('tp-target-flash');
         void target.offsetWidth; // restart the highlight animation
         target.classList.add('tp-target-flash');
