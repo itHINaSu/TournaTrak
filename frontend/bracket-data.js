@@ -10,13 +10,14 @@ const SLOT_DEFS = {
   R1:    { L:[1,2,3,4,5,6,7,8], R:[1,2,3,4,5,6,7,8] },
   R2:    { L:[1,2,3,4],         R:[1,2,3,4] },
   QF:    { L:[1,2,3,4],         R:[1,2,3,4] },
+  QF2:   { L:[1,2],             R:[1,2] },
   SF:    { L:[1,2,3],           R:[1,2,3] },
   CHAMP: { C:[1] }
 };
 
-const ROUND_ORDER  = ['R1','R2','QF','SF','CHAMP'];
+const ROUND_ORDER  = ['R1','R2','QF','QF2','SF','CHAMP'];
 const ROUND_LABELS = {
-  R1:'Round 1', R2:'Round 2', QF:'Quarter Finals', SF:'Semi Finals', CHAMP:'Championship'
+  R1:'Round 1', R2:'Round 2', QF:'Quarter Finals', QF2:'Quarter Finals 2', SF:'Semi Finals', CHAMP:'Championship'
 };
 
 // GAMES starts empty — populated by applySchedule() on load

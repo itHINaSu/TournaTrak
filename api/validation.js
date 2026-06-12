@@ -1,7 +1,7 @@
 // validation.js — slot ID constants and input validators shared by API routes
 const { SLOT_DEFS } = require('./slot-defs');
 
-const _VALID_ROUNDS = new Set(['R1','R2','QF','SF','CHAMP']);
+const _VALID_ROUNDS = new Set(['R1','R2','QF','QF2','SF','CHAMP']);
 
 function isValidSlotId(sid) {
   if (typeof sid !== 'string') return false;

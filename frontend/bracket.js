@@ -509,7 +509,7 @@ function connLines(conns,wVw,hVh,lc,mirror){
 // BUILD SIDE COLUMNS
 // ══════════════════════════════════════════════════════════
 function buildSideColumns(side){
-  var rounds=['R1','R2','QF','SF'];
+  var rounds=['R1','R2','QF','QF2','SF'];
   return rounds.map(function(round){
     var games=Object.keys(GAMES).filter(function(gid){
       return GAMES[gid].side===side&&GAMES[gid].round===round;
@@ -630,7 +630,7 @@ function buildByRound(rounds){
 // ── Tablet: all rounds side-by-side, total width = window width ──────
 function renderTabletBracket(root,dims){
   var slotVh=dims.slotVh;
-  var rounds=['R1','R2','QF','SF','CHAMP'];
+  var rounds=['R1','R2','QF','QF2','SF','CHAMP'];
   var byRound=buildByRound(rounds);
   var colH=slotVh*16;
   var rOffset=slotVh*8;
@@ -782,7 +782,7 @@ function renderMobileBracket(root, dims) {
   var colW  = Math.round(winW * 0.72);
   var padPx = 12;
 
-  var rounds = ['R1','R2','QF','SF','CHAMP'];
+  var rounds = ['R1','R2','QF','QF2','SF','CHAMP'];
 
   function gidsFor(round) {
     var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
@@ -865,8 +865,8 @@ function renderMobileBracket(root, dims) {
   // Falls back to earlyY when feeder slots can't be paired (e.g. double-elim
   // games that draw from non-adjacent rounds or cross-bracket sources).
   var lateY = {};
-  var prevRoundFor = { R2:'R1', QF:'R2', SF:'QF', CHAMP:'SF' };
-  ['R2','QF','SF','CHAMP'].forEach(function(round) {
+  var prevRoundFor = { R2:'R1', QF:'R2', QF2:'QF', SF:'QF2', CHAMP:'SF' };
+  ['R2','QF','QF2','SF','CHAMP'].forEach(function(round) {
     var prevKeys = gidsFor(prevRoundFor[round]);
     var curKeys  = gidsFor(round);
     curKeys.forEach(function(gid, i) {
@@ -885,8 +885,8 @@ function renderMobileBracket(root, dims) {
   // Feeder pairs converge to earlyY of their child card, giving a stacking effect
   // when swiping forward and an organic spreading-out when swiping backward.
   var prevOffset = {};
-  var nextRoundForPrev = { R1:'R2', R2:'QF', QF:'SF', SF:'CHAMP' };
-  ['R1','R2','QF','SF'].forEach(function(curRound) {
+  var nextRoundForPrev = { R1:'R2', R2:'QF', QF:'QF2', QF2:'SF', SF:'CHAMP' };
+  ['R1','R2','QF','QF2','SF'].forEach(function(curRound) {
     var nextRound = nextRoundForPrev[curRound];
     var curGids  = gidsFor(curRound);
     var nextGids = gidsFor(nextRound);
@@ -1143,7 +1143,7 @@ function stickyNavH() {
 
 // ── Round navigation ──────────────────────────────────────
 function firstIncompleteRound() {
-  var rounds = ['R1','R2','QF','SF','CHAMP'];
+  var rounds = ['R1','R2','QF','QF2','SF','CHAMP'];
   for (var i = 0; i < rounds.length; i++) {
     var r = rounds[i];
     var sids = Object.keys(GAMES).filter(function(s){ return GAMES[s].round === r; });
@@ -1173,7 +1173,7 @@ function scrollToRound(round) {
 }
 
 function scrollToLastCompletedCard() {
-  var rounds = ['R1','R2','QF','SF','CHAMP'];
+  var rounds = ['R1','R2','QF','QF2','SF','CHAMP'];
   var lastSid = null;
   rounds.forEach(function(round) {
     Object.keys(GAMES)
@@ -1210,7 +1210,7 @@ function setupRoundObserver() {
       if (e.isIntersecting) document.getElementById('roundSelect').value = e.target.dataset.round;
     });
   }, { rootMargin: '-' + (navH + 1) + 'px 0px -70% 0px', threshold: 0 });
-  ['R1','R2','QF','SF','CHAMP'].forEach(function(r) {
+  ['R1','R2','QF','QF2','SF','CHAMP'].forEach(function(r) {
     var el = document.getElementById('round-section-' + r);
     if (el) roundObserver.observe(el);
   });
@@ -1222,7 +1222,7 @@ document.getElementById('roundSelect').addEventListener('change', function() {
 });
 
 function renderRoundView() {
-  var rounds = ['R1','R2','QF','SF','CHAMP'];
+  var rounds = ['R1','R2','QF','QF2','SF','CHAMP'];
   var html = '';
   rounds.forEach(function(round) {
     var sids = Object.keys(GAMES)
