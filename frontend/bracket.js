@@ -982,13 +982,50 @@ function renderMobileBracket(root, dims) {
     return out;
   }
 
+  // ── Columns: one per round, EXCEPT rounds with intra-round dependencies.
+  // A game fed by another game in the same round (e.g. an LB final consuming
+  // two LB semis scheduled in the same round) can't be shown as a peer of its
+  // feeders on mobile — the column is the navigation unit. Such games split
+  // into a continuation column ("Round 5 · Cont."). Display-only: slot IDs
+  // and desktop rendering are untouched.
+  var cols = [];
+  rounds.forEach(function(round) {
+    var gids = gidsFor(round);
+    if (round === 'CHAMP' || round === 'CHAMP2') {
+      cols.push({ round: round, label: ROUND_LABELS[round], gids: gids });
+      return;
+    }
+    var placed = {}, waves = [], remaining = gids.slice();
+    while (remaining.length) {
+      var wave = remaining.filter(function(gid) {
+        var g = GAMES[gid];
+        return ![g.t1, g.t2].some(function(s) {
+          return s && s.type !== 'fixed' && s.slot && !placed[s.slot]
+            && GAMES[s.slot] && GAMES[s.slot].round === round;
+        });
+      });
+      if (!wave.length) wave = remaining.slice(); // cycle guard — never stall
+      waves.push(wave);
+      wave.forEach(function(gid) { placed[gid] = 1; });
+      remaining = remaining.filter(function(gid) { return !placed[gid]; });
+    }
+    waves.forEach(function(wave, wi) {
+      cols.push({
+        round: round,
+        label: ROUND_LABELS[round] + (wi ? ' · Cont.' : ''),
+        gids:  wave
+      });
+    });
+  });
+
   // ── Pass 1: build HTML with placeholder card positions ───────────────
-  var colsHTML = rounds.map(function(round, ri) {
+  var colsHTML = cols.map(function(col, ri) {
+    var round   = col.round;
     var isChamp = round === 'CHAMP' || round === 'CHAMP2';
     var cWidth  = isChamp ? winW : colW;
     var cCardW  = cWidth - 2 * padPx;
     var cardH   = isChamp ? CHAMP_CARD_H : CARD_H;
-    var gids    = gidsFor(round);
+    var gids    = col.gids;
 
     var cardsHTML = gids.map(function(gid) {
       var inner = isChamp ? champCardHTML(gid) : mobileRoundCardHTML(gid);
@@ -1010,13 +1047,13 @@ function renderMobileBracket(root, dims) {
         + inner + '</div>';
     }).join('');
 
-    var dots = rounds.map(function(_, i) {
+    var dots = cols.map(function(_, i) {
       return '<span class="mbc-dot' + (i === ri ? ' active' : '') + '" data-ri="' + i + '"></span>';
     }).join('');
 
     return '<div class="mbc-col" data-ri="' + ri + '" style="width:' + cWidth + 'px;flex:0 0 ' + cWidth + 'px">'
       + '<div class="mbc-hdr">'
-      +   '<span class="mbc-hdr-label">' + esc(ROUND_LABELS[round]) + '</span>'
+      +   '<span class="mbc-hdr-label">' + esc(col.label) + '</span>'
       +   '<span class="mbc-dots">' + dots + '</span>'
       + '</div>'
       + '<div class="mbc-scroll">'
@@ -1038,11 +1075,17 @@ function renderMobileBracket(root, dims) {
   var colStarts = [];
   (function() {
     var acc = 0;
-    rounds.forEach(function(round, ri) {
+    cols.forEach(function(col, ri) {
       colStarts[ri] = acc;
-      acc += (round === 'CHAMP' || round === 'CHAMP2') ? winW : colW;
+      acc += (col.round === 'CHAMP' || col.round === 'CHAMP2') ? winW : colW;
     });
   }());
+
+  // gid → column index, for membership tests and bracket-jump targeting
+  var colOfGid = {};
+  cols.forEach(function(col, ri) {
+    col.gids.forEach(function(gid) { colOfGid[gid] = ri; });
+  });
   var maxScrollLeft = colStarts[colStarts.length - 1];
 
   // Returns the column index whose left edge is nearest to scrollLeft x.
@@ -1062,24 +1105,24 @@ function renderMobileBracket(root, dims) {
   // earlyY: evenly spaced, centered when ≤4 slots fit without scrolling.
   // Uses actual games in GAMES so the layout adapts to any bracket structure.
   var earlyY = {};
-  rounds.forEach(function(round) {
-    var isChamp  = round === 'CHAMP' || round === 'CHAMP2';
-    var gids     = gidsFor(round);
-    var numSlots = gids.length;
+  cols.forEach(function(col) {
+    var isChamp  = col.round === 'CHAMP' || col.round === 'CHAMP2';
+    var numSlots = col.gids.length;
     var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
     var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
     var offset   = numSlots <= 4
       ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
       : GAP;
-    gids.forEach(function(gid, idx) {
+    col.gids.forEach(function(gid, idx) {
       earlyY[gid] = offset + idx * (cardH + GAP);
     });
   });
 
   // innerH: exact content height so there's no excess blank space at bottom
-  function roundInnerH(round) {
-    var isChamp  = round === 'CHAMP' || round === 'CHAMP2';
-    var numSlots = gidsFor(round).length;
+  function colInnerH(ci) {
+    var col      = cols[ci];
+    var isChamp  = col.round === 'CHAMP' || col.round === 'CHAMP2';
+    var numSlots = col.gids.length;
     var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
     var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
     var offset   = numSlots <= 4
@@ -1094,11 +1137,10 @@ function renderMobileBracket(root, dims) {
   // column) are ignored — the card converges from however many real feeders
   // are available: 2 → midpoint, 1 → that feeder's position, 0 → earlyY.
   var lateY = {};
-  rounds.forEach(function(round, ri) {
-    var prevRound = ri > 0 ? rounds[ri - 1] : null;
-    gidsFor(round).forEach(function(gid) {
+  cols.forEach(function(col, ri) {
+    col.gids.forEach(function(gid) {
       var selfY = earlyY[gid] !== undefined ? earlyY[gid] : 0;
-      if (round === 'CHAMP' || round === 'CHAMP2' || !prevRound) {
+      if (col.round === 'CHAMP' || col.round === 'CHAMP2' || ri === 0) {
         lateY[gid] = selfY;
         return;
       }
@@ -1108,11 +1150,10 @@ function renderMobileBracket(root, dims) {
       [g.t1, g.t2].forEach(function(slot) {
         if (!slot || slot.type === 'fixed') return;
         var srcGid = slot.slot;
-        var srcG   = srcGid ? GAMES[srcGid] : null;
-        if (srcG && srcG.round === prevRound && earlyY[srcGid] !== undefined) {
+        if (srcGid && colOfGid[srcGid] === ri - 1 && earlyY[srcGid] !== undefined) {
           feeders.push(earlyY[srcGid]);
         }
-        // cross-bracket / non-adjacent feeders are silently ignored
+        // feeders outside the adjacent column are silently ignored
       });
       lateY[gid] = feeders.length >= 2
         ? (feeders[0] + feeders[1]) / 2
@@ -1125,15 +1166,13 @@ function renderMobileBracket(root, dims) {
   // Feeder pairs converge to earlyY of their child card, giving a stacking effect
   // when swiping forward and an organic spreading-out when swiping backward.
   var prevOffset = {};
-  rounds.forEach(function(curRound, ri) {
-    var nextRound = ri + 1 < rounds.length ? rounds[ri + 1] : null;
-    gidsFor(curRound).forEach(function(gid) {
+  cols.forEach(function(col, ri) {
+    col.gids.forEach(function(gid) {
       // Stack toward where this game's winner actually advances — but only
       // if that child sits in the adjacent column. Winners that skip ahead
       // (or cross-bracket paths) hold position, mirroring the bye rule.
       var childGid = findNextSlot(gid, 'winner');
-      var childG   = childGid ? GAMES[childGid] : null;
-      var childEY  = (childG && nextRound && childG.round === nextRound)
+      var childEY  = (childGid && colOfGid[childGid] === ri + 1)
         ? earlyY[childGid] : undefined;
       var selfEY   = earlyY[gid];
       prevOffset[gid] = (childEY !== undefined && selfEY !== undefined) ? (childEY - selfEY) : 0;
@@ -1142,9 +1181,8 @@ function renderMobileBracket(root, dims) {
 
   // Apply computed positions and inner heights to the DOM
   colEls.forEach(function(colEl, ri) {
-    var round = rounds[ri];
     var inner = colEl.querySelector('.mbc-inner');
-    inner.style.height = roundInnerH(round) + 'px';
+    inner.style.height = colInnerH(ri) + 'px';
     colEl.querySelectorAll('.mbc-card').forEach(function(card) {
       var gid = card.dataset.gid;
       var ey  = earlyY[gid] !== undefined ? earlyY[gid] : 0;
@@ -1206,7 +1244,7 @@ function renderMobileBracket(root, dims) {
   root.appendChild(captureEl);
 
   function setSpacerForCol(idx) {
-    var maxScroll = Math.max(0, roundInnerH(rounds[idx]) - scrollH);
+    var maxScroll = Math.max(0, colInnerH(idx) - scrollH);
     // _anchorLateOff was computed during the swipe; use it to land the scroll
     // exactly where the continuous compensation was heading.
     var newScroll = Math.max(0, Math.min(sharedScrollTop - _anchorLateOff, maxScroll));
@@ -1493,11 +1531,11 @@ function renderMobileBracket(root, dims) {
   window._bracketJumpToGid = function(gid) {
     var g = GAMES[gid];
     if (!g) return;
-    var ri = rounds.indexOf(g.round);
+    var ri = colOfGid[gid] !== undefined ? colOfGid[gid] : -1;
     if (ri < 0) return;
     outer.scrollLeft = colStarts[ri]; // instant jump; scroll listener settles activeIdx
     setTimeout(function() {
-      var maxScroll = Math.max(0, roundInnerH(rounds[ri]) - scrollH);
+      var maxScroll = Math.max(0, colInnerH(ri) - scrollH);
       var y = earlyY[gid] !== undefined ? earlyY[gid] : 0;
       captureEl.scrollTop = Math.max(0, Math.min(y - GAP * 2, maxScroll));
       var card = outer.querySelector('.mbc-card[data-gid="' + gid + '"]');
