@@ -516,7 +516,7 @@ function buildSideColumns(side){
     }).map(function(gid){ return {gid:gid,slot:parseSlotId(gid).num}; })
       .sort(function(a,b){ return a.slot-b.slot; });
     return {round:round,side:side,games:games};
-  });
+  }).filter(function(col){ return col.games.length > 0; });
 }
 function buildConnPcts(srcCol,dstCol,slotVh){
   var totalVh=slotVh*8, conns=[];
@@ -647,6 +647,10 @@ function renderTabletBracket(root,dims){
   var slotVh=dims.slotVh;
   var rounds=['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
   var byRound=buildByRound(rounds);
+  rounds=rounds.filter(function(r){
+    var b=byRound[r];
+    return Object.keys(b.L).length>0||Object.keys(b.R).length>0||Object.keys(b.C).length>0;
+  });
   var colH=slotVh*16;
   var rOffset=slotVh*8;
 
@@ -797,7 +801,9 @@ function renderMobileBracket(root, dims) {
   var colW  = Math.round(winW * 0.72);
   var padPx = 12;
 
-  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
+  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].filter(function(r){
+    return Object.keys(GAMES).some(function(gid){ return GAMES[gid].round===r; });
+  });
 
   function gidsFor(round) {
     var sides = (round === 'CHAMP' || round === 'CHAMP2') ? ['C'] : ['L','R'];
