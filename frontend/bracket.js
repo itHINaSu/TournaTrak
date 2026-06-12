@@ -723,6 +723,9 @@ function renderBracket(){
 // 'needed'     — LB finalist won CHAMP; CHAMP2 must be played
 // 'not-needed' — WB finalist won CHAMP; CHAMP2 is cancelled
 function champ2State() {
+  // No CHAMP2 game scheduled (e.g. single elimination): a bracket reset can
+  // never be needed, so the champion banner must not be suppressed.
+  if (!GAMES['CHAMP2.C.1']) return 'not-needed';
   var champG = GAMES['CHAMP.C.1'];
   if (!champG) return 'pending';
   var cr = results['CHAMP.C.1'] || {};
