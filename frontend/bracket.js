@@ -762,7 +762,7 @@ function renderDesktopBracket(root,dims){
         var topVh = isRight && lbPosMap[entry.gid] !== undefined
           ? lbPosMap[entry.gid]
           : slotTopVh(col.round,entry.slot,slotVh,col.side);
-        cardsHTML+='<div class="bc" style="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
+        cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" style="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
       });
       html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
         +'<div class="round-col-hdr">'+ROUND_LABELS[col.round]+'</div>'+cardsHTML+'</div>';
@@ -806,7 +806,7 @@ function renderDesktopBracket(root,dims){
           +'<div class="champ-ifnec-label">If Necessary</div>'
           + c2Note
           +(champ2G.time?'<div class="champ-gametime">'+esc(formatTime(champ2G.time))+'</div>':'')
-          +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP2.C.1')+'</div></div>'
+          +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" data-gid="CHAMP2.C.1" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP2.C.1')+'</div></div>'
           +(cr2.winner?'<div class="champ-winner">'+esc(cr2.winner)+'</div>':'')
           +'</div>';
       }
@@ -818,7 +818,7 @@ function renderDesktopBracket(root,dims){
       +'<div class="champ-title">Championship</div>'
       +'<div class="champ-gametime">'+esc(formatTime(champG.time))+'</div>'
       +'</div>'
-      +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP.C.1')+'</div></div>'
+      +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" data-gid="CHAMP.C.1" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP.C.1')+'</div></div>'
       +(showChampWinner?'<div class="champ-winner">'+esc(cr.winner)+'</div>':'')
       +ifNecHTML
       +'</div>';
@@ -830,6 +830,16 @@ function renderDesktopBracket(root,dims){
     +champHTML
     +sideHTML('R',getSetting('rightLabel'),true)
     +'</div>';
+
+  // Jump hook for cross-view navigation (e.g. team path card tap)
+  window._bracketJumpToGid = function(gid) {
+    var card = root.querySelector('.bc[data-gid="' + gid + '"]');
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    card.classList.remove('tp-target-flash');
+    void card.offsetWidth;
+    card.classList.add('tp-target-flash');
+  };
 }
 
 
@@ -1425,6 +1435,29 @@ function renderMobileBracket(root, dims) {
   }, true); // capture phase so it beats card click handlers
 
   setSpacerForCol(0);
+
+  // Jump hook for cross-view navigation (e.g. team path card tap).
+  // Snaps the carousel to the game's round column, then sets the shared
+  // vertical scroll once the column's spacer has settled (~200ms debounce
+  // in the outer scroll listener), and flashes the card.
+  window._bracketJumpToGid = function(gid) {
+    var g = GAMES[gid];
+    if (!g) return;
+    var ri = rounds.indexOf(g.round);
+    if (ri < 0) return;
+    outer.scrollLeft = ri * colW; // instant jump; scroll listener settles activeIdx
+    setTimeout(function() {
+      var maxScroll = Math.max(0, roundInnerH(rounds[ri]) - scrollH);
+      var y = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+      captureEl.scrollTop = Math.max(0, Math.min(y - GAP * 2, maxScroll));
+      var card = outer.querySelector('.mbc-card[data-gid="' + gid + '"]');
+      if (card) {
+        card.classList.remove('tp-target-flash');
+        void card.offsetWidth;
+        card.classList.add('tp-target-flash');
+      }
+    }, 320);
+  };
 }
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW
@@ -1709,7 +1742,8 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
       }
     }
 
-    html += '<div class="round-game-card" style="border-color:' + borderColor + '">'
+    html += '<div class="round-game-card" style="border-color:' + borderColor + '"'
+      + ' data-jump-gid="' + esc(gid) + '" title="View in bracket">'
       + '<div class="round-game-main">'
       + '<div class="round-game-header">'
       + '<div class="round-game-day-time">'
@@ -1888,20 +1922,40 @@ function renderTeamView(){
   applyStickyOffsets();
 
   // Clicking a "LOSS ↓ G#" box jumps to that game's section further down
-  // the team path. Bound once; survives innerHTML re-renders.
+  // the team path; clicking anywhere else on a game card opens that game
+  // in the Bracket tab. Bound once; survives innerHTML re-renders.
+  // A native click never fires when the touch scrolled, so taps are
+  // inherently intentional — no extra gesture filtering needed.
   if(!out._loseNavBound){
     out._loseNavBound=true;
     out.addEventListener('click',function(e){
-      var box=e.target.closest ? e.target.closest('[data-lose-anchor]') : null;
-      if(!box) return;
-      var target=document.getElementById(box.getAttribute('data-lose-anchor'));
-      if(!target) return;
-      target.scrollIntoView({behavior:'smooth',block:'center'});
-      target.classList.remove('tp-target-flash');
-      void target.offsetWidth; // restart the highlight animation
-      target.classList.add('tp-target-flash');
+      if(!e.target.closest) return;
+      var box=e.target.closest('[data-lose-anchor]');
+      if(box){
+        var target=document.getElementById(box.getAttribute('data-lose-anchor'));
+        if(!target) return;
+        target.scrollIntoView({behavior:'smooth',block:'center'});
+        target.classList.remove('tp-target-flash');
+        void target.offsetWidth; // restart the highlight animation
+        target.classList.add('tp-target-flash');
+        return;
+      }
+      var card=e.target.closest('[data-jump-gid]');
+      if(card) jumpToBracketGame(card.getAttribute('data-jump-gid'));
     });
   }
+}
+
+// Switch to the Bracket tab and scroll/flash the given game's card.
+// Each bracket renderer (desktop/mobile) installs its own
+// window._bracketJumpToGid so the jump matches the active layout.
+function jumpToBracketGame(gid){
+  var tab=document.querySelector('.view-tab[data-view="bracket"]');
+  if(!tab) return;
+  tab.click(); // reuses the normal tab-switch path (render + cookie)
+  setTimeout(function(){
+    if(typeof window._bracketJumpToGid==='function') window._bracketJumpToGid(gid);
+  },80);
 }
 
 // ══════════════════════════════════════════════════════════
