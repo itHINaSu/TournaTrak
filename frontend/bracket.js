@@ -1078,13 +1078,11 @@ function renderMobileBracket(root, dims) {
     return Math.max(offset + totalH + GAP, scrollH);
   }
 
-  // lateY: where each game's card sits when the PREVIOUS round is active
-  // (i.e. this round is the right-peek column). Positioned at the midpoint
-  // of its feeder positions in the previous column. A feeder only counts if
-  // its source game is actually IN the previous round column; cross-bracket
-  // feeds (e.g. WB R2 loser dropping into LB R2 — same column) or
-  // non-adjacent sources are treated as a "bye" at the card's own earlyY,
-  // so the card converges halfway between its real feeder and itself.
+  // lateY: where each game's card sits when the PREVIOUS round is active.
+  // Only feeders whose source game actually lives in the previous column
+  // contribute. Cross-bracket feeds (e.g. WB loser dropping into same LB
+  // column) are ignored — the card converges from however many real feeders
+  // are available: 2 → midpoint, 1 → that feeder's position, 0 → earlyY.
   var lateY = {};
   rounds.forEach(function(round, ri) {
     var prevRound = ri > 0 ? rounds[ri - 1] : null;
@@ -1098,12 +1096,13 @@ function renderMobileBracket(root, dims) {
       if (!g) { lateY[gid] = selfY; return; }
       var feeders = [];
       [g.t1, g.t2].forEach(function(slot) {
-        if (!slot) return;
-        var srcGid = slot.type === 'fixed' ? null : slot.slot;
+        if (!slot || slot.type === 'fixed') return;
+        var srcGid = slot.slot;
         var srcG   = srcGid ? GAMES[srcGid] : null;
-        feeders.push(srcG && srcG.round === prevRound && earlyY[srcGid] !== undefined
-          ? earlyY[srcGid]
-          : selfY); // bye: this side holds the card's own position
+        if (srcG && srcG.round === prevRound && earlyY[srcGid] !== undefined) {
+          feeders.push(earlyY[srcGid]);
+        }
+        // cross-bracket / non-adjacent feeders are silently ignored
       });
       lateY[gid] = feeders.length >= 2
         ? (feeders[0] + feeders[1]) / 2
