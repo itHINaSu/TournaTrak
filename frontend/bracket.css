@@ -1536,3 +1536,27 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   align-self: center;
 }
 .mbc-champ-label .game-field-tag { font-size: 0.7rem; vertical-align: middle; }
+
+/* ── Team path: tappable opponent chip ("who might I play?") ──────────── */
+/* Distinct pill inside the game card; tapping it jumps to the opponent's
+   source game, while tapping the rest of the card jumps to this game. */
+.tp-opp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  border: 1px solid var(--border);
+  border-radius: 1.2em;
+  padding: 0.35em 0.75em;
+  margin: -0.2em 0;
+  min-height: 2.2em;        /* comfortable thumb target */
+  color: var(--blue-lt);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.tp-opp-chip:active { background: var(--surface2); }
+.tp-opp-chevron {
+  font-size: 1.15em;
+  line-height: 1;
+  color: var(--text-dim);
+}

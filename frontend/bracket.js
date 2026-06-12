@@ -1759,8 +1759,24 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       if (isLosePath && entryGid) return slot.type === 'loser' && slot.slot === entryGid;
       return false;
     }
-    var t1n = t1r || (isTeamSlot(g.t1) ? team : smartLabel(g.t1, results));
-    var t2n = t2r || (isTeamSlot(g.t2) ? team : smartLabel(g.t2, results));
+    // Resolved names and the team's own projected slot render as plain text.
+    // An unresolved OPPONENT slot renders as a tappable chip that jumps to
+    // the game it comes from ("who might I play?" — separate tap target from
+    // the card itself, which jumps to this game).
+    function slotHTML(slot, resolved) {
+      if (resolved) return esc(resolved);
+      if (isTeamSlot(slot)) return esc(team);
+      var lbl = smartLabel(slot, results);
+      var srcGid = slot && slot.type !== 'fixed' ? slot.slot : null;
+      if (srcGid && GAMES[srcGid]) {
+        return '<span class="tp-opp-chip" role="button" title="View this game in the bracket"'
+          + ' data-opp-gid="' + esc(srcGid) + '">'
+          + esc(lbl) + '<span class="tp-opp-chevron">&#8250;</span></span>';
+      }
+      return esc(lbl);
+    }
+    var t1html = slotHTML(g.t1, t1r);
+    var t2html = slotHTML(g.t2, t2r);
     var c1  = !t1r ? 'tbd' : (r.winner===t1r ? 'won' : r.loser===t1r ? 'lost' : '');
     var c2  = !t2r ? 'tbd' : (r.winner===t2r ? 'won' : r.loser===t2r ? 'lost' : '');
 
@@ -1819,11 +1835,11 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       + '<span class="round-game-id" style="margin-left:auto;flex-shrink:0">' + esc(gameLabel(gid)) + '</span>'
       + '</div>'
       + '<div class="round-team-row">'
-      + '<span class="round-team-name ' + c1 + '">' + esc(t1n) + '</span>'
+      + '<span class="round-team-name ' + c1 + '">' + t1html + '</span>'
       + scoreHTML(r.t1score)
       + '</div>'
       + '<div class="round-team-row">'
-      + '<span class="round-team-name ' + c2 + '">' + esc(t2n) + '</span>'
+      + '<span class="round-team-name ' + c2 + '">' + t2html + '</span>'
       + scoreHTML(r.t2score)
       + '</div>'
       + '</div>'
@@ -2025,6 +2041,10 @@ function renderTeamView(){
         target.classList.add('tp-target-flash');
         return;
       }
+      // Opponent chip beats the surrounding card: jump to the game the
+      // potential opponent comes from rather than the card's own game.
+      var opp=e.target.closest('[data-opp-gid]');
+      if(opp){ jumpToBracketGame(opp.getAttribute('data-opp-gid')); return; }
       var card=e.target.closest('[data-jump-gid]');
       if(card) jumpToBracketGame(card.getAttribute('data-jump-gid'));
     });
