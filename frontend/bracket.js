@@ -661,8 +661,15 @@ function computeLBPositions(slotVh) {
       } else if (real.length === 1) {
         var f = real[0];
         var gap = colGap(colIndexOfRound(f.round));
-        // Real feeder is t2 -> drop-in/bye above -> game lands above feeder.
-        top = f.ti === 1 ? f.pos - gap / 4 : f.pos + gap / 4;
+        if (f.round === col.round) {
+          // Same-column chain (LB final fed by LB semi): place below the
+          // feeder so it reads top-to-bottom and lands level with the WB
+          // final across the bracket.
+          top = f.pos + gap / 4;
+        } else {
+          // Real feeder is t2 -> drop-in/bye above -> game lands above feeder.
+          top = f.ti === 1 ? f.pos - gap / 4 : f.pos + gap / 4;
+        }
       } else {
         top = slotTopVh(col.round, entry.slot, slotVh, col.side);
       }
@@ -776,7 +783,7 @@ function renderDesktopBracket(root,dims){
   var champ2G=GAMES['CHAMP2.C.1'], cr2=results['CHAMP2.C.1']||{};
   var champHTML;
   if(!champG){
-    champHTML='<div class="champ-center--desktop" style="width:'+champVw+'vw;margin-top:'+hdrVh+'vh">'
+    champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;margin-top:'+hdrVh+'vh">'
       +'<div class="champ-inner" style="opacity:0.3">'
       +'<div class="champ-trophy">🏆</div>'
       +'<div class="champ-title">Championship</div>'
@@ -802,7 +809,7 @@ function renderDesktopBracket(root,dims){
       }
     }
     var showChampWinner = cr.winner && champ2State() !== 'needed';
-    champHTML='<div class="champ-center--desktop" style="width:'+champVw+'vw;margin-top:'+hdrVh+'vh">'
+    champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;margin-top:'+hdrVh+'vh">'
       +'<div class="champ-inner" style="margin-top:'+(3.5*slotVh)+'vh">'
       +'<div class="champ-trophy">🏆</div>'
       +'<div class="champ-title">Championship</div>'
