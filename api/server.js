@@ -24,26 +24,53 @@ const SETTINGS_DEFAULTS = {
 
 const VALID_ROLES = ['admin', 'results', 'team', 'buckets'];
 
-function readJSON(file) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
-  catch { return {}; }
-}
-function writeJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+// ── In-memory JSON cache ──────────────────────────────────────────────
+// Keyed by absolute file path; each entry holds { data, etag }.
+// Mutation safety: readJSON returns a structuredClone so callers that
+// mutate the returned object before deciding to save cannot corrupt the
+// cached copy.  writeJSON updates the cache and etag before writing to
+// disk so the cache is always coherent.
+const jsonCache = new Map();
+
+function _computeEtag(jsonStr) {
+  return '"' + crypto.createHash('sha1').update(jsonStr).digest('hex') + '"';
 }
 
-// ── User storage helpers ──────────────────────────────────────────────
-function readUsers() {
+function readJSON(file) {
+  if (jsonCache.has(file)) {
+    return structuredClone(jsonCache.get(file).data);
+  }
   try {
-    const data = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-    return Array.isArray(data.users) ? data.users : [];
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const str  = JSON.stringify(data, null, 2);
+    jsonCache.set(file, { data, etag: _computeEtag(str) });
+    return structuredClone(data);
   } catch {
-    return [];
+    return {};
   }
 }
 
+function writeJSON(file, data) {
+  const str = JSON.stringify(data, null, 2);
+  jsonCache.set(file, { data, etag: _computeEtag(str) });
+  fs.writeFileSync(file, str);
+}
+
+// Return the cached ETag for a file (null if not yet loaded).
+function etagForFile(file) {
+  const entry = jsonCache.get(file);
+  return entry ? entry.etag : null;
+}
+
+// ── User storage helpers ──────────────────────────────────────────────
+// USERS_FILE stores { users: [...] }; these helpers expose just the array.
+function readUsers() {
+  const raw = readJSON(USERS_FILE);
+  return Array.isArray(raw.users) ? raw.users : [];
+}
+
 function writeUsers(users) {
-  fs.writeFileSync(USERS_FILE, JSON.stringify({ users }, null, 2));
+  writeJSON(USERS_FILE, { users });
 }
 
 function findUser(username) {
@@ -138,12 +165,41 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Cached index HTML ─────────────────────────────────────────────────
+// Invalidated whenever SETTINGS_FILE is written (via invalidateIndexCache).
+let _indexHtmlCache = null;   // null means stale/not-yet-built
+
+function invalidateIndexCache() {
+  _indexHtmlCache = null;
+}
+
+function buildIndexHtml() {
+  const s       = Object.assign({}, SETTINGS_DEFAULTS, readJSON(SETTINGS_FILE));
+  const title   = escHtml(s.pageTitle      || SETTINGS_DEFAULTS.pageTitle);
+  const ogTitle = escHtml(s.tournamentName || SETTINGS_DEFAULTS.tournamentName);
+  const desc    = escHtml(s.subtitle       || '');
+  let html = fs.readFileSync(FRONTEND_INDEX, 'utf8');
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
+  const meta = [
+    `  <meta property="og:title" content="${ogTitle}">`,
+    `  <meta property="og:type" content="website">`,
+    desc ? `  <meta property="og:description" content="${desc}">` : '',
+    desc ? `  <meta name="description" content="${desc}">` : '',
+  ].filter(Boolean).join('\n');
+  html = html.replace('</head>', `${meta}\n</head>`);
+  return html;
+}
+
 // ── App ───────────────────────────────────────────────────────────────
 const app = express();
 
 // Trust the first proxy (nginx) so req.ip reflects the real client IP
 // and cookie.secure works correctly when HAProxy terminates TLS.
 app.set('trust proxy', 1);
+
+// Disable Express's default weak-ETag generation so our explicit ETags
+// on /api/results and /api/buckets are the sole source of truth.
+app.set('etag', false);
 
 // Body parsing — 10 kb is generous for every payload this app sends.
 app.use(express.json({ limit: '10kb' }));
@@ -482,22 +538,12 @@ app.get('/api/team-access/:token', (req, res) => {
 // Social platforms scrape raw HTML and don't run JS, so <title> and og:title
 // must be present in the server response rather than set by client-side JS.
 app.get(['/', '/index.html'], (req, res) => {
-  const s       = Object.assign({}, SETTINGS_DEFAULTS, readJSON(SETTINGS_FILE));
-  const title   = escHtml(s.pageTitle      || SETTINGS_DEFAULTS.pageTitle);
-  const ogTitle = escHtml(s.tournamentName || SETTINGS_DEFAULTS.tournamentName);
-  const desc    = escHtml(s.subtitle       || '');
   try {
-    let html = fs.readFileSync(FRONTEND_INDEX, 'utf8');
-    html = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
-    const meta = [
-      `  <meta property="og:title" content="${ogTitle}">`,
-      `  <meta property="og:type" content="website">`,
-      desc ? `  <meta property="og:description" content="${desc}">` : '',
-      desc ? `  <meta name="description" content="${desc}">` : '',
-    ].filter(Boolean).join('\n');
-    html = html.replace('</head>', `${meta}\n</head>`);
+    if (!_indexHtmlCache) {
+      _indexHtmlCache = buildIndexHtml();
+    }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(html);
+    res.send(_indexHtmlCache);
   } catch (err) {
     console.error('Error serving index:', err);
     res.status(500).send('Server error');
@@ -514,8 +560,17 @@ app.get(['/lineup', '/lineup.html'], (req, res) => {
 
 // ── Public GET routes ─────────────────────────────────────────────────
 app.get('/api/results', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.json(readJSON(RESULTS_FILE));
+  // Ensure data (and its etag) are in the cache.
+  const data = readJSON(RESULTS_FILE);
+  const etag = etagForFile(RESULTS_FILE);
+  res.setHeader('Cache-Control', 'no-cache');
+  if (etag) {
+    res.setHeader('ETag', etag);
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+  }
+  res.json(data);
 });
 
 app.get('/api/schedule', (req, res) => {
@@ -572,6 +627,7 @@ app.post('/api/settings', requireAdmin, (req, res) => {
     if (incoming[k] !== undefined) clean[k] = String(incoming[k]).slice(0, 500);
   });
   writeJSON(SETTINGS_FILE, clean);
+  invalidateIndexCache();
   res.json({ ok: true });
 });
 
@@ -634,8 +690,16 @@ app.post('/api/lineups/game/:slotId/:teamName', requireLineupAccess, (req, res) 
 // ── Bucket challenge endpoints ────────────────────────────────────────
 
 app.get('/api/buckets', (req, res) => {
-  res.setHeader('Cache-Control', 'no-store');
-  res.json(readJSON(BUCKETS_FILE));
+  const data = readJSON(BUCKETS_FILE);
+  const etag = etagForFile(BUCKETS_FILE);
+  res.setHeader('Cache-Control', 'no-cache');
+  if (etag) {
+    res.setHeader('ETag', etag);
+    if (req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+  }
+  res.json(data);
 });
 
 app.post('/api/buckets/counts', requireBucketsEdit, (req, res) => {
