@@ -41,7 +41,7 @@ TournaTrak is a tournament bracket web app. The bracket supports:
 | `frontend/bracket.js` | All bracket rendering logic (main file for patches) |
 | `frontend/bracket-data.js` | SLOT_DEFS, ROUND_ORDER, ROUND_LABELS (client-side) |
 | `api/slot-defs.js` | SLOT_DEFS server-side copy (keep in sync with bracket-data.js) |
-| `api/validation.js` | `isValidSlotId` — format-based, not SLOT_DEFS lookup |
+| `api/validation.js` | `isValidSlotId` — derives valid rounds and max slot num from SLOT_DEFS |
 
 ### SLOT_DEFS (both `frontend/bracket-data.js` and `api/slot-defs.js`)
 ```js
@@ -65,16 +65,18 @@ const ROUND_LABELS = {
 
 ## Key Functions in `frontend/bracket.js`
 
-| Function | Line | Purpose |
-|----------|------|---------|
-| `slotTopVh(round, slot, slotVh, side)` | ~370 | Vertical position of a card within its column |
-| `getDims()` | ~391 | Returns layout dimensions; desktop block uses `buildSideColumns` for dynamic column width |
-| `buildSideColumns(side)` | ~516 | Returns non-empty `{round, side, games}` columns for L or R side |
-| `buildConnPcts(srcCol, dstCol, slotVh)` | ~526 | Draws connector lines between adjacent columns (winner slots only — no cross-side loser lines) |
-| `renderTabletBracket(root, dims)` | ~651 | Renders tablet layout |
-| `renderMobileBracket(root, dims)` | ~795 | Renders mobile layout |
-| `buildWinChain(sid)` | ~1322 | Follows winner slots recursively from a starting game |
-| `makeVerticalChain(chain, team, isLosePath, showElimOnLoss)` | ~1332 | Renders team path cards for a chain of games |
+| Function | Line (approx) | Purpose |
+|----------|---------------|---------|
+| `slotTopVh(round, slot, slotVh, side)` | ~372 | Vertical position of a card within its column (WB even spacing) |
+| `computeLBPositions(slotVh)` | ~530 | Computes LB card positions as feeder midpoints; returns `{gid→topVh}` |
+| `getDims()` | ~393 | Returns layout dimensions; desktop block uses `buildSideColumns` for dynamic column width |
+| `buildSideColumns(side)` | ~522 | Returns non-empty `{round, side, games}` columns for L or R side |
+| `buildConnPcts(srcCol, dstCol, slotVh, posMap)` | ~564 | Draws connector lines; accepts optional posMap for LB offset positions |
+| `renderDesktopBracket(root, dims)` | ~597 | Renders desktop layout; computes `lbPosMap` via `computeLBPositions` |
+| `renderTabletBracket(root, dims)` | ~690 | Renders tablet layout (exists but currently unreachable — isTablet removed) |
+| `renderMobileBracket(root, dims)` | ~833 | Renders mobile layout |
+| `buildWinChain(sid)` | ~1360 | Follows winner slots recursively from a starting game |
+| `makeVerticalChain(chain, team, isLosePath, showElimOnLoss)` | ~1370 | Renders team path cards for a chain of games |
 
 ### `isLosePath` flag
 - `false` = team is on WB path (0 prior losses)
@@ -85,7 +87,22 @@ const ROUND_LABELS = {
 
 ---
 
-## CHAMP2 Logic Rules (important, user confirmed)
+## LB Vertical Positioning (desktop)
+
+The WB uses standard even spacing (`slotTopVh`). The LB uses `computeLBPositions`:
+
+1. WB game positions are seeded into `posMap` using `slotTopVh` (even spacing).
+2. LB columns are then processed in round order (R1 first).
+3. Each LB game is positioned at the **vertical midpoint of its feeder game tops** — both `type:'winner'` connections from within the LB and `type:'loser'` cross-bracket drops from the WB.
+4. Games with no resolvable feeders fall back to `slotTopVh`.
+
+This creates visual tree convergence: R1 games sit between their WB feeder pairs, R2 games stagger from R1, QF/SF converge further toward center.
+
+`buildConnPcts` accepts the `posMap` as an optional 4th argument so connector lines follow the new card positions on the LB side.
+
+---
+
+## CHAMP2 Logic Rules (user confirmed)
 
 | Scenario | Result |
 |----------|--------|
@@ -104,25 +121,55 @@ In `makeVerticalChain`, `champElim = isLosePath && g && g.round === 'CHAMP'` con
 
 ---
 
-## Patches Completed This Session (all on `main`)
+## Code Conventions
 
-1. **Empty round columns** — rounds with no games no longer render as columns (QF2 had no L-side games, creating blank column + broken connector lines). Fixed in `buildSideColumns`, `renderTabletBracket`, `renderMobileBracket`.
+- `bracket.js` uses `var` throughout (legacy style — do not mix in `const`/`let`).
+- `bracket-data.js` uses `const`/`let` consistently.
+- Null-guard pattern for GAMES lookups: `var g = GAMES[gid]; if (!g) return ...` (early exit).
+- `formatBucketTime(d)` in bracket.js delegates to `formatTime` (bracket-data.js) by building a local ISO string — avoids duplicate formatting logic.
+- `isEliminated` uses 2-loss rule only (double elimination). The old round-specific first-loop check was removed.
+- `isValidSlotId` in validation.js derives `_VALID_ROUNDS` from `Object.keys(SLOT_DEFS)` and `_MAX_SLOT_NUM` from SLOT_DEFS max values — no hardcoded constants.
+- `SLOT_DEFS` is NOT re-exported from `validation.js`. Callers that need it import `slot-defs.js` directly.
+
+---
+
+## Magic Numbers (documented in bracket.js)
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `CARD_RATIO` | `0.82` | Card height as fraction of its slot's vertical space |
+| `CARD_ASPECT` | `2.6` | Card width-to-height ratio (used to derive card height from column width) |
+| Grid row constant | `8` | Max games per side per round (R1 has 8); used as grid row count so all columns share the same total height |
+| Bracket width | `85vw` | Usable bracket width, leaving 15vw for margins/champ |
+| Gap ratio | `0.20` | Gap-to-column width ratio (each gap is 20% of a column width) |
+
+---
+
+## Patches Completed (all on `main`)
+
+1. **Empty round columns** — rounds with no games no longer render as columns. Fixed in `buildSideColumns`, `renderTabletBracket`, `renderMobileBracket`.
 
 2. **WB finalist win path** — `buildWinChain` no longer follows WB finalist past CHAMP to CHAMP2. Shows "WIN → CHAMPION 🏆" and stops.
 
-3. **R1.R slot spacing** — was using actual game count instead of the correct grid size. Fixed by `slotTopVh` now using `n = max(actual_game_count, max_slot_number_used)`.
+3. **R1.R slot spacing** — fixed by `slotTopVh` using `n = max(actual_game_count, max_slot_number_used)`.
 
-4. **Vertical spacing regression** — SLOT_DEFS approach crammed QF/SF games into the top quarter of their columns. Fixed with the `max()` approach above.
+4. **Vertical spacing regression** — SLOT_DEFS approach crammed QF/SF games into top quarter of columns. Fixed with the `max()` approach above.
 
 5. **Desktop bracket column width** — `getDims` was hardcoded for 4 columns per side. Now uses `buildSideColumns` to count actual columns dynamically.
 
-6. **LB finalist championship path** — Championship card now shows "LOSS → OUT", Grand Finals game card appears as a full card (not annotation) after Championship, and losing Championship as LB finalist shows "LOST" with no continuation.
+6. **LB finalist championship path** — Championship card shows "LOSS → OUT", Grand Finals game card appears as full card (not annotation), and losing Championship as LB finalist shows "LOST" with no continuation.
+
+7. **Code audit cleanup** — removed dead `_bucketEditTeams` variable; removed dead `isTablet` flag and unreachable tablet render branch; consolidated `formatBucketTime`; standardized null-guard pattern; documented magic numbers; fixed `isEliminated` double-elimination logic; derived validation constants from SLOT_DEFS; removed SLOT_DEFS re-export from validation.js.
+
+8. **LB desktop feeder-midpoint positioning** — LB games now positioned at the vertical midpoint of their feeder games rather than even spacing. Eliminates the "straight through" alignment where rounds with equal game counts stacked at identical vertical positions. `buildConnPcts` updated with optional `posMap` argument so connector lines follow card positions.
 
 ---
 
 ## Recent Commits
 
 ```
+c344bdb LB desktop: position games at feeder midpoints instead of even spacing
+94ba17f Code audit cleanup: dead code, magic numbers, logic correctness
 d746cf2 Fix vertical spacing regression and LB finalist championship path
 d97d1a2 Fix desktop bracket column width for variable round counts per side
 a7533ef Fix R1.R slot spacing and LB finalist CHAMP2 team path logic
@@ -136,7 +183,7 @@ ffb1fff Add QF2 round for loser-bracket quarter-finals in double elimination
 
 ## Known Good State
 
-As of commit `d746cf2` on `main`, all six patches above are applied and working. The next session should verify visually before making further changes.
+As of commit `c344bdb` on `main`, all eight patches above are applied. The next session should visually verify the LB feeder-midpoint positioning before making further changes.
 
 ---
 
@@ -144,4 +191,5 @@ As of commit `d746cf2` on `main`, all six patches above are applied and working.
 
 - If the user says "dev branch" or asks about feature work, confirm they want to switch away from `main` patching before doing so.
 - The paper bracket reference and BracketHQ reference (16-team DE: brackethq.com/b/rurhd/) were both consulted for structure validation.
-- The admin panel was also updated earlier (separate session) to allow inserting games beyond the original 32-team single-elimination hardcoding.
+- The admin panel was updated in an earlier session to allow inserting games beyond the original 32-team single-elimination hardcoding.
+- `renderTabletBracket` still exists but is unreachable at runtime (`isTablet` was removed). It can be cleaned up or repurposed if a tablet breakpoint is ever added back.
