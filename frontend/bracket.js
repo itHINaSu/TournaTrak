@@ -364,15 +364,20 @@ function disp(gid,slot){
 // ══════════════════════════════════════════════════════════
 var CARD_RATIO=0.82, CARD_ASPECT=2.6;
 
-// slotTopVh: positions a card within its round column.
-// Uses SLOT_DEFS capacity for the round+side so slots are always laid out on
-// the correct grid (e.g. R1.R uses an 8-slot grid even when fewer games are
-// configured), keeping spacing consistent and connector lines aligned.
+/// slotTopVh: positions a card within its round column.
+// n = max(actual game count, highest slot number used) so slots spread evenly
+// across the full column height regardless of how many SLOT_DEFS defines.
 function slotTopVh(round, slot, slotVh, side) {
   if (round === 'CHAMP' || round === 'CHAMP2') return 3.5 * slotVh;
   var s = side || 'L';
-  var defs = SLOT_DEFS[round] && SLOT_DEFS[round][s];
-  var n = (defs && defs.length) || 1;
+  var gids = Object.keys(GAMES).filter(function(gid) {
+    var p = gid.split('.');
+    return p[0] === round && p[1] === s;
+  });
+  var maxSlot = gids.reduce(function(mx, gid) {
+    return Math.max(mx, parseInt(gid.split('.')[2], 10));
+  }, 0);
+  var n = Math.max(gids.length, maxSlot) || 1;
   var spacing = 8 / n;
   return ((slot - 1) * spacing + spacing / 2 - 0.5) * slotVh;
 }
@@ -1351,14 +1356,16 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
     var dt2 = mft2 ? mft2[1] : '', dw2 = mft2 ? mft2[2] : '', tm2 = mft2 ? mft2[3] : ft2;
 
     // Sidebar: loss-path indicator for upcoming games, victory box for won games
+    // champElim: LB finalist losing CHAMP = 2nd loss = eliminated (no CHAMP2)
     var loseSide = '';
+    var champElim = isLosePath && g && g.round === 'CHAMP';
     if (!played) {
       var ln = findNextSlot(gid, 'loser');
-      var destText = ln ? gameLabel(ln) : 'OUT';
+      var destText = (!champElim && ln) ? gameLabel(ln) : 'OUT';
       loseSide = '<div class="round-lose-side">'
         + '<span class="round-lose-tag">LOSS</span>'
         + '<span class="round-lose-arrow">↓</span>'
-        + '<span class="round-lose-dest' + (ln ? '' : ' out') + '">' + esc(destText) + '</span>'
+        + '<span class="round-lose-dest' + ((!champElim && ln) ? '' : ' out') + '">' + esc(destText) + '</span>'
         + '</div>';
     } else if (teamWon) {
       loseSide = '<div class="round-win-side">'
@@ -1367,7 +1374,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
         + '</div>';
     } else if (teamLost) {
       var ln = findNextSlot(gid, 'loser');
-      if (ln) {
+      if (ln && !champElim) {
         loseSide = '<div class="round-lose-side">'
           + '<span class="round-lose-tag">Lost</span>'
           + '<span class="round-lose-arrow round-lose-arrow--cont">↓</span>'
@@ -1418,24 +1425,6 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
     if (!isLosePath && g && g.round === 'CHAMP') {
       html += '<div class="team-path-annotation team-path-annotation--terminal color-gold">'
         + 'WIN → CHAMPION 🏆</div>';
-      break;
-    }
-
-    // LB finalist (isLosePath=true) at CHAMP: only advance to CHAMP2 once they
-    // have actually won CHAMP. Before the result is in, stop the chain here so
-    // CHAMP2 is not shown as a prospective game — a second loss = elimination.
-    if (isLosePath && g && g.round === 'CHAMP' && !played) {
-      var wn = findNextSlot(gid, 'winner');
-      if (wn) {
-        html += '<div class="team-path-annotation team-path-annotation--terminal">'
-          + '<span class="color-win">WIN</span>'
-          + '<span class="color-win">→</span>'
-          + '<span class="color-win">' + esc(gameLabel(wn)) + '</span>'
-          + '</div>';
-      } else {
-        html += '<div class="team-path-annotation team-path-annotation--terminal color-gold">'
-          + 'WIN → CHAMPION 🏆</div>';
-      }
       break;
     }
 
