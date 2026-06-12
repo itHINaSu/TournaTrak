@@ -1199,8 +1199,13 @@ function renderMobileBracket(root, dims) {
         var srcGid = slot.slot;
         if (srcGid && colOfGid[srcGid] === ri - 1 && earlyY[srcGid] !== undefined) {
           feeders.push(earlyY[srcGid]);
+        } else if (slot.type === 'winner' && srcGid
+                   && colOfGid[srcGid] !== undefined && colOfGid[srcGid] < ri - 1) {
+          // Winner byeing through from a farther-back column: its line runs
+          // straight along this card's own lane, so use selfY as the feeder.
+          // (Loser drops from other columns stay fully ignored.)
+          feeders.push(selfY);
         }
-        // feeders outside the adjacent column are silently ignored
       });
       lateY[gid] = feeders.length >= 2
         ? (feeders[0] + feeders[1]) / 2
