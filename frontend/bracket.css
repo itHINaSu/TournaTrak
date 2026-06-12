@@ -1321,7 +1321,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   }
 }
 
-@print {
+@media print {
   .site-header, .view-tabs, .header-controls, .theme-toggle, .selector-row { display: none; }
   body { background: #fff; color: #000; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

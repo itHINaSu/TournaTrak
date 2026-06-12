@@ -412,8 +412,8 @@
    MOBILE — locked flex column, nav at bottom
    ════════════════════════════════════════════════════════════ */
 @media (max-width: 1023px) {
-  html { height: 100dvh; height: var(--app-h, 100dvh); }
-  body { height: 100dvh; height: var(--app-h, 100dvh); overflow: hidden; display: flex; flex-direction: column; }
+  html { height: 100svh; height: var(--app-h, 100svh); }
+  body { height: 100svh; height: var(--app-h, 100svh); overflow: hidden; display: flex; flex-direction: column; }
   .site-header { flex-shrink: 0; }
 
   /* Both nav bar variants move to the bottom via flex order */
