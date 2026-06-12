@@ -518,7 +518,9 @@ function renderScheduleEditor() {
       if (!defs.length) return;
       if (sides.length > 1) {
         html += '<div class="sched-side-label">'
-          + (side==='L'?'Left Side':side==='R'?'Right Side':side) + '</div>';
+          + (side==='L' ? getSetting('leftLabel')
+           : side==='R' ? getSetting('rightLabel')
+           : side) + '</div>';
       }
       defs.forEach(function(n){
         var sid = round + '.' + side + '.' + n;
