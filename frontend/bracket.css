@@ -450,6 +450,10 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .champ-inner { width: 100%; text-align: center; }
 .champ-trophy { font-size: 1.8em; margin-bottom: 0.3em; }
+/* Trophy renders from the icon file, not the 🏆 emoji — desktop systems
+   without a color-emoji font showed an empty box. Sized in em so it
+   inherits each wrapper's font-size. */
+.trophy-img { width: 1em; height: 1em; vertical-align: -0.12em; }
 .champ-title {
   font-family: 'Oswald', sans-serif;
   font-size: 0.68rem;

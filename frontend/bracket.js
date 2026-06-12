@@ -788,7 +788,7 @@ function renderDesktopBracket(root,dims){
   if(!champG){
     champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;margin-top:'+hdrVh+'vh">'
       +'<div class="champ-inner" style="opacity:0.3">'
-      +'<div class="champ-trophy">🏆</div>'
+      +'<div class="champ-trophy"><img src="/icons/trophy-192.png" class="trophy-img" alt=""></div>'
       +'<div class="champ-title">Championship</div>'
       +'</div></div>';
   } else {
@@ -814,7 +814,7 @@ function renderDesktopBracket(root,dims){
     var showChampWinner = cr.winner && champ2State() !== 'needed';
     champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;margin-top:'+hdrVh+'vh">'
       +'<div class="champ-inner" style="margin-top:'+(3.5*slotVh)+'vh">'
-      +'<div class="champ-trophy">🏆</div>'
+      +'<div class="champ-trophy"><img src="/icons/trophy-192.png" class="trophy-img" alt=""></div>'
       +'<div class="champ-title">Championship</div>'
       +'<div class="champ-gametime">'+esc(formatTime(champG.time))+'</div>'
       +'</div>'
@@ -853,7 +853,7 @@ function champCardHTML(gid) {
   var ft = formatTime(g.time);
   return '<div class="mbc-champ-card">'
     + '<div class="mbc-champ-top">'
-    +   '<div class="mbc-champ-trophy">🏆</div>'
+    +   '<div class="mbc-champ-trophy"><img src="/icons/trophy-192.png" class="trophy-img" alt=""></div>'
     +   '<div class="mbc-champ-label">Championship</div>'
     +   (ft ? '<div class="mbc-champ-time">' + esc(ft) + '</div>' : '')
     + '</div>'
@@ -869,7 +869,7 @@ function champCardHTML(gid) {
     +     scoreHTML(r.t2score)
     +   '</div>'
     + '</div>'
-    + (r.winner ? '<div class="mbc-champ-winner">🏆 ' + esc(r.winner) + '</div>' : '')
+    + (r.winner ? '<div class="mbc-champ-winner"><img src="/icons/trophy-192.png" class="trophy-img" alt=""> ' + esc(r.winner) + '</div>' : '')
     + '</div>';
 }
 
@@ -1676,7 +1676,7 @@ function buildWinChain(sid){
 function champBannerHTML(crowned) {
   return '<div class="team-path-champion' + (crowned ? ' is-crowned' : '') + '">'
     + (crowned ? '' : '<span class="tpc-pre">WIN</span><span class="tpc-pre">→</span>')
-    + '<span class="tpc-trophy">🏆</span>'
+    + '<span class="tpc-trophy"><img src="/icons/trophy-192.png" class="trophy-img" alt=""></span>'
     + '<span class="tpc-word">Champion</span>'
     + '</div>';
 }
