@@ -1412,6 +1412,15 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
       break;
     }
 
+    // WB finalist (0 prior losses, isLosePath=false): winning CHAMP = champion.
+    // CHAMP2 only applies if they LOSE CHAMP — that continuation is shown via the
+    // loser path in renderTeamView. LB finalist (isLosePath=true) continues past CHAMP.
+    if (!isLosePath && g && g.round === 'CHAMP') {
+      html += '<div class="team-path-annotation team-path-annotation--terminal color-gold">'
+        + 'WIN → CHAMPION 🏆</div>';
+      break;
+    }
+
     if (i < chain.length - 1) {
       html += '<div class="team-path-connector">'
         + '<div class="team-path-connector-track">'
