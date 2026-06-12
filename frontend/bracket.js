@@ -449,10 +449,14 @@ function getDims(){
     var champVw=10;
     var nL=Math.max(buildSideColumns('L').length,1);
     var nR=Math.max(buildSideColumns('R').length,1);
-    var nMax=Math.max(nL,nR);
     // 97vw = usable bracket width (nearly full window, small side margins).
     // 0.15 = gap-to-column width ratio (each gap is 15% of a column).
-    var colVw=(97-champVw)/2/(nMax+(nMax-1)*0.15);
+    // Columns are sized from the TOTAL count across both sides so each side
+    // takes exactly the width it needs — the whole bracket centers as one
+    // unit and the championship sits at the seam between the two brackets,
+    // even when the sides have different round counts.
+    var units=nL+nR+(Math.max(nL-1,0)+Math.max(nR-1,0))*0.15;
+    var colVw=(97-champVw)/units;
     var gapVw=colVw*0.15;
     var vwPx=window.innerWidth/100, vhPx=window.innerHeight/100;
     var cardVh=(colVw*vwPx/CARD_ASPECT)/vhPx;
@@ -505,6 +509,26 @@ function scoreHTML(score) {
   var n = parseInt(score, 10);
   if (isNaN(n)) return '';
   return '<span class="game-score">' + n + '</span>';
+}
+
+// ── Themed trophy icon ────────────────────────────────────────────────
+// Inline SVG drawn with the theme's gold variables so it follows the
+// light/dark scheme. Sized by the existing .trophy-img CSS (1em square).
+function trophySVG() {
+  return '<svg class="trophy-img" viewBox="0 0 24 24" aria-hidden="true">'
+    // handles
+    + '<path d="M5.5 5H3v1.5c0 2.7 1.9 5 4.5 5.6M18.5 5H21v1.5c0 2.7-1.9 5-4.5 5.6"'
+    +   ' fill="none" stroke="var(--gold)" stroke-width="1.7" stroke-linecap="round"/>'
+    // cup
+    + '<path d="M6.5 3h11v5.5a5.5 5.5 0 0 1-11 0V3z" fill="var(--gold)"/>'
+    // highlight
+    + '<path d="M8.2 4.4v4a3.8 3.8 0 0 0 1.1 2.7" fill="none"'
+    +   ' stroke="var(--gold-lt)" stroke-width="1.1" stroke-linecap="round"/>'
+    // stem + base
+    + '<path d="M10.9 13.7h2.2V17h-2.2z" fill="var(--gold)"/>'
+    + '<path d="M7.5 18.6c0-.9.7-1.6 1.6-1.6h5.8c.9 0 1.6.7 1.6 1.6V20h-9v-1.4z" fill="var(--gold)"/>'
+    + '<rect x="6.5" y="20" width="11" height="1.6" rx="0.5" fill="var(--gold-lt)"/>'
+    + '</svg>';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -782,8 +806,9 @@ function renderDesktopBracket(root,dims){
       }
     }
     var labelAlign=isRight?'right:0':'left:0';
-    return '<div style="position:relative;flex:1;min-width:0;display:flex;'
-      +(isRight?'justify-content:flex-start':'justify-content:flex-end')+'">'
+    // Each side takes its natural width; the outer flex row centers the
+    // whole bracket so the champ column sits at the seam between sides.
+    return '<div style="position:relative;flex:0 0 auto;display:flex">'
       +'<div style="position:relative">'
       +'<div class="bracket-side-label" style="position:absolute;top:calc(var(--col-hdr-h)*-2.2);'+labelAlign+'">'+esc(label)+'</div>'
       +'<div style="display:flex;flex-direction:row;margin-top:'+hdrVh+'vh">'+html+'</div>'
@@ -796,7 +821,7 @@ function renderDesktopBracket(root,dims){
   if(!champG){
     champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;margin-top:'+hdrVh+'vh">'
       +'<div class="champ-inner" style="opacity:0.3">'
-      +'<div class="champ-trophy"><img src="/icons/trophy-192.png" class="trophy-img" alt=""></div>'
+      +'<div class="champ-trophy">'+trophySVG()+'</div>'
       +'<div class="champ-title">Championship</div>'
       +'</div></div>';
   } else {
@@ -822,7 +847,7 @@ function renderDesktopBracket(root,dims){
     var showChampWinner = cr.winner && champ2State() !== 'needed';
     champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;margin-top:'+hdrVh+'vh">'
       +'<div class="champ-inner" style="margin-top:'+(3.5*slotVh)+'vh">'
-      +'<div class="champ-trophy"><img src="/icons/trophy-192.png" class="trophy-img" alt=""></div>'
+      +'<div class="champ-trophy">'+trophySVG()+'</div>'
       +'<div class="champ-title">Championship</div>'
       +'<div class="champ-gametime">'+esc(formatTime(champG.time))+'</div>'
       +'</div>'
@@ -832,7 +857,7 @@ function renderDesktopBracket(root,dims){
       +'</div>';
   }
 
-  root.innerHTML='<div style="display:flex;align-items:flex-start;width:97vw;margin:0 auto;'
+  root.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:center;width:97vw;margin:0 auto;'
     +'box-sizing:border-box;padding:calc(var(--col-hdr-h)*2.5) 0 1em;">'
     +sideHTML('L',getSetting('leftLabel'),false)
     +champHTML
@@ -861,7 +886,7 @@ function champCardHTML(gid) {
   var ft = formatTime(g.time);
   return '<div class="mbc-champ-card">'
     + '<div class="mbc-champ-top">'
-    +   '<div class="mbc-champ-trophy"><img src="/icons/trophy-192.png" class="trophy-img" alt=""></div>'
+    +   '<div class="mbc-champ-trophy">'+trophySVG()+'</div>'
     +   '<div class="mbc-champ-label">Championship' + fieldTagHTML(gid) + '</div>'
     +   (ft ? '<div class="mbc-champ-time">' + esc(ft) + '</div>' : '')
     + '</div>'
@@ -877,7 +902,7 @@ function champCardHTML(gid) {
     +     scoreHTML(r.t2score)
     +   '</div>'
     + '</div>'
-    + (r.winner ? '<div class="mbc-champ-winner"><img src="/icons/trophy-192.png" class="trophy-img" alt=""> ' + esc(r.winner) + '</div>' : '')
+    + (r.winner ? '<div class="mbc-champ-winner">' + trophySVG() + ' ' + esc(r.winner) + '</div>' : '')
     + '</div>';
 }
 
@@ -1765,7 +1790,7 @@ function buildWinChain(sid){
 function champBannerHTML(crowned) {
   return '<div class="team-path-champion' + (crowned ? ' is-crowned' : '') + '">'
     + (crowned ? '' : '<span class="tpc-pre">WIN</span><span class="tpc-pre">→</span>')
-    + '<span class="tpc-trophy"><img src="/icons/trophy-192.png" class="trophy-img" alt=""></span>'
+    + '<span class="tpc-trophy">'+trophySVG()+'</span>'
     + '<span class="tpc-word">Champion</span>'
     + '</div>';
 }
