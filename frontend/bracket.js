@@ -1902,7 +1902,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
     }
 
     html += '<div class="round-game-card" style="border-color:' + borderColor + '"'
-      + ' data-jump-gid="' + esc(gid) + '" title="View in bracket">'
+      + ' data-jump-gid="' + esc(gid) + '">'
       + '<div class="round-game-main">'
       + '<div class="round-game-header">'
       + '<div class="round-game-day-time">'
@@ -2145,12 +2145,9 @@ function renderTeamView(){
         target.classList.add('tp-target-flash');
         return;
       }
-      // Opponent chip beats the surrounding card: jump to the game the
-      // potential opponent comes from rather than the card's own game.
+      // Only the opponent chip navigates — tapping the card itself does nothing.
       var opp=e.target.closest('[data-opp-gid]');
-      if(opp){ jumpToBracketGame(opp.getAttribute('data-opp-gid')); return; }
-      var card=e.target.closest('[data-jump-gid]');
-      if(card) jumpToBracketGame(card.getAttribute('data-jump-gid'));
+      if(opp) jumpToBracketGame(opp.getAttribute('data-opp-gid'));
     });
   }
 }

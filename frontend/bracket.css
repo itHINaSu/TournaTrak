@@ -893,7 +893,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .team-path-champion.is-crowned .tpc-word { font-size: 1.55rem; }
 
 /* ── Clickable loss-destination boxes (team path navigation) ── */
-.round-game-card[data-jump-gid] { cursor: pointer; }
 .round-lose-side[data-lose-anchor] { cursor: pointer; }
 .round-lose-side[data-lose-anchor]:hover .round-lose-dest,
 .round-lose-side[data-lose-anchor]:active .round-lose-dest {
