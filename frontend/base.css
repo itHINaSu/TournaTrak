@@ -12,7 +12,7 @@
   --gold-lt:      #e8b82a;
   --text:         #e8ede9;
   --text-dim:     #7a8f7d;
-  --text-mute:    #4a5e4d;
+  --text-mute:    #5f7862;
   --win-color:    #4a9a4a;
   --lose-color:   #c05050;
   --elim-bg:      #2a1f1f;
@@ -34,7 +34,14 @@
 
   /* Border radius scale */
   --radius-sm: 0.35em;
+  --radius-xs: 0.2em;
   --radius-md: 0.6em;
+
+  /* Type scale */
+  --text-xs: 0.72rem;
+  --text-sm: 0.78rem;
+  --text-md: 0.9rem;
+  --text-lg: 1rem;
 
   /* Bracket slot sizing — set by JS via setProperty */
   --slot-h:    10vh;
@@ -56,7 +63,7 @@ body.light {
   --gold-lt:   #7a5800;
   --text:      #1a2a1c;
   --text-dim:  #4a6a50;
-  --text-mute: #8aaa90;
+  --text-mute: #557a5b; /* ≥4.5:1 on white surface (WCAG AA) */
   --win-color: #2a6a18;
   --lose-color:#8a2a2a;
   --elim-bg:   #f5e8e8;
@@ -143,7 +150,7 @@ body {
   letter-spacing: 0.07em;
   text-transform: uppercase;
   padding: 0.38em 0.88em;
-  border-radius: 0.2em;
+  border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;
   color: var(--text-dim);
@@ -170,6 +177,41 @@ body {
 .toast { position: fixed; bottom: 1.5em; left: 50%; transform: translateX(-50%) translateY(1.2em); background: var(--surface2); border: 0.07em solid var(--blue); border-radius: 0.4em; padding: 0.6em 1.2em; font-size: 0.84rem; color: var(--blue-lt); opacity: 0; transition: all 0.25s; pointer-events: none; z-index: 999; white-space: nowrap; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { border-color: var(--clear-color); color: var(--clear-color); }
+
+/* ── Focus-visible ring ── */
+button:focus-visible,
+[role="tab"]:focus-visible,
+a:focus-visible,
+select:focus-visible,
+.view-tab:focus-visible,
+.team-chip:focus-visible,
+.lineup-tool-btn:focus-visible { outline: 0.13em solid var(--blue-lt); outline-offset: 0.15em; }
+
+/* ── Primary buttons (shared baseline) ── */
+.admin-save-btn,
+.sched-save-btn,
+.bucket-edit-save-btn,
+.lineup-submit-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.55em 1.1em;
+  border-radius: var(--radius-xs);
+  background: var(--blue);
+  color: #fff;
+  border: 0.07em solid var(--blue);
+  cursor: pointer;
+}
+.admin-save-btn:hover, .admin-save-btn:active,
+.sched-save-btn:hover, .sched-save-btn:active,
+.bucket-edit-save-btn:hover, .bucket-edit-save-btn:active,
+.lineup-submit-btn:hover, .lineup-submit-btn:active { background: var(--blue-lt); border-color: var(--blue-lt); }
+.admin-save-btn:disabled,
+.sched-save-btn:disabled,
+.bucket-edit-save-btn:disabled,
+.lineup-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 @media (max-width: 1023px) {
   .toast { bottom: calc(6em + env(safe-area-inset-bottom, 0px)); }

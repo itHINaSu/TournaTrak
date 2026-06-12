@@ -684,38 +684,31 @@ function renderDesktopBracket(root,dims){
   var champ2G=GAMES['CHAMP2.C.1'], cr2=results['CHAMP2.C.1']||{};
   var champHTML;
   if(!champG){
-    champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;align-items:center;'
-      +'justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
-      +'<div style="text-align:center;opacity:0.3">'
-      +'<div style="font-size:clamp(1rem,1.5vw,1.6rem)">🏆</div>'
-      +'<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold)">Championship</div>'
+    champHTML='<div class="champ-center--desktop" style="width:'+champVw+'vw;margin-top:'+hdrVh+'vh">'
+      +'<div class="champ-inner" style="opacity:0.3">'
+      +'<div class="champ-trophy">🏆</div>'
+      +'<div class="champ-title">Championship</div>'
       +'</div></div>';
   } else {
     var ifNecHTML='';
     if(champ2G){
-      ifNecHTML='<div style="width:100%;margin-top:1.5vh">'
-        +'<div style="text-align:center;margin-bottom:0.3vh">'
-        +'<div style="font-family:Oswald,sans-serif;font-size:0.55em;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-mute);margin-bottom:0.15em">If Necessary</div>'
-        +(champ2G.time?'<div style="font-size:0.62em;color:var(--gold-lt);font-weight:600;margin-bottom:0.3em">'+esc(formatTime(champ2G.time))+'</div>':'')
-        +'</div>'
-        +'<div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP2.C.1')+'</div>'
-        +(cr2.winner?'<div style="font-family:Oswald,sans-serif;font-size:0.85em;color:var(--gold-lt);text-align:center;margin-top:0.4em;letter-spacing:0.07em">'+esc(cr2.winner)+'</div>':'')
+      ifNecHTML='<div class="champ-center--ifnec">'
+        +'<div class="champ-ifnec-label">If Necessary</div>'
+        +(champ2G.time?'<div class="champ-gametime">'+esc(formatTime(champ2G.time))+'</div>':'')
+        +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP2.C.1')+'</div></div>'
+        +(cr2.winner?'<div class="champ-winner">'+esc(cr2.winner)+'</div>':'')
         +'</div>';
     }
-    champHTML='<div style="flex-shrink:0;width:'+champVw+'vw;display:flex;align-items:flex-start;'
-      +'justify-content:center;padding:0 0.5vw;margin-top:'+hdrVh+'vh">'
-      +'<div style="width:100%">'
-      +'<div style="margin-top:'+(3.5*slotVh)+'vh">'
-      +'<div style="text-align:center;margin-bottom:0.3vh">'
-      +'<div style="font-size:clamp(1rem,1.5vw,1.6rem)">🏆</div>'
-      +'<div style="font-family:Oswald,sans-serif;font-size:0.6em;letter-spacing:0.15em;text-transform:uppercase;color:var(--gold);margin-bottom:0.15em">Championship</div>'
-      +'<div style="font-size:0.62em;color:var(--gold-lt);font-weight:600;margin-bottom:0.3em">'+esc(formatTime(champG.time))+'</div>'
+    champHTML='<div class="champ-center--desktop" style="width:'+champVw+'vw;margin-top:'+hdrVh+'vh">'
+      +'<div class="champ-inner" style="margin-top:'+(3.5*slotVh)+'vh">'
+      +'<div class="champ-trophy">🏆</div>'
+      +'<div class="champ-title">Championship</div>'
+      +'<div class="champ-gametime">'+esc(formatTime(champG.time))+'</div>'
       +'</div>'
-      +'<div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP.C.1')+'</div>'
-      +(cr.winner?'<div style="font-family:Oswald,sans-serif;font-size:0.85em;color:var(--gold-lt);text-align:center;margin-top:0.4em;letter-spacing:0.07em">'+esc(cr.winner)+'</div>':'')
-      +'</div>'
+      +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP.C.1')+'</div></div>'
+      +(cr.winner?'<div class="champ-winner">'+esc(cr.winner)+'</div>':'')
       +ifNecHTML
-      +'</div></div>';
+      +'</div>';
   }
 
   root.innerHTML='<div style="display:flex;align-items:flex-start;width:85vw;margin:0 auto;'
