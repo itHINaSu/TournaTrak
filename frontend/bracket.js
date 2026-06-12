@@ -1043,8 +1043,12 @@ function renderMobileBracket(root, dims) {
       var wave = remaining.filter(function(gid) {
         var g = GAMES[gid];
         return ![g.t1, g.t2].some(function(s) {
+          // Same round AND same side = truly the same column. Cross-side
+          // feeders (WB losers dropping into same-numbered LB round) are
+          // normal bracket structure and must not trigger a split.
           return s && s.type !== 'fixed' && s.slot && !placed[s.slot]
-            && GAMES[s.slot] && GAMES[s.slot].round === round;
+            && GAMES[s.slot] && GAMES[s.slot].round === round
+            && GAMES[s.slot].side === g.side;
         });
       });
       if (!wave.length) wave = remaining.slice(); // cycle guard — never stall
