@@ -1249,6 +1249,21 @@ function renderMobileBracket(root, dims) {
     });
   });
 
+  // Overlap guard: feeder math can land two converged cards on the same spot
+  // (e.g. a bye-through midpoint coinciding with a neighbor's snap position).
+  // Sweep each column top-to-bottom in earlyY order and push any card down
+  // until it clears the one above it by a full card height.
+  cols.forEach(function(col) {
+    if (col.round === 'CHAMP' || col.round === 'CHAMP2') return;
+    var sorted = col.gids.slice().sort(function(a, b) {
+      return (earlyY[a] || 0) - (earlyY[b] || 0);
+    });
+    for (var i = 1; i < sorted.length; i++) {
+      var minY = lateY[sorted[i - 1]] + CARD_H + GAP;
+      if (lateY[sorted[i]] < minY) lateY[sorted[i]] = minY;
+    }
+  });
+
   // prevOffset: where each card should be when the NEXT round is fully in view.
   // Feeder pairs converge to earlyY of their child card, giving a stacking effect
   // when swiping forward and an organic spreading-out when swiping backward.
