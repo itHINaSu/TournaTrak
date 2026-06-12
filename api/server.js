@@ -735,6 +735,7 @@ app.post('/api/buckets/teams', requireAdmin, (req, res) => {
     return res.status(409).json({ error: 'Team already exists' });
   }
   data.bucketOnlyTeams.push(name);
+  data.updatedAt = new Date().toISOString();
   writeJSON(BUCKETS_FILE, data);
   res.json({ ok: true });
 });
@@ -749,6 +750,7 @@ app.delete('/api/buckets/teams/:teamName', requireAdmin, (req, res) => {
   if (idx === -1) return res.status(404).json({ error: 'Team not found' });
   data.bucketOnlyTeams.splice(idx, 1);
   if (data.counts) delete data.counts[name];
+  data.updatedAt = new Date().toISOString();
   writeJSON(BUCKETS_FILE, data);
   res.json({ ok: true });
 });

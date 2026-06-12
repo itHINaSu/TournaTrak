@@ -495,6 +495,16 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   color: var(--text-mute);
   margin-bottom: 0.15em;
 }
+.champ-center--ifnec.champ-ifnec--pending {
+  opacity: 0.5;
+}
+.champ-ifnec-note {
+  font-size: 0.52em;
+  color: var(--text-mute);
+  font-style: italic;
+  margin-bottom: 0.4em;
+  line-height: 1.3;
+}
 
 /* Bracket side label */
 .bracket-side-label {
@@ -579,6 +589,26 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   overflow: hidden;
   background: var(--surface);
   margin-bottom: 1.4em;
+}
+.round-game-card.champ2-pending {
+  opacity: 0.55;
+  border-style: dashed;
+}
+.round-game-card.champ2-not-needed {
+  opacity: 0.35;
+  border-style: dashed;
+  text-decoration-line: line-through;
+}
+.champ2-rv-note {
+  font-size: var(--text-xs);
+  color: var(--text-mute);
+  font-style: italic;
+  padding: 0.3em 0.8em 0;
+}
+.champ2-rv-note--nn {
+  color: var(--lose-color);
+  font-style: normal;
+  font-weight: 600;
 }
 .round-game-card.upcoming {
   opacity: 0.75;
@@ -996,6 +1026,51 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .mbc-dot.active { background: var(--blue-lt); transform: scale(1.35); }
 
+/* ── Mobile bracket carousel: prev/next arrow buttons ───────────────────
+   Only shown on true pointer-device (mouse) screens via hover:hover +
+   pointer:fine. They are position:fixed so they float above all carousel
+   columns and above captureEl (which has no explicit z-index). z-index 205
+   ensures they sit above the scroll overlay. Top is set by JS to vertically
+   centre within the scroll area; transform: translateY(-50%) handles
+   the offset. Arrows are hidden by default and overridden to display:flex
+   inside the media query, so non-mouse browsers never see them. */
+/* Default: arrows hidden on touch/non-hover devices.
+   Must precede the media-query override — same specificity, cascade order wins. */
+.mbc-arrow { display: none; }
+
+@media (hover: hover) and (pointer: fine) {
+  .mbc-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    width: 2.5rem;
+    height: 2.5rem;
+    transform: translateY(-50%);
+    border-radius: 50%;
+    background: rgba(20,24,28,0.72);
+    border: 0.1em solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.7rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 205;
+    opacity: 0.55;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mbc-arrow:hover {
+    opacity: 1;
+    background: rgba(30,36,44,0.92);
+    color: var(--gold-lt);
+    border-color: var(--gold);
+  }
+  .mbc-arrow--prev { left: 0.5rem; }
+  .mbc-arrow--next { right: 0.5rem; }
+}
+
 /* Column scroll area — overflow:hidden; .mbc-scroll-cap overlay drives scroll */
 .mbc-scroll {
   flex: 1;
@@ -1101,6 +1176,45 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   letter-spacing: 0.1em;
   text-align: center;
   border-top: 0.07em solid rgba(196,154,26,0.3);
+}
+
+/* champ2 state classes on .mbc-card */
+.mbc-card.mbc-champ2-pending .mbc-champ-card {
+  opacity: 0.55;
+}
+.mbc-card.mbc-champ2-not-needed {
+  opacity: 0.35;
+}
+.mbc-champ2-not-needed {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  border: 0.07em dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-sizing: border-box;
+}
+.mbc-champ2-nn-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.7em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+.mbc-champ2-nn-tag {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.9em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--lose-color);
+  text-transform: uppercase;
+}
+/* Suppress champ winner banner when CHAMP2 is pending/needed */
+.mbc-card.mbc-champ-winner-pending .mbc-champ-winner {
+  display: none;
 }
 
 /* Each card: absolute position, translateY driven by JS scroll blend */

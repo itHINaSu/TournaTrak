@@ -46,8 +46,8 @@ function updateTimestamp() {
       if (hasCounts) {
         var bd = new Date(updatedAt);
         text.textContent = isNaN(bd.getTime())
-          ? 'Bucket results updated'
-          : 'Bucket results updated ' + formatBucketTime(bd);
+          ? 'Bucket results updated — reload for latest'
+          : 'Bucket results updated ' + formatBucketTime(bd) + ' — reload for latest';
       } else {
         text.textContent = 'No Updates Have Been Submitted';
       }
@@ -77,7 +77,7 @@ function updateTimestamp() {
   } else {
     timeStr = null;
   }
-  if (text) text.textContent = timeStr ? 'Results updated ' + timeStr : 'Results updated';
+  if (text) text.textContent = timeStr ? 'Results updated ' + timeStr + ' — reload for latest' : 'Results updated — reload for latest';
   if (bar) bar.style.display = '';
   applyStickyOffsets();
 }
@@ -319,7 +319,7 @@ async function fetchAll(){
   if (qView) history.replaceState(null, '', window.location.pathname);
   // Restore saved tab; on mobile default to By Round if no saved preference
   var savedTab = qView || getCookie('tt_tab');
-  if (!savedTab && window.innerWidth < 1024) savedTab = 'schedule';
+  if (!savedTab && window.innerWidth < 1280) savedTab = 'schedule';
   if (savedTab) {
     var targetTab   = document.querySelector('.view-tab[data-view="' + savedTab + '"]');
     var targetPanel = document.getElementById('view-' + savedTab);
@@ -644,6 +644,28 @@ function renderBracket(){
   }
 }
 
+// ── champ2State: returns 'pending' | 'needed' | 'not-needed' ─────────
+// 'pending'    — CHAMP not yet decided; CHAMP2 may or may not be needed
+// 'needed'     — LB finalist won CHAMP; CHAMP2 must be played
+// 'not-needed' — WB finalist won CHAMP; CHAMP2 is cancelled
+function champ2State() {
+  var champG = GAMES['CHAMP.C.1'];
+  if (!champG) return 'pending';
+  var cr = results['CHAMP.C.1'] || {};
+  if (!cr.winner) return 'pending';
+  // Find which of t1/t2 comes from the LB side (side === 'R')
+  var lbTeam = null;
+  [champG.t1, champG.t2].forEach(function(slot) {
+    if (!slot || slot.type !== 'winner') return;
+    var feederG = GAMES[slot.slot];
+    if (!feederG || feederG.side !== 'R') return;
+    var t = resolveSlot(slot, results);
+    if (t) lbTeam = t;
+  });
+  if (!lbTeam) return 'pending';
+  return cr.winner === lbTeam ? 'needed' : 'not-needed';
+}
+
 function renderDesktopBracket(root,dims){
   var slotVh=dims.slotVh, cardVh=dims.cardVh;
   var colVw=dims.colVw, gapVw=dims.gapVw, champVw=dims.champVw;
@@ -695,13 +717,24 @@ function renderDesktopBracket(root,dims){
   } else {
     var ifNecHTML='';
     if(champ2G){
-      ifNecHTML='<div class="champ-center--ifnec">'
-        +'<div class="champ-ifnec-label">If Necessary</div>'
-        +(champ2G.time?'<div class="champ-gametime">'+esc(formatTime(champ2G.time))+'</div>':'')
-        +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP2.C.1')+'</div></div>'
-        +(cr2.winner?'<div class="champ-winner">'+esc(cr2.winner)+'</div>':'')
-        +'</div>';
+      var c2s = champ2State();
+      if (c2s === 'not-needed') {
+        ifNecHTML = '';
+      } else {
+        var c2DimCls = c2s === 'pending' ? ' champ-ifnec--pending' : '';
+        var c2Note = c2s === 'pending'
+          ? '<div class="champ-ifnec-note">Played only if the Loser\'s Bracket finalist wins the Championship</div>'
+          : '';
+        ifNecHTML='<div class="champ-center--ifnec' + c2DimCls + '">'
+          +'<div class="champ-ifnec-label">If Necessary</div>'
+          + c2Note
+          +(champ2G.time?'<div class="champ-gametime">'+esc(formatTime(champ2G.time))+'</div>':'')
+          +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP2.C.1')+'</div></div>'
+          +(cr2.winner?'<div class="champ-winner">'+esc(cr2.winner)+'</div>':'')
+          +'</div>';
+      }
     }
+    var showChampWinner = cr.winner && champ2State() !== 'needed';
     champHTML='<div class="champ-center--desktop" style="width:'+champVw+'vw;margin-top:'+hdrVh+'vh">'
       +'<div class="champ-inner" style="margin-top:'+(3.5*slotVh)+'vh">'
       +'<div class="champ-trophy">🏆</div>'
@@ -709,7 +742,7 @@ function renderDesktopBracket(root,dims){
       +'<div class="champ-gametime">'+esc(formatTime(champG.time))+'</div>'
       +'</div>'
       +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP.C.1')+'</div></div>'
-      +(cr.winner?'<div class="champ-winner">'+esc(cr.winner)+'</div>':'')
+      +(showChampWinner?'<div class="champ-winner">'+esc(cr.winner)+'</div>':'')
       +ifNecHTML
       +'</div>';
   }
@@ -862,7 +895,21 @@ function renderMobileBracket(root, dims) {
 
     var cardsHTML = gids.map(function(gid) {
       var inner = isChamp ? champCardHTML(gid) : mobileRoundCardHTML(gid);
-      return '<div class="mbc-card" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0">'
+      // For CHAMP2, apply if-necessary state
+      var c2cls = '';
+      if (round === 'CHAMP2' && gid === 'CHAMP2.C.1') {
+        var c2s = champ2State();
+        if (c2s === 'not-needed') {
+          inner = '<div class="mbc-champ2-not-needed"><span class="mbc-champ2-nn-label">If Necessary</span><span class="mbc-champ2-nn-tag">Not Needed</span></div>';
+        } else if (c2s === 'pending') {
+          c2cls = ' mbc-champ2-pending';
+        }
+      }
+      // For CHAMP, suppress the winner banner when CHAMP2 is still needed
+      if (round === 'CHAMP' && gid === 'CHAMP.C.1' && champ2State() === 'needed') {
+        c2cls += ' mbc-champ-winner-pending';
+      }
+      return '<div class="mbc-card' + c2cls + '" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0">'
         + inner + '</div>';
     }).join('');
 
@@ -1164,8 +1211,141 @@ function renderMobileBracket(root, dims) {
       _approachComp = 0;
       if (idx !== activeIdx) { activeIdx = idx; setSpacerForCol(idx); }
       _anchorLateOff = 0;
+      if (typeof updateArrows === 'function') updateArrows();
     }, 200);
   }, { passive: true });
+
+  // ── Arrow buttons (shown only on @media hover:hover pointer:fine via CSS) ─
+  // Clicking prev/next snaps to the adjacent round using the same scrollTo call
+  // as the dot-tap handler. updateArrows() hides the edge arrows at boundaries.
+  var prevArrowEl = document.createElement('div');
+  prevArrowEl.className = 'mbc-arrow mbc-arrow--prev';
+  prevArrowEl.innerHTML = '&#8249;';
+  var nextArrowEl = document.createElement('div');
+  nextArrowEl.className = 'mbc-arrow mbc-arrow--next';
+  nextArrowEl.innerHTML = '&#8250;';
+  // Vertical centre within the scrollable area
+  var arrowTopPx = Math.round(siteHdrH + mbcHdrH + scrollH / 2);
+  prevArrowEl.style.top = arrowTopPx + 'px';
+  nextArrowEl.style.top = arrowTopPx + 'px';
+  root.appendChild(prevArrowEl);
+  root.appendChild(nextArrowEl);
+
+  function updateArrows() {
+    prevArrowEl.style.display = activeIdx <= 0 ? 'none' : '';
+    nextArrowEl.style.display = activeIdx >= colEls.length - 1 ? 'none' : '';
+  }
+  updateArrows();
+
+  prevArrowEl.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (activeIdx > 0) {
+      var target = (activeIdx - 1) * colW;
+      outer.scrollTo ? outer.scrollTo({ left: target, behavior: 'smooth' })
+                     : (outer.scrollLeft = target);
+    }
+  });
+  nextArrowEl.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (activeIdx < colEls.length - 1) {
+      var target = (activeIdx + 1) * colW;
+      outer.scrollTo ? outer.scrollTo({ left: target, behavior: 'smooth' })
+                     : (outer.scrollLeft = target);
+    }
+  });
+
+  // ── Horizontal wheel / trackpad ───────────────────────────────────────
+  // When |deltaX| > |deltaY|: intercept, drive outer.scrollLeft, snap after
+  // 150 ms of inactivity (same round-snap logic as touchend, no velocity).
+  // Vertical wheel events are NOT intercepted — captureEl scrolls natively.
+  var _wheelSnapTimer = null;
+  captureEl.addEventListener('wheel', function(e) {
+    var adx = Math.abs(e.deltaX), ady = Math.abs(e.deltaY);
+    if (adx <= ady) return; // vertical gesture — let captureEl scroll naturally
+    e.preventDefault();
+    var maxLeft = (colEls.length - 1) * colW;
+    outer.scrollLeft = Math.max(0, Math.min(outer.scrollLeft + e.deltaX, maxLeft));
+    clearTimeout(_wheelSnapTimer);
+    _wheelSnapTimer = setTimeout(function() {
+      var raw  = outer.scrollLeft / colW;
+      var snap = Math.round(raw);
+      snap = Math.max(0, Math.min(snap, colEls.length - 1));
+      outer.scrollTo ? outer.scrollTo({ left: snap * colW, behavior: 'smooth' })
+                     : (outer.scrollLeft = snap * colW);
+    }, 150);
+  }, { passive: false });
+
+  // ── Mouse drag ────────────────────────────────────────────────────────
+  // Mirrors the touch trio: mousedown starts tracking, mousemove drives
+  // outer.scrollLeft, mouseup snaps using the same velocity formula as
+  // touchend. A click fired after a drag (|dx|>5) is suppressed so it
+  // doesn't activate card interactions. The document-level move/up handlers
+  // are attached only for the duration of a drag so re-renders don't leak
+  // stale listeners.
+  var mDrag = null;
+  var _dragSuppressClick = false;
+
+  function onDragMove(e) {
+    if (!mDrag) return;
+    var dx = e.clientX - mDrag.startX;
+    if (!mDrag.decided && Math.abs(dx) > 5) {
+      mDrag.isHoriz = true;
+      mDrag.decided = true;
+    }
+    if (!mDrag.isHoriz) return;
+    captureEl.style.cursor = 'grabbing';
+    var now = Date.now();
+    var dt  = now - mDrag.lastTime;
+    if (dt > 0) mDrag.velocity = (e.clientX - mDrag.lastX) / dt;
+    mDrag.lastX    = e.clientX;
+    mDrag.lastTime = now;
+    var maxLeft = (colEls.length - 1) * colW;
+    outer.scrollLeft = Math.max(0, Math.min(mDrag.startLeft - dx, maxLeft));
+  }
+
+  function onDragUp(e) {
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup', onDragUp);
+    if (!mDrag) return;
+    var dx = e.clientX - mDrag.startX;
+    captureEl.style.cursor = '';
+    if (!mDrag.isHoriz) { mDrag = null; return; }
+    if (Math.abs(dx) > 5) { _dragSuppressClick = true; }
+    var vel  = mDrag.velocity; // px/ms positive = rightward
+    var raw  = (mDrag.startLeft - dx) / colW;
+    var snap = vel < -0.25 ? Math.ceil(raw) : vel > 0.25 ? Math.floor(raw) : Math.round(raw);
+    snap = Math.max(0, Math.min(snap, colEls.length - 1));
+    outer.scrollTo ? outer.scrollTo({ left: snap * colW, behavior: 'smooth' })
+                   : (outer.scrollLeft = snap * colW);
+    mDrag = null;
+    // Allow the click suppression flag to clear after the click event fires
+    setTimeout(function() { _dragSuppressClick = false; }, 0);
+  }
+
+  captureEl.addEventListener('mousedown', function(e) {
+    // Ignore if originating on an arrow or dot (those have their own handlers)
+    if (e.target.classList.contains('mbc-arrow') ||
+        e.target.parentNode && e.target.parentNode.classList.contains('mbc-arrow') ||
+        e.target.classList.contains('mbc-dot')) return;
+    mDrag = {
+      startX: e.clientX, startY: e.clientY,
+      lastX: e.clientX,
+      startLeft: outer.scrollLeft,
+      decided: false, isHoriz: false,
+      lastTime: Date.now(), velocity: 0
+    };
+    captureEl.style.cursor = 'grab';
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragUp);
+  });
+
+  captureEl.addEventListener('click', function(e) {
+    if (_dragSuppressClick) {
+      e.stopPropagation();
+      e.preventDefault();
+      _dragSuppressClick = false;
+    }
+  }, true); // capture phase so it beats card click handlers
 
   setSpacerForCol(0);
 }
@@ -1303,7 +1483,20 @@ function renderRoundView() {
       var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
       var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
       var upcoming = !r.winner ? ' upcoming' : '';
-      html += '<div class="round-game-card' + upcoming + '" id="rgc-' + sid + '">'
+      // CHAMP2: apply if-necessary state
+      var champ2ExtraCls = '';
+      var champ2NoteHTML = '';
+      if (sid === 'CHAMP2.C.1') {
+        var rvc2s = champ2State();
+        if (rvc2s === 'not-needed') {
+          champ2ExtraCls = ' champ2-not-needed';
+          champ2NoteHTML = '<div class="champ2-rv-note champ2-rv-note--nn">Not Needed</div>';
+        } else if (rvc2s === 'pending') {
+          champ2ExtraCls = ' champ2-pending';
+          champ2NoteHTML = '<div class="champ2-rv-note">Played only if the LB finalist wins the Championship</div>';
+        }
+      }
+      html += '<div class="round-game-card' + upcoming + champ2ExtraCls + '" id="rgc-' + sid + '">'
         +'<div class="round-game-header">'
         +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
         +'<div class="round-game-day-time">'
@@ -1311,6 +1504,7 @@ function renderRoundView() {
         +(dowStr?'<span class="round-game-dow">'+esc(dowStr)+'</span>':'')
         +(timeStr?'<span class="round-game-time">'+esc(timeStr)+'</span>':'')
         +'</div></div>'
+        + champ2NoteHTML
         +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
         +scoreHTML(r.t1score)
         +'</div>'
