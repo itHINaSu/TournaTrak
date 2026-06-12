@@ -1080,29 +1080,35 @@ function renderMobileBracket(root, dims) {
 
   // lateY: where each game's card sits when the PREVIOUS round is active
   // (i.e. this round is the right-peek column). Positioned at the midpoint
-  // of its actual feeder games' earlyY values, following t1/t2 connections
-  // so cross-bracket DE games (LB drawing from both LB and WB losers) are
-  // placed correctly instead of using a sequential array-index pairing.
+  // of its feeder positions in the previous column. A feeder only counts if
+  // its source game is actually IN the previous round column; cross-bracket
+  // feeds (e.g. WB R2 loser dropping into LB R2 — same column) or
+  // non-adjacent sources are treated as a "bye" at the card's own earlyY,
+  // so the card converges halfway between its real feeder and itself.
   var lateY = {};
-  rounds.forEach(function(round) {
-    var gids = gidsFor(round);
-    gids.forEach(function(gid) {
-      if (round === 'CHAMP' || round === 'CHAMP2') {
-        lateY[gid] = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+  rounds.forEach(function(round, ri) {
+    var prevRound = ri > 0 ? rounds[ri - 1] : null;
+    gidsFor(round).forEach(function(gid) {
+      var selfY = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+      if (round === 'CHAMP' || round === 'CHAMP2' || !prevRound) {
+        lateY[gid] = selfY;
         return;
       }
       var g = GAMES[gid];
-      if (!g) { lateY[gid] = earlyY[gid] !== undefined ? earlyY[gid] : 0; return; }
+      if (!g) { lateY[gid] = selfY; return; }
       var feeders = [];
       [g.t1, g.t2].forEach(function(slot) {
         if (!slot) return;
         var srcGid = slot.type === 'fixed' ? null : slot.slot;
-        if (srcGid && earlyY[srcGid] !== undefined) feeders.push(earlyY[srcGid]);
+        var srcG   = srcGid ? GAMES[srcGid] : null;
+        feeders.push(srcG && srcG.round === prevRound && earlyY[srcGid] !== undefined
+          ? earlyY[srcGid]
+          : selfY); // bye: this side holds the card's own position
       });
       lateY[gid] = feeders.length >= 2
         ? (feeders[0] + feeders[1]) / 2
         : feeders.length === 1 ? feeders[0]
-        : (earlyY[gid] !== undefined ? earlyY[gid] : 0);
+        : selfY;
     });
   });
 
@@ -1110,14 +1116,16 @@ function renderMobileBracket(root, dims) {
   // Feeder pairs converge to earlyY of their child card, giving a stacking effect
   // when swiping forward and an organic spreading-out when swiping backward.
   var prevOffset = {};
-  var nextRoundForPrev = { R1:'R2', R2:'QF', QF:'QF2', QF2:'SF', SF:'CHAMP', CHAMP:'CHAMP2' };
-  ['R1','R2','QF','QF2','SF','CHAMP'].forEach(function(curRound) {
-    var nextRound = nextRoundForPrev[curRound];
-    var curGids  = gidsFor(curRound);
-    var nextGids = gidsFor(nextRound);
-    curGids.forEach(function(gid, j) {
-      var childGid = nextGids[Math.floor(j / 2)];
-      var childEY  = childGid !== undefined ? earlyY[childGid] : undefined;
+  rounds.forEach(function(curRound, ri) {
+    var nextRound = ri + 1 < rounds.length ? rounds[ri + 1] : null;
+    gidsFor(curRound).forEach(function(gid) {
+      // Stack toward where this game's winner actually advances — but only
+      // if that child sits in the adjacent column. Winners that skip ahead
+      // (or cross-bracket paths) hold position, mirroring the bye rule.
+      var childGid = findNextSlot(gid, 'winner');
+      var childG   = childGid ? GAMES[childGid] : null;
+      var childEY  = (childG && nextRound && childG.round === nextRound)
+        ? earlyY[childGid] : undefined;
       var selfEY   = earlyY[gid];
       prevOffset[gid] = (childEY !== undefined && selfEY !== undefined) ? (childEY - selfEY) : 0;
     });
