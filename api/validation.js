@@ -1,7 +1,14 @@
 // validation.js — slot ID constants and input validators shared by API routes
 const { SLOT_DEFS } = require('./slot-defs');
 
-const _VALID_ROUNDS = new Set(['R1','R2','QF','QF2','SF','CHAMP','CHAMP2']);
+const _VALID_ROUNDS = new Set(Object.keys(SLOT_DEFS));
+
+// Derive the max slot number from SLOT_DEFS so this stays in sync automatically.
+const _MAX_SLOT_NUM = Object.values(SLOT_DEFS).reduce(function(mx, sides) {
+  return Object.values(sides).reduce(function(mx2, nums) {
+    return Math.max(mx2, Math.max.apply(null, nums));
+  }, mx);
+}, 0);
 
 function isValidSlotId(sid) {
   if (typeof sid !== 'string') return false;
@@ -12,7 +19,7 @@ function isValidSlotId(sid) {
   const isChampRound = round === 'CHAMP' || round === 'CHAMP2';
   if (isChampRound ? side !== 'C' : side !== 'L' && side !== 'R') return false;
   const num = parseInt(numStr, 10);
-  return !isNaN(num) && num >= 1 && num <= 20;
+  return !isNaN(num) && num >= 1 && num <= _MAX_SLOT_NUM;
 }
 
 function validateResult({ game, winner, loser, t1score, t2score } = {}) {
@@ -65,4 +72,4 @@ function validateSchedule(updates) {
   return null;
 }
 
-module.exports = { SLOT_DEFS, isValidSlotId, validateResult, validateSchedule };
+module.exports = { isValidSlotId, validateResult, validateSchedule };

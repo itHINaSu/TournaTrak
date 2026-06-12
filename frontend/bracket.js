@@ -5,7 +5,6 @@
 var results={}, schedule={}, settings={}, buckets={};
 var _sessionRole = null;
 var _bucketEditMode = false;
-var _bucketEditTeams = [];
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 var SETTING_DEFAULTS = {
@@ -84,14 +83,14 @@ function updateTimestamp() {
 }
 
 // ── Bucket view ───────────────────────────────────────────────────────
+// Delegates to formatTime (bracket-data.js) via a local ISO string to avoid
+// duplicating the day-formatting logic. Converts a Date → local ISO so
+// formatTime's timezone-safe parsing applies consistently everywhere.
 function formatBucketTime(d) {
-  var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  var m = d.getMonth()+1, dd = d.getDate(), dow = days[d.getDay()];
-  var h = d.getHours(), mn = d.getMinutes();
-  var ampm = h >= 12 ? 'PM' : 'AM';
-  var h12 = h % 12 || 12;
-  var ms = mn < 10 ? '0'+mn : ''+mn;
-  return m+'/'+dd+' '+dow+' '+h12+':'+ms+' '+ampm;
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  var iso = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
+    + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  return formatTime(iso);
 }
 
 function renderBucketView() {
@@ -350,7 +349,8 @@ if (window.visualViewport) {
 // HELPERS
 // ══════════════════════════════════════════════════════════
 function gameLabel(sid){
-  return GAMES[sid]&&GAMES[sid].label?GAMES[sid].label:sid;
+  var g = GAMES[sid];
+  return g && g.label ? g.label : sid;
 }
 function disp(gid,slot){
   var team=resolveSlot(slot,results);
@@ -362,6 +362,8 @@ function disp(gid,slot){
 // ══════════════════════════════════════════════════════════
 // SLOT POSITIONING
 // ══════════════════════════════════════════════════════════
+// CARD_RATIO: card height as a fraction of its slot's vertical space (leaves gap).
+// CARD_ASPECT: card width-to-height ratio used to derive card height from column width.
 var CARD_RATIO=0.82, CARD_ASPECT=2.6;
 
 /// slotTopVh: positions a card within its round column.
@@ -378,6 +380,8 @@ function slotTopVh(round, slot, slotVh, side) {
     return Math.max(mx, parseInt(gid.split('.')[2], 10));
   }, 0);
   var n = Math.max(gids.length, maxSlot) || 1;
+  // 8 = max games per side per round (R1 has 8); used as the grid row count so
+  // all rounds occupy the same total column height regardless of game count.
   var spacing = 8 / n;
   return ((slot - 1) * spacing + spacing / 2 - 0.5) * slotVh;
 }
@@ -396,7 +400,6 @@ function getDims(){
 
   var winW = window.innerWidth;
   var isMobile = winW < 1024;
-  var isTablet = false;
   var isDesktop = winW >= 1024;
 
   if(isDesktop){
@@ -404,6 +407,8 @@ function getDims(){
     var nL=Math.max(buildSideColumns('L').length,1);
     var nR=Math.max(buildSideColumns('R').length,1);
     var nMax=Math.max(nL,nR);
+    // 85vw = usable bracket width (leaves 15vw for margins/champ).
+    // 0.20 = gap-to-column width ratio (each gap is 20% of a column).
     var colVw=(85-champVw)/2/(nMax+(nMax-1)*0.20);
     var gapVw=colVw*0.20;
     var vwPx=window.innerWidth/100, vhPx=window.innerHeight/100;
@@ -413,17 +418,17 @@ function getDims(){
     var maxCardVh=(availVh/8)*CARD_RATIO;
     if(cardVh>maxCardVh){ cardVh=maxCardVh; rowVh=cardVh/3; }
     var slotVh=cardVh/CARD_RATIO;
-    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*8,isDesktop,isTablet,isMobile};
+    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*8,isDesktop,isMobile};
   }
 
-  if(isTablet || isMobile){
+  if(isMobile){
     var slotVh = availVh / 9;
     var cardVh = slotVh * CARD_RATIO;
     var rowVh  = cardVh / 3;
     if(rowVh < 2.0){ rowVh = 2.0; cardVh = rowVh * 3; slotVh = cardVh / CARD_RATIO; }
     var colVw = 92;
     var gapVw = 0.5;
-    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw:0,totalVh:slotVh*16,isDesktop,isTablet,isMobile};
+    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw:0,totalVh:slotVh*16,isDesktop,isMobile};
   }
 }
 function applyCSSVars(dims){
@@ -549,8 +554,6 @@ function renderBracket(){
   applyCSSVars(dims);
   if(dims.isDesktop){
     renderDesktopBracket(root,dims);
-  } else if(dims.isTablet){
-    renderTabletBracket(root,dims);
   } else if(dims.isMobile){
     renderMobileBracket(root,dims);
   }

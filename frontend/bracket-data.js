@@ -142,12 +142,11 @@ function findNextSlot(sid, type) {
 }
 
 function isEliminated(teamName, results) {
-  for (const [sid, r] of Object.entries(results)) {
-    if (r.loser===teamName && ['QF','SF','CHAMP'].includes(GAMES[sid]?.round)) return true;
-  }
-  let losses=0;
-  for (const r of Object.values(results)) { if (r.loser===teamName) losses++; }
-  return losses>=2;
+  // Double elimination: a team is out after 2 losses. The previous round-specific
+  // check was wrong — losing QF on the winner's side gives 1 loss, not elimination.
+  let losses = 0;
+  for (const r of Object.values(results)) { if (r.loser === teamName) losses++; }
+  return losses >= 2;
 }
 
 // ── applySchedule ─────────────────────────────────────────────────────
