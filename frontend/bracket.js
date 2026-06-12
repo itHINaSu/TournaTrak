@@ -396,7 +396,10 @@ function getDims(){
 
   if(isDesktop){
     var champVw=12;
-    var colVw=(85-champVw)/(2*(4+3*0.20));
+    var nL=Math.max(buildSideColumns('L').length,1);
+    var nR=Math.max(buildSideColumns('R').length,1);
+    var nMax=Math.max(nL,nR);
+    var colVw=(85-champVw)/2/(nMax+(nMax-1)*0.20);
     var gapVw=colVw*0.20;
     var vwPx=window.innerWidth/100, vhPx=window.innerHeight/100;
     var cardVh=(colVw*vwPx/CARD_ASPECT)/vhPx;
