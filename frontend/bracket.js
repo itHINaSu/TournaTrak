@@ -528,18 +528,64 @@ function buildSideColumns(side){
     return {round:round,side:side,games:games};
   }).filter(function(col){ return col.games.length > 0; });
 }
-function buildConnPcts(srcCol,dstCol,slotVh){
-  var totalVh=slotVh*8, conns=[];
-  dstCol.games.forEach(function(dstEntry){
-    var dstMid=cardMidVh(dstCol.round,dstEntry.slot,slotVh,dstCol.side);
-    var dstPct=dstMid/totalVh*100;
-    var dstG=GAMES[dstEntry.gid];
-    [dstG.t1,dstG.t2].forEach(function(slotDef){
-      if(!slotDef||slotDef.type!=='winner') return;
-      if(!GAMES[slotDef.slot]) return;
-      var srcEntry=srcCol.games.find(function(g){ return g.gid===slotDef.slot; });
-      if(!srcEntry) return;
-      conns.push({srcPct:cardMidVh(srcCol.round,srcEntry.slot,slotVh,srcCol.side)/totalVh*100, dstPct:dstPct});
+// computeLBPositions: positions each LB game at the vertical midpoint of its
+// feeder games (both within-LB winner connections and cross-bracket WB loser drops).
+// WB positions are seeded first using standard even spacing so loser feeds have
+// a known coordinate. LB rounds are processed in natural order (R1→SF) so each
+// round's positions are available when the next round is computed.
+// Returns {gid → topVh} for every LB game.
+function computeLBPositions(slotVh) {
+  var posMap = {};
+
+  // Seed WB positions with standard even spacing
+  buildSideColumns('L').forEach(function(col) {
+    col.games.forEach(function(entry) {
+      posMap[entry.gid] = slotTopVh(col.round, entry.slot, slotVh, 'L');
+    });
+  });
+
+  // LB positions: midpoint of feeder tops (winner or loser) already in posMap
+  buildSideColumns('R').forEach(function(col) {
+    col.games.forEach(function(entry) {
+      var g = GAMES[entry.gid];
+      var feeders = [];
+      if (g) {
+        [g.t1, g.t2].forEach(function(slot) {
+          if (!slot || !GAMES[slot.slot]) return;
+          if ((slot.type === 'winner' || slot.type === 'loser') && posMap[slot.slot] !== undefined) {
+            feeders.push(posMap[slot.slot]);
+          }
+        });
+      }
+      posMap[entry.gid] = feeders.length >= 2
+        ? (feeders[0] + feeders[1]) / 2
+        : feeders.length === 1 ? feeders[0]
+        : slotTopVh(col.round, entry.slot, slotVh, col.side);
+    });
+  });
+
+  return posMap;
+}
+
+function buildConnPcts(srcCol, dstCol, slotVh, posMap) {
+  var totalVh = slotVh * 8, conns = [];
+  function getTop(col, entry) {
+    return (posMap && posMap[entry.gid] !== undefined)
+      ? posMap[entry.gid]
+      : slotTopVh(col.round, entry.slot, slotVh, col.side);
+  }
+  dstCol.games.forEach(function(dstEntry) {
+    var dstMid = (getTop(dstCol, dstEntry) + slotVh * CARD_RATIO / 2) / totalVh * 100;
+    var dstG = GAMES[dstEntry.gid];
+    [dstG.t1, dstG.t2].forEach(function(slotDef) {
+      if (!slotDef || slotDef.type !== 'winner') return;
+      if (!GAMES[slotDef.slot]) return;
+      var srcEntry = srcCol.games.find(function(g) { return g.gid === slotDef.slot; });
+      if (!srcEntry) return;
+      conns.push({
+        srcPct: (getTop(srcCol, srcEntry) + slotVh * CARD_RATIO / 2) / totalVh * 100,
+        dstPct: dstMid
+      });
     });
   });
   return conns;
@@ -564,6 +610,9 @@ function renderDesktopBracket(root,dims){
   var colVw=dims.colVw, gapVw=dims.gapVw, champVw=dims.champVw;
   var totalVh=dims.totalVh, lc='var(--line-color)', hdrVh=1.8;
 
+  // LB game positions derived from feeder midpoints; WB uses slotTopVh directly.
+  var lbPosMap = computeLBPositions(slotVh);
+
   function sideHTML(side,label,isRight){
     var cols=buildSideColumns(side);
     var ordCols=isRight?cols.slice().reverse():cols;
@@ -572,7 +621,10 @@ function renderDesktopBracket(root,dims){
       var col=ordCols[ci];
       var cardsHTML='';
       col.games.forEach(function(entry){
-        cardsHTML+='<div class="bc" style="top:'+slotTopVh(col.round,entry.slot,slotVh,col.side)+'vh">'+cardHTML(entry.gid)+'</div>';
+        var topVh = isRight && lbPosMap[entry.gid] !== undefined
+          ? lbPosMap[entry.gid]
+          : slotTopVh(col.round,entry.slot,slotVh,col.side);
+        cardsHTML+='<div class="bc" style="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
       });
       html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
         +'<div class="round-col-hdr">'+ROUND_LABELS[col.round]+'</div>'+cardsHTML+'</div>';
@@ -580,7 +632,7 @@ function renderDesktopBracket(root,dims){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
         html+='<div style="position:relative;flex-shrink:0;width:'+gapVw+'vw;height:'+totalVh+'vh">'
-          +connLines(buildConnPcts(srcCol,dstCol,slotVh),gapVw,totalVh,lc,isRight)+'</div>';
+          +connLines(buildConnPcts(srcCol,dstCol,slotVh,isRight?lbPosMap:null),gapVw,totalVh,lc,isRight)+'</div>';
       }
     }
     var labelAlign=isRight?'right:0':'left:0';
