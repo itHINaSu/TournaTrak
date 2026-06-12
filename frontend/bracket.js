@@ -1732,7 +1732,9 @@ function champBannerHTML(crowned) {
     + '</div>';
 }
 
-function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
+// entryGid (optional): for lose paths, the game whose LOSER feeds chain[0] —
+// lets the projection identify the team's slot in the first LB game.
+function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
   var GREEN = 'var(--win-color)';
 
   var html = '';
@@ -1745,8 +1747,20 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss) {
     var played   = !!r.winner;
 
     var t1r = resolveSlot(g.t1, results), t2r = resolveSlot(g.t2, results);
-    var t1n = t1r || smartLabel(g.t1, results);
-    var t2n = t2r || smartLabel(g.t2, results);
+    // Projection: this path assumes the selected team keeps advancing, so the
+    // slot the team would occupy shows the team's name instead of
+    // "Winner of A / B". The team's slot is the one fed by the previous chain
+    // game (winner link), or by the loss that started a lose path (entryGid).
+    var prevGid = i > 0 ? chain[i - 1] : null;
+    function isTeamSlot(slot) {
+      if (!slot) return false;
+      if (slot.type === 'fixed') return slot.team === team;
+      if (prevGid) return slot.type === 'winner' && slot.slot === prevGid;
+      if (isLosePath && entryGid) return slot.type === 'loser' && slot.slot === entryGid;
+      return false;
+    }
+    var t1n = t1r || (isTeamSlot(g.t1) ? team : smartLabel(g.t1, results));
+    var t2n = t2r || (isTeamSlot(g.t2) ? team : smartLabel(g.t2, results));
     var c1  = !t1r ? 'tbd' : (r.winner===t1r ? 'won' : r.loser===t1r ? 'lost' : '');
     var c2  = !t2r ? 'tbd' : (r.winner===t2r ? 'won' : r.loser===t2r ? 'lost' : '');
 
@@ -1962,7 +1976,7 @@ function renderTeamView(){
             +'<span class="team-path-win-label" style="color:var(--lose-color)">LOSS</span>'
             +'</div>';
         }
-        html+=makeVerticalChain(buildWinChain(ln),team,true,true);
+        html+=makeVerticalChain(buildWinChain(ln),team,true,true,gid);
         if(teamLostHere) teamEliminated=true;
       }
     }
