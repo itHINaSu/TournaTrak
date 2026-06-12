@@ -1009,6 +1009,7 @@ function renderMobileBracket(root, dims) {
   var CARD_H       = Math.max(Math.floor(viewH / 4.5), 80);
   var CHAMP_CARD_H = Math.round(CARD_H * 1.8);
   var GAP          = Math.max(Math.round(CARD_H * 0.07), 6);
+  var DIV_H        = Math.max(Math.round(CARD_H * 0.28), 24); // play-in divider
   document.documentElement.style.setProperty('--mbc-card-h', CARD_H + 'px');
 
   var colW  = Math.round(winW * 0.72);
@@ -1025,17 +1026,17 @@ function renderMobileBracket(root, dims) {
     return out;
   }
 
-  // ── Columns: one per round, EXCEPT rounds with intra-round dependencies.
-  // A game fed by another game in the same round (e.g. an LB final consuming
-  // two LB semis scheduled in the same round) can't be shown as a peer of its
-  // feeders on mobile — the column is the navigation unit. Such games split
-  // into a continuation column ("Round 5 · Cont."). Display-only: slot IDs
-  // and desktop rendering are untouched.
+  // ── Columns: one per round. Rounds with intra-round dependencies (e.g. an
+  // LB final consuming two LB semis scheduled in the same round) keep all
+  // games in the round's column, but the dependent games sit below a
+  // "Play-In" divider so they read as a follow-up game rather than a peer
+  // (or worse, a championship feeder). divIdxs marks where dividers go.
+  // Display-only: slot IDs and desktop rendering are untouched.
   var cols = [];
   rounds.forEach(function(round) {
     var gids = gidsFor(round);
     if (round === 'CHAMP' || round === 'CHAMP2') {
-      cols.push({ round: round, label: ROUND_LABELS[round], gids: gids });
+      cols.push({ round: round, label: ROUND_LABELS[round], gids: gids, divIdxs: [] });
       return;
     }
     var placed = {}, waves = [], remaining = gids.slice();
@@ -1056,13 +1057,12 @@ function renderMobileBracket(root, dims) {
       wave.forEach(function(gid) { placed[gid] = 1; });
       remaining = remaining.filter(function(gid) { return !placed[gid]; });
     }
+    var flat = [], divIdxs = [];
     waves.forEach(function(wave, wi) {
-      cols.push({
-        round: round,
-        label: ROUND_LABELS[round] + (wi ? ' · Cont.' : ''),
-        gids:  wave
-      });
+      if (wi) divIdxs.push(flat.length);
+      flat = flat.concat(wave);
     });
+    cols.push({ round: round, label: ROUND_LABELS[round], gids: flat, divIdxs: divIdxs });
   });
 
   // ── Reorder each column so games feeding the same next-column game sit
@@ -1072,11 +1072,9 @@ function renderMobileBracket(root, dims) {
   // already-final order of the one after it. Games with no destination in
   // the adjacent column (bye-throughs) keep their original positions.
   (function() {
-    for (var ci = cols.length - 2; ci >= 0; ci--) {
-      var nextPos = {};
-      cols[ci + 1].gids.forEach(function(gid, i) { nextPos[gid] = i; });
+    function reorderSegment(seg, nextPos) {
       var keyed = [], holes = [];
-      cols[ci].gids.forEach(function(gid, idx) {
+      seg.forEach(function(gid, idx) {
         var key = null;
         ['winner', 'loser'].some(function(type) {
           var d = findNextSlot(gid, type);
@@ -1093,8 +1091,20 @@ function renderMobileBracket(root, dims) {
       var holeAt = {};
       holes.forEach(function(h) { holeAt[h.idx] = h.gid; });
       var order = [], ki = 0;
-      for (var i = 0; i < cols[ci].gids.length; i++) {
+      for (var i = 0; i < seg.length; i++) {
         order.push(holeAt[i] !== undefined ? holeAt[i] : keyed[ki++].gid);
+      }
+      return order;
+    }
+    for (var ci = cols.length - 2; ci >= 0; ci--) {
+      var nextPos = {};
+      cols[ci + 1].gids.forEach(function(gid, i) { nextPos[gid] = i; });
+      // Reorder each divider-bounded segment independently so play-in games
+      // never migrate above their divider.
+      var bounds = [0].concat(cols[ci].divIdxs, [cols[ci].gids.length]);
+      var order = [];
+      for (var b = 0; b < bounds.length - 1; b++) {
+        order = order.concat(reorderSegment(cols[ci].gids.slice(bounds[b], bounds[b + 1]), nextPos));
       }
       cols[ci].gids = order;
     }
@@ -1109,7 +1119,7 @@ function renderMobileBracket(root, dims) {
     var cardH   = isChamp ? CHAMP_CARD_H : CARD_H;
     var gids    = col.gids;
 
-    var cardsHTML = gids.map(function(gid) {
+    var cardsHTML = gids.map(function(gid, gi) {
       var inner = isChamp ? champCardHTML(gid) : mobileRoundCardHTML(gid);
       // For CHAMP2, apply if-necessary state
       var c2cls = '';
@@ -1125,7 +1135,15 @@ function renderMobileBracket(root, dims) {
       if (round === 'CHAMP' && gid === 'CHAMP.C.1' && champ2State() === 'needed') {
         c2cls += ' mbc-champ-winner-pending';
       }
-      return '<div class="mbc-card' + c2cls + '" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0">'
+      var divHTML = (col.divIdxs && col.divIdxs.indexOf(gi) !== -1)
+        ? '<div class="mbc-playin-divider" data-before-gid="' + esc(gid) + '" style="height:' + DIV_H + 'px">'
+          + '<span class="mbc-playin-line"></span>'
+          + '<span class="mbc-playin-label">Play-In</span>'
+          + '<span class="mbc-playin-line"></span>'
+          + '</div>'
+        : '';
+      return divHTML
+        + '<div class="mbc-card' + c2cls + '" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0">'
         + inner + '</div>';
     }).join('');
 
@@ -1191,12 +1209,15 @@ function renderMobileBracket(root, dims) {
     var isChamp  = col.round === 'CHAMP' || col.round === 'CHAMP2';
     var numSlots = col.gids.length;
     var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
-    var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
+    var nDivs    = (col.divIdxs || []).length;
+    var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP
+                 + nDivs * (DIV_H + GAP);
     var offset   = numSlots <= 4
       ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
       : GAP;
     col.gids.forEach(function(gid, idx) {
-      earlyY[gid] = offset + idx * (cardH + GAP);
+      var divsAbove = (col.divIdxs || []).filter(function(d) { return d <= idx; }).length;
+      earlyY[gid] = offset + idx * (cardH + GAP) + divsAbove * (DIV_H + GAP);
     });
   });
 
@@ -1206,7 +1227,9 @@ function renderMobileBracket(root, dims) {
     var isChamp  = col.round === 'CHAMP' || col.round === 'CHAMP2';
     var numSlots = col.gids.length;
     var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
-    var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
+    var nDivs    = (col.divIdxs || []).length;
+    var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP
+                 + nDivs * (DIV_H + GAP);
     var offset   = numSlots <= 4
       ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
       : GAP;
@@ -1301,6 +1324,12 @@ function renderMobileBracket(root, dims) {
       card.style.top = ey + 'px';
       card.dataset.lateOffset = (ly - ey).toFixed(1);
       card.dataset.prevOffset = (prevOffset[gid] || 0).toFixed(1);
+    });
+    // Dividers sit in the gap directly above their play-in card.
+    colEl.querySelectorAll('.mbc-playin-divider').forEach(function(div) {
+      var gid = div.getAttribute('data-before-gid');
+      var ey  = earlyY[gid];
+      if (ey !== undefined) div.style.top = (ey - GAP - DIV_H) + 'px';
     });
   });
 
