@@ -961,7 +961,7 @@ function fallbackCopy(text) {
   document.body.appendChild(ta);
   ta.select();
   try { document.execCommand('copy'); showToast('Link copied'); }
-  catch(e) { showToast('Copy failed — link in console', true); console.log(text); }
+  catch(e) { document.body.removeChild(ta); window.prompt('Copy this link:', text); return; }
   document.body.removeChild(ta);
 }
 

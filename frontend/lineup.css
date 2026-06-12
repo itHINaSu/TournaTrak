@@ -90,6 +90,7 @@
 }
 .lineup-row--reorder-hover .lineup-order--tap,
 .lineup-row:hover .lineup-order--tap { border-color: var(--blue-lt); color: var(--blue-lt); }
+.lineup-row--selected { background: rgba(26, 95, 168, 0.12) !important; }
 .lineup-row--selected { background: color-mix(in srgb, var(--blue) 12%, transparent) !important; }
 .lineup-row--selected .lineup-order--tap {
   background: var(--blue-lt);
@@ -134,7 +135,7 @@
 .lineup-modal-sel {
   width: 100%;
   font-family: 'Barlow', sans-serif;
-  font-size: 0.95rem;
+  font-size: max(1rem, 16px);
   font-weight: 500;
   padding: 0.5em 0.5em;
   border-radius: 0.25em;
@@ -200,7 +201,7 @@
 
 .lineup-inp {
   font-family: 'Barlow', sans-serif;
-  font-size: 0.95rem;
+  font-size: max(1rem, 16px);
   font-weight: 500;
   width: 100%;
   padding: 0.4em 0.5em;
@@ -215,7 +216,7 @@
 
 .lineup-sel {
   font-family: 'Barlow', sans-serif;
-  font-size: 0.95rem;
+  font-size: max(1rem, 16px);
   font-weight: 500;
   width: 100%;
   padding: 0.4em 0.3em;

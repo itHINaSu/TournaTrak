@@ -132,7 +132,8 @@ body {
   color: var(--text-dim);
   min-height: 2.5em;
 }
-.theme-toggle:hover { color: var(--text); }
+.theme-toggle:hover,
+.theme-toggle:active { color: var(--text); }
 
 /* Cross-app toggle button (admin ↔ public) — shared by all pages */
 .admin-public-btn {
@@ -152,7 +153,8 @@ body {
   align-items: center;
   gap: 0.3em;
 }
-.admin-public-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.admin-public-btn:hover,
+.admin-public-btn:active { color: var(--text); border-color: var(--text-dim); }
 
 /* Results timestamp — end-justified in header name div */
 .header-timestamp {
@@ -171,4 +173,10 @@ body {
 
 @media (max-width: 1023px) {
   .toast { bottom: calc(6em + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ── Touch target sizing (coarse pointer = touchscreen) ── */
+@media (pointer: coarse) {
+  .theme-toggle    { min-height: 2.75rem; min-width: 2.75rem; }
+  .admin-public-btn { min-height: 2.75rem; }
 }

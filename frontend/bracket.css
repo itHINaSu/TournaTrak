@@ -255,12 +255,14 @@
   color: #fff;
   border-color: var(--blue-lt);
 }
-.bucket-edit-save-btn:hover { opacity: 0.85; }
+.bucket-edit-save-btn:hover,
+.bucket-edit-save-btn:active { opacity: 0.85; }
 .bucket-edit-cancel-btn {
   background: transparent;
   color: var(--text-dim);
 }
-.bucket-edit-cancel-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.bucket-edit-cancel-btn:hover,
+.bucket-edit-cancel-btn:active { color: var(--text); border-color: var(--text-dim); }
 .bucket-edit-status {
   font-size: 0.8rem;
   color: var(--text-dim);
@@ -807,11 +809,11 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .champ-winner-display { margin-top: 0.6em; text-align: center; font-family: 'Oswald', sans-serif; font-size: 0.95rem; color: var(--gold-lt); letter-spacing: 0.07em; }
 
 /* ════════════════════════════════════════════════════════════
-   MOBILE LAYOUT (phones + tablets under 1024px)
+   MOBILE LAYOUT (phones + tablets under 1280px)
    Snap-scroll carousel: one round visible at a time.
    ════════════════════════════════════════════════════════════ */
 
-@media (max-width: 1023px) {
+@media (max-width: 1279px) {
   .update-bar { flex-shrink: 0; position: static; }
 
   .bracket-outer { display: none; }
@@ -1179,7 +1181,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
    tabs sit naturally at the bottom (no position:fixed needed),
    selector is fixed above tabs with no body-scroll jitter.
    ════════════════════════════════════════════════════════════ */
-@media (max-width: 1023px) {
+@media (max-width: 1279px) {
   /* Compact the header to reclaim vertical space */
   .header-timestamp { display: none !important; }
   .site-subtitle { font-size: 0.58em; margin-top: 0.05em; letter-spacing: 0.08em; }

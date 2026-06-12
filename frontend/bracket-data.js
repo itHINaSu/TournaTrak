@@ -24,6 +24,9 @@ const ROUND_LABELS = {
 
 // GAMES starts empty — populated by applySchedule() on load
 const GAMES = {};
+// Incremented each time applySchedule() rebuilds GAMES so callers can
+// invalidate derived caches (e.g. slotTopVh memoization in bracket.js).
+let gamesGeneration = 0;
 
 // ── Time helpers ──────────────────────────────────────────────────────
 // t: 'YYYY-MM-DDTHH:MM' (ISO local, no timezone)
@@ -133,12 +136,14 @@ function smartLabel(teamSlot, results) {
   return slotLabel(teamSlot);
 }
 
+// _nextSlotMap: reverse-lookup map built by applySchedule.
+// Key: srcSid + '|' + type ('winner'/'loser') → destination gid or null.
+// Provides O(1) findNextSlot vs. the original O(n) scan.
+const _nextSlotMap = {};
+
 function findNextSlot(sid, type) {
-  for (const [nsid, ng] of Object.entries(GAMES)) {
-    if (ng.t1 && ng.t1.type===type && ng.t1.slot===sid) return nsid;
-    if (ng.t2 && ng.t2.type===type && ng.t2.slot===sid) return nsid;
-  }
-  return null;
+  const key = sid + '|' + type;
+  return _nextSlotMap.hasOwnProperty(key) ? _nextSlotMap[key] : null;
 }
 
 function isEliminated(teamName, results) {
@@ -155,6 +160,7 @@ function isEliminated(teamName, results) {
 // Time is NOT required to create a game — label + both teams are sufficient.
 function applySchedule(schedule) {
   Object.keys(GAMES).forEach(k => delete GAMES[k]);
+  gamesGeneration++;
 
   for (const [sid, ov] of Object.entries(schedule)) {
     if (!ov || typeof ov !== 'object') continue;
@@ -181,6 +187,18 @@ function applySchedule(schedule) {
         : { type:(ov.t2type||'winner'), slot:ov.t2slot },
     };
   }
+
+  // Rebuild reverse-lookup map for O(1) findNextSlot.
+  // Clear previous entries first.
+  Object.keys(_nextSlotMap).forEach(k => delete _nextSlotMap[k]);
+  for (const [nsid, ng] of Object.entries(GAMES)) {
+    if (ng.t1 && (ng.t1.type === 'winner' || ng.t1.type === 'loser') && ng.t1.slot) {
+      _nextSlotMap[ng.t1.slot + '|' + ng.t1.type] = nsid;
+    }
+    if (ng.t2 && (ng.t2.type === 'winner' || ng.t2.type === 'loser') && ng.t2.slot) {
+      _nextSlotMap[ng.t2.slot + '|' + ng.t2.type] = nsid;
+    }
+  }
 }
 
 if (typeof module !== 'undefined') {
@@ -189,6 +207,7 @@ if (typeof module !== 'undefined') {
     allSlotIds, parseSlotId, occupiedSlots, slotsForRoundSide,
     resolveSlot, slotLabel, smartLabel, shortName,
     isEliminated, findNextSlot, applySchedule,
-    formatTime, parseTimeVal
+    formatTime, parseTimeVal,
+    get gamesGeneration() { return gamesGeneration; }
   };
 }

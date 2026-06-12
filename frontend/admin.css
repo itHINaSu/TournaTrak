@@ -1,5 +1,10 @@
 /* admin.css — admin panel: login overlays, tab bar, results, schedule, settings, account */
 
+/* ── Prevent iOS auto-zoom on focus: all form inputs must be ≥ 16px ── */
+/* max(1rem, 16px) is 16px at the standard 16px base, ensuring no zoom regardless
+   of user font-size settings while preserving inherited scaling above 16px. */
+input, select, textarea { font-size: max(1rem, 16px); }
+
 /* ── Admin tab bar ── */
 .admin-tab-bar {
   display: flex;
@@ -93,13 +98,14 @@
 .admin-round-hdr { font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); padding: 0.5em 0; border-bottom: 0.07em solid var(--border); margin: 1.2em 0 0.6em; }
 /* Legacy selectors kept for schedule editor compatibility */
 .admin-game-id { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.07em; color: var(--blue-lt); flex-shrink: 0; }
-.admin-winner-sel { font-family: 'Barlow', sans-serif; font-size: 0.86rem; padding: 0.3em 0.5em; border-radius: 0.2em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; min-width: 9.4em; }
+.admin-winner-sel { font-family: 'Barlow', sans-serif; font-size: max(1rem, 16px); padding: 0.3em 0.5em; border-radius: 0.2em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; min-width: 9.4em; }
 .admin-winner-sel:focus { outline: 0.13em solid var(--blue-lt); }
 .admin-save-btn { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.55em 1.1em; border-radius: 0.2em; border: 0.07em solid var(--blue); background: var(--blue); color: #fff; cursor: pointer; white-space: nowrap; }
 .admin-save-btn:hover { background: var(--blue-lt); border-color: var(--blue-lt); }
 .admin-locked { font-size: 0.74rem; color: var(--text-mute); font-style: italic; }
 .admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.25em 0.62em; border-radius: 0.2em; border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
-.admin-clear-btn:hover { background: rgba(192,80,80,0.1); }
+.admin-clear-btn:hover,
+.admin-clear-btn:active { background: rgba(192,80,80,0.1); }
 
 /* Public page link button */
 .admin-public-btn {
@@ -119,7 +125,8 @@
   align-items: center;
   gap: 0.3em;
 }
-.admin-public-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.admin-public-btn:hover,
+.admin-public-btn:active { color: var(--text); border-color: var(--text-dim); }
 
 /* ── Results tab: card layout (mirrors By Round view) ── */
 .admin-res-card {
@@ -245,7 +252,7 @@
 .sched-field { margin-bottom: 0.6em; }
 .sched-field label { display: block; font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.25em; }
 .sched-field input,
-.settings-field input { width: 100%; font-family: 'Barlow', sans-serif; font-size: 0.9rem; padding: 0.43em 0.62em; border-radius: 0.25em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); }
+.settings-field input { width: 100%; font-family: 'Barlow', sans-serif; font-size: max(1rem, 16px); padding: 0.43em 0.62em; border-radius: 0.25em; border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); }
 .sched-field input:focus,
 .settings-field input:focus { outline: 0.13em solid var(--blue-lt); }
 .sched-save-btn { font-family: 'Oswald', sans-serif; font-size: 0.74rem; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.38em 0.88em; border-radius: 0.2em; border: 0.07em solid var(--blue); background: var(--blue); color: #fff; cursor: pointer; }
@@ -486,7 +493,7 @@ input[type="time"]:focus {
 }
 .coach-add-team-row input {
   font-family: 'Barlow', sans-serif;
-  font-size: 0.82rem;
+  font-size: max(1rem, 16px);
   padding: 0.3em 0.5em;
   border-radius: 0.25em;
   border: 0.07em solid var(--border);
@@ -507,7 +514,7 @@ input[type="time"]:focus {
   flex: 1;
   min-width: 0;
   font-family: 'Barlow', monospace;
-  font-size: 0.78em;
+  font-size: max(1rem, 16px);
   padding: 0.4em 0.6em;
   border-radius: 0.25em;
   border: 0.07em solid var(--border);
@@ -548,13 +555,13 @@ input[type="time"]:focus {
   border: 0.07em solid var(--border);
   border-radius: 0.25em;
   color: var(--text);
-  font-size: 0.95rem;
+  font-size: max(1rem, 16px);
   text-align: center;
 }
 .bucket-admin-inp:focus { outline: none; border-color: var(--blue-lt); }
 .bucket-count-inp {
   width: 5em; flex-shrink: 0;
-  font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700;
+  font-family: 'Oswald', sans-serif; font-size: max(1rem, 16px); font-weight: 700;
   text-align: right; padding: 0.15em 0.4em;
   border-radius: 0.2em; border: 0.07em solid var(--border);
   background: var(--surface2); color: var(--text);
@@ -617,9 +624,6 @@ input[type="time"]:focus {
    MOBILE ADMIN — flex-order approach (tabs at bottom)
    ════════════════════════════════════════════════════════════ */
 @media (max-width: 1023px) {
-  /* Prevent iOS/Android auto-zoom on input focus (triggers below 16px) */
-  input, select, textarea { font-size: 16px; }
-
   html {
     height: 100%;
     height: 100svh;
@@ -750,18 +754,10 @@ input[type="time"]:focus {
   .settings-nav-item:last-child { border-bottom: none; }
   .settings-nav-item.active { color: var(--gold-lt); background: rgba(196,154,26,0.08); }
 
-  /* iOS zoom: all admin inputs must be >= 1rem */
-  .sched-field input,
-  .sched-field select,
-  .settings-field input,
-  .settings-field select,
-  .admin-winner-sel,
-  .admin-score-inp,
-  .bucket-count-inp,
-  .coach-link-input,
-  .coach-add-team-row input,
-  input[type="date"],
-  input[type="time"] {
-    font-size: 1rem;
-  }
+}
+
+/* ── Touch target sizing (coarse pointer = touchscreen) ── */
+@media (pointer: coarse) {
+  .admin-clear-btn { min-height: 2.75rem; }
+  .sched-save-btn  { min-height: 2.75rem; }
 }

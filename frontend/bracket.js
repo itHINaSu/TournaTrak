@@ -291,7 +291,12 @@ function renderActive(){
 // ══════════════════════════════════════════════════════════
 // FETCH
 // ══════════════════════════════════════════════════════════
+// Fingerprint of the last successfully fetched data blobs.
+// Empty string means "never fetched" so the first fetch always renders.
+var _fetchFingerprint = '';
+
 async function fetchAll(){
+  var rawTexts;
   try{
     var [rr,sr,str,br]=await Promise.all([
       fetch('/api/results'),
@@ -299,10 +304,11 @@ async function fetchAll(){
       fetch('/api/settings'),
       fetch('/api/buckets'),
     ]);
-    results=await rr.json(); schedule=await sr.json(); settings=await str.json();
-    buckets=br.ok ? await br.json() : {};
+    rawTexts = await Promise.all([rr.text(), sr.text(), str.text(), br.ok ? br.text() : Promise.resolve('')]);
+    results=JSON.parse(rawTexts[0]); schedule=JSON.parse(rawTexts[1]); settings=JSON.parse(rawTexts[2]);
+    buckets=br.ok ? JSON.parse(rawTexts[3]) : {};
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; buckets={}; }
+  }catch(e){ results={}; schedule={}; settings={}; buckets={}; rawTexts=null; }
   applySettings();
   updateTimestamp();
   populateTeamSelect();
@@ -333,6 +339,12 @@ async function fetchAll(){
   // Measure header heights so sticky offsets can be applied
   applyStickyOffsets();
 
+  // Skip the render when data is identical to the last fetch AND no tab/view change
+  // is pending (qView/savedTab already applied above, so we compare post-apply state).
+  var newFingerprint = rawTexts ? rawTexts.join('|') : '';
+  if (newFingerprint && newFingerprint === _fetchFingerprint) return;
+  _fetchFingerprint = newFingerprint;
+
   renderActive();
 }
 var resizeTimer;
@@ -342,8 +354,22 @@ window.addEventListener('resize',function(){
   resizeTimer=setTimeout(function(){if(activeView()==='bracket') renderBracket();},150);
 });
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', applyStickyOffsets, { passive: true });
+  window.visualViewport.addEventListener('resize', function() {
+    applyStickyOffsets();
+    // Re-render mobile layout when iOS Safari toolbar shows/hides (changes visualViewport height)
+    if (window.innerWidth < 1280) {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function() { if (activeView() === 'bracket') renderBracket(); }, 150);
+    }
+  }, { passive: true });
 }
+window.addEventListener('orientationchange', function() {
+  // Geometry settles after ~300ms on some Android WebViews
+  setTimeout(function() {
+    applyStickyOffsets();
+    if (activeView() === 'bracket') renderBracket();
+  }, 300);
+});
 
 // ══════════════════════════════════════════════════════════
 // HELPERS
@@ -369,17 +395,27 @@ var CARD_RATIO=0.82, CARD_ASPECT=2.6;
 /// slotTopVh: positions a card within its round column.
 // n = max(actual game count, highest slot number used) so slots spread evenly
 // across the full column height regardless of how many SLOT_DEFS defines.
+// _slotNCache memoizes the computed n per (round|side) key, keyed by gamesGeneration
+// so it is automatically invalidated whenever applySchedule() rebuilds GAMES.
+var _slotNCache = { gen: -1, data: {} };
 function slotTopVh(round, slot, slotVh, side) {
   if (round === 'CHAMP' || round === 'CHAMP2') return 3.5 * slotVh;
   var s = side || 'L';
-  var gids = Object.keys(GAMES).filter(function(gid) {
-    var p = gid.split('.');
-    return p[0] === round && p[1] === s;
-  });
-  var maxSlot = gids.reduce(function(mx, gid) {
-    return Math.max(mx, parseInt(gid.split('.')[2], 10));
-  }, 0);
-  var n = Math.max(gids.length, maxSlot) || 1;
+  var cacheKey = round + '|' + s;
+  var curGen = gamesGeneration;
+  if (_slotNCache.gen !== curGen) { _slotNCache.gen = curGen; _slotNCache.data = {}; }
+  var n = _slotNCache.data[cacheKey];
+  if (n === undefined) {
+    var gids = Object.keys(GAMES).filter(function(gid) {
+      var p = gid.split('.');
+      return p[0] === round && p[1] === s;
+    });
+    var maxSlot = gids.reduce(function(mx, gid) {
+      return Math.max(mx, parseInt(gid.split('.')[2], 10));
+    }, 0);
+    n = Math.max(gids.length, maxSlot) || 1;
+    _slotNCache.data[cacheKey] = n;
+  }
   // 8 = max games per side per round (R1 has 8); used as the grid row count so
   // all rounds occupy the same total column height regardless of game count.
   var spacing = 8 / n;
@@ -399,8 +435,8 @@ function getDims(){
   var availVh=availPx/(window.innerHeight/100);
 
   var winW = window.innerWidth;
-  var isMobile = winW < 1024;
-  var isDesktop = winW >= 1024;
+  var isMobile = winW < 1280;
+  var isDesktop = winW >= 1280;
 
   if(isDesktop){
     var champVw=12;
@@ -690,58 +726,6 @@ function renderDesktopBracket(root,dims){
     +'</div>';
 }
 
-
-// ── Shared bracket data builder ──────────────────────────────────────
-function buildByRound(rounds){
-  var byRound={};
-  rounds.forEach(function(r){ byRound[r]={L:{},R:{},C:{}}; });
-  Object.entries(GAMES).forEach(function(e){
-    var gid=e[0],g=e[1];
-    if(byRound[g.round]) byRound[g.round][g.side][g.num]=gid;
-  });
-  return byRound;
-}
-
-// ── Tablet: all rounds side-by-side, total width = window width ──────
-function renderTabletBracket(root,dims){
-  var slotVh=dims.slotVh;
-  var rounds=['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
-  var byRound=buildByRound(rounds);
-  rounds=rounds.filter(function(r){
-    var b=byRound[r];
-    return Object.keys(b.L).length>0||Object.keys(b.R).length>0||Object.keys(b.C).length>0;
-  });
-  var colH=slotVh*16;
-  var rOffset=slotVh*8;
-
-  var outerPx=12, gapPx=6, cardGapVh=0.4;
-  var colPx=Math.floor((window.innerWidth-2*outerPx-(rounds.length-1)*gapPx)/rounds.length);
-
-  var cols='';
-  rounds.forEach(function(round){
-    var L=byRound[round].L, R=byRound[round].R, C=byRound[round].C;
-    var colHTML='';
-    Object.keys(L).sort(function(a,b){return a-b;}).forEach(function(num){
-      var top=slotTopVh(round,parseInt(num),slotVh,'L')+cardGapVh;
-      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(L[num])+'</div>';
-    });
-    Object.keys(R).sort(function(a,b){return a-b;}).forEach(function(num){
-      var top=rOffset+slotTopVh(round,parseInt(num),slotVh,'R')+cardGapVh;
-      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(R[num])+'</div>';
-    });
-    Object.keys(C).sort(function(a,b){return a-b;}).forEach(function(num){
-      var top=rOffset/2+cardGapVh;
-      colHTML+='<div class="bc" style="position:absolute;top:'+top+'vh;left:0;right:0;">'+cardHTML(C[num])+'</div>';
-    });
-    cols+='<div style="flex:0 0 '+colPx+'px;width:'+colPx+'px;position:relative;height:'+colH+'vh;">'
-      +'<div class="carousel-round-hdr">'+ROUND_LABELS[round]+'</div>'
-      +colHTML+'</div>';
-  });
-
-  root.innerHTML='<div style="display:flex;flex-direction:row;width:100%;gap:'+gapPx+'px;'
-    +'padding:0.5em '+outerPx+'px;overflow-x:hidden;align-items:flex-start;">'
-    +cols+'</div>';
-}
 
 // ── Mobile: championship card HTML ───────────────────────────────────
 function champCardHTML(gid) {
@@ -1203,7 +1187,7 @@ function applyStickyOffsets() {
   var sel   = document.querySelector('.selector-row');
   var selH  = sel ? sel.offsetHeight : 0;
   var r = document.documentElement.style;
-  r.setProperty('--app-h',  window.innerHeight + 'px');
+  r.setProperty('--app-h',  document.documentElement.clientHeight + 'px');
   r.setProperty('--hdr-h',  hdrH  + 'px');
   r.setProperty('--bar-h',  barH  + 'px');
   r.setProperty('--tabs-h', tabsH + 'px');
@@ -1368,10 +1352,13 @@ function populateTeamSelect(){
 
 function syncLoseSideWidths() {
   var sides = document.querySelectorAll('.round-lose-side, .round-win-side');
-  for (var i = 0; i < sides.length; i++) {
-    sides[i].style.width = '';
-    sides[i].style.width = sides[i].offsetHeight + 'px';
-  }
+  var i;
+  // Pass 1: clear all widths (batch style writes)
+  for (i = 0; i < sides.length; i++) { sides[i].style.width = ''; }
+  // Pass 2: read all heights in one batch (single reflow), then write widths
+  var heights = [];
+  for (i = 0; i < sides.length; i++) { heights.push(sides[i].offsetHeight); }
+  for (i = 0; i < sides.length; i++) { sides[i].style.width = heights[i] + 'px'; }
 }
 
 function buildWinChain(sid){
