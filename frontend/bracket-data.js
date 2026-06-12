@@ -107,12 +107,15 @@ function slotLabel(teamSlot) {
 }
 
 // shortName: ONLY for use in "Team A / Team B" display inside smartLabel.
-// Truncates at "/" first (e.g. "Hoegeymeyer/Feld Fire" → "Hoegeymeyer"),
-// then keeps at most 2 words (e.g. "High Point Roofing" → "High Point").
+// Truncates at "/" first (e.g. "Hoegeymeyer/Feld Fire" → "Hoegeymeyer").
+// Names of 14 chars or fewer pass through whole regardless of word count
+// ("Hall of Fame" stays intact); longer ones keep at most 2 words
+// (e.g. "High Point Roofing" → "High Point").
 // Never call this when displaying a single team name on its own.
 function shortName(name) {
   if (!name) return '';
   var s = name.trim().split('/')[0].trim(); // drop everything from "/" onward
+  if (s.length <= 14) return s;
   return s.split(/\s+/).slice(0, 2).join(' '); // max 2 words
 }
 
