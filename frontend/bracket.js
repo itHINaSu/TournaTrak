@@ -439,14 +439,14 @@ function getDims(){
   var isDesktop = winW >= 1280;
 
   if(isDesktop){
-    var champVw=12;
+    var champVw=10;
     var nL=Math.max(buildSideColumns('L').length,1);
     var nR=Math.max(buildSideColumns('R').length,1);
     var nMax=Math.max(nL,nR);
-    // 85vw = usable bracket width (leaves 15vw for margins/champ).
-    // 0.20 = gap-to-column width ratio (each gap is 20% of a column).
-    var colVw=(85-champVw)/2/(nMax+(nMax-1)*0.20);
-    var gapVw=colVw*0.20;
+    // 97vw = usable bracket width (nearly full window, small side margins).
+    // 0.15 = gap-to-column width ratio (each gap is 15% of a column).
+    var colVw=(97-champVw)/2/(nMax+(nMax-1)*0.15);
+    var gapVw=colVw*0.15;
     var vwPx=window.innerWidth/100, vhPx=window.innerHeight/100;
     var cardVh=(colVw*vwPx/CARD_ASPECT)/vhPx;
     var rowVh=cardVh/3;
@@ -564,39 +564,42 @@ function buildSideColumns(side){
     return {round:round,side:side,games:games};
   }).filter(function(col){ return col.games.length > 0; });
 }
-// computeLBPositions: positions each LB game at the vertical midpoint of its
-// feeder games (both within-LB winner connections and cross-bracket WB loser drops).
-// WB positions are seeded first using standard even spacing so loser feeds have
-// a known coordinate. LB rounds are processed in natural order (R1→SF) so each
-// round's positions are available when the next round is computed.
+// computeLBPositions: positions each LB game using only LB-side geometry,
+// like a paper bracket. Cross-bracket WB loser drops are treated as phantom
+// "bye" feeders — they never pull a game toward the other side of the screen.
+//   • two LB feeders  → midpoint (tree convergence, e.g. QF between two R2s)
+//   • one LB feeder   → same height (drop-in joins the advancing winner's line);
+//                       if the feeder shares the column (LB final after LB semi),
+//                       offset downward so the cards don't stack
+//   • no LB feeders   → canonical even spacing (first LB round)
 // Returns {gid → topVh} for every LB game.
 function computeLBPositions(slotVh) {
   var posMap = {};
+  var cols = buildSideColumns('R');
+  var maxTop = 8 * slotVh - slotVh * CARD_RATIO; // keep cards inside the column
 
-  // Seed WB positions with standard even spacing
-  buildSideColumns('L').forEach(function(col) {
-    col.games.forEach(function(entry) {
-      posMap[entry.gid] = slotTopVh(col.round, entry.slot, slotVh, 'L');
-    });
-  });
-
-  // LB positions: midpoint of feeder tops (winner or loser) already in posMap
-  buildSideColumns('R').forEach(function(col) {
+  cols.forEach(function(col, ci) {
     col.games.forEach(function(entry) {
       var g = GAMES[entry.gid];
       var feeders = [];
-      if (g) {
-        [g.t1, g.t2].forEach(function(slot) {
-          if (!slot || !GAMES[slot.slot]) return;
-          if ((slot.type === 'winner' || slot.type === 'loser') && posMap[slot.slot] !== undefined) {
-            feeders.push(posMap[slot.slot]);
-          }
+      if (g && ci > 0) {
+        [g.t1, g.t2].forEach(function(slotDef) {
+          if (!slotDef || slotDef.type !== 'winner') return;
+          var fg = GAMES[slotDef.slot];
+          if (!fg || fg.side !== 'R') return;            // ignore WB drops (phantom bye)
+          if (posMap[slotDef.slot] === undefined) return;
+          feeders.push({ pos: posMap[slotDef.slot], sameCol: fg.round === col.round });
         });
       }
-      posMap[entry.gid] = feeders.length >= 2
-        ? (feeders[0] + feeders[1]) / 2
-        : feeders.length === 1 ? feeders[0]
-        : slotTopVh(col.round, entry.slot, slotVh, col.side);
+      var top;
+      if (feeders.length >= 2) {
+        top = (feeders[0].pos + feeders[1].pos) / 2;
+      } else if (feeders.length === 1) {
+        top = feeders[0].sameCol ? feeders[0].pos + 1.5 * slotVh : feeders[0].pos;
+      } else {
+        top = slotTopVh(col.round, entry.slot, slotVh, col.side);
+      }
+      posMap[entry.gid] = Math.max(0, Math.min(top, maxTop));
     });
   });
 
@@ -711,7 +714,7 @@ function renderDesktopBracket(root,dims){
       +'</div>';
   }
 
-  root.innerHTML='<div style="display:flex;align-items:flex-start;width:85vw;margin:0 auto;'
+  root.innerHTML='<div style="display:flex;align-items:flex-start;width:97vw;margin:0 auto;'
     +'box-sizing:border-box;padding:calc(var(--col-hdr-h)*2.5) 0 1em;">'
     +sideHTML('L',getSetting('leftLabel'),false)
     +champHTML
