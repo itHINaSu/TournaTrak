@@ -511,6 +511,22 @@ function scoreHTML(score) {
   return '<span class="game-score">' + n + '</span>';
 }
 
+// ── Field tag shrink ──────────────────────────────────────────────────
+// Bracket cards have tight headers; when the label + field tag + day/time
+// don't all fit, abbreviate the field to its first letter (full name stays
+// in the tooltip). Runs after render; re-renders restore the full name.
+function shrinkFieldTags(rootEl) {
+  rootEl.querySelectorAll('.bc-hdr, .mbc-game-mid').forEach(function(hdr) {
+    var tag = hdr.querySelector('.game-field-tag');
+    if (!tag) return;
+    if (hdr.scrollWidth > hdr.clientWidth + 1) {
+      var full = tag.textContent;
+      tag.textContent = full.charAt(0);
+      tag.title = full;
+    }
+  });
+}
+
 // ── Themed trophy icon ────────────────────────────────────────────────
 // Inline SVG drawn with the theme's gold variables so it follows the
 // light/dark scheme. Sized by the existing .trophy-img CSS (1em square).
@@ -864,14 +880,14 @@ function renderDesktopBracket(root,dims){
     +sideHTML('R',getSetting('rightLabel'),true)
     +'</div>';
 
+  shrinkFieldTags(root);
+
   // Jump hook for cross-view navigation (e.g. team path card tap)
   window._bracketJumpToGid = function(gid) {
     var card = root.querySelector('.bc[data-gid="' + gid + '"]');
     if (!card) return;
     card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-    card.classList.remove('tp-target-flash');
-    void card.offsetWidth;
-    card.classList.add('tp-target-flash');
+    holdHighlight(card);
   };
 }
 
@@ -1548,6 +1564,7 @@ function renderMobileBracket(root, dims) {
   }, true); // capture phase so it beats card click handlers
 
   setSpacerForCol(0);
+  shrinkFieldTags(outer);
 
   // Jump hook for cross-view navigation (e.g. team path card tap).
   // Snaps the carousel to the game's round column, then sets the shared
@@ -1564,11 +1581,7 @@ function renderMobileBracket(root, dims) {
       var y = earlyY[gid] !== undefined ? earlyY[gid] : 0;
       captureEl.scrollTop = Math.max(0, Math.min(y - GAP * 2, maxScroll));
       var card = outer.querySelector('.mbc-card[data-gid="' + gid + '"]');
-      if (card) {
-        card.classList.remove('tp-target-flash');
-        void card.offsetWidth;
-        card.classList.add('tp-target-flash');
-      }
+      if (card) holdHighlight(card);
     }, 320);
   };
 }
@@ -2125,6 +2138,32 @@ function jumpToBracketGame(gid){
     if(typeof window._bracketJumpToGid==='function') window._bracketJumpToGid(gid);
   },80);
 }
+
+// ── Persistent jump highlight ─────────────────────────────────────────
+// After a team-path jump the target card keeps a gold ring until the user
+// scrolls it off screen or switches tabs (instead of a one-shot flash).
+var _tpHoldObserver = null;
+function clearHoldHighlight(){
+  if(_tpHoldObserver){ _tpHoldObserver.disconnect(); _tpHoldObserver=null; }
+  document.querySelectorAll('.tp-target-hold').forEach(function(el){
+    el.classList.remove('tp-target-hold');
+  });
+}
+function holdHighlight(card){
+  clearHoldHighlight();
+  card.classList.add('tp-target-hold');
+  if(typeof IntersectionObserver!=='function') return;
+  _tpHoldObserver=new IntersectionObserver(function(entries){
+    entries.forEach(function(en){ if(!en.isIntersecting) clearHoldHighlight(); });
+  },{threshold:0.05});
+  // Delay observing until the smooth scroll has landed the card on screen,
+  // otherwise the initial off-screen state clears the highlight immediately.
+  setTimeout(function(){ if(_tpHoldObserver) _tpHoldObserver.observe(card); },800);
+}
+// Any tab switch drops the highlight.
+document.addEventListener('click',function(e){
+  if(e.target.closest && e.target.closest('.view-tab')) clearHoldHighlight();
+});
 
 // ══════════════════════════════════════════════════════════
 // INIT
