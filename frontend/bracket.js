@@ -1219,6 +1219,9 @@ function renderMobileBracket(root, dims) {
   // column) are ignored — the card converges from however many real feeders
   // are available: 2 → midpoint, 1 → that feeder's position, 0 → earlyY.
   var lateY = {};
+  // anchored[gid]: at least one feeder lives in the adjacent column, so the
+  // card's converged position is meaningful and must not be displaced.
+  var anchored = {};
   cols.forEach(function(col, ri) {
     col.gids.forEach(function(gid) {
       var selfY = earlyY[gid] !== undefined ? earlyY[gid] : 0;
@@ -1234,6 +1237,7 @@ function renderMobileBracket(root, dims) {
         var srcGid = slot.slot;
         if (srcGid && colOfGid[srcGid] === ri - 1 && earlyY[srcGid] !== undefined) {
           feeders.push(earlyY[srcGid]);
+          anchored[gid] = true;
         } else if (slot.type === 'winner' && srcGid
                    && colOfGid[srcGid] !== undefined && colOfGid[srcGid] < ri - 1) {
           // Winner byeing through from a farther-back column: its line runs
@@ -1249,18 +1253,23 @@ function renderMobileBracket(root, dims) {
     });
   });
 
-  // Overlap guard: feeder math can land two converged cards on the same spot
-  // (e.g. a bye-through midpoint coinciding with a neighbor's snap position).
-  // Sweep each column top-to-bottom in earlyY order and push any card down
-  // until it clears the one above it by a full card height.
+  // Overlap guard: anchored cards (real adjacent feeders) own their converged
+  // position; unanchored cards (bye-throughs, no adjacent feeders) yield and
+  // are moved out of the way — up if the anchored card is below them, down
+  // otherwise. Repeated sweeps settle cascades; column order is preserved.
   cols.forEach(function(col) {
     if (col.round === 'CHAMP' || col.round === 'CHAMP2') return;
     var sorted = col.gids.slice().sort(function(a, b) {
       return (earlyY[a] || 0) - (earlyY[b] || 0);
     });
-    for (var i = 1; i < sorted.length; i++) {
-      var minY = lateY[sorted[i - 1]] + CARD_H + GAP;
-      if (lateY[sorted[i]] < minY) lateY[sorted[i]] = minY;
+    var STEP = CARD_H + GAP;
+    for (var pass = 0; pass < sorted.length; pass++) {
+      for (var i = 1; i < sorted.length; i++) {
+        var above = sorted[i - 1], cur = sorted[i];
+        if (lateY[cur] >= lateY[above] + STEP) continue;
+        if (anchored[cur] && !anchored[above]) lateY[above] = lateY[cur] - STEP;
+        else lateY[cur] = lateY[above] + STEP;
+      }
     }
   });
 
