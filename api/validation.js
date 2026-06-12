@@ -51,7 +51,7 @@ function validateSchedule(updates) {
     if (typeof entry !== 'object' || Array.isArray(entry) || entry === null)
       return `entry for ${sid} must be an object`;
     if (entry.clear === true) continue;
-    for (const f of ['label','t1name','t2name','t1type','t2type','t1slot','t2slot']) {
+    for (const f of ['label','field','t1name','t2name','t1type','t2type','t1slot','t2slot']) {
       if (entry[f] !== undefined) {
         if (typeof entry[f] !== 'string') return `${f} for ${sid} must be a string`;
         if (entry[f].length > 200)        return `${f} for ${sid} too long (max 200)`;

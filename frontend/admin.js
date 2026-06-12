@@ -430,6 +430,8 @@ function occupiedCard(sid) {
   h += '<div class="sched-game-body" id="sbody-' + sid + '">';
   h += '<div class="sched-field"><label>Game Label</label>'
     + '<input type="text" id="slabel-' + sid + '" value="' + esc(lbl) + '" placeholder="' + esc(g.label||sid) + '"></div>';
+  h += '<div class="sched-field"><label>Field</label>'
+    + '<input type="text" id="sfield-' + sid + '" value="' + esc(over.field||g.field||'') + '" placeholder="e.g. North"></div>';
   h += '<div class="sched-field"><label>Date &amp; Time</label>'
     + datetimePairHTML('stime-' + sid, time) + '</div>';
   h += '<div class="sched-field"><label>Bracket Slot (' + g.round + ' ' + g.side + ')</label>'
@@ -466,6 +468,8 @@ function emptyCard(sid) {
   h += '<div class="empty-slot-instructions">Fill this slot to create a new game. Requires a label and both teams. Save All to apply.</div>';
   h += '<div class="sched-field"><label>Game Label</label>'
     + '<input type="text" id="slabel-' + sid + '" value="' + esc(over.label||'') + '" placeholder="e.g. G7"></div>';
+  h += '<div class="sched-field"><label>Field</label>'
+    + '<input type="text" id="sfield-' + sid + '" value="' + esc(over.field||'') + '" placeholder="e.g. North"></div>';
   h += '<div class="sched-field"><label>Date &amp; Time</label>'
     + datetimePairHTML('stime-' + sid, over.time||'') + '</div>';
   h += '<div class="sched-field"><label>Team 1 (fixed name)</label>'
@@ -558,8 +562,11 @@ async function saveAllSchedule() {
     if (schedule[sid] && schedule[sid].clear && !newLabel) return;
 
     var entry  = {};
-    var timeVal = readDatetime('stime-' + sid);
+    var timeVal  = readDatetime('stime-' + sid);
+    var fieldEl  = document.getElementById('sfield-' + sid);
+    var fieldVal = fieldEl ? fieldEl.value.trim() : '';
     if (newLabel)                  entry.label  = newLabel;
+    if (fieldVal)                  entry.field  = fieldVal;
     if (timeVal)                   entry.time   = timeVal;
     if (slotEl && slotEl.value)    entry.num    = parseInt(slotEl.value);
     if (t1El && t1El.value.trim()) entry.t1name = t1El.value.trim();

@@ -378,6 +378,13 @@ function gameLabel(sid){
   var g = GAMES[sid];
   return g && g.label ? g.label : sid;
 }
+
+// Small badge showing which field a game is played on (set via admin panel).
+// Returns '' when no field is assigned so cards render unchanged.
+function fieldTagHTML(sid){
+  var g = GAMES[sid];
+  return g && g.field ? '<span class="game-field-tag">' + esc(g.field) + '</span>' : '';
+}
 function disp(gid,slot){
   var team=resolveSlot(slot,results);
   var label=team||smartLabel(slot,results);
@@ -511,6 +518,7 @@ function cardHTML(gid){
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
   return '<div class="bc-hdr"><span class="bc-id">'+esc(gameLabel(gid))+'</span>'
+    +fieldTagHTML(gid)
     +'<span class="bc-time">'+esc(bracketTime(g.time))+'</span></div>'
     +'<div class="bc-team '+c1+'"><span class="bc-name">'+esc(t1.name)+'</span>'+scoreHTML(r.t1score)+'</div>'
     +'<div class="bc-team '+c2+'"><span class="bc-name">'+esc(t2.name)+'</span>'+scoreHTML(r.t2score)+'</div>';
@@ -854,7 +862,7 @@ function champCardHTML(gid) {
   return '<div class="mbc-champ-card">'
     + '<div class="mbc-champ-top">'
     +   '<div class="mbc-champ-trophy"><img src="/icons/trophy-192.png" class="trophy-img" alt=""></div>'
-    +   '<div class="mbc-champ-label">Championship</div>'
+    +   '<div class="mbc-champ-label">Championship' + fieldTagHTML(gid) + '</div>'
     +   (ft ? '<div class="mbc-champ-time">' + esc(ft) + '</div>' : '')
     + '</div>'
     + '<div class="mbc-champ-sep"></div>'
@@ -888,6 +896,7 @@ function mobileRoundCardHTML(gid) {
   return '<div class="mbc-game-card' + upcoming + '">'
     + '<div class="mbc-game-mid">'
     +   '<span class="mbc-game-lbl">' + esc(gameLabel(gid)) + '</span>'
+    +   fieldTagHTML(gid)
     +   '<span class="mbc-game-datetime">'
     +     (dateStr ? '<span class="mbc-game-day">'  + esc(dateStr) + '</span>' : '')
     +     (dowStr  ? '<span class="mbc-game-dow">'  + esc(dowStr)  + '</span>' : '')
@@ -920,6 +929,7 @@ function roundCardHTML(gid) {
   return '<div class="round-game-card">'
     + '<div class="round-game-header">'
     + '<span class="round-game-id">' + esc(gameLabel(gid)) + '</span>'
+    + fieldTagHTML(gid)
     + '<div class="round-game-day-time">'
     + (dateStr ? '<span class="round-game-day">'  + esc(dateStr) + '</span>' : '')
     + (dowStr  ? '<span class="round-game-dow">'  + esc(dowStr)  + '</span>' : '')
@@ -1649,6 +1659,7 @@ function renderRoundView() {
       html += '<div class="round-game-card' + upcoming + champ2ExtraCls + '" id="rgc-' + sid + '">'
         +'<div class="round-game-header">'
         +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
+        +fieldTagHTML(sid)
         +'<div class="round-game-day-time">'
         +(dateStr?'<span class="round-game-day">'+esc(dateStr)+'</span>':'')
         +(dowStr?'<span class="round-game-dow">'+esc(dowStr)+'</span>':'')

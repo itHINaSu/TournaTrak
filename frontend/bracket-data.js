@@ -182,6 +182,7 @@ function applySchedule(schedule) {
       side:  parsed.side,
       num:   ov.num != null ? parseInt(ov.num) : parsed.num,
       time:  ov.time || '',
+      field: typeof ov.field === 'string' ? ov.field.trim() : '',
       t1: ov.t1name
         ? { type:'fixed', team:ov.t1name }
         : { type:(ov.t1type||'winner'), slot:ov.t1slot },
