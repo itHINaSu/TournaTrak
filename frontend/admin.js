@@ -27,21 +27,21 @@ function getSetting(key) {
   var btn = document.getElementById('themeToggle');
   var mq  = window.matchMedia('(prefers-color-scheme: light)');
   var PREF_KEY = 'tt_theme';
+  function storageGet(k)    { try { return localStorage.getItem(k); }    catch(e) { return null; } }
+  function storageSet(k, v) { try { localStorage.setItem(k, v); }        catch(e) {} }
   function applyLight(light) {
     document.body.classList.toggle('light', light);
     if (btn) btn.textContent = light ? '🌙 Dark' : '☀ Light';
   }
-  // Saved preference wins over OS; fall back to OS if no preference stored.
-  var saved = localStorage.getItem(PREF_KEY);
+  var saved = storageGet(PREF_KEY);
   applyLight(saved !== null ? saved === 'light' : mq.matches);
   mq.addEventListener('change', function(e) {
-    // Only follow OS changes if the user hasn't saved a preference.
-    if (localStorage.getItem(PREF_KEY) === null) applyLight(e.matches);
+    if (storageGet(PREF_KEY) === null) applyLight(e.matches);
   });
   if (btn) btn.addEventListener('click', function(){
     var nowLight = !document.body.classList.contains('light');
     applyLight(nowLight);
-    localStorage.setItem(PREF_KEY, nowLight ? 'light' : 'dark');
+    storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
   });
 })();
 
