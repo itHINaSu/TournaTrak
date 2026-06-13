@@ -1135,6 +1135,42 @@ function renderMobileBracket(root, dims) {
     }
   })();
 
+  // ── Insert bracket-side dividers ─────────────────────────────────────
+  // After reordering, scan each column for a clean L→R (or R→L) transition
+  // and insert a labeled divider using the bracket labels from settings.
+  // Only inserted when ALL L-side games appear before ALL R-side games (or
+  // vice versa) — interleaved columns get no divider.
+  cols.forEach(function(col) {
+    if (col.round === 'CHAMP' || col.round === 'CHAMP2') return;
+    // Work within each existing divider segment so we don't cross existing dividers.
+    var existingDivIdxs = (col.divs || []).map(function(d){ return d.idx; });
+    var bounds = [0].concat(existingDivIdxs, [col.gids.length]);
+    var insertions = []; // {idx, label} to splice into col.divs after iteration
+    for (var b = 0; b < bounds.length - 1; b++) {
+      var seg = col.gids.slice(bounds[b], bounds[b + 1]);
+      // Find sides in order.
+      var sides = seg.map(function(gid){ return GAMES[gid] ? GAMES[gid].side : null; });
+      // Detect a single clean transition point where side changes.
+      var splitAt = -1;
+      for (var i = 1; i < sides.length; i++) {
+        if (sides[i] !== sides[i - 1]) {
+          if (splitAt !== -1) { splitAt = -1; break; } // multiple transitions — skip
+          splitAt = i;
+        }
+      }
+      if (splitAt === -1) continue;
+      // Determine which side is above the split and label accordingly.
+      var sideAbove = sides[0];
+      var label = sideAbove === 'L'
+        ? getSetting('rightLabel')  // below split is R side
+        : getSetting('leftLabel');  // below split is L side
+      insertions.push({ idx: bounds[b] + splitAt, label: label, type: 'side' });
+    }
+    // Merge insertions into col.divs (already sorted by idx after bounds iteration).
+    insertions.forEach(function(ins) { col.divs.push(ins); });
+    col.divs.sort(function(a, b) { return a.idx - b.idx; });
+  });
+
   // ── Pass 1: build HTML with placeholder card positions ───────────────
   var colsHTML = cols.map(function(col, ri) {
     var round   = col.round;
@@ -1162,7 +1198,7 @@ function renderMobileBracket(root, dims) {
       }
       var divEntry = (col.divs || []).filter(function(d){ return d.idx === gi; })[0];
       var divHTML = divEntry
-        ? '<div class="mbc-playin-divider" data-before-gid="' + esc(gid) + '" style="height:' + DIV_H + 'px">'
+        ? '<div class="mbc-playin-divider" data-before-gid="' + esc(gid) + '" data-div-type="' + esc(divEntry.type || '') + '" style="height:' + DIV_H + 'px">'
           + '<span class="mbc-playin-line"></span>'
           + '<span class="mbc-playin-label">' + esc(divEntry.label) + '</span>'
           + '<span class="mbc-playin-line"></span>'

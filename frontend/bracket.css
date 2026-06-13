@@ -1280,6 +1280,16 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .mbc-card .round-game-card { margin-bottom: 0; height: 100%; box-sizing: border-box; }
 
+/* ── Bracket-side divider: subtle label between L and R side games ── */
+.mbc-playin-divider[data-div-type="side"] .mbc-playin-line {
+  opacity: 0.45;
+}
+.mbc-playin-divider[data-div-type="side"] .mbc-playin-label {
+  font-weight: 400;
+  letter-spacing: 0.07em;
+  opacity: 0.6;
+}
+
 /* ── Play-in divider: separates intra-round dependent games ── */
 .mbc-playin-divider {
   position: absolute;
