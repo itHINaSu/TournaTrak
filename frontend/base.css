@@ -2,6 +2,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  color-scheme: dark;
   --bg:           #0f1410;
   --surface:      #181f1a;
   --surface2:     #1f2921;
@@ -53,6 +54,7 @@
 }
 
 body.light {
+  color-scheme: light;
   --bg:        #f0f4f1;
   --surface:   #ffffff;
   --surface2:  #e8ede9;
@@ -138,6 +140,7 @@ body {
   font-size: 0.82rem;
   color: var(--text-dim);
   min-height: 2.5em;
+  touch-action: manipulation;
 }
 .theme-toggle:hover,
 .theme-toggle:active { color: var(--text); }
