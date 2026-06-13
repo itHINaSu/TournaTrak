@@ -1200,8 +1200,10 @@ function renderMobileBracket(root, dims) {
         c2cls += ' mbc-champ-winner-pending';
       }
       var divEntry = (col.divs || []).filter(function(d){ return d.idx === gi; })[0];
+      // Divider is placed INSIDE the card so it inherits the card's translateY
+      // and opacity transitions — it travels and fades with the card automatically.
       var divHTML = divEntry
-        ? '<div class="mbc-playin-divider" data-before-gid="' + esc(gid) + '" data-div-type="' + esc(divEntry.type || '') + '" style="height:' + DIV_H + 'px">'
+        ? '<div class="mbc-playin-divider" data-div-type="' + esc(divEntry.type || '') + '" style="height:' + DIV_H + 'px;top:-' + (DIV_H + GAP) + 'px">'
           + '<span class="mbc-playin-line"></span>'
           + '<span class="mbc-playin-label">' + esc(divEntry.label) + '</span>'
           + '<span class="mbc-playin-line"></span>'
@@ -1212,10 +1214,9 @@ function renderMobileBracket(root, dims) {
       var isPlayIn = (col.divs || []).some(function(d) {
         return d.type === 'playin' && d.idx <= gi;
       });
-      return divHTML
-        + '<div class="mbc-card' + c2cls + '" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0"'
+      return '<div class="mbc-card' + c2cls + '" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0"'
         + (isPlayIn ? ' data-playin="1"' : '') + '>'
-        + inner + '</div>';
+        + divHTML + inner + '</div>';
     }).join('');
 
     var dots = cols.map(function(_, i) {
@@ -1395,12 +1396,6 @@ function renderMobileBracket(root, dims) {
       card.style.top = ey + 'px';
       card.dataset.lateOffset = (ly - ey).toFixed(1);
       card.dataset.prevOffset = (prevOffset[gid] || 0).toFixed(1);
-    });
-    // Dividers sit in the gap directly above their play-in card.
-    colEl.querySelectorAll('.mbc-playin-divider').forEach(function(div) {
-      var gid = div.getAttribute('data-before-gid');
-      var ey  = earlyY[gid];
-      if (ey !== undefined) div.style.top = (ey - GAP - DIV_H) + 'px';
     });
   });
 
