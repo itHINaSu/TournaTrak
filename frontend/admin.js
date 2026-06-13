@@ -7,12 +7,14 @@ var _bucketTeams = [];
 var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
 
 var SETTING_DEFAULTS = {
-  tournamentName: 'Tournament Bracket',
-  pageTitle:      'Tournament Bracket',
-  adminName:      'Tournament Admin',
-  subtitle:       '',
-  leftLabel:      'Left Bracket',
-  rightLabel:     'Right Bracket',
+  tournamentName:   'Tournament Bracket',
+  pageTitle:        'Tournament Bracket',
+  adminName:        'Tournament Admin',
+  subtitle:         '',
+  leftLabel:        'Left Bracket',
+  rightLabel:       'Right Bracket',
+  playInLabel:      'Play-In',
+  showSideDividers: 'true',
 };
 
 function getSetting(key) {
@@ -187,7 +189,9 @@ function applySettingsToPage() {
 function populateSettingsFields() {
   Object.keys(SETTING_DEFAULTS).forEach(function(key) {
     var el = document.getElementById('set-' + key);
-    if (el) el.value = settings[key] || '';
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = getSetting(key) !== 'false';
+    else el.value = settings[key] || '';
   });
 }
 
@@ -196,7 +200,8 @@ async function saveSettings() {
   var out = {};
   Object.keys(SETTING_DEFAULTS).forEach(function(key) {
     var el = document.getElementById('set-' + key);
-    if (el) out[key] = el.value.trim();
+    if (!el) return;
+    out[key] = el.type === 'checkbox' ? String(el.checked) : el.value.trim();
   });
   try {
     var r = await apiFetch('/api/settings', {

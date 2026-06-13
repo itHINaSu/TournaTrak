@@ -12,8 +12,10 @@ var SETTING_DEFAULTS = {
   pageTitle:      'Tournament Bracket',
   adminName:      'Tournament Admin',
   subtitle:       '',
-  leftLabel:      'Left Bracket',
-  rightLabel:     'Right Bracket',
+  leftLabel:        'Left Bracket',
+  rightLabel:       'Right Bracket',
+  playInLabel:      'Play-In',
+  showSideDividers: 'true',
 };
 
 function getSetting(key) {
@@ -1084,7 +1086,7 @@ function renderMobileBracket(root, dims) {
     }
     var flat = [], divs = [];
     waves.forEach(function(wave, wi) {
-      if (wi) divs.push({ idx: flat.length, label: 'Play-In', type: 'playin' });
+      if (wi) divs.push({ idx: flat.length, label: getSetting('playInLabel'), type: 'playin' });
       flat = flat.concat(wave);
     });
     cols.push({ round: round, label: ROUND_LABELS[round], gids: flat, divs: divs });
@@ -1136,11 +1138,12 @@ function renderMobileBracket(root, dims) {
   })();
 
   // ── Insert bracket-side dividers ─────────────────────────────────────
+  // Skipped when the setting is disabled.
   // After reordering, scan each column for a clean L→R (or R→L) transition
   // and insert a labeled divider using the bracket labels from settings.
   // Only inserted when ALL L-side games appear before ALL R-side games (or
   // vice versa) — interleaved columns get no divider.
-  cols.forEach(function(col) {
+  if (getSetting('showSideDividers') !== 'false') cols.forEach(function(col) {
     if (col.round === 'CHAMP' || col.round === 'CHAMP2') return;
     // Work within each existing divider segment so we don't cross existing dividers.
     var existingDivIdxs = (col.divs || []).map(function(d){ return d.idx; });

@@ -277,6 +277,19 @@
               <input type="text" id="set-rightLabel" placeholder="Right Bracket">
               <div class="field-hint">Shown above the right side of the bracket and on mobile.</div>
             </div>
+            <div class="settings-field settings-field--toggle">
+              <label>Show bracket-side dividers on mobile</label>
+              <input type="checkbox" id="set-showSideDividers">
+              <div class="field-hint">Displays a subtle label between winner and loser bracket games in each mobile swipe column.</div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Play-In Game</div>
+            <div class="settings-field">
+              <label>Play-In Label <span class="field-label-hint">(mobile bracket divider)</span></label>
+              <input type="text" id="set-playInLabel" placeholder="Play-In">
+              <div class="field-hint">Label shown above the conditional game that determines the loser-bracket finalist (e.g. "Losers Final", "Bracket Final").</div>
+            </div>
           </div>
           <div class="settings-save-row">
             <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
