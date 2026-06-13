@@ -1026,43 +1026,63 @@ function renderMobileBracket(root, dims) {
     return out;
   }
 
-  // ── Columns: one per round. Rounds with intra-round dependencies (e.g. an
-  // LB final consuming two LB semis scheduled in the same round) keep all
-  // games in the round's column, but the dependent games sit below a
-  // "Play-In" divider so they read as a follow-up game rather than a peer
-  // (or worse, a championship feeder). divIdxs marks where dividers go.
-  // Display-only: slot IDs and desktop rendering are untouched.
+  // ── Columns ────────────────────────────────────────────────────────────
+  // Normal: one column per round. Two exceptions, both display-only:
+  //
+  // 1. LB-only rounds (one bracket side has all the games, the other has none)
+  //    are absorbed into the previous column under a "Loser's Bracket" divider.
+  //    This makes the WB games in that column the adjacent feeders for the next
+  //    round, restoring convergence animations (e.g. R4 LB-only merges into R3
+  //    so R5's WB game sees its R3 feeders in the adjacent column).
+  //
+  // 2. Intra-round same-side dependencies (an LB final consuming two same-round
+  //    LB semis) sit below a "Play-In" divider in the same column rather than
+  //    splitting into a continuation column.
+  //
+  // divs: [{idx, label}] — dividers inserted above the game at that index.
   var cols = [];
   rounds.forEach(function(round) {
     var gids = gidsFor(round);
     if (round === 'CHAMP' || round === 'CHAMP2') {
-      cols.push({ round: round, label: ROUND_LABELS[round], gids: gids, divIdxs: [] });
+      cols.push({ round: round, label: ROUND_LABELS[round], gids: gids, divs: [] });
       return;
     }
+
+    // Detect single-side rounds (all games on L or all on R, not both).
+    var hasSide = {};
+    gids.forEach(function(gid) { hasSide[GAMES[gid].side] = true; });
+    var singleSide = Object.keys(hasSide).length === 1;
+
+    if (singleSide && cols.length > 0) {
+      // Absorb into the previous column under a "Loser's Bracket" divider.
+      var prev = cols[cols.length - 1];
+      prev.divs.push({ idx: prev.gids.length, label: "Loser's Bracket" });
+      gids.forEach(function(gid) { prev.gids.push(gid); });
+      return;
+    }
+
+    // Both sides present: do the intra-round wave split for same-side deps.
     var placed = {}, waves = [], remaining = gids.slice();
     while (remaining.length) {
       var wave = remaining.filter(function(gid) {
         var g = GAMES[gid];
         return ![g.t1, g.t2].some(function(s) {
-          // Same round AND same side = truly the same column. Cross-side
-          // feeders (WB losers dropping into same-numbered LB round) are
-          // normal bracket structure and must not trigger a split.
           return s && s.type !== 'fixed' && s.slot && !placed[s.slot]
             && GAMES[s.slot] && GAMES[s.slot].round === round
             && GAMES[s.slot].side === g.side;
         });
       });
-      if (!wave.length) wave = remaining.slice(); // cycle guard — never stall
+      if (!wave.length) wave = remaining.slice();
       waves.push(wave);
       wave.forEach(function(gid) { placed[gid] = 1; });
       remaining = remaining.filter(function(gid) { return !placed[gid]; });
     }
-    var flat = [], divIdxs = [];
+    var flat = [], divs = [];
     waves.forEach(function(wave, wi) {
-      if (wi) divIdxs.push(flat.length);
+      if (wi) divs.push({ idx: flat.length, label: 'Play-In' });
       flat = flat.concat(wave);
     });
-    cols.push({ round: round, label: ROUND_LABELS[round], gids: flat, divIdxs: divIdxs });
+    cols.push({ round: round, label: ROUND_LABELS[round], gids: flat, divs: divs });
   });
 
   // ── Reorder each column so games feeding the same next-column game sit
@@ -1101,7 +1121,7 @@ function renderMobileBracket(root, dims) {
       cols[ci + 1].gids.forEach(function(gid, i) { nextPos[gid] = i; });
       // Reorder each divider-bounded segment independently so play-in games
       // never migrate above their divider.
-      var bounds = [0].concat(cols[ci].divIdxs, [cols[ci].gids.length]);
+      var bounds = [0].concat((cols[ci].divs || []).map(function(d){ return d.idx; }), [cols[ci].gids.length]);
       var order = [];
       for (var b = 0; b < bounds.length - 1; b++) {
         order = order.concat(reorderSegment(cols[ci].gids.slice(bounds[b], bounds[b + 1]), nextPos));
@@ -1135,10 +1155,11 @@ function renderMobileBracket(root, dims) {
       if (round === 'CHAMP' && gid === 'CHAMP.C.1' && champ2State() === 'needed') {
         c2cls += ' mbc-champ-winner-pending';
       }
-      var divHTML = (col.divIdxs && col.divIdxs.indexOf(gi) !== -1)
+      var divEntry = (col.divs || []).filter(function(d){ return d.idx === gi; })[0];
+      var divHTML = divEntry
         ? '<div class="mbc-playin-divider" data-before-gid="' + esc(gid) + '" style="height:' + DIV_H + 'px">'
           + '<span class="mbc-playin-line"></span>'
-          + '<span class="mbc-playin-label">Play-In</span>'
+          + '<span class="mbc-playin-label">' + esc(divEntry.label) + '</span>'
           + '<span class="mbc-playin-line"></span>'
           + '</div>'
         : '';
@@ -1209,14 +1230,14 @@ function renderMobileBracket(root, dims) {
     var isChamp  = col.round === 'CHAMP' || col.round === 'CHAMP2';
     var numSlots = col.gids.length;
     var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
-    var nDivs    = (col.divIdxs || []).length;
+    var nDivs    = (col.divs || []).length;
     var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP
                  + nDivs * (DIV_H + GAP);
     var offset   = numSlots <= 4
       ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
       : GAP;
     col.gids.forEach(function(gid, idx) {
-      var divsAbove = (col.divIdxs || []).filter(function(d) { return d <= idx; }).length;
+      var divsAbove = (col.divs || []).filter(function(d) { return d.idx <= idx; }).length;
       earlyY[gid] = offset + idx * (cardH + GAP) + divsAbove * (DIV_H + GAP);
     });
   });
@@ -1227,7 +1248,7 @@ function renderMobileBracket(root, dims) {
     var isChamp  = col.round === 'CHAMP' || col.round === 'CHAMP2';
     var numSlots = col.gids.length;
     var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
-    var nDivs    = (col.divIdxs || []).length;
+    var nDivs    = (col.divs || []).length;
     var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP
                  + nDivs * (DIV_H + GAP);
     var offset   = numSlots <= 4
