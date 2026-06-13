@@ -1060,7 +1060,7 @@ function renderMobileBracket(root, dims) {
     if (singleSide && cols.length > 0) {
       // Absorb into the previous column under a "Loser's Bracket" divider.
       var prev = cols[cols.length - 1];
-      prev.divs.push({ idx: prev.gids.length, label: ROUND_LABELS[round] });
+      prev.divs.push({ idx: prev.gids.length, label: ROUND_LABELS[round], type: 'absorbed' });
       prev.label = prev.label + ' · ' + ROUND_LABELS[round];
       gids.forEach(function(gid) { prev.gids.push(gid); });
       return;
@@ -1084,7 +1084,7 @@ function renderMobileBracket(root, dims) {
     }
     var flat = [], divs = [];
     waves.forEach(function(wave, wi) {
-      if (wi) divs.push({ idx: flat.length, label: 'Play-In' });
+      if (wi) divs.push({ idx: flat.length, label: 'Play-In', type: 'playin' });
       flat = flat.concat(wave);
     });
     cols.push({ round: round, label: ROUND_LABELS[round], gids: flat, divs: divs });
@@ -1168,8 +1168,14 @@ function renderMobileBracket(root, dims) {
           + '<span class="mbc-playin-line"></span>'
           + '</div>'
         : '';
+      // Only wave-split play-in games fade in from hidden; absorbed-round games
+      // (which have proper adjacent feeders) animate normally.
+      var isPlayIn = (col.divs || []).some(function(d) {
+        return d.type === 'playin' && d.idx <= gi;
+      });
       return divHTML
-        + '<div class="mbc-card' + c2cls + '" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0">'
+        + '<div class="mbc-card' + c2cls + '" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0"'
+        + (isPlayIn ? ' data-playin="1"' : '') + '>'
         + inner + '</div>';
     }).join('');
 
@@ -1368,6 +1374,8 @@ function renderMobileBracket(root, dims) {
     for (var k = 0; k < cards.length; k++) {
       var off = parseFloat(cards[k].dataset.lateOffset) || 0;
       cards[k].style.transform = off ? 'translateY(' + (off * blend).toFixed(1) + 'px)' : '';
+      // Play-in cards are invisible while in lateY; fade in as the column arrives.
+      if (cards[k].dataset.playin) cards[k].style.opacity = (1 - blend).toFixed(3);
     }
   }
   function applyPrevBlend(ci, blend) {
@@ -1376,6 +1384,7 @@ function renderMobileBracket(root, dims) {
     for (var k = 0; k < cards.length; k++) {
       var off = parseFloat(cards[k].dataset.prevOffset) || 0;
       cards[k].style.transform = off ? 'translateY(' + (off * blend).toFixed(1) + 'px)' : '';
+      if (cards[k].dataset.playin) cards[k].style.opacity = '1';
     }
   }
 
@@ -1459,6 +1468,7 @@ function renderMobileBracket(root, dims) {
     hSwipe = {
       startX: t.clientX, startY: t.clientY, lastX: t.clientX,
       startLeft: outer.scrollLeft,
+      startColIdx: colIndexAt(outer.scrollLeft),
       decided: false, isHoriz: false,
       lastTime: Date.now(), velocity: 0
     };
@@ -1486,11 +1496,14 @@ function renderMobileBracket(root, dims) {
     if (!hSwipe || !hSwipe.isHoriz) { hSwipe = null; return; }
     var dx   = e.changedTouches[0].clientX - hSwipe.startX;
     var vel  = hSwipe.velocity; // px/ms, positive = moving right
-    var endX = hSwipe.startLeft - dx;
-    var base = colIndexAt(endX);
-    var snap = vel < -0.25 ? Math.min(base + 1, colEls.length - 1)
-             : vel > 0.25  ? Math.max(base - 1, 0)
-             : base;
+    // Limit to ±1 column from where the swipe started so fast flicks
+    // can't skip two or more columns in one gesture.
+    var startIdx = hSwipe.startColIdx;
+    var snap = vel < -0.25 || dx < -colW * 0.35
+             ? Math.min(startIdx + 1, colEls.length - 1)
+             : vel > 0.25 || dx > colW * 0.35
+             ? Math.max(startIdx - 1, 0)
+             : startIdx;
     outer.scrollTo ? outer.scrollTo({ left: colStarts[snap], behavior: 'smooth' })
                    : (outer.scrollLeft = colStarts[snap]);
     hSwipe = null;
