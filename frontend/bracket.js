@@ -1060,7 +1060,8 @@ function renderMobileBracket(root, dims) {
     if (singleSide && cols.length > 0) {
       // Absorb into the previous column under a "Loser's Bracket" divider.
       var prev = cols[cols.length - 1];
-      prev.divs.push({ idx: prev.gids.length, label: "Loser's Bracket" });
+      prev.divs.push({ idx: prev.gids.length, label: ROUND_LABELS[round] });
+      prev.label = prev.label + ' · ' + ROUND_LABELS[round];
       gids.forEach(function(gid) { prev.gids.push(gid); });
       return;
     }
