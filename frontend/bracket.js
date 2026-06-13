@@ -244,22 +244,26 @@ function getCookie(name) {
 // ══════════════════════════════════════════════════════════
 var themeBtn=document.getElementById('themeToggle');
 
-// Auto-apply system color scheme on first load, then follow OS changes.
+// Theme: saved preference in localStorage wins over OS; persists across pages.
 (function(){
   var mq = window.matchMedia('(prefers-color-scheme: light)');
-  function applyScheme(light) {
+  var PREF_KEY = 'tt_theme';
+  function applyLight(light) {
     document.body.classList.toggle('light', light);
     if (themeBtn) themeBtn.textContent = light ? '🌙 Dark' : '☀ Light';
   }
-  applyScheme(mq.matches);
-  mq.addEventListener('change', function(e) { applyScheme(e.matches); });
+  var saved = localStorage.getItem(PREF_KEY);
+  applyLight(saved !== null ? saved === 'light' : mq.matches);
+  mq.addEventListener('change', function(e) {
+    if (localStorage.getItem(PREF_KEY) === null) applyLight(e.matches);
+  });
+  if (themeBtn) themeBtn.addEventListener('click', function(){
+    var nowLight = !document.body.classList.contains('light');
+    applyLight(nowLight);
+    localStorage.setItem(PREF_KEY, nowLight ? 'light' : 'dark');
+    if(activeView()==='bracket') renderBracket();
+  });
 })();
-
-themeBtn.addEventListener('click',function(){
-  document.body.classList.toggle('light');
-  themeBtn.textContent=document.body.classList.contains('light')?'🌙 Dark':'☀ Light';
-  if(activeView()==='bracket') renderBracket();
-});
 
 // ══════════════════════════════════════════════════════════
 // TABS
