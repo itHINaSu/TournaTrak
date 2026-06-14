@@ -297,6 +297,25 @@ select.styled {
 }
 select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07em; }
 
+.team-share-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.38em 0.88em;
+  border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  min-height: 2.75rem;
+}
+.team-share-btn:hover,
+.team-share-btn:active { color: var(--text); border-color: var(--text-dim); }
+
 /* ════════════════════════════════════════════════════════════
    BRACKET LAYOUT
    ════════════════════════════════════════════════════════════ */

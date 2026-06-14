@@ -750,3 +750,60 @@ input[type="time"]:focus {
   .sched-save-btn  { min-height: 2.75rem; }
 }
 .sched-game-hdr-field { font-size: 0.68rem; font-weight: 600; color: var(--text-dim); border: 1px solid var(--border); border-radius: 0.6em; padding: 0.05em 0.45em; white-space: nowrap; }
+
+/* ── Live scoring card ── */
+.admin-res-card--live {
+  border-color: var(--gold-lt);
+  box-shadow: 0 0 0 1.5px var(--gold-lt), 0 2px 12px rgba(196,154,26,0.18);
+}
+.admin-live-period-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.55em;
+}
+.admin-live-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #d63a3a;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.admin-live-period-lbl {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.admin-period-inp {
+  width: 3.5em;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.25em 0.4em;
+  border: 1px solid var(--border);
+  border-radius: 0.4em;
+  background: var(--surface2);
+  color: var(--text);
+}
+.admin-live-update-btn {
+  background: var(--gold-dk);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.45em 0.9em;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-live-update-btn:hover { background: var(--gold-lt); }
+.admin-live-start-btn {
+  background: transparent;
+  color: var(--gold-lt);
+  border: 1px solid var(--gold-lt);
+  border-radius: var(--radius-sm);
+  padding: 0.42em 0.85em;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-live-start-btn:hover { background: rgba(196,154,26,0.12); }

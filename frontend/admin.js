@@ -15,6 +15,7 @@ var SETTING_DEFAULTS = {
   rightLabel:       'Right Bracket',
   playInLabel:      'Play-In',
   showSideDividers: 'true',
+  periodLabel:      'Inning',
 };
 
 function getSetting(key) {
@@ -275,9 +276,14 @@ function readDatetime(idBase) {
 }
 
 // ── Results editor ─────────────────────────────────────────────────────
+// Live game state: { sid: { period: '3', t1score: 5, t2score: 3 } }
+// Purely in-browser — not persisted to API. Cleared when result is saved.
+var _liveGames = {};
+
 function renderAdmin() {
   var wrap = document.getElementById('adminGames');
   var html = '';
+  var periodLbl = getSetting('periodLabel') || 'Inning';
 
   // Sort all games by date/time, then by game num as tiebreak
   var allSids = Object.keys(GAMES).sort(function(a, b) {
@@ -287,7 +293,8 @@ function renderAdmin() {
     return (GAMES[a].num || 0) - (GAMES[b].num || 0);
   });
 
-  var pending   = allSids.filter(function(s) { return !(results[s] && results[s].winner); });
+  var live      = allSids.filter(function(s) { return _liveGames[s] && !(results[s] && results[s].winner); });
+  var pending   = allSids.filter(function(s) { return !_liveGames[s] && !(results[s] && results[s].winner); });
   var completed = allSids.filter(function(s) { return !!(results[s] && results[s].winner); });
 
   function buildCard(sid) {
@@ -323,22 +330,51 @@ function renderAdmin() {
         + '<div class="admin-res-team-row"><span class="admin-res-team ' + c2 + '">' + esc(t2) + '</span>' + sc2 + '</div>'
         + '<div class="admin-res-footer"><button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button></div>'
         + '</div>';
-    } else if (both) {
+    }
+
+    if (_liveGames[sid]) {
+      var ls = _liveGames[sid];
+      var s1 = ls.t1score !== '' ? ls.t1score : '';
+      var s2 = ls.t2score !== '' ? ls.t2score : '';
+      return '<div class="admin-res-card admin-res-card--live">' + hdr
+        + '<div class="admin-live-period-row">'
+        + '<span class="admin-live-badge">● LIVE</span>'
+        + '<span class="admin-live-period-lbl">' + esc(periodLbl) + '</span>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-period-inp" id="per-' + sid + '" value="' + esc(String(ls.period)) + '" placeholder="#">'
+        + '</div>'
+        + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" value="' + esc(String(s1)) + '" placeholder="Score"></div>'
+        + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" value="' + esc(String(s2)) + '" placeholder="Score"></div>'
+        + '<div class="admin-res-footer">'
+        + '<button class="admin-live-update-btn" onclick="updateLive(\'' + sid + '\')">Update</button>'
+        + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
+        + '<button class="admin-clear-btn" onclick="endLive(\'' + sid + '\')">Cancel</button>'
+        + '</div></div>';
+    }
+
+    if (both) {
       return '<div class="admin-res-card upcoming">' + hdr
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
         + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" placeholder="Score"></div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
         + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" placeholder="Score"></div>'
-        + '<div class="admin-res-footer"><button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Save</button></div>'
-        + '</div>';
-    } else {
-      var missing = [!t1 && l1, !t2 && l2].filter(Boolean);
-      return '<div class="admin-res-card admin-res-card--waiting">' + hdr
-        + '<div class="admin-res-waiting">Waiting: ' + esc(missing.join(', ')) + '</div>'
-        + '</div>';
+        + '<div class="admin-res-footer">'
+        + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
+        + '<button class="admin-live-start-btn" onclick="startLive(\'' + sid + '\')">▶ Live</button>'
+        + '</div></div>';
     }
+
+    var missing = [!t1 && l1, !t2 && l2].filter(Boolean);
+    return '<div class="admin-res-card admin-res-card--waiting">' + hdr
+      + '<div class="admin-res-waiting">Waiting: ' + esc(missing.join(', ')) + '</div>'
+      + '</div>';
   }
 
+  if (live.length) {
+    live.forEach(function(sid) { html += buildCard(sid); });
+    html += '<div class="admin-round-hdr">Upcoming</div>';
+  }
   pending.forEach(function(sid) { html += buildCard(sid); });
 
   if (completed.length) {
@@ -347,6 +383,33 @@ function renderAdmin() {
   }
 
   wrap.innerHTML = html;
+}
+
+function startLive(sid) {
+  _liveGames[sid] = { period: '1', t1score: '', t2score: '' };
+  renderAdmin();
+  // Focus period input
+  setTimeout(function() {
+    var el = document.getElementById('per-' + sid);
+    if (el) el.focus();
+  }, 50);
+}
+
+function updateLive(sid) {
+  var perEl = document.getElementById('per-' + sid);
+  var sc1el = document.getElementById('sc1-' + sid);
+  var sc2el = document.getElementById('sc2-' + sid);
+  _liveGames[sid] = {
+    period:   perEl  ? perEl.value  : _liveGames[sid].period,
+    t1score:  sc1el  ? sc1el.value  : _liveGames[sid].t1score,
+    t2score:  sc2el  ? sc2el.value  : _liveGames[sid].t2score,
+  };
+  renderAdmin();
+}
+
+function endLive(sid) {
+  delete _liveGames[sid];
+  renderAdmin();
 }
 
 async function saveResult(sid) {
@@ -372,6 +435,7 @@ async function saveResult(sid) {
     if (!r) return;
     if (!r.ok) throw new Error();
     results[sid] = { winner: winner, loser: loser, t1score: s1, t2score: s2 };
+    delete _liveGames[sid];
     showToast(gameLabel(sid) + ' saved — ' + winner + ' wins');
     renderAdmin();
   } catch(e) { showToast('Save failed', true); }

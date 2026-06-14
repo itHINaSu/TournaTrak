@@ -349,10 +349,24 @@ async function fetchAll(){
     }
   }
 
-  // Restore saved team selection
-  var savedTeam = getCookie('tt_team');
+  // ?team= query param: open Team Path for that team (shareable link)
+  var qTeam = new URLSearchParams(window.location.search).get('team');
   var tSel = document.getElementById('teamSelect');
-  if (savedTeam && tSel) tSel.value = savedTeam;
+  if (qTeam) {
+    // Switch to teampath tab
+    document.querySelectorAll('.view-tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelectorAll('.view-panel').forEach(function(p){ p.classList.remove('active'); });
+    var tpTab   = document.querySelector('.view-tab[data-view="teampath"]');
+    var tpPanel = document.getElementById('view-teampath');
+    if (tpTab)   tpTab.classList.add('active');
+    if (tpPanel) tpPanel.classList.add('active');
+    if (tSel) tSel.value = qTeam;
+    setCookie('tt_team', qTeam);
+  } else {
+    // Restore saved team selection
+    var savedTeam = getCookie('tt_team');
+    if (savedTeam && tSel) tSel.value = savedTeam;
+  }
 
   // Measure header heights so sticky offsets can be applied
   applyStickyOffsets();
@@ -1946,7 +1960,31 @@ function renderRoundView() {
 // TEAM VIEW
 // ══════════════════════════════════════════════════════════
 var teamSel=document.getElementById('teamSelect');
-teamSel.addEventListener('change',function(){ setCookie('tt_team', teamSel.value); renderTeamView(); });
+teamSel.addEventListener('change',function(){ setCookie('tt_team', teamSel.value); renderTeamView(); updateShareBtn(); });
+
+var _shareBtn = document.getElementById('teamShareBtn');
+function updateShareBtn() {
+  if (!_shareBtn) return;
+  var team = teamSel ? teamSel.value : '';
+  _shareBtn.style.display = team ? '' : 'none';
+}
+if (_shareBtn) {
+  _shareBtn.addEventListener('click', function() {
+    var team = teamSel ? teamSel.value : '';
+    if (!team) return;
+    var url = window.location.origin + window.location.pathname + '?team=' + encodeURIComponent(team);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function() { showToast('Link copied!'); });
+    } else {
+      // Fallback for older browsers
+      var ta = document.createElement('textarea');
+      ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); showToast('Link copied!'); } catch(e) { showToast(url); }
+      document.body.removeChild(ta);
+    }
+  });
+}
 
 function populateTeamSelect(){
   while(teamSel.options.length>1) teamSel.remove(1);
@@ -1959,6 +1997,7 @@ function populateTeamSelect(){
     var o=document.createElement('option');
     o.value=name; o.textContent=name; teamSel.appendChild(o);
   });
+  updateShareBtn();
 }
 
 function syncLoseSideWidths() {
