@@ -7,12 +7,14 @@ var _bucketTeams = [];
 var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
 
 var SETTING_DEFAULTS = {
-  tournamentName: 'Tournament Bracket',
-  pageTitle:      'Tournament Bracket',
-  adminName:      'Tournament Admin',
-  subtitle:       '',
-  leftLabel:      'Left Bracket',
-  rightLabel:     'Right Bracket',
+  tournamentName:   'Tournament Bracket',
+  pageTitle:        'Tournament Bracket',
+  adminName:        'Tournament Admin',
+  subtitle:         '',
+  leftLabel:        'Left Bracket',
+  rightLabel:       'Right Bracket',
+  playInLabel:      'Play-In',
+  showSideDividers: 'true',
 };
 
 function getSetting(key) {
@@ -24,16 +26,32 @@ function getSetting(key) {
 (function(){
   var btn = document.getElementById('themeToggle');
   var mq  = window.matchMedia('(prefers-color-scheme: light)');
-  function applyScheme(light) {
+  var PREF_KEY = 'tt_theme';
+  function storageGet(k)    { try { return localStorage.getItem(k); } catch(e) {} try { return sessionStorage.getItem(k); } catch(e2) { return null; } }
+  function storageSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} try { sessionStorage.setItem(k, v); } catch(e2) {} }
+  function applyLight(light) {
     document.body.classList.toggle('light', light);
     if (btn) btn.textContent = light ? '🌙 Dark' : '☀ Light';
   }
-  applyScheme(mq.matches);
-  mq.addEventListener('change', function(e) { applyScheme(e.matches); });
-  if (btn) btn.addEventListener('click', function(){
-    document.body.classList.toggle('light');
-    btn.textContent = document.body.classList.contains('light') ? '🌙 Dark' : '☀ Light';
+  var saved = storageGet(PREF_KEY);
+  var _userPicked = saved !== null;
+  applyLight(_userPicked ? saved === 'light' : mq.matches);
+  mq.addEventListener('change', function(e) {
+    if (!_userPicked) applyLight(e.matches);
   });
+  if (btn) {
+    function toggleTheme() {
+      _userPicked = true;
+      var nowLight = !document.body.classList.contains('light');
+      applyLight(nowLight);
+      storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
+    }
+    btn.addEventListener('click', toggleTheme);
+    btn.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      toggleTheme();
+    });
+  }
 })();
 
 // ── Tabs ───────────────────────────────────────────────────────────────
@@ -181,7 +199,9 @@ function applySettingsToPage() {
 function populateSettingsFields() {
   Object.keys(SETTING_DEFAULTS).forEach(function(key) {
     var el = document.getElementById('set-' + key);
-    if (el) el.value = settings[key] || '';
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = getSetting(key) !== 'false';
+    else el.value = settings[key] || '';
   });
 }
 
@@ -190,7 +210,8 @@ async function saveSettings() {
   var out = {};
   Object.keys(SETTING_DEFAULTS).forEach(function(key) {
     var el = document.getElementById('set-' + key);
-    if (el) out[key] = el.value.trim();
+    if (!el) return;
+    out[key] = el.type === 'checkbox' ? String(el.checked) : el.value.trim();
   });
   try {
     var r = await apiFetch('/api/settings', {

@@ -10,13 +10,16 @@ const SLOT_DEFS = {
   R1:    { L:[1,2,3,4,5,6,7,8], R:[1,2,3,4,5,6,7,8] },
   R2:    { L:[1,2,3,4],         R:[1,2,3,4] },
   QF:    { L:[1,2],             R:[1,2] },
+  QF2:   {                      R:[1,2] },
   SF:    { L:[1],               R:[1] },
-  CHAMP: { C:[1] }
+  CHAMP: { C:[1] },
+  CHAMP2:{ C:[1] }
 };
 
-const ROUND_ORDER  = ['R1','R2','QF','SF','CHAMP'];
+const ROUND_ORDER  = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
 const ROUND_LABELS = {
-  R1:'Round 1', R2:'Round 2', QF:'Quarter Finals', SF:'Semi Finals', CHAMP:'Championship'
+  R1:'Round 1', R2:'Round 2', QF:'Round 3', QF2:'Round 4', SF:'Round 5',
+  CHAMP:'Championship', CHAMP2:'If Necessary'
 };
 
 // GAMES starts empty — populated by applySchedule() on load
@@ -140,7 +143,7 @@ function findNextSlot(sid, type) {
 
 function isEliminated(teamName, results) {
   for (const [sid, r] of Object.entries(results)) {
-    if (r.loser===teamName && ['QF','SF','CHAMP'].includes(GAMES[sid]?.round)) return true;
+    if (r.loser===teamName && ['QF','QF2','SF','CHAMP','CHAMP2'].includes(GAMES[sid]?.round)) return true;
   }
   let losses=0;
   for (const r of Object.values(results)) { if (r.loser===teamName) losses++; }

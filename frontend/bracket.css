@@ -1089,6 +1089,75 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .mbc-card .round-game-card { margin-bottom: 0; height: 100%; box-sizing: border-box; }
 
+/* ── Arrow nav buttons (mouse/trackpad only) ── */
+.mbc-arrow { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .mbc-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    width: 2.5rem;
+    height: 2.5rem;
+    transform: translateY(-50%);
+    border-radius: 50%;
+    background: rgba(20,24,28,0.72);
+    border: 0.1em solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.7rem;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 205;
+    opacity: 0.55;
+    transition: opacity 0.15s, background 0.15s, color 0.15s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mbc-arrow:hover {
+    opacity: 1;
+    background: rgba(30,36,44,0.92);
+    color: var(--gold-lt);
+    border-color: var(--gold);
+  }
+  .mbc-arrow--prev { left: 0.5rem; }
+  .mbc-arrow--next { right: 0.5rem; }
+}
+
+/* ── Bracket-side divider: subtle label between L and R side games ── */
+.mbc-playin-divider[data-div-type="side"] .mbc-playin-line {
+  opacity: 0.45;
+}
+.mbc-playin-divider[data-div-type="side"] .mbc-playin-label {
+  font-weight: 400;
+  letter-spacing: 0.07em;
+  opacity: 0.6;
+}
+
+/* ── Play-in divider: sits inside .mbc-card, anchored above it ── */
+.mbc-playin-divider {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  pointer-events: none;
+}
+.mbc-playin-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.mbc-playin-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim, var(--border));
+  white-space: nowrap;
+}
+
 /* ── Mobile bracket: game card — top 25% header, bottom 75% teams ── */
 .mbc-game-card {
   height: 100%;

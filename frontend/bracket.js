@@ -9,12 +9,14 @@ var _bucketEditTeams = [];
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 var SETTING_DEFAULTS = {
-  tournamentName: 'Tournament Bracket',
-  pageTitle:      'Tournament Bracket',
-  adminName:      'Tournament Admin',
-  subtitle:       '',
-  leftLabel:      'Left Bracket',
-  rightLabel:     'Right Bracket',
+  tournamentName:   'Tournament Bracket',
+  pageTitle:        'Tournament Bracket',
+  adminName:        'Tournament Admin',
+  subtitle:         '',
+  leftLabel:        'Left Bracket',
+  rightLabel:       'Right Bracket',
+  playInLabel:      'Play-In',
+  showSideDividers: 'true',
 };
 
 function getSetting(key) {
@@ -245,22 +247,38 @@ function getCookie(name) {
 // ══════════════════════════════════════════════════════════
 var themeBtn=document.getElementById('themeToggle');
 
-// Auto-apply system color scheme on first load, then follow OS changes.
+// Theme: saved preference in localStorage wins over OS; persists across pages.
+// localStorage may throw in Safari private/restricted mode — all calls are wrapped.
 (function(){
   var mq = window.matchMedia('(prefers-color-scheme: light)');
-  function applyScheme(light) {
+  var PREF_KEY = 'tt_theme';
+  function storageGet(k)    { try { return localStorage.getItem(k); } catch(e) {} try { return sessionStorage.getItem(k); } catch(e2) { return null; } }
+  function storageSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} try { sessionStorage.setItem(k, v); } catch(e2) {} }
+  function applyLight(light) {
     document.body.classList.toggle('light', light);
     if (themeBtn) themeBtn.textContent = light ? '🌙 Dark' : '☀ Light';
   }
-  applyScheme(mq.matches);
-  mq.addEventListener('change', function(e) { applyScheme(e.matches); });
+  var saved = storageGet(PREF_KEY);
+  var _userPicked = saved !== null;
+  applyLight(_userPicked ? saved === 'light' : mq.matches);
+  mq.addEventListener('change', function(e) {
+    if (!_userPicked) applyLight(e.matches);
+  });
+  if (themeBtn) {
+    function toggleTheme() {
+      _userPicked = true;
+      var nowLight = !document.body.classList.contains('light');
+      applyLight(nowLight);
+      storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
+      if(activeView()==='bracket') renderBracket();
+    }
+    themeBtn.addEventListener('click', toggleTheme);
+    themeBtn.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      toggleTheme();
+    });
+  }
 })();
-
-themeBtn.addEventListener('click',function(){
-  document.body.classList.toggle('light');
-  themeBtn.textContent=document.body.classList.contains('light')?'🌙 Dark':'☀ Light';
-  if(activeView()==='bracket') renderBracket();
-});
 
 // ══════════════════════════════════════════════════════════
 // TABS
@@ -457,8 +475,10 @@ function cardHTML(gid){
   var t1=disp(gid,g.t1), t2=disp(gid,g.t2), r=results[gid]||{};
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
+  var isChampSlot = gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
   return '<div class="bc-hdr"><span class="bc-id">'+esc(gameLabel(gid))+'</span>'
-    +'<span class="bc-time">'+esc(bracketTime(g.time))+'</span></div>'
+    +(isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>')
+    +'</div>'
     +'<div class="bc-team '+c1+'"><span class="bc-name">'+esc(t1.name)+'</span>'+scoreHTML(r.t1score)+'</div>'
     +'<div class="bc-team '+c2+'"><span class="bc-name">'+esc(t2.name)+'</span>'+scoreHTML(r.t2score)+'</div>';
 }
@@ -770,41 +790,217 @@ function renderMobileBracket(root, dims) {
   var CARD_H       = Math.max(Math.floor(viewH / 4.5), 80);
   var CHAMP_CARD_H = Math.round(CARD_H * 1.8);
   var GAP          = Math.max(Math.round(CARD_H * 0.07), 6);
+  var DIV_H        = Math.max(Math.round(CARD_H * 0.28), 24); // play-in divider
   document.documentElement.style.setProperty('--mbc-card-h', CARD_H + 'px');
 
   var colW  = Math.round(winW * 0.72);
   var padPx = 12;
 
-  var rounds = ['R1','R2','QF','SF','CHAMP'];
+  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].filter(function(r){
+    return Object.keys(GAMES).some(function(gid){ return GAMES[gid].round===r; });
+  });
 
   function gidsFor(round) {
-    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
+    var sides = (round === 'CHAMP' || round === 'CHAMP2') ? ['C'] : ['L','R'];
     var out = [];
     sides.forEach(function(s) { out = out.concat(slotsForRoundSide(round, s)); });
     return out;
   }
 
+  // ── Columns ────────────────────────────────────────────────────────────
+  // Normal: one column per round. Two exceptions, both display-only:
+  //
+  // 1. LB-only rounds (one bracket side has all the games, the other has none)
+  //    are absorbed into the previous column under a "Loser's Bracket" divider.
+  //    This makes the WB games in that column the adjacent feeders for the next
+  //    round, restoring convergence animations (e.g. R4 LB-only merges into R3
+  //    so R5's WB game sees its R3 feeders in the adjacent column).
+  //
+  // 2. Intra-round same-side dependencies (an LB final consuming two same-round
+  //    LB semis) sit below a "Play-In" divider in the same column rather than
+  //    splitting into a continuation column.
+  //
+  // divs: [{idx, label}] — dividers inserted above the game at that index.
+  var cols = [];
+  rounds.forEach(function(round) {
+    var gids = gidsFor(round);
+    if (round === 'CHAMP' || round === 'CHAMP2') {
+      cols.push({ round: round, label: ROUND_LABELS[round], gids: gids, divs: [] });
+      return;
+    }
+
+    // Detect single-side rounds (all games on L or all on R, not both).
+    var hasSide = {};
+    gids.forEach(function(gid) { hasSide[GAMES[gid].side] = true; });
+    var singleSide = Object.keys(hasSide).length === 1;
+
+    if (singleSide && cols.length > 0) {
+      // Absorb into the previous column under a "Loser's Bracket" divider.
+      var prev = cols[cols.length - 1];
+      prev.divs.push({ idx: prev.gids.length, label: ROUND_LABELS[round], type: 'absorbed' });
+      prev.label = prev.label + ' · ' + ROUND_LABELS[round];
+      gids.forEach(function(gid) { prev.gids.push(gid); });
+      return;
+    }
+
+    // Both sides present: do the intra-round wave split for same-side deps.
+    var placed = {}, waves = [], remaining = gids.slice();
+    while (remaining.length) {
+      var wave = remaining.filter(function(gid) {
+        var g = GAMES[gid];
+        return ![g.t1, g.t2].some(function(s) {
+          return s && s.type !== 'fixed' && s.slot && !placed[s.slot]
+            && GAMES[s.slot] && GAMES[s.slot].round === round
+            && GAMES[s.slot].side === g.side;
+        });
+      });
+      if (!wave.length) wave = remaining.slice();
+      waves.push(wave);
+      wave.forEach(function(gid) { placed[gid] = 1; });
+      remaining = remaining.filter(function(gid) { return !placed[gid]; });
+    }
+    var flat = [], divs = [];
+    waves.forEach(function(wave, wi) {
+      if (wi) divs.push({ idx: flat.length, label: getSetting('playInLabel'), type: 'playin' });
+      flat = flat.concat(wave);
+    });
+    cols.push({ round: round, label: ROUND_LABELS[round], gids: flat, divs: divs });
+  });
+
+  // ── Reorder each column so games feeding the same next-column game sit
+  // adjacent (t1 feeder above t2 feeder). Plain L-then-R ordering makes
+  // lines cross (e.g. R3 shows G21,G22,G23,G24 while R4 pairs G21/G23 and
+  // G22/G24). Processed right-to-left so each column sorts against the
+  // already-final order of the one after it. Games with no destination in
+  // the adjacent column (bye-throughs) keep their original positions.
+  (function() {
+    function reorderSegment(seg, nextPos) {
+      var keyed = [], holes = [];
+      seg.forEach(function(gid, idx) {
+        var key = null;
+        ['winner', 'loser'].some(function(type) {
+          var d = findNextSlot(gid, type);
+          if (d == null || nextPos[d] === undefined) return false;
+          var dg = GAMES[d];
+          var bit = (dg.t1 && dg.t1.slot === gid && dg.t1.type === type) ? 0 : 1;
+          key = nextPos[d] * 2 + bit;
+          return true;
+        });
+        if (key === null) holes.push({ gid: gid, idx: idx });
+        else keyed.push({ gid: gid, key: key, idx: idx });
+      });
+      keyed.sort(function(a, b) { return a.key - b.key || a.idx - b.idx; });
+      var holeAt = {};
+      holes.forEach(function(h) { holeAt[h.idx] = h.gid; });
+      var order = [], ki = 0;
+      for (var i = 0; i < seg.length; i++) {
+        order.push(holeAt[i] !== undefined ? holeAt[i] : keyed[ki++].gid);
+      }
+      return order;
+    }
+    for (var ci = cols.length - 2; ci >= 0; ci--) {
+      var nextPos = {};
+      cols[ci + 1].gids.forEach(function(gid, i) { nextPos[gid] = i; });
+      // Reorder each divider-bounded segment independently so play-in games
+      // never migrate above their divider.
+      var bounds = [0].concat((cols[ci].divs || []).map(function(d){ return d.idx; }), [cols[ci].gids.length]);
+      var order = [];
+      for (var b = 0; b < bounds.length - 1; b++) {
+        order = order.concat(reorderSegment(cols[ci].gids.slice(bounds[b], bounds[b + 1]), nextPos));
+      }
+      cols[ci].gids = order;
+    }
+  })();
+
+  // ── Insert bracket-side dividers ─────────────────────────────────────
+  // Skipped when the setting is disabled.
+  // After reordering, scan each column for a clean L→R (or R→L) transition
+  // and insert a labeled divider using the bracket labels from settings.
+  // Only inserted when ALL L-side games appear before ALL R-side games (or
+  // vice versa) — interleaved columns get no divider.
+  if (getSetting('showSideDividers') !== 'false') cols.forEach(function(col) {
+    if (col.round === 'CHAMP' || col.round === 'CHAMP2') return;
+    // Work within each existing divider segment so we don't cross existing dividers.
+    var existingDivIdxs = (col.divs || []).map(function(d){ return d.idx; });
+    var bounds = [0].concat(existingDivIdxs, [col.gids.length]);
+    var insertions = []; // {idx, label} to splice into col.divs after iteration
+    for (var b = 0; b < bounds.length - 1; b++) {
+      var seg = col.gids.slice(bounds[b], bounds[b + 1]);
+      // Find sides in order.
+      var sides = seg.map(function(gid){ return GAMES[gid] ? GAMES[gid].side : null; });
+      // Detect a single clean transition point where side changes.
+      var splitAt = -1;
+      for (var i = 1; i < sides.length; i++) {
+        if (sides[i] !== sides[i - 1]) {
+          if (splitAt !== -1) { splitAt = -1; break; } // multiple transitions — skip
+          splitAt = i;
+        }
+      }
+      if (splitAt === -1) continue;
+      // Determine which side is above the split and label accordingly.
+      var sideAbove = sides[0];
+      var label = sideAbove === 'L'
+        ? getSetting('rightLabel')  // below split is R side
+        : getSetting('leftLabel');  // below split is L side
+      insertions.push({ idx: bounds[b] + splitAt, label: label, type: 'side' });
+    }
+    // Merge insertions into col.divs (already sorted by idx after bounds iteration).
+    insertions.forEach(function(ins) { col.divs.push(ins); });
+    col.divs.sort(function(a, b) { return a.idx - b.idx; });
+  });
+
   // ── Pass 1: build HTML with placeholder card positions ───────────────
-  var colsHTML = rounds.map(function(round, ri) {
-    var isChamp = round === 'CHAMP';
+  var colsHTML = cols.map(function(col, ri) {
+    var round   = col.round;
+    var isChamp = round === 'CHAMP' || round === 'CHAMP2';
     var cWidth  = isChamp ? winW : colW;
     var cCardW  = cWidth - 2 * padPx;
     var cardH   = isChamp ? CHAMP_CARD_H : CARD_H;
-    var gids    = gidsFor(round);
+    var gids    = col.gids;
 
-    var cardsHTML = gids.map(function(gid) {
+    var cardsHTML = gids.map(function(gid, gi) {
       var inner = isChamp ? champCardHTML(gid) : mobileRoundCardHTML(gid);
-      return '<div class="mbc-card" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0">'
-        + inner + '</div>';
+      // For CHAMP2, apply if-necessary state
+      var c2cls = '';
+      if (round === 'CHAMP2' && gid === 'CHAMP2.C.1') {
+        var c2s = champ2State();
+        if (c2s === 'not-needed') {
+          inner = '<div class="mbc-champ2-not-needed"><span class="mbc-champ2-nn-label">If Necessary</span><span class="mbc-champ2-nn-tag">Not Needed</span></div>';
+        } else if (c2s === 'pending') {
+          c2cls = ' mbc-champ2-pending';
+        }
+      }
+      // For CHAMP, suppress the winner banner when CHAMP2 is still needed
+      if (round === 'CHAMP' && gid === 'CHAMP.C.1' && champ2State() === 'needed') {
+        c2cls += ' mbc-champ-winner-pending';
+      }
+      var divEntry = (col.divs || []).filter(function(d){ return d.idx === gi; })[0];
+      // Divider is placed INSIDE the card so it inherits the card's translateY
+      // and opacity transitions — it travels and fades with the card automatically.
+      var divHTML = divEntry
+        ? '<div class="mbc-playin-divider" data-div-type="' + esc(divEntry.type || '') + '" style="height:' + DIV_H + 'px;top:-' + (DIV_H + GAP) + 'px">'
+          + '<span class="mbc-playin-line"></span>'
+          + '<span class="mbc-playin-label">' + esc(divEntry.label) + '</span>'
+          + '<span class="mbc-playin-line"></span>'
+          + '</div>'
+        : '';
+      // Only wave-split play-in games fade in from hidden; absorbed-round games
+      // (which have proper adjacent feeders) animate normally.
+      var isPlayIn = (col.divs || []).some(function(d) {
+        return d.type === 'playin' && d.idx <= gi;
+      });
+      return '<div class="mbc-card' + c2cls + '" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0"'
+        + (isPlayIn ? ' data-playin="1"' : '') + '>'
+        + divHTML + inner + '</div>';
     }).join('');
 
-    var dots = rounds.map(function(_, i) {
+    var dots = cols.map(function(_, i) {
       return '<span class="mbc-dot' + (i === ri ? ' active' : '') + '" data-ri="' + i + '"></span>';
     }).join('');
 
     return '<div class="mbc-col" data-ri="' + ri + '" style="width:' + cWidth + 'px;flex:0 0 ' + cWidth + 'px">'
       + '<div class="mbc-hdr">'
-      +   '<span class="mbc-hdr-label">' + esc(ROUND_LABELS[round]) + '</span>'
+      +   '<span class="mbc-hdr-label">' + esc(col.label) + '</span>'
       +   '<span class="mbc-dots">' + dots + '</span>'
       + '</div>'
       + '<div class="mbc-scroll">'
@@ -821,99 +1017,144 @@ function renderMobileBracket(root, dims) {
   var outer  = document.getElementById('mbcOuter');
   var colEls = Array.prototype.slice.call(outer.querySelectorAll('.mbc-col'));
 
+  // colStarts[i] = scrollLeft value that puts column i at the left edge.
+  // Needed because CHAMP/CHAMP2 columns are winW wide, not colW.
+  var colStarts = [];
+  (function() {
+    var acc = 0;
+    cols.forEach(function(col, ri) {
+      colStarts[ri] = acc;
+      acc += (col.round === 'CHAMP' || col.round === 'CHAMP2') ? winW : colW;
+    });
+  }());
+
+  // gid → column index, for membership tests and bracket-jump targeting
+  var colOfGid = {};
+  cols.forEach(function(col, ri) {
+    col.gids.forEach(function(gid) { colOfGid[gid] = ri; });
+  });
+  var maxScrollLeft = colStarts[colStarts.length - 1];
+
+  // Returns the column index whose left edge is nearest to scrollLeft x.
+  function colIndexAt(x) {
+    var best = 0, bestDist = Math.abs(x - colStarts[0]);
+    for (var ci = 1; ci < colStarts.length; ci++) {
+      var d = Math.abs(x - colStarts[ci]);
+      if (d < bestDist) { bestDist = d; best = ci; }
+    }
+    return best;
+  }
+
   // ── Pass 2: measure actual header height, compute positions ──────────
   var mbcHdrH = colEls[0] ? colEls[0].querySelector('.mbc-hdr').getBoundingClientRect().height : 36;
   var scrollH = viewH - mbcHdrH;  // actual visible scroll area height
 
-  // earlyY: evenly spaced, centered when ≤4 slots fit without scrolling
+  // earlyY: evenly spaced, centered when ≤4 slots fit without scrolling.
+  // Uses actual games in GAMES so the layout adapts to any bracket structure.
   var earlyY = {};
-  rounds.forEach(function(round) {
-    var isChamp  = round === 'CHAMP';
-    var sides    = isChamp ? ['C'] : ['L', 'R'];
-    var numSlots = 0;
-    sides.forEach(function(side) {
-      numSlots += (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side].length : 0;
-    });
-    var cardH  = isChamp ? CHAMP_CARD_H : CARD_H;
-    var totalH = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
-    var offset = numSlots <= 4
+  cols.forEach(function(col) {
+    var isChamp  = col.round === 'CHAMP' || col.round === 'CHAMP2';
+    var numSlots = col.gids.length;
+    var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
+    var nDivs    = (col.divs || []).length;
+    var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP
+                 + nDivs * (DIV_H + GAP);
+    var offset   = numSlots <= 4
       ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
       : GAP;
-    var idx = 0;
-    sides.forEach(function(side) {
-      var nums = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
-      nums.forEach(function(num) {
-        earlyY[round + '.' + side + '.' + num] = offset + idx * (cardH + GAP);
-        idx++;
-      });
+    col.gids.forEach(function(gid, idx) {
+      var divsAbove = (col.divs || []).filter(function(d) { return d.idx <= idx; }).length;
+      earlyY[gid] = offset + idx * (cardH + GAP) + divsAbove * (DIV_H + GAP);
     });
   });
 
   // innerH: exact content height so there's no excess blank space at bottom
-  function roundInnerH(round) {
-    var isChamp  = round === 'CHAMP';
-    var sides    = isChamp ? ['C'] : ['L', 'R'];
-    var numSlots = 0;
-    sides.forEach(function(side) {
-      numSlots += (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side].length : 0;
-    });
-    var cardH  = isChamp ? CHAMP_CARD_H : CARD_H;
-    var totalH = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP;
-    var offset = numSlots <= 4
+  function colInnerH(ci) {
+    var col      = cols[ci];
+    var isChamp  = col.round === 'CHAMP' || col.round === 'CHAMP2';
+    var numSlots = col.gids.length;
+    var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
+    var nDivs    = (col.divs || []).length;
+    var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP
+                 + nDivs * (DIV_H + GAP);
+    var offset   = numSlots <= 4
       ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
       : GAP;
     return Math.max(offset + totalH + GAP, scrollH);
   }
 
-  // lateY: each game i centered between its two feeder slots (2i and 2i+1)
+  // lateY: where each game's card sits when the PREVIOUS round is active.
+  // Only feeders whose source game actually lives in the previous column
+  // contribute. Cross-bracket feeds (e.g. WB loser dropping into same LB
+  // column) are ignored — the card converges from however many real feeders
+  // are available: 2 → midpoint, 1 → that feeder's position, 0 → earlyY.
   var lateY = {};
-  var prevRoundFor = { R2:'R1', QF:'R2', SF:'QF', CHAMP:'SF' };
-  ['R2','QF','SF','CHAMP'].forEach(function(round) {
-    var prev     = prevRoundFor[round];
-    var prevKeys = [];
-    ['L','R'].forEach(function(side) {
-      var nums = (SLOT_DEFS[prev] && SLOT_DEFS[prev][side]) ? SLOT_DEFS[prev][side] : [];
-      nums.forEach(function(num) { prevKeys.push(prev + '.' + side + '.' + num); });
-    });
-    var curKeys = [];
-    var sides = round === 'CHAMP' ? ['C'] : ['L','R'];
-    sides.forEach(function(side) {
-      var nums = (SLOT_DEFS[round] && SLOT_DEFS[round][side]) ? SLOT_DEFS[round][side] : [];
-      nums.forEach(function(num) { curKeys.push(round + '.' + side + '.' + num); });
-    });
-    curKeys.forEach(function(gid, i) {
-      if (round === 'CHAMP') {
-        lateY[gid] = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+  // anchored[gid]: at least one feeder lives in the adjacent column, so the
+  // card's converged position is meaningful and must not be displaced.
+  var anchored = {};
+  cols.forEach(function(col, ri) {
+    col.gids.forEach(function(gid) {
+      var selfY = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+      if (col.round === 'CHAMP' || col.round === 'CHAMP2' || ri === 0) {
+        lateY[gid] = selfY;
         return;
       }
-      var p0 = prevKeys[2 * i], p1 = prevKeys[2 * i + 1];
-      lateY[gid] = (p0 && p1 && earlyY[p0] !== undefined && earlyY[p1] !== undefined)
-        ? (earlyY[p0] + earlyY[p1]) / 2
-        : (earlyY[gid] !== undefined ? earlyY[gid] : 0);
+      var g = GAMES[gid];
+      if (!g) { lateY[gid] = selfY; return; }
+      var feeders = [];
+      [g.t1, g.t2].forEach(function(slot) {
+        if (!slot || slot.type === 'fixed') return;
+        var srcGid = slot.slot;
+        if (srcGid && colOfGid[srcGid] === ri - 1 && earlyY[srcGid] !== undefined) {
+          feeders.push(earlyY[srcGid]);
+          anchored[gid] = true;
+        } else if (slot.type === 'winner' && srcGid
+                   && colOfGid[srcGid] !== undefined && colOfGid[srcGid] < ri - 1) {
+          // Winner byeing through from a farther-back column: its line runs
+          // straight along this card's own lane, so use selfY as the feeder.
+          // (Loser drops from other columns stay fully ignored.)
+          feeders.push(selfY);
+        }
+      });
+      lateY[gid] = feeders.length >= 2
+        ? (feeders[0] + feeders[1]) / 2
+        : feeders.length === 1 ? feeders[0]
+        : selfY;
     });
+  });
+
+  // Overlap guard: anchored cards (real adjacent feeders) own their converged
+  // position; unanchored cards (bye-throughs, no adjacent feeders) yield and
+  // are moved out of the way — up if the anchored card is below them, down
+  // otherwise. Repeated sweeps settle cascades; column order is preserved.
+  cols.forEach(function(col) {
+    if (col.round === 'CHAMP' || col.round === 'CHAMP2') return;
+    var sorted = col.gids.slice().sort(function(a, b) {
+      return (earlyY[a] || 0) - (earlyY[b] || 0);
+    });
+    var STEP = CARD_H + GAP;
+    for (var pass = 0; pass < sorted.length; pass++) {
+      for (var i = 1; i < sorted.length; i++) {
+        var above = sorted[i - 1], cur = sorted[i];
+        if (lateY[cur] >= lateY[above] + STEP) continue;
+        if (anchored[cur] && !anchored[above]) lateY[above] = lateY[cur] - STEP;
+        else lateY[cur] = lateY[above] + STEP;
+      }
+    }
   });
 
   // prevOffset: where each card should be when the NEXT round is fully in view.
   // Feeder pairs converge to earlyY of their child card, giving a stacking effect
   // when swiping forward and an organic spreading-out when swiping backward.
   var prevOffset = {};
-  var nextRoundForPrev = { R1:'R2', R2:'QF', QF:'SF', SF:'CHAMP' };
-  ['R1','R2','QF','SF'].forEach(function(curRound) {
-    var nextRound = nextRoundForPrev[curRound];
-    var curGids = [];
-    ['L','R'].forEach(function(side) {
-      var nums = (SLOT_DEFS[curRound] && SLOT_DEFS[curRound][side]) ? SLOT_DEFS[curRound][side] : [];
-      nums.forEach(function(num) { curGids.push(curRound + '.' + side + '.' + num); });
-    });
-    var nextGids = [];
-    var nextSides = nextRound === 'CHAMP' ? ['C'] : ['L','R'];
-    nextSides.forEach(function(side) {
-      var nums = (SLOT_DEFS[nextRound] && SLOT_DEFS[nextRound][side]) ? SLOT_DEFS[nextRound][side] : [];
-      nums.forEach(function(num) { nextGids.push(nextRound + '.' + side + '.' + num); });
-    });
-    curGids.forEach(function(gid, j) {
-      var childGid = nextGids[Math.floor(j / 2)];
-      var childEY  = childGid !== undefined ? earlyY[childGid] : undefined;
+  cols.forEach(function(col, ri) {
+    col.gids.forEach(function(gid) {
+      // Stack toward where this game's winner actually advances — but only
+      // if that child sits in the adjacent column. Winners that skip ahead
+      // (or cross-bracket paths) hold position, mirroring the bye rule.
+      var childGid = findNextSlot(gid, 'winner');
+      var childEY  = (childGid && colOfGid[childGid] === ri + 1)
+        ? earlyY[childGid] : undefined;
       var selfEY   = earlyY[gid];
       prevOffset[gid] = (childEY !== undefined && selfEY !== undefined) ? (childEY - selfEY) : 0;
     });
@@ -921,9 +1162,8 @@ function renderMobileBracket(root, dims) {
 
   // Apply computed positions and inner heights to the DOM
   colEls.forEach(function(colEl, ri) {
-    var round = rounds[ri];
     var inner = colEl.querySelector('.mbc-inner');
-    inner.style.height = roundInnerH(round) + 'px';
+    inner.style.height = colInnerH(ri) + 'px';
     colEl.querySelectorAll('.mbc-card').forEach(function(card) {
       var gid = card.dataset.gid;
       var ey  = earlyY[gid] !== undefined ? earlyY[gid] : 0;
@@ -943,6 +1183,8 @@ function renderMobileBracket(root, dims) {
     for (var k = 0; k < cards.length; k++) {
       var off = parseFloat(cards[k].dataset.lateOffset) || 0;
       cards[k].style.transform = off ? 'translateY(' + (off * blend).toFixed(1) + 'px)' : '';
+      // Play-in cards are invisible while in lateY; fade in as the column arrives.
+      if (cards[k].dataset.playin) cards[k].style.opacity = (1 - blend).toFixed(3);
     }
   }
   function applyPrevBlend(ci, blend) {
@@ -951,6 +1193,7 @@ function renderMobileBracket(root, dims) {
     for (var k = 0; k < cards.length; k++) {
       var off = parseFloat(cards[k].dataset.prevOffset) || 0;
       cards[k].style.transform = off ? 'translateY(' + (off * blend).toFixed(1) + 'px)' : '';
+      if (cards[k].dataset.playin) cards[k].style.opacity = '1';
     }
   }
 
@@ -985,7 +1228,7 @@ function renderMobileBracket(root, dims) {
   root.appendChild(captureEl);
 
   function setSpacerForCol(idx) {
-    var maxScroll = Math.max(0, roundInnerH(rounds[idx]) - scrollH);
+    var maxScroll = Math.max(0, colInnerH(idx) - scrollH);
     // _anchorLateOff was computed during the swipe; use it to land the scroll
     // exactly where the continuous compensation was heading.
     var newScroll = Math.max(0, Math.min(sharedScrollTop - _anchorLateOff, maxScroll));
@@ -1022,8 +1265,8 @@ function renderMobileBracket(root, dims) {
     dot.addEventListener('click', function(e) {
       e.stopPropagation();
       var ri = parseInt(dot.dataset.ri, 10);
-      outer.scrollTo ? outer.scrollTo({ left: ri * colW, behavior: 'smooth' })
-                     : (outer.scrollLeft = ri * colW);
+      outer.scrollTo ? outer.scrollTo({ left: colStarts[ri], behavior: 'smooth' })
+                     : (outer.scrollLeft = colStarts[ri]);
     });
   });
 
@@ -1034,6 +1277,7 @@ function renderMobileBracket(root, dims) {
     hSwipe = {
       startX: t.clientX, startY: t.clientY, lastX: t.clientX,
       startLeft: outer.scrollLeft,
+      startColIdx: colIndexAt(outer.scrollLeft),
       decided: false, isHoriz: false,
       lastTime: Date.now(), velocity: 0
     };
@@ -1054,19 +1298,23 @@ function renderMobileBracket(root, dims) {
     if (dt > 0) hSwipe.velocity = (t.clientX - hSwipe.lastX) / dt;
     hSwipe.lastX = t.clientX;
     hSwipe.lastTime = now;
-    var maxLeft = (colEls.length - 1) * colW;
-    outer.scrollLeft = Math.max(0, Math.min(hSwipe.startLeft - dx, maxLeft));
+    outer.scrollLeft = Math.max(0, Math.min(hSwipe.startLeft - dx, maxScrollLeft));
   }, { passive: true });
 
   captureEl.addEventListener('touchend', function(e) {
     if (!hSwipe || !hSwipe.isHoriz) { hSwipe = null; return; }
-    var dx  = e.changedTouches[0].clientX - hSwipe.startX;
-    var vel = hSwipe.velocity; // px/ms, positive = moving right
-    var raw = (hSwipe.startLeft - dx) / colW;
-    var snap = vel < -0.25 ? Math.ceil(raw) : vel > 0.25 ? Math.floor(raw) : Math.round(raw);
-    snap = Math.max(0, Math.min(snap, colEls.length - 1));
-    outer.scrollTo ? outer.scrollTo({ left: snap * colW, behavior: 'smooth' })
-                   : (outer.scrollLeft = snap * colW);
+    var dx   = e.changedTouches[0].clientX - hSwipe.startX;
+    var vel  = hSwipe.velocity; // px/ms, positive = moving right
+    // Limit to ±1 column from where the swipe started so fast flicks
+    // can't skip two or more columns in one gesture.
+    var startIdx = hSwipe.startColIdx;
+    var snap = vel < -0.25 || dx < -colW * 0.35
+             ? Math.min(startIdx + 1, colEls.length - 1)
+             : vel > 0.25 || dx > colW * 0.35
+             ? Math.max(startIdx - 1, 0)
+             : startIdx;
+    outer.scrollTo ? outer.scrollTo({ left: colStarts[snap], behavior: 'smooth' })
+                   : (outer.scrollLeft = colStarts[snap]);
     hSwipe = null;
   }, { passive: true });
 
@@ -1078,9 +1326,13 @@ function renderMobileBracket(root, dims) {
     var x        = outer.scrollLeft;
     var dir      = x >= _scrollLeftPrev ? 1 : -1;
     _scrollLeftPrev = x;
-    var idx      = Math.round(x / colW);
-    var floorIdx = Math.floor(x / colW);
-    var progress = (x - floorIdx * colW) / colW;
+    var idx      = colIndexAt(x);
+    var floorIdx = (function() {
+      for (var ci = colStarts.length - 1; ci >= 0; ci--) { if (colStarts[ci] <= x) return ci; }
+      return 0;
+    }());
+    var segW     = (floorIdx + 1 < colStarts.length ? colStarts[floorIdx + 1] : colStarts[floorIdx] + colW) - colStarts[floorIdx];
+    var progress = Math.min((x - colStarts[floorIdx]) / segW, 1);
 
     // Left columns (behind): fully stacked toward their next-round child position
     for (var j = 0; j < floorIdx; j++)                 applyPrevBlend(j, 1);
@@ -1124,10 +1376,161 @@ function renderMobileBracket(root, dims) {
       _approachComp = 0;
       if (idx !== activeIdx) { activeIdx = idx; setSpacerForCol(idx); }
       _anchorLateOff = 0;
+      if (typeof updateArrows === 'function') updateArrows();
     }, 200);
   }, { passive: true });
 
+  // ── Arrow buttons (shown only on @media hover:hover pointer:fine via CSS) ─
+  // Clicking prev/next snaps to the adjacent round using the same scrollTo call
+  // as the dot-tap handler. updateArrows() hides the edge arrows at boundaries.
+  var prevArrowEl = document.createElement('div');
+  prevArrowEl.className = 'mbc-arrow mbc-arrow--prev';
+  prevArrowEl.innerHTML = '&#8249;';
+  var nextArrowEl = document.createElement('div');
+  nextArrowEl.className = 'mbc-arrow mbc-arrow--next';
+  nextArrowEl.innerHTML = '&#8250;';
+  // Vertical centre within the scrollable area
+  var arrowTopPx = Math.round(siteHdrH + mbcHdrH + scrollH / 2);
+  prevArrowEl.style.top = arrowTopPx + 'px';
+  nextArrowEl.style.top = arrowTopPx + 'px';
+  root.appendChild(prevArrowEl);
+  root.appendChild(nextArrowEl);
+
+  function updateArrows() {
+    prevArrowEl.style.display = activeIdx <= 0 ? 'none' : '';
+    nextArrowEl.style.display = activeIdx >= colEls.length - 1 ? 'none' : '';
+  }
+  updateArrows();
+
+  prevArrowEl.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (activeIdx > 0) {
+      var target = colStarts[activeIdx - 1];
+      outer.scrollTo ? outer.scrollTo({ left: target, behavior: 'smooth' })
+                     : (outer.scrollLeft = target);
+    }
+  });
+  nextArrowEl.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (activeIdx < colEls.length - 1) {
+      var target = colStarts[activeIdx + 1];
+      outer.scrollTo ? outer.scrollTo({ left: target, behavior: 'smooth' })
+                     : (outer.scrollLeft = target);
+    }
+  });
+
+  // ── Horizontal wheel / trackpad ───────────────────────────────────────
+  // When |deltaX| > |deltaY|: intercept, drive outer.scrollLeft, snap after
+  // 150 ms of inactivity (same round-snap logic as touchend, no velocity).
+  // Vertical wheel events are NOT intercepted — captureEl scrolls natively.
+  var _wheelSnapTimer = null;
+  captureEl.addEventListener('wheel', function(e) {
+    var adx = Math.abs(e.deltaX), ady = Math.abs(e.deltaY);
+    if (adx <= ady) return; // vertical gesture — let captureEl scroll naturally
+    e.preventDefault();
+    outer.scrollLeft = Math.max(0, Math.min(outer.scrollLeft + e.deltaX, maxScrollLeft));
+    clearTimeout(_wheelSnapTimer);
+    _wheelSnapTimer = setTimeout(function() {
+      var snap = colIndexAt(outer.scrollLeft);
+      outer.scrollTo ? outer.scrollTo({ left: colStarts[snap], behavior: 'smooth' })
+                     : (outer.scrollLeft = colStarts[snap]);
+    }, 150);
+  }, { passive: false });
+
+  // ── Mouse drag ────────────────────────────────────────────────────────
+  // Mirrors the touch trio: mousedown starts tracking, mousemove drives
+  // outer.scrollLeft, mouseup snaps using the same velocity formula as
+  // touchend. A click fired after a drag (|dx|>5) is suppressed so it
+  // doesn't activate card interactions. The document-level move/up handlers
+  // are attached only for the duration of a drag so re-renders don't leak
+  // stale listeners.
+  var mDrag = null;
+  var _dragSuppressClick = false;
+
+  function onDragMove(e) {
+    if (!mDrag) return;
+    var dx = e.clientX - mDrag.startX;
+    if (!mDrag.decided && Math.abs(dx) > 5) {
+      mDrag.isHoriz = true;
+      mDrag.decided = true;
+    }
+    if (!mDrag.isHoriz) return;
+    captureEl.style.cursor = 'grabbing';
+    var now = Date.now();
+    var dt  = now - mDrag.lastTime;
+    if (dt > 0) mDrag.velocity = (e.clientX - mDrag.lastX) / dt;
+    mDrag.lastX    = e.clientX;
+    mDrag.lastTime = now;
+    outer.scrollLeft = Math.max(0, Math.min(mDrag.startLeft - dx, maxScrollLeft));
+  }
+
+  function onDragUp(e) {
+    document.removeEventListener('mousemove', onDragMove);
+    document.removeEventListener('mouseup', onDragUp);
+    if (!mDrag) return;
+    var dx = e.clientX - mDrag.startX;
+    captureEl.style.cursor = '';
+    if (!mDrag.isHoriz) { mDrag = null; return; }
+    if (Math.abs(dx) > 5) { _dragSuppressClick = true; }
+    var vel   = mDrag.velocity; // px/ms positive = rightward
+    var endX  = mDrag.startLeft - dx;
+    var base  = colIndexAt(endX);
+    var snap  = vel < -0.25 ? Math.min(base + 1, colEls.length - 1)
+              : vel > 0.25  ? Math.max(base - 1, 0)
+              : base;
+    outer.scrollTo ? outer.scrollTo({ left: colStarts[snap], behavior: 'smooth' })
+                   : (outer.scrollLeft = colStarts[snap]);
+    mDrag = null;
+    // Allow the click suppression flag to clear after the click event fires
+    setTimeout(function() { _dragSuppressClick = false; }, 0);
+  }
+
+  captureEl.addEventListener('mousedown', function(e) {
+    // Ignore if originating on an arrow or dot (those have their own handlers)
+    if (e.target.classList.contains('mbc-arrow') ||
+        e.target.parentNode && e.target.parentNode.classList.contains('mbc-arrow') ||
+        e.target.classList.contains('mbc-dot')) return;
+    mDrag = {
+      startX: e.clientX, startY: e.clientY,
+      lastX: e.clientX,
+      startLeft: outer.scrollLeft,
+      decided: false, isHoriz: false,
+      lastTime: Date.now(), velocity: 0
+    };
+    captureEl.style.cursor = 'grab';
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragUp);
+  });
+
+  captureEl.addEventListener('click', function(e) {
+    if (_dragSuppressClick) {
+      e.stopPropagation();
+      e.preventDefault();
+      _dragSuppressClick = false;
+    }
+  }, true); // capture phase so it beats card click handlers
+
   setSpacerForCol(0);
+  shrinkFieldTags(outer);
+
+  // Jump hook for cross-view navigation (e.g. team path card tap).
+  // Snaps the carousel to the game's round column, then sets the shared
+  // vertical scroll once the column's spacer has settled (~200ms debounce
+  // in the outer scroll listener), and flashes the card.
+  window._bracketJumpToGid = function(gid) {
+    var g = GAMES[gid];
+    if (!g) return;
+    var ri = colOfGid[gid] !== undefined ? colOfGid[gid] : -1;
+    if (ri < 0) return;
+    outer.scrollLeft = colStarts[ri]; // instant jump; scroll listener settles activeIdx
+    setTimeout(function() {
+      var maxScroll = Math.max(0, colInnerH(ri) - scrollH);
+      var y = earlyY[gid] !== undefined ? earlyY[gid] : 0;
+      captureEl.scrollTop = Math.max(0, Math.min(y - GAP * 2, maxScroll));
+      var card = outer.querySelector('.mbc-card[data-gid="' + gid + '"]');
+      if (card) holdHighlight(card);
+    }, 320);
+  };
 }
 // ══════════════════════════════════════════════════════════
 // ROUND VIEW
@@ -1550,6 +1953,68 @@ function renderTeamView(){
   out.innerHTML=html;
   syncLoseSideWidths();
   applyStickyOffsets();
+
+  // Scroll to the first upcoming (unplayed) game so users land on what matters next.
+  setTimeout(function(){
+    var cards = out.querySelectorAll('[data-jump-gid]');
+    var nextCard = null;
+    for (var ci = 0; ci < cards.length; ci++) {
+      var cgid = cards[ci].getAttribute('data-jump-gid');
+      if (cgid && !(results[cgid] && results[cgid].winner)) { nextCard = cards[ci]; break; }
+    }
+    if (!nextCard) return;
+    var pad = 10;
+    var panel = nextCard.closest('.team-panel');
+    if (panel && panel.scrollHeight > panel.clientHeight + 1) {
+      var newTop = panel.scrollTop + (nextCard.getBoundingClientRect().top - panel.getBoundingClientRect().top) - pad;
+      if (panel.scrollTo) panel.scrollTo({ top: Math.max(0, newTop), behavior: 'smooth' });
+      else panel.scrollTop = Math.max(0, newTop);
+    } else {
+      var stack = 0;
+      ['siteHeader','updateBar','viewTabs'].forEach(function(id){
+        var el = document.getElementById(id); if (el) stack += el.offsetHeight;
+      });
+      out.querySelectorAll('.selector-row').forEach(function(el){ stack += el.offsetHeight; });
+      var winTop = nextCard.getBoundingClientRect().top + window.scrollY - stack - pad;
+      window.scrollTo({ top: Math.max(0, winTop), behavior: 'smooth' });
+    }
+  }, 60);
+
+  // Only the opponent chip navigates to the bracket — tapping the card itself does nothing.
+  if(!out._loseNavBound){
+    out._loseNavBound=true;
+    out.addEventListener('click',function(e){
+      if(!e.target.closest) return;
+      var box=e.target.closest('[data-lose-anchor]');
+      if(box){
+        var target=document.getElementById(box.getAttribute('data-lose-anchor'));
+        if(!target) return;
+        var pad=10;
+        var panel=target.closest('.team-panel');
+        if(panel && panel.scrollHeight>panel.clientHeight+1){
+          var newTop=panel.scrollTop
+            +(target.getBoundingClientRect().top-panel.getBoundingClientRect().top)-pad;
+          if(panel.scrollTo) panel.scrollTo({top:Math.max(0,newTop),behavior:'smooth'});
+          else panel.scrollTop=Math.max(0,newTop);
+        } else {
+          var stack=0;
+          ['siteHeader','updateBar','viewTabs'].forEach(function(id){
+            var el=document.getElementById(id);
+            if(el) stack+=el.offsetHeight;
+          });
+          document.querySelectorAll('.selector-row').forEach(function(el){ stack+=el.offsetHeight; });
+          var winTop=target.getBoundingClientRect().top+window.scrollY-stack-pad;
+          window.scrollTo({top:Math.max(0,winTop),behavior:'smooth'});
+        }
+        target.classList.remove('tp-target-flash');
+        void target.offsetWidth;
+        target.classList.add('tp-target-flash');
+        return;
+      }
+      var opp=e.target.closest('[data-opp-gid]');
+      if(opp) jumpToBracketGame(opp.getAttribute('data-opp-gid'));
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════════════
