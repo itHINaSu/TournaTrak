@@ -293,8 +293,7 @@ function renderAdmin() {
     return (GAMES[a].num || 0) - (GAMES[b].num || 0);
   });
 
-  var live      = allSids.filter(function(s) { return _liveGames[s] && !(results[s] && results[s].winner); });
-  var pending   = allSids.filter(function(s) { return !_liveGames[s] && !(results[s] && results[s].winner); });
+  var pending   = allSids.filter(function(s) { return !(results[s] && results[s].winner); });
   var completed = allSids.filter(function(s) { return !!(results[s] && results[s].winner); });
 
   function buildCard(sid) {
@@ -371,10 +370,6 @@ function renderAdmin() {
       + '</div>';
   }
 
-  if (live.length) {
-    live.forEach(function(sid) { html += buildCard(sid); });
-    html += '<div class="admin-round-hdr">Upcoming</div>';
-  }
   pending.forEach(function(sid) { html += buildCard(sid); });
 
   if (completed.length) {
