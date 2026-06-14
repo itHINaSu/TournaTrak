@@ -34,12 +34,14 @@ function getSetting(key) {
     if (btn) btn.textContent = light ? '🌙 Dark' : '☀ Light';
   }
   var saved = storageGet(PREF_KEY);
-  applyLight(saved !== null ? saved === 'light' : mq.matches);
+  var _userPicked = saved !== null;
+  applyLight(_userPicked ? saved === 'light' : mq.matches);
   mq.addEventListener('change', function(e) {
-    if (storageGet(PREF_KEY) === null) applyLight(e.matches);
+    if (!_userPicked) applyLight(e.matches);
   });
   if (btn) {
     function toggleTheme() {
+      _userPicked = true;
       var nowLight = !document.body.classList.contains('light');
       applyLight(nowLight);
       storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
