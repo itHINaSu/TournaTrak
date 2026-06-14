@@ -38,11 +38,18 @@ function getSetting(key) {
   mq.addEventListener('change', function(e) {
     if (storageGet(PREF_KEY) === null) applyLight(e.matches);
   });
-  if (btn) btn.addEventListener('click', function(){
-    var nowLight = !document.body.classList.contains('light');
-    applyLight(nowLight);
-    storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
-  });
+  if (btn) {
+    function toggleTheme() {
+      var nowLight = !document.body.classList.contains('light');
+      applyLight(nowLight);
+      storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
+    }
+    btn.addEventListener('click', toggleTheme);
+    btn.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      toggleTheme();
+    });
+  }
 })();
 
 // ── Tabs ───────────────────────────────────────────────────────────────
