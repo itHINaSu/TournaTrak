@@ -27,8 +27,8 @@ function getSetting(key) {
   var btn = document.getElementById('themeToggle');
   var mq  = window.matchMedia('(prefers-color-scheme: light)');
   var PREF_KEY = 'tt_theme';
-  function storageGet(k)    { try { return localStorage.getItem(k); }    catch(e) { return null; } }
-  function storageSet(k, v) { try { localStorage.setItem(k, v); }        catch(e) {} }
+  function storageGet(k)    { try { return localStorage.getItem(k); } catch(e) {} try { return sessionStorage.getItem(k); } catch(e2) { return null; } }
+  function storageSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} try { sessionStorage.setItem(k, v); } catch(e2) {} }
   function applyLight(light) {
     document.body.classList.toggle('light', light);
     if (btn) btn.textContent = light ? '🌙 Dark' : '☀ Light';

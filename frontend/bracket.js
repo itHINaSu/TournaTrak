@@ -251,23 +251,32 @@ var themeBtn=document.getElementById('themeToggle');
 (function(){
   var mq = window.matchMedia('(prefers-color-scheme: light)');
   var PREF_KEY = 'tt_theme';
-  function storageGet(k)    { try { return localStorage.getItem(k); }    catch(e) { return null; } }
-  function storageSet(k, v) { try { localStorage.setItem(k, v); }        catch(e) {} }
+  function storageGet(k)    { try { return localStorage.getItem(k); } catch(e) {} try { return sessionStorage.getItem(k); } catch(e2) { return null; } }
+  function storageSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} try { sessionStorage.setItem(k, v); } catch(e2) {} }
   function applyLight(light) {
     document.body.classList.toggle('light', light);
     if (themeBtn) themeBtn.textContent = light ? '🌙 Dark' : '☀ Light';
   }
   var saved = storageGet(PREF_KEY);
-  applyLight(saved !== null ? saved === 'light' : mq.matches);
+  var _userPicked = saved !== null;
+  applyLight(_userPicked ? saved === 'light' : mq.matches);
   mq.addEventListener('change', function(e) {
-    if (storageGet(PREF_KEY) === null) applyLight(e.matches);
+    if (!_userPicked) applyLight(e.matches);
   });
-  if (themeBtn) themeBtn.addEventListener('click', function(){
-    var nowLight = !document.body.classList.contains('light');
-    applyLight(nowLight);
-    storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
-    if(activeView()==='bracket') renderBracket();
-  });
+  if (themeBtn) {
+    function toggleTheme() {
+      _userPicked = true;
+      var nowLight = !document.body.classList.contains('light');
+      applyLight(nowLight);
+      storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
+      if(activeView()==='bracket') renderBracket();
+    }
+    themeBtn.addEventListener('click', toggleTheme);
+    themeBtn.addEventListener('touchend', function(e) {
+      e.preventDefault();
+      toggleTheme();
+    });
+  }
 })();
 
 // ══════════════════════════════════════════════════════════
