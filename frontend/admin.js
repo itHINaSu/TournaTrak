@@ -387,11 +387,15 @@ function renderAdmin() {
 }
 
 function startLive(sid) {
-  _liveGames[sid] = { period: '1', t1score: '', t2score: '' };
+  // Carry over any scores already typed into the pending card.
+  var sc1el = document.getElementById('sc1-' + sid);
+  var sc2el = document.getElementById('sc2-' + sid);
+  var s1 = sc1el ? sc1el.value : '';
+  var s2 = sc2el ? sc2el.value : '';
+  _liveGames[sid] = { period: '1', t1score: s1, t2score: s2 };
   renderAdmin();
-  setTimeout(function() { var el = document.getElementById('per-' + sid); if (el) el.focus(); }, 50);
   apiFetch('/api/live', { method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ game: sid, period: '1', t1score: '', t2score: '' }) });
+    body: JSON.stringify({ game: sid, period: '1', t1score: s1, t2score: s2 }) });
 }
 
 function updateLive(sid) {
