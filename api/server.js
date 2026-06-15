@@ -15,12 +15,19 @@ const LIVE_FILE     = '/data/live.json';
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
 
 const SETTINGS_DEFAULTS = {
-  tournamentName: 'Tournament Bracket',
-  pageTitle:      'Tournament Bracket',
-  adminName:      'Tournament Admin',
-  subtitle:       '',
-  leftLabel:      'Left Bracket',
-  rightLabel:     'Right Bracket',
+  tournamentName:   'Tournament Bracket',
+  pageTitle:        'Tournament Bracket',
+  adminName:        'Tournament Admin',
+  subtitle:         '',
+  leftLabel:        'Left Bracket',
+  rightLabel:       'Right Bracket',
+  playInLabel:      'Play-In',
+  showSideDividers: 'true',
+  periodLabel:      'Inning',
+  showDate:         'true',
+  showDay:          'true',
+  dateFormat:       'short',
+  dayFormat:        'long',
 };
 
 const VALID_ROLES = ['admin', 'results', 'team', 'buckets'];

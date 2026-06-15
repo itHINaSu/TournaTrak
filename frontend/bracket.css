@@ -397,7 +397,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .bc-hdr {
   flex: 1;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   padding: 0 0.45em;
   background: var(--surface2);
@@ -421,6 +421,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   text-overflow: ellipsis;
   max-width: 60%;
   text-align: right;
+  margin-left: auto;
 }
 /* Desktop bracket team names: single line with ellipsis to prevent crowding */
 .bc-team {
@@ -472,7 +473,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   display: inline-flex;
   flex-direction: row;
   align-items: baseline;
-  gap: 0.4em;
+  gap: 0.65em;
   flex-wrap: nowrap;
 }
 .bc-time-live { max-width: none; overflow: visible; }
@@ -686,7 +687,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   flex-shrink: 0;
 }
 .round-game-day-time { display: flex; align-items: baseline; gap: 0.45em; flex: 1; justify-content: flex-end; }
-.round-game-day  { font-family: 'Oswald', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--text-dim); line-height: 1; }
+.round-game-day  { font-family: 'Oswald', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--text-dim); line-height: 1; margin-right: 0.25em; }
 .round-game-dow  { font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-game-time { font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-team-row {
@@ -1412,7 +1413,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   flex: 2;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   padding: 0 0.9em;
   background: var(--surface2);
   border-bottom: 0.07em solid var(--border);
@@ -1426,12 +1427,13 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   color: var(--blue-lt);
   flex-shrink: 0;
 }
-.mbc-game-datetime { display: flex; align-items: baseline; gap: 0.3em; }
+.mbc-game-datetime { display: flex; align-items: baseline; gap: 0.3em; margin-left: auto; }
 .mbc-game-day {
   font-family: 'Oswald', sans-serif;
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--text-dim);
+  margin-right: 0.2em;
 }
 .mbc-game-dow {
   font-family: 'Oswald', sans-serif;

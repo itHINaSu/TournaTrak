@@ -16,6 +16,11 @@ var SETTING_DEFAULTS = {
   rightLabel:       'Right Bracket',
   playInLabel:      'Play-In',
   showSideDividers: 'true',
+  periodLabel:      'Inning',
+  showDate:         'true',
+  showDay:          'true',
+  dateFormat:       'short',
+  dayFormat:        'long',
 };
 
 function getSetting(key) {
@@ -527,6 +532,32 @@ function applyCSSVars(dims){
 }
 
 // ══════════════════════════════════════════════════════════
+// DATE / DAY FORMAT HELPERS
+// Apply show/format settings to the parsed date and day-of-week strings
+// that come from formatTime() (e.g. "6/19", "Friday").
+// ══════════════════════════════════════════════════════════
+var MONTH_NAMES = ['January','February','March','April','May','June',
+                   'July','August','September','October','November','December'];
+
+function fmtDate(dateStr) {
+  if (!dateStr || getSetting('showDate') === 'false') return '';
+  if (getSetting('dateFormat') === 'long') {
+    var parts = dateStr.split('/');
+    if (parts.length === 2) {
+      var mo = parseInt(parts[0], 10) - 1;
+      return (MONTH_NAMES[mo] || dateStr) + ' ' + parts[1];
+    }
+  }
+  return dateStr;
+}
+
+function fmtDow(dowStr) {
+  if (!dowStr || getSetting('showDay') === 'false') return '';
+  if (getSetting('dayFormat') === 'short') return dowStr.substring(0, 3);
+  return dowStr;
+}
+
+// ══════════════════════════════════════════════════════════
 // BRACKET TIME FORMAT
 // Bracket cards show abbreviated day + time only (e.g. "Sun 1:30 PM").
 // Round/Team views use the full formatTime() from bracket-data.js.
@@ -540,7 +571,9 @@ function bracketTime(iso) {
   var ampm = h >= 12 ? 'PM' : 'AM';
   var h12 = h % 12 || 12;
   var ms = min < 10 ? '0'+min : ''+min;
-  return days[d.getDay()] + ' ' + h12 + ':' + ms + ' ' + ampm;
+  var timeStr = h12 + ':' + ms + ' ' + ampm;
+  if (getSetting('showDay') === 'false') return timeStr;
+  return days[d.getDay()] + ' ' + timeStr;
 }
 
 function scoreHTML(score) {
@@ -579,9 +612,10 @@ function timeOrLiveHTML(sid, dateStr, dowStr, timeStr) {
   if (gameIsLive(sid)) {
     return '<div class="round-game-day-time round-game-live">' + liveHeaderHTML(sid) + '</div>';
   }
+  var d = fmtDate(dateStr), w = fmtDow(dowStr);
   return '<div class="round-game-day-time">'
-    + (dateStr ? '<span class="round-game-day">'  + esc(dateStr) + '</span>' : '')
-    + (dowStr  ? '<span class="round-game-dow">'  + esc(dowStr)  + '</span>' : '')
+    + (d       ? '<span class="round-game-day">'  + esc(d)       + '</span>' : '')
+    + (w       ? '<span class="round-game-dow">'  + esc(w)       + '</span>' : '')
     + (timeStr ? '<span class="round-game-time">' + esc(timeStr) + '</span>' : '')
     + '</div>';
 }
@@ -1013,6 +1047,7 @@ function mobileRoundCardHTML(gid) {
   var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
   if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
+  var fd = fmtDate(dateStr), fw = fmtDow(dowStr);
   var upcoming = !r.winner ? ' upcoming' : '';
   // Header (top 25%), team 1 (37.5%), team 2 (37.5%)
   return '<div class="mbc-game-card' + upcoming + '">'
@@ -1022,8 +1057,8 @@ function mobileRoundCardHTML(gid) {
     +   (gameIsLive(gid)
           ? '<span class="mbc-game-datetime mbc-game-live">' + liveHeaderHTML(gid) + '</span>'
           : '<span class="mbc-game-datetime">'
-            + (dateStr ? '<span class="mbc-game-day">'  + esc(dateStr) + '</span>' : '')
-            + (dowStr  ? '<span class="mbc-game-dow">'  + esc(dowStr)  + '</span>' : '')
+            + (fd      ? '<span class="mbc-game-day">'  + esc(fd)      + '</span>' : '')
+            + (fw      ? '<span class="mbc-game-dow">'  + esc(fw)      + '</span>' : '')
             + (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
             + '</span>')
     + '</div>'

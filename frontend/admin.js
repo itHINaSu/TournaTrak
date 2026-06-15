@@ -16,6 +16,10 @@ var SETTING_DEFAULTS = {
   playInLabel:      'Play-In',
   showSideDividers: 'true',
   periodLabel:      'Inning',
+  showDate:         'true',
+  showDay:          'true',
+  dateFormat:       'short',
+  dayFormat:        'long',
 };
 
 function getSetting(key) {
@@ -207,6 +211,7 @@ function populateSettingsFields() {
     var el = document.getElementById('set-' + key);
     if (!el) return;
     if (el.type === 'checkbox') el.checked = getSetting(key) !== 'false';
+    else if (el.tagName === 'SELECT') el.value = getSetting(key);
     else el.value = settings[key] || '';
   });
 }
