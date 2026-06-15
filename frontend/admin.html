@@ -266,6 +266,27 @@
             </div>
           </div>
           <div class="settings-section">
+            <div class="settings-section-hdr">Default Landing Tab</div>
+            <div class="settings-field">
+              <label>Tab shown on first visit</label>
+              <select class="styled" id="set-defaultTab">
+                <option value="bracket">Bracket</option>
+                <option value="schedule">Schedule</option>
+                <option value="teampath">Team Path</option>
+                <option value="buckets">Buckets</option>
+              </select>
+              <div class="field-hint">Which view opens when a visitor first lands (before they pick a tab — their last choice is remembered after that).</div>
+            </div>
+            <div class="settings-field">
+              <label>Apply to</label>
+              <select class="styled" id="set-defaultTabScope">
+                <option value="both">Mobile &amp; Desktop</option>
+                <option value="mobile">Mobile only</option>
+              </select>
+              <div class="field-hint">"Mobile only" keeps Bracket as the desktop landing tab and uses the default above only on phones/tablets.</div>
+            </div>
+          </div>
+          <div class="settings-section">
             <div class="settings-section-hdr">Bracket Labels</div>
             <div class="settings-field">
               <label>Left Bracket Label</label>

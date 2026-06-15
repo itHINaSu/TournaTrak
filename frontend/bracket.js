@@ -21,6 +21,8 @@ var SETTING_DEFAULTS = {
   showDay:          'true',
   dateFormat:       'short',
   dayFormat:        'long',
+  defaultTab:       'bracket',
+  defaultTabScope:  'both',
 };
 
 function getSetting(key) {
@@ -347,9 +349,16 @@ async function fetchAll(){
   // so subsequent fetchAll() calls (from tab clicks) don't re-override the tab
   var qView = new URLSearchParams(window.location.search).get('view');
   if (qView) history.replaceState(null, '', window.location.pathname);
-  // Restore saved tab; on mobile default to By Round if no saved preference
+  // Restore saved tab. With no saved preference, fall back to the admin-
+  // configured default tab. Its scope decides reach: 'both' applies the
+  // default everywhere; 'mobile' applies it only below the desktop breakpoint
+  // (desktop then keeps the HTML default, Bracket).
   var savedTab = qView || getCookie('tt_tab');
-  if (!savedTab && window.innerWidth < 1280) savedTab = 'schedule';
+  if (!savedTab) {
+    if (getSetting('defaultTabScope') === 'both' || window.innerWidth < 1280) {
+      savedTab = getSetting('defaultTab');
+    }
+  }
   if (savedTab) {
     var targetTab   = document.querySelector('.view-tab[data-view="' + savedTab + '"]');
     var targetPanel = document.getElementById('view-' + savedTab);
