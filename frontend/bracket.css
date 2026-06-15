@@ -942,10 +942,22 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 
 /* ── Clickable loss-destination boxes (team path navigation) ── */
 .round-lose-side[data-lose-anchor] { cursor: pointer; }
+/* The destination game name reads as a tappable pill (matches .tp-opp-chip)
+   so the jump affordance is visible at rest — not just on hover, which
+   touch devices never trigger. */
+.round-lose-side[data-lose-anchor] .round-lose-dest {
+  border: 1px solid var(--border);
+  border-radius: 1.2em;
+  padding: 0.2em 0.55em;
+  color: var(--blue-lt);
+  white-space: nowrap;
+  max-width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
 .round-lose-side[data-lose-anchor]:hover .round-lose-dest,
 .round-lose-side[data-lose-anchor]:active .round-lose-dest {
-  text-decoration: underline;
-  color: var(--lose-color);
+  background: var(--surface2);
+  border-color: var(--blue-lt);
 }
 .tp-target-flash { animation: tpTargetFlash 1.4s ease-out; }
 @keyframes tpTargetFlash {
