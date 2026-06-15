@@ -450,13 +450,30 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .game-score.live-score { color: var(--gold-lt); }
 .live-badge {
-  display: block;
+  display: inline-block;
   font-size: 0.65rem;
   font-weight: 700;
   color: #d63a3a;
   letter-spacing: 0.04em;
-  padding: 0.15em 0.7em 0.2em;
+  white-space: nowrap;
 }
+.live-period {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+/* Live indicator occupies the date/time slot — keep it on one row. */
+.bc-time-live, .round-game-live, .mbc-game-live, .mbc-champ-live {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 0.4em;
+  flex-wrap: nowrap;
+}
+.bc-time-live { max-width: none; overflow: visible; }
 .bc-live-badge {
   display: block;
   font-size: 0.58rem;

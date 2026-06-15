@@ -558,11 +558,32 @@ function liveScoreHTML(sid, which) {
   return '<span class="game-score live-score">' + val + '</span>';
 }
 
-function liveBadgeHTML(sid) {
-  var ls = liveScores[sid];
-  if (!ls) return '';
-  var period = ls.period ? ls.period : '';
-  return '<span class="live-badge">● LIVE' + (period ? ' · ' + esc(period) : '') + '</span>';
+function gameIsLive(sid) {
+  return !!(liveScores[sid] && !(results[sid] && results[sid].winner));
+}
+
+// "● LIVE" + inning label, sized to drop into the date/time slot of any card.
+// Period label comes from settings (Inning/Quarter/Half/…), defaulting to Inning.
+function liveHeaderHTML(sid) {
+  if (!gameIsLive(sid)) return '';
+  var ls  = liveScores[sid];
+  var lbl = (settings && settings.periodLabel) ? settings.periodLabel : 'Inning';
+  var per = ls.period ? (esc(lbl) + ' ' + esc(String(ls.period))) : '';
+  return '<span class="live-badge">● LIVE</span>'
+    + (per ? '<span class="live-period">' + per + '</span>' : '');
+}
+
+// Date/time block for round-style cards — swapped for the live indicator when
+// a game is live, restored to date/time once finalized.
+function timeOrLiveHTML(sid, dateStr, dowStr, timeStr) {
+  if (gameIsLive(sid)) {
+    return '<div class="round-game-day-time round-game-live">' + liveHeaderHTML(sid) + '</div>';
+  }
+  return '<div class="round-game-day-time">'
+    + (dateStr ? '<span class="round-game-day">'  + esc(dateStr) + '</span>' : '')
+    + (dowStr  ? '<span class="round-game-dow">'  + esc(dowStr)  + '</span>' : '')
+    + (timeStr ? '<span class="round-game-time">' + esc(timeStr) + '</span>' : '')
+    + '</div>';
 }
 
 // ── Field tag shrink ──────────────────────────────────────────────────
@@ -614,9 +635,10 @@ function cardHTML(gid){
   var isChampSlot = gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
   return '<div class="bc-hdr"><span class="bc-id">'+esc(gameLabel(gid))+'</span>'
     +fieldTagHTML(gid)
-    +(isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>')
+    +(gameIsLive(gid)
+        ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
+        : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'))
     +'</div>'
-    +(liveScores[gid] && !r.winner ? '<span class="bc-live-badge">● LIVE</span>' : '')
     +'<div class="bc-team '+c1+'"><span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
     +'<div class="bc-team '+c2+'"><span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>';
 }
@@ -961,18 +983,20 @@ function champCardHTML(gid) {
     + '<div class="mbc-champ-top">'
     +   '<div class="mbc-champ-trophy">'+trophySVG()+'</div>'
     +   '<div class="mbc-champ-label">Championship' + fieldTagHTML(gid) + '</div>'
-    +   (ft ? '<div class="mbc-champ-time">' + esc(ft) + '</div>' : '')
+    +   (gameIsLive(gid)
+          ? '<div class="mbc-champ-time mbc-champ-live">' + liveHeaderHTML(gid) + '</div>'
+          : (ft ? '<div class="mbc-champ-time">' + esc(ft) + '</div>' : ''))
     + '</div>'
     + '<div class="mbc-champ-sep"></div>'
     + '<div class="mbc-champ-teams">'
     +   '<div class="mbc-champ-team ' + c1 + '">'
     +     '<span class="mbc-champ-name">' + esc(t1.name) + '</span>'
-    +     scoreHTML(r.t1score)
+    +     (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     +   '</div>'
     +   '<div class="mbc-champ-vs">vs</div>'
     +   '<div class="mbc-champ-team ' + c2 + '">'
     +     '<span class="mbc-champ-name">' + esc(t2.name) + '</span>'
-    +     scoreHTML(r.t2score)
+    +     (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     +   '</div>'
     + '</div>'
     + (r.winner ? '<div class="mbc-champ-winner">' + trophySVG() + ' ' + esc(r.winner) + '</div>' : '')
@@ -995,19 +1019,21 @@ function mobileRoundCardHTML(gid) {
     + '<div class="mbc-game-mid">'
     +   '<span class="mbc-game-lbl">' + esc(gameLabel(gid)) + '</span>'
     +   fieldTagHTML(gid)
-    +   '<span class="mbc-game-datetime">'
-    +     (dateStr ? '<span class="mbc-game-day">'  + esc(dateStr) + '</span>' : '')
-    +     (dowStr  ? '<span class="mbc-game-dow">'  + esc(dowStr)  + '</span>' : '')
-    +     (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
-    +   '</span>'
+    +   (gameIsLive(gid)
+          ? '<span class="mbc-game-datetime mbc-game-live">' + liveHeaderHTML(gid) + '</span>'
+          : '<span class="mbc-game-datetime">'
+            + (dateStr ? '<span class="mbc-game-day">'  + esc(dateStr) + '</span>' : '')
+            + (dowStr  ? '<span class="mbc-game-dow">'  + esc(dowStr)  + '</span>' : '')
+            + (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
+            + '</span>')
     + '</div>'
     + '<div class="mbc-game-team ' + c1 + '">'
     +   '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
-    +   scoreHTML(r.t1score)
+    +   (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     + '</div>'
     + '<div class="mbc-game-team ' + c2 + '">'
     +   '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
-    +   scoreHTML(r.t2score)
+    +   (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     + '</div>'
     + '</div>';
 }
@@ -1028,12 +1054,8 @@ function roundCardHTML(gid) {
     + '<div class="round-game-header">'
     + '<span class="round-game-id">' + esc(gameLabel(gid)) + '</span>'
     + fieldTagHTML(gid)
-    + liveBadgeHTML(gid)
-    + '<div class="round-game-day-time">'
-    + (dateStr ? '<span class="round-game-day">'  + esc(dateStr) + '</span>' : '')
-    + (dowStr  ? '<span class="round-game-dow">'  + esc(dowStr)  + '</span>' : '')
-    + (timeStr ? '<span class="round-game-time">' + esc(timeStr) + '</span>' : '')
-    + '</div></div>'
+    + timeOrLiveHTML(gid, dateStr, dowStr, timeStr)
+    + '</div>'
     + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
     + (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid, 1))
     + '</div>'
@@ -1958,13 +1980,9 @@ function renderRoundView() {
         +'<div class="round-game-header">'
         +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
         +fieldTagHTML(sid)
-        +'<div class="round-game-day-time">'
-        +(dateStr?'<span class="round-game-day">'+esc(dateStr)+'</span>':'')
-        +(dowStr?'<span class="round-game-dow">'+esc(dowStr)+'</span>':'')
-        +(timeStr?'<span class="round-game-time">'+esc(timeStr)+'</span>':'')
-        +'</div></div>'
+        +timeOrLiveHTML(sid, dateStr, dowStr, timeStr)
+        +'</div>'
         + champ2NoteHTML
-        + liveBadgeHTML(sid)
         +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
         +(r.winner ? scoreHTML(r.t1score) : liveScoreHTML(sid,1))
         +'</div>'
@@ -2170,14 +2188,9 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       + ' data-jump-gid="' + esc(gid) + '">'
       + '<div class="round-game-main">'
       + '<div class="round-game-header">'
-      + '<div class="round-game-day-time">'
-      + (dt2 ? '<span class="round-game-day">'  + esc(dt2) + '</span>' : '')
-      + (dw2 ? '<span class="round-game-dow">'  + esc(dw2) + '</span>' : '')
-      + (tm2 ? '<span class="round-game-time">' + esc(tm2) + '</span>' : '')
-      + '</div>'
+      + timeOrLiveHTML(gid, dt2, dw2, tm2)
       + '<span class="round-game-id" style="margin-left:auto;flex-shrink:0">' + esc(gameLabel(gid)) + '</span>'
       + '</div>'
-      + liveBadgeHTML(gid)
       + '<div class="round-team-row">'
       + '<span class="round-team-name ' + c1 + '">' + t1html + '</span>'
       + (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
