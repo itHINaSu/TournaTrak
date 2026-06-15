@@ -293,6 +293,11 @@ document.querySelectorAll('.view-tab').forEach(function(tab){
     tab.classList.add('active');
     document.getElementById('view-'+tab.dataset.view).classList.add('active');
     setCookie('tt_tab', tab.dataset.view);
+    // Leaving the team path clears the shareable ?team= param so other tabs
+    // aren't yanked back to team path by fetchAll re-reading the URL.
+    if (tab.dataset.view !== 'teampath') {
+      history.replaceState(null, '', window.location.pathname);
+    }
     renderActive();
     fetchAll(); // refresh data on every tab tap (PWA-friendly)
   });
@@ -1988,10 +1993,17 @@ teamSel.addEventListener('change',function(){
   history.replaceState(null, '', url);
   renderTeamView();
   updateShareBtn();
+  scrollTeamPathTop();
+});
+
+// Scroll the team path back to the top. Desktop scrolls the window; mobile
+// may scroll the panel, so reset both.
+function scrollTeamPathTop() {
   var panel = document.getElementById('view-teampath');
   if (panel) panel.scrollTop = 0;
-  if (window.innerWidth >= 1024) window.scrollTo(0, 0);
-});
+  window.scrollTo(0, 0);
+  if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+}
 
 var _shareBtn = document.getElementById('teamShareBtn');
 function updateShareBtn() {
@@ -2248,9 +2260,7 @@ function renderTeamView(){
         history.replaceState(null, '', window.location.pathname + '?team=' + encodeURIComponent(btn.dataset.team));
         renderTeamView();
         updateShareBtn();
-        var panel = document.getElementById('view-teampath');
-        if (panel) panel.scrollTop = 0;
-        if (window.innerWidth >= 1024) window.scrollTo(0, 0);
+        scrollTeamPathTop();
       });
     });
     return;
