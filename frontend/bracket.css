@@ -451,17 +451,19 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .game-score.live-score { color: var(--gold-lt); }
 .live-badge {
   display: inline-block;
-  font-size: 0.78rem;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--live-color);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 .live-period {
   display: inline-block;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--gold-lt);
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--blue-lt);
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
