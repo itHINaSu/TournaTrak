@@ -390,8 +390,8 @@ function startLive(sid) {
   // Carry over any scores already typed into the pending card.
   var sc1el = document.getElementById('sc1-' + sid);
   var sc2el = document.getElementById('sc2-' + sid);
-  var s1 = sc1el ? sc1el.value : '';
-  var s2 = sc2el ? sc2el.value : '';
+  var s1 = (sc1el && sc1el.value !== '') ? sc1el.value : '0';
+  var s2 = (sc2el && sc2el.value !== '') ? sc2el.value : '0';
   _liveGames[sid] = { period: '1', t1score: s1, t2score: s2 };
   renderAdmin();
   apiFetch('/api/live', { method: 'POST', headers: {'Content-Type':'application/json'},
