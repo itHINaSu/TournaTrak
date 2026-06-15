@@ -25,6 +25,9 @@ function getSetting(key) {
 
 // ── Theme ──────────────────────────────────────────────────────────────
 (function(){
+  // Claim theme management so lineup.js (also loaded on this page) doesn't
+  // bind a second click handler that double-toggles and cancels this one out.
+  window.__ttThemeManaged = true;
   var btn = document.getElementById('themeToggle');
   var mq  = window.matchMedia('(prefers-color-scheme: light)');
   var PREF_KEY = 'tt_theme';

@@ -443,22 +443,33 @@ function buildNavBar(role) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  // System color-scheme detection
-  var themeBtn = document.getElementById('themeToggle');
-  (function() {
+  // Theme: only manage it on the standalone lineup page. On the admin page
+  // admin.js already owns the toggle (sets __ttThemeManaged); binding a second
+  // click handler here would double-toggle and cancel admin's out.
+  if (!window.__ttThemeManaged) {
+    var themeBtn = document.getElementById('themeToggle');
     var mq = window.matchMedia('(prefers-color-scheme: light)');
-    function apply(light) {
+    var PREF_KEY = 'tt_theme';
+    function storageGet(k)    { try { return localStorage.getItem(k); } catch(e) {} try { return sessionStorage.getItem(k); } catch(e2) { return null; } }
+    function storageSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} try { sessionStorage.setItem(k, v); } catch(e2) {} }
+    function applyLight(light) {
       document.body.classList.toggle('light', light);
       if (themeBtn) themeBtn.textContent = light ? '🌙 Dark' : '☀ Light';
     }
-    apply(mq.matches);
-    mq.addEventListener('change', function(e) { apply(e.matches); });
-  })();
-  if (themeBtn) {
-    themeBtn.addEventListener('click', function() {
-      document.body.classList.toggle('light');
-      themeBtn.textContent = document.body.classList.contains('light') ? '🌙 Dark' : '☀ Light';
-    });
+    var saved = storageGet(PREF_KEY);
+    var _userPicked = saved !== null;
+    applyLight(_userPicked ? saved === 'light' : mq.matches);
+    mq.addEventListener('change', function(e) { if (!_userPicked) applyLight(e.matches); });
+    if (themeBtn) {
+      var toggleTheme = function() {
+        _userPicked = true;
+        var nowLight = !document.body.classList.contains('light');
+        applyLight(nowLight);
+        storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
+      };
+      themeBtn.addEventListener('click', toggleTheme);
+      themeBtn.addEventListener('touchend', function(e) { e.preventDefault(); toggleTheme(); });
+    }
   }
 
   var teamSel = document.getElementById('lineupTeamSel');
