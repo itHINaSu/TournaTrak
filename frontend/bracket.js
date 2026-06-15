@@ -2348,7 +2348,9 @@ function renderTeamView(){
     return;
   }
 
-  var html='<div class="team-view-name">'+esc(team)+'</div>';
+  // Team name label intentionally omitted — the selector bar always shows
+  // which team is being viewed, so a heading here is redundant.
+  var html='';
 
   var winChain=buildWinChain(firstGid);
   var r0=results[firstGid]||{};
@@ -2419,31 +2421,9 @@ function renderTeamView(){
   syncLoseSideWidths();
   applyStickyOffsets();
 
-  // Scroll to the first upcoming (unplayed) game so users land on what matters next.
-  setTimeout(function(){
-    var cards = out.querySelectorAll('[data-jump-gid]');
-    var nextCard = null;
-    for (var ci = 0; ci < cards.length; ci++) {
-      var cgid = cards[ci].getAttribute('data-jump-gid');
-      if (cgid && !(results[cgid] && results[cgid].winner)) { nextCard = cards[ci]; break; }
-    }
-    if (!nextCard) return;
-    var pad = 10;
-    var panel = nextCard.closest('.team-panel');
-    if (panel && panel.scrollHeight > panel.clientHeight + 1) {
-      var newTop = panel.scrollTop + (nextCard.getBoundingClientRect().top - panel.getBoundingClientRect().top) - pad;
-      if (panel.scrollTo) panel.scrollTo({ top: Math.max(0, newTop), behavior: 'smooth' });
-      else panel.scrollTop = Math.max(0, newTop);
-    } else {
-      var stack = 0;
-      ['siteHeader','updateBar','viewTabs'].forEach(function(id){
-        var el = document.getElementById(id); if (el) stack += el.offsetHeight;
-      });
-      out.querySelectorAll('.selector-row').forEach(function(el){ stack += el.offsetHeight; });
-      var winTop = nextCard.getBoundingClientRect().top + window.scrollY - stack - pad;
-      window.scrollTo({ top: Math.max(0, winTop), behavior: 'smooth' });
-    }
-  }, 60);
+  // No auto-scroll: the team path opens at the top so the Win path bar (and
+  // the full path from game one) is always the first thing in view. Use the
+  // "LOSS ↓ G#" boxes to jump down to a later section on demand.
 
   // Clicking a "LOSS ↓ G#" box jumps to that game's section further down
   // the team path; clicking anywhere else on a game card opens that game

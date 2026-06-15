@@ -815,15 +815,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .team-chip:hover, .team-chip:active { background: var(--surface2); border-color: var(--blue-lt); color: var(--blue-lt); }
 .team-chip.elim { opacity: 0.45; }
-.team-view-name {
-  padding: 0.5em 0 0.25em;
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.78em;
-  font-weight: 600;
-  color: var(--text-dim);
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-}
 .team-elim-inline {
   max-width: 42em;
   margin: 0.5em auto 0.5em;
@@ -1600,10 +1591,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   }
   .round-team-name {
     font-size: 1.05rem;
-  }
-  .team-view-name {
-    font-size: var(--text-lg);
-    padding: 0.6em 0 0.3em;
   }
 }
 
