@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs>
+  <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%"   stop-color="#f0d060"/>
+    <stop offset="50%"  stop-color="#c9a227"/>
+    <stop offset="100%" stop-color="#907020"/>
+  </linearGradient>
+  <linearGradient id="border" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%"   stop-color="#e8c050"/>
+    <stop offset="60%"  stop-color="#c9a227"/>
+    <stop offset="100%" stop-color="#6a4c10"/>
+  </linearGradient>
+  <linearGradient id="textG" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%"   stop-color="#f2d862"/>
+    <stop offset="45%"  stop-color="#d4a820"/>
+    <stop offset="100%" stop-color="#8a6410"/>
+  </linearGradient>
+  <!-- Subtle hex-style dot texture -->
+  <pattern id="dots" x="0" y="0" width="18" height="18" patternUnits="userSpaceOnUse">
+    <circle cx="9" cy="9" r="1.3" fill="#2d2d2d"/>
+  </pattern>
+</defs>
+
+<!-- Background -->
+<rect width="512" height="512" rx="96" fill="#111214"/>
+
+<!-- Dot texture (top half only, fades into background) -->
+<rect x="0" y="0" width="512" height="260" rx="0" fill="url(#dots)" opacity="0.5"
+      clip-path="inset(0 0 0 0 round 96px)"/>
+
+<!-- Gold border -->
+<rect x="7" y="7" width="498" height="498" rx="91"
+      fill="none" stroke="url(#border)" stroke-width="10"/>
+
+<!-- "T" lettermark -->
+<text x="257" y="196"
+      font-family="Georgia, 'Times New Roman', serif"
+      font-style="italic"
+      font-size="178"
+      font-weight="900"
+      fill="url(#textG)"
+      text-anchor="middle">T</text>
+
+<!-- TournaTrak wordmark -->
+<text x="257" y="241"
+      font-family="Georgia, 'Times New Roman', serif"
+      font-style="italic"
+      font-size="49"
+      font-weight="700"
+      fill="url(#textG)"
+      text-anchor="middle">TournaTrak</text>
+
+<!-- 8-team single-elimination bracket (valid binary tree: 8→4→2→1) -->
+<g stroke="#c9a227" stroke-width="9" stroke-linecap="round" fill="none">
+  <line x1="18" y1="258" x2="110" y2="258"/>
+  <line x1="18" y1="290" x2="110" y2="290"/>
+  <line x1="110" y1="258" x2="110" y2="290"/>
+  <line x1="110" y1="274" x2="200" y2="274"/>
+  <line x1="18" y1="322" x2="110" y2="322"/>
+  <line x1="18" y1="354" x2="110" y2="354"/>
+  <line x1="110" y1="322" x2="110" y2="354"/>
+  <line x1="110" y1="338" x2="200" y2="338"/>
+  <line x1="18" y1="386" x2="110" y2="386"/>
+  <line x1="18" y1="418" x2="110" y2="418"/>
+  <line x1="110" y1="386" x2="110" y2="418"/>
+  <line x1="110" y1="402" x2="200" y2="402"/>
+  <line x1="18" y1="450" x2="110" y2="450"/>
+  <line x1="18" y1="482" x2="110" y2="482"/>
+  <line x1="110" y1="450" x2="110" y2="482"/>
+  <line x1="110" y1="466" x2="200" y2="466"/>
+  <line x1="200" y1="274" x2="200" y2="338"/>
+  <line x1="200" y1="306" x2="290" y2="306"/>
+  <line x1="200" y1="402" x2="200" y2="466"/>
+  <line x1="200" y1="434" x2="290" y2="434"/>
+  <line x1="290" y1="306" x2="290" y2="434"/>
+  <line x1="290" y1="370" x2="352" y2="370"/>
+</g>
+
+<!-- Symbol -->
+
+  <!-- Gear -->
+  <polygon points="427.00,313.00 440.60,328.15 460.50,323.89 462.60,344.14 481.21,352.39 471.00,370.00 481.21,387.61 462.60,395.86 460.50,416.11 440.60,411.85 427.00,427.00 413.40,411.85 393.50,416.11 391.40,395.86 372.79,387.61 383.00,370.00 372.79,352.39 391.40,344.14 393.50,323.89 413.40,328.15" fill="url(#gold)"/>
+  <!-- Hub cutout -->
+  <circle cx="427" cy="370" r="28" fill="#111214"/>
+  <!-- Person head -->
+  <circle cx="427" cy="360" r="8.5" fill="#c9a227"/>
+  <!-- Person body / shoulders -->
+  <path d="M 411,394 Q 411,377 427,377 Q 443,377 443,394"
+        fill="#c9a227"/>
+</svg>

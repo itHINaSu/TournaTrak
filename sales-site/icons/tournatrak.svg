@@ -1,88 +1,96 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <defs>
-    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%"   stop-color="#e8c050"/>
-      <stop offset="60%"  stop-color="#c9a227"/>
-      <stop offset="100%" stop-color="#a07820"/>
-    </linearGradient>
-    <linearGradient id="goldBorder" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%"   stop-color="#e8c050"/>
-      <stop offset="100%" stop-color="#c9a227"/>
-    </linearGradient>
-  </defs>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs>
+  <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%"   stop-color="#f0d060"/>
+    <stop offset="50%"  stop-color="#c9a227"/>
+    <stop offset="100%" stop-color="#907020"/>
+  </linearGradient>
+  <linearGradient id="border" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0%"   stop-color="#e8c050"/>
+    <stop offset="60%"  stop-color="#c9a227"/>
+    <stop offset="100%" stop-color="#6a4c10"/>
+  </linearGradient>
+  <linearGradient id="textG" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%"   stop-color="#f2d862"/>
+    <stop offset="45%"  stop-color="#d4a820"/>
+    <stop offset="100%" stop-color="#8a6410"/>
+  </linearGradient>
+  <!-- Subtle hex-style dot texture -->
+  <pattern id="dots" x="0" y="0" width="18" height="18" patternUnits="userSpaceOnUse">
+    <circle cx="9" cy="9" r="1.3" fill="#2d2d2d"/>
+  </pattern>
+</defs>
 
-  <!-- Background: dark rounded square -->
-  <rect width="512" height="512" rx="96" fill="#0d0f12"/>
+<!-- Background -->
+<rect width="512" height="512" rx="96" fill="#111214"/>
 
-  <!-- Gold border -->
-  <rect x="8" y="8" width="496" height="496" rx="90" fill="none"
-        stroke="url(#goldBorder)" stroke-width="10"/>
+<!-- Dot texture (top half only, fades into background) -->
+<rect x="0" y="0" width="512" height="260" rx="0" fill="url(#dots)" opacity="0.5"
+      clip-path="inset(0 0 0 0 round 96px)"/>
 
-  <!-- ── "T" lettermark (geometric path, renders consistently everywhere) ── -->
-  <!--   Horizontal bar: x 186–326, y 62–96 (width 140, height 34)          -->
-  <!--   Vertical stem:  x 230–282, y 62–202 (width 52, height 140)         -->
-  <path d="M 186,62 L 326,62 L 326,96 L 282,96 L 282,202 L 230,202 L 230,96 L 186,96 Z"
+<!-- Gold border -->
+<rect x="7" y="7" width="498" height="498" rx="91"
+      fill="none" stroke="url(#border)" stroke-width="10"/>
+
+<!-- "T" lettermark -->
+<text x="257" y="196"
+      font-family="Georgia, 'Times New Roman', serif"
+      font-style="italic"
+      font-size="178"
+      font-weight="900"
+      fill="url(#textG)"
+      text-anchor="middle">T</text>
+
+<!-- TournaTrak wordmark -->
+<text x="257" y="241"
+      font-family="Georgia, 'Times New Roman', serif"
+      font-style="italic"
+      font-size="49"
+      font-weight="700"
+      fill="url(#textG)"
+      text-anchor="middle">TournaTrak</text>
+
+<!-- 8-team single-elimination bracket (valid binary tree: 8→4→2→1) -->
+<g stroke="#c9a227" stroke-width="9" stroke-linecap="round" fill="none">
+  <line x1="18" y1="258" x2="110" y2="258"/>
+  <line x1="18" y1="290" x2="110" y2="290"/>
+  <line x1="110" y1="258" x2="110" y2="290"/>
+  <line x1="110" y1="274" x2="200" y2="274"/>
+  <line x1="18" y1="322" x2="110" y2="322"/>
+  <line x1="18" y1="354" x2="110" y2="354"/>
+  <line x1="110" y1="322" x2="110" y2="354"/>
+  <line x1="110" y1="338" x2="200" y2="338"/>
+  <line x1="18" y1="386" x2="110" y2="386"/>
+  <line x1="18" y1="418" x2="110" y2="418"/>
+  <line x1="110" y1="386" x2="110" y2="418"/>
+  <line x1="110" y1="402" x2="200" y2="402"/>
+  <line x1="18" y1="450" x2="110" y2="450"/>
+  <line x1="18" y1="482" x2="110" y2="482"/>
+  <line x1="110" y1="450" x2="110" y2="482"/>
+  <line x1="110" y1="466" x2="200" y2="466"/>
+  <line x1="200" y1="274" x2="200" y2="338"/>
+  <line x1="200" y1="306" x2="290" y2="306"/>
+  <line x1="200" y1="402" x2="200" y2="466"/>
+  <line x1="200" y1="434" x2="290" y2="434"/>
+  <line x1="290" y1="306" x2="290" y2="434"/>
+  <line x1="290" y1="370" x2="352" y2="370"/>
+</g>
+
+<!-- Symbol -->
+
+  <!-- Trophy cup -->
+  <path d="M 393,326 L 461,326 L 461,362
+           Q 461,372 427,374
+           Q 393,372 393,362 Z"
         fill="url(#gold)"/>
-
-  <!-- ── "TournaTrak" wordmark ── -->
-  <text x="256" y="238"
-        font-family="Arial, Helvetica, sans-serif"
-        font-size="40"
-        font-weight="700"
-        fill="#c9a227"
-        text-anchor="middle"
-        letter-spacing="1">TournaTrak</text>
-
-  <!-- ══════════════════════════════════════════
-       VALID 4-TEAM SINGLE-ELIMINATION BRACKET
-       Structure: 4 teams → 2 matches → 1 final → trophy
-       Each match pairs exactly 2 teams (power-of-2 tree)
-       ══════════════════════════════════════════ -->
-
-  <!-- Round 1 — Team 1 (top) -->
-  <line x1="36"  y1="268" x2="162" y2="268" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
-  <!-- Round 1 — Team 2 -->
-  <line x1="36"  y1="316" x2="162" y2="316" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
-  <!-- Match 1 vertical connector -->
-  <line x1="162" y1="268" x2="162" y2="316" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
-  <!-- Match 1 output (midpoint y=292) -->
-  <line x1="162" y1="292" x2="270" y2="292" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
-
-  <!-- Round 1 — Team 3 (bottom) -->
-  <line x1="36"  y1="384" x2="162" y2="384" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
-  <!-- Round 1 — Team 4 -->
-  <line x1="36"  y1="432" x2="162" y2="432" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
-  <!-- Match 2 vertical connector -->
-  <line x1="162" y1="384" x2="162" y2="432" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
-  <!-- Match 2 output (midpoint y=408) -->
-  <line x1="162" y1="408" x2="270" y2="408" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
-
-  <!-- Finals: vertical connector between match outputs (y=292 to y=408) -->
-  <line x1="270" y1="292" x2="270" y2="408" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
-  <!-- Finals output (midpoint y=350) → enters left edge of trophy cup -->
-  <line x1="270" y1="350" x2="372" y2="350" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
-
-  <!-- ══════════════════════════════════════════
-       TROPHY (centered at x≈420, y≈350)
-       Cup: x 372–468, y 312–388
-       Line enters at (372, 350) — cup mid-height ✓
-       ══════════════════════════════════════════ -->
-
-  <!-- Trophy cup body — quadratic bezier bottom for smooth U-shape -->
-  <path d="M 372,312 L 372,350 Q 372,388 420,388 Q 468,388 468,350 L 468,312 Z"
-        fill="url(#gold)"/>
-
-  <!-- Left handle — C-curve; stroke blends with cup edge visually -->
-  <path d="M 378,325 Q 352,325 352,348 Q 352,370 378,370"
-        fill="none" stroke="#c9a227" stroke-width="10" stroke-linecap="round"/>
-
+  <!-- Left handle -->
+  <path d="M 393,336 C 369,336 369,366 393,366"
+        fill="none" stroke="#c9a227" stroke-width="9" stroke-linecap="round"/>
   <!-- Right handle -->
-  <path d="M 462,325 Q 488,325 488,348 Q 488,370 462,370"
-        fill="none" stroke="#c9a227" stroke-width="10" stroke-linecap="round"/>
-
+  <path d="M 461,336 C 485,336 485,366 461,366"
+        fill="none" stroke="#c9a227" stroke-width="9" stroke-linecap="round"/>
   <!-- Stem -->
-  <rect x="414" y="388" width="12" height="22" fill="#c9a227" rx="2"/>
-
+  <rect x="421" y="374" width="12" height="20" fill="#c9a227" rx="2"/>
   <!-- Base -->
-  <rect x="396" y="410" width="48" height="12" fill="#c9a227" rx="4"/>
+  <rect x="401" y="394" width="52" height="12" fill="#c9a227" rx="5"/>
 </svg>
