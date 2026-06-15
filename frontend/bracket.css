@@ -453,7 +453,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   display: inline-block;
   font-size: 0.78rem;
   font-weight: 700;
-  color: #e03030;
+  color: var(--live-color);
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
@@ -474,14 +474,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   flex-wrap: nowrap;
 }
 .bc-time-live { max-width: none; overflow: visible; }
-.bc-live-badge {
-  display: block;
-  font-size: 0.58rem;
-  font-weight: 700;
-  color: #d63a3a;
-  letter-spacing: 0.04em;
-  padding: 0.1em 0.5em 0;
-}
 .bc-team:last-child { border-bottom: none; }
 .bc-team.tbd  { color: var(--text-mute); font-style: italic; font-weight: 400; font-size: 0.7rem; }
 .bc-team.won  { color: var(--win-color); }

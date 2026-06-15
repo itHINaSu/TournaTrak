@@ -21,6 +21,7 @@
   --line-color:   #4a7a8a;
   --clear-color:  #c05050;
   --clear-border: #8a3a3a;
+  --live-color:   #e03030;
 
   /* Medal colors for bucket top-3 */
   --medal-gold-bg:     #3d2d00;
@@ -73,6 +74,7 @@ body.light {
   --line-color:#5a8a9a;
   --clear-color:#8a2a2a;
   --clear-border:#c05050;
+  --live-color: #c81e1e; /* ≥4.5:1 on white surface */
 
   /* Medal colors — light mode */
   --medal-gold-bg:     #fffacc;

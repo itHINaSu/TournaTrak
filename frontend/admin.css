@@ -116,7 +116,7 @@ input, select, textarea { font-size: max(1rem, 16px); }
   margin-bottom: 1.4em;
 }
 .admin-res-card--waiting { opacity: 0.45; }
-.admin-res-card.upcoming { opacity: 0.75; border-style: dashed; }
+.admin-res-card.upcoming { border-style: dashed; }
 
 .admin-res-hdr {
   display: flex;
@@ -759,7 +759,7 @@ input[type="time"]:focus {
 .admin-live-badge {
   font-size: 0.7rem;
   font-weight: 700;
-  color: #d63a3a;
+  color: var(--live-color);
   letter-spacing: 0.04em;
   flex-shrink: 0;
 }
