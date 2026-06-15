@@ -1,0 +1,8 @@
+services:
+  tournatrak-sales:
+    build: .
+    container_name: tournatrak-sales
+    ports:
+      # TODO: Change 8081 to whichever host port you want
+      - "8081:80"
+    restart: unless-stopped

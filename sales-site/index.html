@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TournaTrak — Live Tournament Brackets for Everyone</title>
+  <meta name="description" content="Live brackets, real-time scores, and schedules for your tournament. One link, any device. No app download required.">
+  <link rel="icon" type="image/svg+xml" href="icons/tournatrak.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/trophy-192.png">
+  <link rel="apple-touch-icon" href="icons/trophy-180.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ── Navigation ── -->
+  <nav class="nav" aria-label="Main navigation">
+    <div class="container nav-inner">
+      <a href="#" class="nav-brand" aria-label="TournaTrak home">
+        <img src="icons/tournatrak.svg" alt="" class="nav-logo" width="32" height="32">
+        <span class="nav-name">TournaTrak</span>
+      </a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <!-- TODO: Replace href="#" with your live demo tournament URL -->
+      <a href="#" class="btn btn-gold btn-sm">See a Demo</a>
+    </div>
+  </nav>
+
+  <!-- ── Hero ── -->
+  <section class="hero" id="top">
+    <div class="hero-bg" aria-hidden="true"></div>
+    <div class="container hero-inner">
+      <div class="hero-text">
+        <div class="hero-badge" aria-label="Live">
+          <span class="live-dot" aria-hidden="true">●</span> Live Tournaments
+        </div>
+        <h1>
+          Run your tournament from your phone.<br>
+          <span class="gold">Let everyone follow along from theirs.</span>
+        </h1>
+        <p class="hero-sub">
+          Live brackets, real-time scores, and schedules — one link, any device.
+          No app download. No group-chat chaos.
+        </p>
+        <div class="hero-actions">
+          <!-- TODO: Replace href="#" with your live demo tournament URL -->
+          <a href="#" class="btn btn-gold btn-lg">See a Live Demo</a>
+          <a href="#features" class="btn btn-ghost btn-lg">Explore features</a>
+        </div>
+      </div>
+
+      <!-- CSS mock of a live game card -->
+      <div class="hero-visual" aria-hidden="true">
+        <div class="mock-bracket">
+          <div class="mock-line top"></div>
+          <div class="mock-line bottom"></div>
+          <div class="mock-connector"></div>
+        </div>
+        <div class="mock-game live">
+          <div class="mock-team">
+            <span class="mock-team-name">Northside Thunder</span>
+            <span class="mock-score win">4</span>
+          </div>
+          <div class="mock-status">
+            <span class="live-dot">●</span>
+            <span>LIVE &middot; 6th Inning</span>
+          </div>
+          <div class="mock-team">
+            <span class="mock-team-name">Riverside Hawks</span>
+            <span class="mock-score">2</span>
+          </div>
+        </div>
+        <div class="mock-game done">
+          <div class="mock-team">
+            <span class="mock-team-name">Lake City Storm</span>
+            <span class="mock-score win">7</span>
+          </div>
+          <div class="mock-status done">Final</div>
+          <div class="mock-team">
+            <span class="mock-team-name">East End Eagles</span>
+            <span class="mock-score">3</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Problem → Solution ── -->
+  <section class="problem" id="problem" aria-label="The problem we solve">
+    <div class="container problem-grid">
+      <div class="problem-before">
+        <div class="chat-stack">
+          <div class="chat-bubble left">"What field are we on next?"</div>
+          <div class="chat-bubble right">"Did we win??"</div>
+          <div class="chat-bubble left">"What time is the next game"</div>
+          <div class="chat-bubble right">"Is the bracket posted somewhere?"</div>
+          <div class="chat-bubble left">"Can someone update the scores???"</div>
+        </div>
+        <p class="chat-caption">The group chat, 20 minutes after game 1 ends.</p>
+      </div>
+
+      <div class="problem-arrow" aria-hidden="true">→</div>
+
+      <div class="solution-card">
+        <div class="solution-icon">🔗</div>
+        <h2>One link.</h2>
+        <p>
+          Everyone has the bracket, the schedule, and the live score —
+          before they even think to ask.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Features ── -->
+  <section class="features" id="features" aria-label="Features">
+    <div class="container">
+      <h2 class="section-title">Everything your tournament needs. Nothing it doesn't.</h2>
+      <div class="features-grid">
+
+        <div class="feature-card reveal">
+          <div class="feature-icon" aria-hidden="true">📊</div>
+          <h3>Live, real-time bracket</h3>
+          <p>
+            A full double-elimination bracket that updates as results come in.
+            Games in progress show a pulsing <span class="live-dot" aria-label="live">●</span>
+            <strong>LIVE</strong> indicator with the score and inning — fans see
+            it change without refreshing.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon" aria-hidden="true">👀</div>
+          <h3>Four ways to follow</h3>
+          <p>
+            <strong>Bracket</strong>, <strong>Schedule</strong>,
+            <strong>Team Path</strong>, and a <strong>Challenge Leaderboard</strong>.
+            Team Path lets fans jump straight to their team's road through the
+            bracket — shareable by link.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon" aria-hidden="true">⚡</div>
+          <h3>Simple admin panel</h3>
+          <p>
+            Enter results, set game times and fields, and flip a game to live —
+            all from your phone. One-tap live scoring: update the score and
+            inning, hit finalize, done.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon" aria-hidden="true">🔐</div>
+          <h3>Role-based access</h3>
+          <p>
+            Separate logins for admins, scorekeepers, coaches, and leaderboard
+            editors. Delegate without handing over the keys. Secure login with
+            rate-limiting built in.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon" aria-hidden="true">📱</div>
+          <h3>Works like an app — without being one</h3>
+          <p>
+            Visitors can add TournaTrak to their home screen and open it
+            full-screen like a native app. No app store. No download friction.
+            Just a link. Designed to hold up on spotty tournament-field Wi-Fi.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon" aria-hidden="true">🎨</div>
+          <h3>Customizable to your event</h3>
+          <p>
+            Set your tournament name, scoring labels (Inning, Quarter, Half,
+            Period, Set&hellip;), date formats, default tab, and light or dark
+            theme — all from the settings panel.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── How it Works ── -->
+  <section class="how-it-works" id="how-it-works" aria-label="How it works">
+    <div class="container">
+      <h2 class="section-title">Up and running in minutes</h2>
+      <div class="steps-grid">
+        <div class="step reveal">
+          <div class="step-number" aria-hidden="true">1</div>
+          <h3>Set up your bracket</h3>
+          <p>Enter your teams, game times, and fields in the admin panel. The bracket builds itself.</p>
+        </div>
+        <div class="step-connector" aria-hidden="true"></div>
+        <div class="step reveal">
+          <div class="step-number" aria-hidden="true">2</div>
+          <h3>Share one link</h3>
+          <p>Send the tournament link to teams, families, and fans. That's the only step they need.</p>
+        </div>
+        <div class="step-connector" aria-hidden="true"></div>
+        <div class="step reveal">
+          <div class="step-number" aria-hidden="true">3</div>
+          <h3>Update results &amp; go live</h3>
+          <p>As games are played, enter scores from your phone. Everyone watching sees it instantly.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Use Cases ── -->
+  <section class="use-cases" id="use-cases" aria-label="Who it's for">
+    <div class="container">
+      <h2 class="section-title">Built for any tournament</h2>
+      <div class="use-cases-grid">
+        <div class="use-case-card reveal">
+          <div class="use-case-icon" aria-hidden="true">⚾</div>
+          <h3>Softball &amp; Baseball</h3>
+          <p>The flagship use case — built and battle-tested on a real 16-team double-elimination event.</p>
+        </div>
+        <div class="use-case-card reveal">
+          <div class="use-case-icon" aria-hidden="true">🏆</div>
+          <h3>Rec Leagues &amp; Clubs</h3>
+          <p>Weekend brackets where everyone wants to know "who's up next and on which field."</p>
+        </div>
+        <div class="use-case-card reveal">
+          <div class="use-case-icon" aria-hidden="true">🏀</div>
+          <h3>Multi-Sport Events</h3>
+          <p>Scoring labels are fully configurable — Inning, Quarter, Half, Period, Set. Fits basketball, soccer, volleyball, hockey, and more.</p>
+        </div>
+        <div class="use-case-card reveal">
+          <div class="use-case-icon" aria-hidden="true">🏫</div>
+          <h3>Schools &amp; Fundraisers</h3>
+          <p>Run a clean, professional bracket without expensive bracket software or a spreadsheet nobody can read.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Screenshot Gallery ── -->
+  <section class="gallery" id="gallery" aria-label="Screenshots">
+    <div class="container">
+      <h2 class="section-title">See it in action</h2>
+      <p class="section-sub">
+        Screenshots coming soon —
+        <!-- TODO: Replace href="#" with your live demo tournament URL -->
+        <a href="#" class="link-gold">try the live demo</a> to see the real thing.
+      </p>
+      <div class="gallery-grid">
+
+        <div class="screenshot-placeholder phone reveal" aria-label="Screenshot placeholder: Mobile bracket view">
+          <div class="ph-frame phone-frame">
+            <div class="ph-screen">
+              <div class="ph-content">
+                <span class="ph-icon" aria-hidden="true">📱</span>
+                <p class="ph-label">Mobile bracket view</p>
+                <p class="ph-caption">"Follow the whole bracket from your phone."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="screenshot-placeholder phone highlight reveal" aria-label="Screenshot placeholder: Live game card">
+          <div class="ph-frame phone-frame">
+            <div class="ph-screen">
+              <div class="ph-content">
+                <span class="ph-icon live-pulse" aria-hidden="true">●</span>
+                <p class="ph-label">Live game card</p>
+                <p class="ph-caption">"Live scores update in real time."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="screenshot-placeholder desktop reveal" aria-label="Screenshot placeholder: Desktop full bracket">
+          <div class="ph-frame desktop-frame">
+            <div class="ph-screen">
+              <div class="ph-content">
+                <span class="ph-icon" aria-hidden="true">🖥️</span>
+                <p class="ph-label">Desktop full bracket</p>
+                <p class="ph-caption">"The big-screen view for the venue."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="screenshot-placeholder phone reveal" aria-label="Screenshot placeholder: Schedule view">
+          <div class="ph-frame phone-frame">
+            <div class="ph-screen">
+              <div class="ph-content">
+                <span class="ph-icon" aria-hidden="true">📅</span>
+                <p class="ph-label">Schedule view</p>
+                <p class="ph-caption">"Every game, sorted by time and field."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="screenshot-placeholder phone reveal" aria-label="Screenshot placeholder: Team Path view">
+          <div class="ph-frame phone-frame">
+            <div class="ph-screen">
+              <div class="ph-content">
+                <span class="ph-icon" aria-hidden="true">🛤️</span>
+                <p class="ph-label">Team Path view</p>
+                <p class="ph-caption">"See your team's road to the title — shareable by link."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="screenshot-placeholder phone reveal" aria-label="Screenshot placeholder: Challenge leaderboard">
+          <div class="ph-frame phone-frame">
+            <div class="ph-screen">
+              <div class="ph-content">
+                <span class="ph-icon" aria-hidden="true">🏅</span>
+                <p class="ph-label">Challenge leaderboard</p>
+                <p class="ph-caption">"Keep fans engaged with a pick-'em leaderboard."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="screenshot-placeholder desktop reveal" aria-label="Screenshot placeholder: Admin panel">
+          <div class="ph-frame desktop-frame">
+            <div class="ph-screen">
+              <div class="ph-content">
+                <span class="ph-icon" aria-hidden="true">⚙️</span>
+                <p class="ph-label">Admin panel</p>
+                <p class="ph-caption">"Run it all from one simple panel."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="screenshot-placeholder desktop reveal" aria-label="Screenshot placeholder: Light and dark themes">
+          <div class="ph-frame desktop-frame">
+            <div class="ph-screen">
+              <div class="ph-content">
+                <span class="ph-icon" aria-hidden="true">🌙</span>
+                <p class="ph-label">Light &amp; dark themes</p>
+                <p class="ph-caption">"Looks great day or night."</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="faq" id="faq" aria-label="Frequently asked questions">
+    <div class="container">
+      <h2 class="section-title">Common questions</h2>
+      <div class="faq-list">
+
+        <details class="faq-item reveal">
+          <summary>Do people need to download an app?</summary>
+          <p>
+            No — TournaTrak is a website. Anyone can open the link in any browser,
+            on any phone or laptop. If you want the full app feel, you can optionally
+            add it to your home screen in one tap and it opens full-screen like a
+            native app.
+          </p>
+        </details>
+
+        <details class="faq-item reveal">
+          <summary>Does it cost money per player or per team?</summary>
+          <p>
+            No per-seat pricing — it's a single app for your whole event.
+            Teams, families, and fans all use the same link.
+            <a href="#contact" class="link-gold">Reach out</a> to talk through
+            what works for your tournament.
+          </p>
+        </details>
+
+        <details class="faq-item reveal">
+          <summary>What sports does it support?</summary>
+          <p>
+            TournaTrak is built around double-elimination brackets.
+            The scoring-period label is fully configurable — Inning, Quarter, Half,
+            Period, Set — so it fits softball, baseball, basketball, soccer,
+            volleyball, hockey, and more.
+          </p>
+        </details>
+
+        <details class="faq-item reveal">
+          <summary>Can fans see live scores?</summary>
+          <p>
+            Yes. Games in progress show a pulsing
+            <span class="live-dot" aria-label="live">●</span> LIVE indicator with
+            the current score and inning/period right on the bracket card. The score
+            updates in real time — no refresh needed.
+          </p>
+        </details>
+
+        <details class="faq-item reveal">
+          <summary>Can I let a scorekeeper update scores without giving them full admin access?</summary>
+          <p>
+            Yes — TournaTrak has separate roles for full admins, scorekeepers,
+            coaches, and leaderboard editors, so you can delegate exactly the right
+            level of access to each person.
+          </p>
+        </details>
+
+        <details class="faq-item reveal">
+          <summary>Will it work at the field with bad signal?</summary>
+          <p>
+            It's built to be resilient on spotty tournament-field Wi-Fi and cell.
+            TournaTrak is designed to keep showing the latest data it has and recover
+            gracefully when the connection drops.
+          </p>
+        </details>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Contact (understated) ── -->
+  <section class="contact" id="contact" aria-label="Contact">
+    <div class="container">
+      <div class="contact-inner">
+        <h2>Interested in TournaTrak for your next event?</h2>
+        <p>
+          TournaTrak is in active development. If you'd like to use it for an
+          upcoming tournament, get in touch — we'd love to set it up with you.
+        </p>
+        <!-- TODO: Replace href below with your actual contact email, e.g. mailto:you@example.com -->
+        <a href="mailto:YOUR@EMAIL.COM" class="btn btn-outline">Get in touch</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ── -->
+  <footer class="footer" aria-label="Site footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <img src="icons/tournatrak.svg" alt="TournaTrak" class="footer-logo" width="24" height="24">
+        <span>TournaTrak</span>
+      </div>
+      <p class="footer-copy">&copy; 2026 TournaTrak. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
