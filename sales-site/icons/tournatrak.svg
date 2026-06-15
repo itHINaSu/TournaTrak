@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%"   stop-color="#e8c050"/>
+      <stop offset="60%"  stop-color="#c9a227"/>
+      <stop offset="100%" stop-color="#a07820"/>
+    </linearGradient>
+    <linearGradient id="goldBorder" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#e8c050"/>
+      <stop offset="100%" stop-color="#c9a227"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background: dark rounded square -->
+  <rect width="512" height="512" rx="96" fill="#0d0f12"/>
+
+  <!-- Gold border -->
+  <rect x="8" y="8" width="496" height="496" rx="90" fill="none"
+        stroke="url(#goldBorder)" stroke-width="10"/>
+
+  <!-- ── "T" lettermark (geometric path, renders consistently everywhere) ── -->
+  <!--   Horizontal bar: x 186–326, y 62–96 (width 140, height 34)          -->
+  <!--   Vertical stem:  x 230–282, y 62–202 (width 52, height 140)         -->
+  <path d="M 186,62 L 326,62 L 326,96 L 282,96 L 282,202 L 230,202 L 230,96 L 186,96 Z"
+        fill="url(#gold)"/>
+
+  <!-- ── "TournaTrak" wordmark ── -->
+  <text x="256" y="238"
+        font-family="Arial, Helvetica, sans-serif"
+        font-size="40"
+        font-weight="700"
+        fill="#c9a227"
+        text-anchor="middle"
+        letter-spacing="1">TournaTrak</text>
+
+  <!-- ══════════════════════════════════════════
+       VALID 4-TEAM SINGLE-ELIMINATION BRACKET
+       Structure: 4 teams → 2 matches → 1 final → trophy
+       Each match pairs exactly 2 teams (power-of-2 tree)
+       ══════════════════════════════════════════ -->
+
+  <!-- Round 1 — Team 1 (top) -->
+  <line x1="36"  y1="268" x2="162" y2="268" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
+  <!-- Round 1 — Team 2 -->
+  <line x1="36"  y1="316" x2="162" y2="316" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
+  <!-- Match 1 vertical connector -->
+  <line x1="162" y1="268" x2="162" y2="316" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
+  <!-- Match 1 output (midpoint y=292) -->
+  <line x1="162" y1="292" x2="270" y2="292" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- Round 1 — Team 3 (bottom) -->
+  <line x1="36"  y1="384" x2="162" y2="384" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
+  <!-- Round 1 — Team 4 -->
+  <line x1="36"  y1="432" x2="162" y2="432" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
+  <!-- Match 2 vertical connector -->
+  <line x1="162" y1="384" x2="162" y2="432" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
+  <!-- Match 2 output (midpoint y=408) -->
+  <line x1="162" y1="408" x2="270" y2="408" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- Finals: vertical connector between match outputs (y=292 to y=408) -->
+  <line x1="270" y1="292" x2="270" y2="408" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
+  <!-- Finals output (midpoint y=350) → enters left edge of trophy cup -->
+  <line x1="270" y1="350" x2="372" y2="350" stroke="#c9a227" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- ══════════════════════════════════════════
+       TROPHY (centered at x≈420, y≈350)
+       Cup: x 372–468, y 312–388
+       Line enters at (372, 350) — cup mid-height ✓
+       ══════════════════════════════════════════ -->
+
+  <!-- Trophy cup body — quadratic bezier bottom for smooth U-shape -->
+  <path d="M 372,312 L 372,350 Q 372,388 420,388 Q 468,388 468,350 L 468,312 Z"
+        fill="url(#gold)"/>
+
+  <!-- Left handle — C-curve; stroke blends with cup edge visually -->
+  <path d="M 378,325 Q 352,325 352,348 Q 352,370 378,370"
+        fill="none" stroke="#c9a227" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Right handle -->
+  <path d="M 462,325 Q 488,325 488,348 Q 488,370 462,370"
+        fill="none" stroke="#c9a227" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Stem -->
+  <rect x="414" y="388" width="12" height="22" fill="#c9a227" rx="2"/>
+
+  <!-- Base -->
+  <rect x="396" y="410" width="48" height="12" fill="#c9a227" rx="4"/>
+</svg>
