@@ -1424,6 +1424,11 @@ function renderMobileBracket(root, dims) {
   // anchored[gid]: at least one feeder lives in the adjacent column, so the
   // card's converged position is meaningful and must not be displaced.
   var anchored = {};
+  // selfFed[gid]: at least one feeder lives in this SAME column (combined /
+  // absorbed rounds — e.g. a round-4 game derived from a round-3 game sharing
+  // its column). Such a card has no feeder line from the previous column, so
+  // it should hide in lateY like a wave-split play-in card.
+  var selfFed = {};
   cols.forEach(function(col, ri) {
     col.gids.forEach(function(gid) {
       var selfY = earlyY[gid] !== undefined ? earlyY[gid] : 0;
@@ -1440,6 +1445,10 @@ function renderMobileBracket(root, dims) {
         if (srcGid && colOfGid[srcGid] === ri - 1 && earlyY[srcGid] !== undefined) {
           feeders.push(earlyY[srcGid]);
           anchored[gid] = true;
+        } else if (srcGid && colOfGid[srcGid] === ri) {
+          // Feeder shares this column (combined/absorbed round): no converging
+          // line from the previous column — mark for lateY hide.
+          selfFed[gid] = true;
         } else if (slot.type === 'winner' && srcGid
                    && colOfGid[srcGid] !== undefined && colOfGid[srcGid] < ri - 1) {
           // Winner byeing through from a farther-back column: its line runs
@@ -1503,6 +1512,10 @@ function renderMobileBracket(root, dims) {
       card.style.top = ey + 'px';
       card.dataset.lateOffset = (ly - ey).toFixed(1);
       card.dataset.prevOffset = (prevOffset[gid] || 0).toFixed(1);
+      // Hide same-column-fed cards in lateY (no converging line from the
+      // previous column), matching wave-split play-in behavior. Cards that
+      // also have a real previous-column feeder keep their converging line.
+      if (selfFed[gid] && !anchored[gid]) card.dataset.playin = '1';
     });
   });
 
