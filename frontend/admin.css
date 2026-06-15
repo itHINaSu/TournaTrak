@@ -756,12 +756,6 @@ input[type="time"]:focus {
   border-color: var(--gold-lt);
   box-shadow: 0 0 0 1.5px var(--gold-lt), 0 2px 12px rgba(196,154,26,0.18);
 }
-.admin-live-period-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5em;
-  margin-bottom: 0.55em;
-}
 .admin-live-badge {
   font-size: 0.7rem;
   font-weight: 700;
@@ -770,20 +764,24 @@ input[type="time"]:focus {
   flex-shrink: 0;
 }
 .admin-live-period-lbl {
-  font-size: 0.78rem;
+  font-size: 0.9rem;
+  font-weight: 600;
   color: var(--text-dim);
-  flex-shrink: 0;
+  flex: 1;
+  margin-left: 0.4em;
 }
 .admin-period-inp {
-  width: 3.5em;
+  width: 4.8em;
   text-align: center;
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0.25em 0.4em;
-  border: 1px solid var(--border);
-  border-radius: 0.4em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 0.2em 0.4em;
+  border: 0.07em solid var(--border);
+  border-radius: 0.2em;
   background: var(--surface2);
   color: var(--text);
+  flex-shrink: 0;
 }
 .admin-live-update-btn {
   background: var(--gold-dk);

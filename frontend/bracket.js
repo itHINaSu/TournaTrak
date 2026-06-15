@@ -1028,16 +1028,17 @@ function roundCardHTML(gid) {
     + '<div class="round-game-header">'
     + '<span class="round-game-id">' + esc(gameLabel(gid)) + '</span>'
     + fieldTagHTML(gid)
+    + liveBadgeHTML(gid)
     + '<div class="round-game-day-time">'
     + (dateStr ? '<span class="round-game-day">'  + esc(dateStr) + '</span>' : '')
     + (dowStr  ? '<span class="round-game-dow">'  + esc(dowStr)  + '</span>' : '')
     + (timeStr ? '<span class="round-game-time">' + esc(timeStr) + '</span>' : '')
     + '</div></div>'
     + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
-    + scoreHTML(r.t1score)
+    + (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid, 1))
     + '</div>'
     + '<div class="round-team-row"><span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
-    + scoreHTML(r.t2score)
+    + (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid, 2))
     + '</div>'
     + '</div>';
 }

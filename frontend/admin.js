@@ -339,31 +339,31 @@ function renderAdmin() {
       var s1 = ls.t1score !== '' ? ls.t1score : '';
       var s2 = ls.t2score !== '' ? ls.t2score : '';
       return '<div class="admin-res-card admin-res-card--live">' + hdr
-        + '<div class="admin-live-period-row">'
+        + '<div class="admin-res-team-row">'
         + '<span class="admin-live-badge">● LIVE</span>'
         + '<span class="admin-live-period-lbl">' + esc(periodLbl) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-period-inp" id="per-' + sid + '" value="' + esc(String(ls.period)) + '" placeholder="#">'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-period-inp" id="per-' + sid + '" value="' + esc(String(ls.period)) + '" placeholder="#" onfocus="this.select()">'
         + '</div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" value="' + esc(String(s1)) + '" placeholder="Score"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" value="' + esc(String(s1)) + '" placeholder="Score" onfocus="this.select()"></div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" value="' + esc(String(s2)) + '" placeholder="Score"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" value="' + esc(String(s2)) + '" placeholder="Score" onfocus="this.select()"></div>'
         + '<div class="admin-res-footer">'
-        + '<button class="admin-live-update-btn" onclick="updateLive(\'' + sid + '\')">Update</button>'
-        + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
         + '<button class="admin-clear-btn" onclick="endLive(\'' + sid + '\')">Cancel</button>'
+        + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
+        + '<button class="admin-live-update-btn" onclick="updateLive(\'' + sid + '\')">Update</button>'
         + '</div></div>';
     }
 
     if (both) {
       return '<div class="admin-res-card upcoming">' + hdr
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" placeholder="Score"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" placeholder="Score" onfocus="this.select()"></div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" placeholder="Score"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" placeholder="Score" onfocus="this.select()"></div>'
         + '<div class="admin-res-footer">'
-        + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
         + '<button class="admin-live-start-btn" onclick="startLive(\'' + sid + '\')">▶ Live</button>'
+        + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
         + '</div></div>';
     }
 
