@@ -2,7 +2,7 @@
 // ══════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════
-var results={}, schedule={}, settings={}, buckets={};
+var results={}, schedule={}, settings={}, buckets={}, liveScores={};
 var _sessionRole = null;
 var _bucketEditMode = false;
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -316,17 +316,19 @@ var _fetchFingerprint = '';
 async function fetchAll(){
   var rawTexts;
   try{
-    var [rr,sr,str,br]=await Promise.all([
+    var [rr,sr,str,br,lr]=await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
       fetch('/api/buckets'),
+      fetch('/api/live'),
     ]);
-    rawTexts = await Promise.all([rr.text(), sr.text(), str.text(), br.ok ? br.text() : Promise.resolve('')]);
+    rawTexts = await Promise.all([rr.text(), sr.text(), str.text(), br.ok ? br.text() : Promise.resolve(''), lr.ok ? lr.text() : Promise.resolve('{}')]);
     results=JSON.parse(rawTexts[0]); schedule=JSON.parse(rawTexts[1]); settings=JSON.parse(rawTexts[2]);
     buckets=br.ok ? JSON.parse(rawTexts[3]) : {};
+    liveScores=JSON.parse(rawTexts[4]);
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; buckets={}; rawTexts=null; }
+  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; rawTexts=null; }
   applySettings();
   updateTimestamp();
   populateTeamSelect();
@@ -543,6 +545,21 @@ function scoreHTML(score) {
   return '<span class="game-score">' + n + '</span>';
 }
 
+function liveScoreHTML(sid, which) {
+  var ls = liveScores[sid];
+  if (!ls) return '';
+  var val = which === 1 ? ls.t1score : ls.t2score;
+  if (val === null || val === undefined || val === '') return '';
+  return '<span class="game-score live-score">' + val + '</span>';
+}
+
+function liveBadgeHTML(sid) {
+  var ls = liveScores[sid];
+  if (!ls) return '';
+  var period = ls.period ? ls.period : '';
+  return '<span class="live-badge">● LIVE' + (period ? ' · ' + esc(period) : '') + '</span>';
+}
+
 // ── Field tag shrink ──────────────────────────────────────────────────
 // Bracket cards have tight headers; when the label + field tag + day/time
 // don't all fit, abbreviate the field to its first letter (full name stays
@@ -594,8 +611,9 @@ function cardHTML(gid){
     +fieldTagHTML(gid)
     +(isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>')
     +'</div>'
-    +'<div class="bc-team '+c1+'"><span class="bc-name">'+esc(t1.name)+'</span>'+scoreHTML(r.t1score)+'</div>'
-    +'<div class="bc-team '+c2+'"><span class="bc-name">'+esc(t2.name)+'</span>'+scoreHTML(r.t2score)+'</div>';
+    +(liveScores[gid] && !r.winner ? '<span class="bc-live-badge">● LIVE</span>' : '')
+    +'<div class="bc-team '+c1+'"><span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
+    +'<div class="bc-team '+c2+'"><span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1940,11 +1958,12 @@ function renderRoundView() {
         +(timeStr?'<span class="round-game-time">'+esc(timeStr)+'</span>':'')
         +'</div></div>'
         + champ2NoteHTML
+        + liveBadgeHTML(sid)
         +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
-        +scoreHTML(r.t1score)
+        +(r.winner ? scoreHTML(r.t1score) : liveScoreHTML(sid,1))
         +'</div>'
         +'<div class="round-team-row"><span class="round-team-name '+c2+'">'+esc(t2.name)+'</span>'
-        +scoreHTML(r.t2score)
+        +(r.winner ? scoreHTML(r.t2score) : liveScoreHTML(sid,2))
         +'</div></div>';
     });
     html += '</div></div>'; // close round-games-grid + round-section
@@ -1960,7 +1979,19 @@ function renderRoundView() {
 // TEAM VIEW
 // ══════════════════════════════════════════════════════════
 var teamSel=document.getElementById('teamSelect');
-teamSel.addEventListener('change',function(){ setCookie('tt_team', teamSel.value); renderTeamView(); updateShareBtn(); });
+teamSel.addEventListener('change',function(){
+  setCookie('tt_team', teamSel.value);
+  var team = teamSel.value;
+  var url = team
+    ? window.location.pathname + '?team=' + encodeURIComponent(team)
+    : window.location.pathname;
+  history.replaceState(null, '', url);
+  renderTeamView();
+  updateShareBtn();
+  var panel = document.getElementById('view-teampath');
+  if (panel) panel.scrollTop = 0;
+  if (window.innerWidth >= 1024) window.scrollTo(0, 0);
+});
 
 var _shareBtn = document.getElementById('teamShareBtn');
 function updateShareBtn() {
@@ -2133,13 +2164,14 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       + '</div>'
       + '<span class="round-game-id" style="margin-left:auto;flex-shrink:0">' + esc(gameLabel(gid)) + '</span>'
       + '</div>'
+      + liveBadgeHTML(gid)
       + '<div class="round-team-row">'
       + '<span class="round-team-name ' + c1 + '">' + t1html + '</span>'
-      + scoreHTML(r.t1score)
+      + (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
       + '</div>'
       + '<div class="round-team-row">'
       + '<span class="round-team-name ' + c2 + '">' + t2html + '</span>'
-      + scoreHTML(r.t2score)
+      + (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
       + '</div>'
       + '</div>'
       + loseSide
@@ -2213,7 +2245,12 @@ function renderTeamView(){
       btn.addEventListener('click', function(){
         teamSel.value = btn.dataset.team;
         setCookie('tt_team', btn.dataset.team);
+        history.replaceState(null, '', window.location.pathname + '?team=' + encodeURIComponent(btn.dataset.team));
         renderTeamView();
+        updateShareBtn();
+        var panel = document.getElementById('view-teampath');
+        if (panel) panel.scrollTop = 0;
+        if (window.innerWidth >= 1024) window.scrollTo(0, 0);
       });
     });
     return;

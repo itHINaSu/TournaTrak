@@ -10,6 +10,7 @@ const SETTINGS_FILE = '/data/settings.json';
 const USERS_FILE    = '/data/users.json';
 const LINEUPS_FILE  = '/data/lineups.json';
 const BUCKETS_FILE  = '/data/buckets.json';
+const LIVE_FILE     = '/data/live.json';
 
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
 
@@ -143,6 +144,7 @@ function ensureDataFiles() {
     [SETTINGS_FILE]: {},
     [LINEUPS_FILE]:  {},
     [BUCKETS_FILE]:  { counts: {}, bucketOnlyTeams: [] },
+    [LIVE_FILE]:     {},
   };
 
   Object.entries(defaults).forEach(([file, empty]) => {
@@ -594,6 +596,9 @@ app.post('/api/results', requireResults, (req, res) => {
   if (t2score !== undefined && t2score !== null && t2score !== '') entry.t2score = parseInt(t2score, 10);
   data[game] = entry;
   writeJSON(RESULTS_FILE, data);
+  // Clear live state for this game now that a final result exists
+  const liveData = readJSON(LIVE_FILE);
+  if (liveData[game]) { delete liveData[game]; writeJSON(LIVE_FILE, liveData); }
   res.json({ ok: true });
 });
 
@@ -610,6 +615,30 @@ app.delete('/api/results/:slot', requireResults, (req, res) => {
   }
   data[game] = { winner: null, loser: null };
   writeJSON(RESULTS_FILE, data);
+  res.json({ ok: true });
+});
+
+// ── Live game scores ──────────────────────────────────────────────────
+app.get('/api/live', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(readJSON(LIVE_FILE));
+});
+
+app.post('/api/live', requireResults, (req, res) => {
+  const { game, period, t1score, t2score } = req.body || {};
+  if (!game || !isValidSlotId(game)) return res.status(400).json({ error: 'invalid slot ID' });
+  const data = readJSON(LIVE_FILE);
+  data[game] = { period: period || '', t1score: t1score ?? '', t2score: t2score ?? '' };
+  writeJSON(LIVE_FILE, data);
+  res.json({ ok: true });
+});
+
+app.delete('/api/live/:slot', requireResults, (req, res) => {
+  const game = req.params.slot;
+  if (!isValidSlotId(game)) return res.status(400).json({ error: 'invalid slot ID' });
+  const data = readJSON(LIVE_FILE);
+  delete data[game];
+  writeJSON(LIVE_FILE, data);
   res.json({ ok: true });
 });
 

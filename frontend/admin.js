@@ -159,16 +159,19 @@ function showToast(msg, err) {
 // ── Fetch ──────────────────────────────────────────────────────────────
 async function fetchAll() {
   try {
-    var [rr, sr, str, br] = await Promise.all([
+    var [rr, sr, str, br, lr] = await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
       fetch('/api/buckets'),
+      fetch('/api/live'),
     ]);
     results  = await rr.json();
     schedule = await sr.json();
     settings = await str.json();
     buckets  = br.ok ? await br.json() : {};
+    var liveFromServer = lr.ok ? await lr.json() : {};
+    Object.assign(_liveGames, liveFromServer);
     if (typeof applySchedule === 'function') applySchedule(schedule);
   } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; }
   applySettingsToPage();
@@ -383,11 +386,9 @@ function renderAdmin() {
 function startLive(sid) {
   _liveGames[sid] = { period: '1', t1score: '', t2score: '' };
   renderAdmin();
-  // Focus period input
-  setTimeout(function() {
-    var el = document.getElementById('per-' + sid);
-    if (el) el.focus();
-  }, 50);
+  setTimeout(function() { var el = document.getElementById('per-' + sid); if (el) el.focus(); }, 50);
+  apiFetch('/api/live', { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ game: sid, period: '1', t1score: '', t2score: '' }) });
 }
 
 function updateLive(sid) {
@@ -400,11 +401,15 @@ function updateLive(sid) {
     t2score:  sc2el  ? sc2el.value  : _liveGames[sid].t2score,
   };
   renderAdmin();
+  var ls = _liveGames[sid];
+  apiFetch('/api/live', { method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ game: sid, period: ls.period, t1score: ls.t1score, t2score: ls.t2score }) });
 }
 
 function endLive(sid) {
   delete _liveGames[sid];
   renderAdmin();
+  apiFetch('/api/live/' + sid, { method: 'DELETE' });
 }
 
 async function saveResult(sid) {
