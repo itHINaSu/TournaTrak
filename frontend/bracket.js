@@ -2072,11 +2072,15 @@ teamSel.addEventListener('change',function(){
   scrollTeamPathTop();
 });
 
-// Scroll the team path back to the top. Desktop scrolls the window; mobile
-// may scroll the panel, so reset both.
+// Scroll the team path back to the top when a new team is selected. Mobile
+// scrolls the inner .team-panel (#teamOut) via overflow-y; desktop scrolls
+// the window. Reset all of them so switching teams always lands at the top
+// (the Win path bar) instead of inheriting the previous team's scroll spot.
 function scrollTeamPathTop() {
   var panel = document.getElementById('view-teampath');
   if (panel) panel.scrollTop = 0;
+  var teamOut = document.getElementById('teamOut'); // mobile scroll container
+  if (teamOut) teamOut.scrollTop = 0;
   window.scrollTo(0, 0);
   if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
 }
