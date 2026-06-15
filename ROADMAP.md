@@ -2,13 +2,36 @@
 
 ## Current version: v2 (main branch)
 Single-tournament, JSON-file storage, all features listed in README.
-Live scoring (v2.08) is the most recently completed feature.
+Recent completed work (post-live-scoring): live-card color swap (scores
+blue / inning gold), configurable date & day formats (show/hide + short/long),
+field-tag layout fix, configurable default landing tab (mobile/desktop scope),
+and a mobile-bracket lateY hide for same-column-fed cards. SW cache at v2.12.
+
+---
+
+## ⚠️ Rectify before starting v3
+
+Temporary/working-state changes on `main` that must be cleaned up first:
+
+- **`.gitignore`** — `files/results.json` and `files/schedule.json` were
+  temporarily un-ignored for development inspection of the real bracket
+  build-out. **Re-add both to `.gitignore` and remove the committed data
+  files** before going public or branching v3 (live results/secrets must not
+  ship in the repo). The other runtime files (buckets, lineups, settings,
+  users) remain ignored.
 
 ---
 
 ## v3 — Multi-tournament + Postgres
 
-**Branch:** `feature/regional` (parked — branched from old `dev`, lacks all recent `main` changes)
+**Branch:** `feature/regional` (parked Postgres / multi-tournament prototype)
+- Branched from old `dev` **before** the entire v2 feature wave, so it lacks
+  all recent `main` work.
+- Authoritative Postgres prototype — read it before designing the v3 schema,
+  but do NOT branch v3 directly from it; reconcile against `main` first
+  (see Reconciliation plan below).
+- Do not push to `feature/regional` from normal v2 sessions; it is touched
+  only when v3 work formally begins.
 
 ### Goals
 - Replace JSON-file persistence with **PostgreSQL**
@@ -16,14 +39,27 @@ Live scoring (v2.08) is the most recently completed feature.
 - Each tournament has its own bracket, schedule, results, settings, and users
 - URL structure something like `/t/:tournamentSlug/` for public views, `/admin?t=slug` or sub-routes for admin
 - Super-admin role to create/manage tournaments; existing roles (results, coach, team) scope to a tournament
+- **Path-based tab routing** (`/bracket`, `/schedule`, `/teampath`, `/buckets`)
+  with server-side SPA fallback — the clean-URL version of deep-linking.
+  Deferred from v2 (which kept cookie-based tabs + the configurable default
+  landing tab); fits naturally alongside the multi-tournament URL redesign.
 
 ### What's already built (feature/regional)
 - Postgres schema and migration scripts exist on that branch
 - API routes were partially rewritten to use pg instead of JSON files
-- The branch does NOT have: live scoring, the new button/card styles, LIVE indicator, shareable team links, uniform admin result card layout, or any other v2 changes post-branching
+- The branch does NOT have any of the v2 feature wave, including: live
+  scoring + LIVE indicator, live-card color scheme, the new button/card
+  styles, shareable team links, uniform admin result card layout, configurable
+  date/day formats, the configurable default landing tab, the field-tag layout
+  fix, and the mobile-bracket lateY hide for same-column-fed cards.
+- It also predates the settings system additions (periodLabel, showDate,
+  showDay, dateFormat, dayFormat, defaultTab, defaultTabScope, playInLabel,
+  showSideDividers) — reconcile `SETTINGS_DEFAULTS` across server/admin/bracket.
 
 ### Reconciliation plan
 When starting v3:
+0. First clear the "⚠️ Rectify before starting v3" items above (restore
+   `.gitignore`, remove committed data files).
 1. Rebase or cherry-pick all `main` changes onto `feature/regional` (or start fresh from `main` and re-apply the Postgres migration)
 2. Resolve conflicts carefully — the JSON persistence layer is touched in many places
 3. Design the multi-tournament data model before touching UI routing
