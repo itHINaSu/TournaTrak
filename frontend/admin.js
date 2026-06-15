@@ -352,7 +352,7 @@ function renderAdmin() {
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
         + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" value="' + esc(String(s2)) + '" placeholder="Score" onfocus="this.select()"></div>'
         + '<div class="admin-res-footer">'
-        + '<button class="admin-clear-btn" onclick="endLive(\'' + sid + '\')">Cancel</button>'
+        + '<button class="admin-clear-btn" onclick="endLive(\'' + sid + '\')">Clear</button>'
         + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
         + '<button class="admin-live-update-btn" onclick="updateLive(\'' + sid + '\')">Update</button>'
         + '</div></div>';

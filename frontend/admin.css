@@ -791,8 +791,8 @@ input[type="time"]:focus {
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: 0.5em 1.05em;
-  min-height: 2.5em;
+  padding: 0 1.05em;
+  height: 2.6em;                       /* fixed height so glyphs/labels can't change box size */
   border-radius: var(--radius-xs);
   border: 0.09em solid transparent;   /* every button has a border so box heights match */
   box-sizing: border-box;
@@ -809,12 +809,12 @@ input[type="time"]:focus {
 /* Final — solid blue */
 .admin-res-footer .admin-save-btn { background: var(--blue); color: #fff; border-color: var(--blue); }
 .admin-res-footer .admin-save-btn:hover { background: var(--blue-lt); border-color: var(--blue-lt); }
-/* Update — solid gold with a lighter edge so it reads as a button in every theme */
-.admin-res-footer .admin-live-update-btn { background: var(--gold-dk); color: #fff; border-color: var(--gold-lt); }
-.admin-res-footer .admin-live-update-btn:hover { background: var(--gold-lt); border-color: var(--gold-lt); }
+/* Update — outline green */
+.admin-res-footer .admin-live-update-btn { background: transparent; color: var(--win-color); border-color: var(--win-color); }
+.admin-res-footer .admin-live-update-btn:hover { background: rgba(74,154,74,0.12); }
 /* ▶ Live — outline gold */
 .admin-res-footer .admin-live-start-btn { background: transparent; color: var(--gold-lt); border-color: var(--gold-lt); }
 .admin-res-footer .admin-live-start-btn:hover { background: rgba(196,154,26,0.12); }
 @media (pointer: coarse) {
-  .admin-res-footer button { min-height: 2.75rem; }
+  .admin-res-footer button { height: 2.85rem; }
 }
