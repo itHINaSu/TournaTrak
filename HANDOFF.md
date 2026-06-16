@@ -146,16 +146,25 @@ TODOs in index.html: demo URL (`href="#"`) and contact email (`mailto:YOUR@EMAIL
 
 ## Current state
 `main` clean and pushed. **SW cache at `tournatrak-v2.15`.**
-Recent work this session: live-card color swap (scores blue / inning gold), date &
-day format settings, field-tag layout fix, configurable default landing tab, mobile
-lateY hide for same-column-fed cards, team-path pill affordance, team-path
-open-at-top + scroll-container reset fix, `ROADMAP.md`, `SALES_SITE_BRIEF.md`,
-`sales-site/` marketing site with real screenshots, `RECOMMENDATION.md` code review.
+Recent work: live-card color swap (scores blue / inning gold), date & day format
+settings, field-tag layout fix, configurable default landing tab, mobile lateY hide
+for same-column-fed cards, team-path pill affordance, team-path open-at-top +
+scroll-container reset fix, `ROADMAP.md`, `SALES_SITE_BRIEF.md`, `sales-site/`
+marketing site with real screenshots, doc cleanup (removed RECOMMENDATION.md and
+SESSION_CONTEXT.md), CSP added to sales-site nginx, README rewrite.
 
-⚠️ **Rectify before going public / starting v3:** `.gitignore` currently
-un-ignores `files/results.json` + `files/schedule.json` (temporary, for dev
-inspection of the real bracket). Re-add both and remove committed data files
-before publishing. (Tracked in `ROADMAP.md`.)
+**`.gitignore`:** `files/results.json` and `files/schedule.json` are currently
+gitignored (standard). During active development they may be temporarily un-ignored
+for bracket inspection — re-add them before any public push or v3 branch.
+(See ROADMAP.md pre-v3 checklist.)
+
+## Security items deferred to v2 cleanup / v3
+Two medium-effort security improvements are not yet done — see ROADMAP.md:
+- **`unsafe-inline` in main app CSP** — requires moving all inline `<script>` /
+  `<style>` blocks in HTML files to external files before the CSP can be tightened.
+- **Rate limiter + session store persistence** — both are in-memory; a container
+  restart clears them. Low actual risk for a single low-traffic instance but worth
+  fixing before scaling.
 
 ## Cost / workflow notes (user preferences)
 - Use the lowest-cost model that fits the task; flag when a fresh chat would be

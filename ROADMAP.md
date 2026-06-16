@@ -11,14 +11,27 @@ and a mobile-bracket lateY hide for same-column-fed cards. SW cache at v2.12.
 
 ## ⚠️ Rectify before starting v3
 
-Temporary/working-state changes on `main` that must be cleaned up first:
+Items that must be addressed before branching v3 or going fully public:
 
-- **`.gitignore`** — `files/results.json` and `files/schedule.json` were
-  temporarily un-ignored for development inspection of the real bracket
-  build-out. **Re-add both to `.gitignore` and remove the committed data
-  files** before going public or branching v3 (live results/secrets must not
-  ship in the repo). The other runtime files (buckets, lineups, settings,
-  users) remain ignored.
+- **`.gitignore`** — `files/results.json` and `files/schedule.json` may be
+  temporarily un-ignored during active development for bracket inspection.
+  Confirm both are gitignored (and not committed) before any public deployment
+  or v3 branch. The other runtime files (buckets, lineups, settings, users)
+  remain ignored.
+
+- **`unsafe-inline` in main app CSP** (`nginx/nginx.conf`) — `script-src` and
+  `style-src` both allow `'unsafe-inline'`, which weakens XSS protection. Fix
+  requires moving all inline `<script>` and `<style>` blocks in the HTML files
+  to external `.js`/`.css` files, then tightening the CSP to `'self'` only.
+  Medium refactor; track for v2 cleanup before public exposure.
+
+- **Rate limiter + session store persistence** (`api/server.js`) — the login
+  rate limiter (`loginAttempts` Map) and Express session store (MemoryStore) are
+  both in-memory and reset on container restart. For the current single-instance
+  low-traffic use case the risk is low, but should be addressed before any
+  public-facing deployment at scale. Fix: file- or Redis-backed rate limiter and
+  session store (e.g. `rate-limit-redis`, `connect-redis`, or
+  `better-sqlite3-session-store`).
 
 ---
 
