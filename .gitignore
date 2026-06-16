@@ -1,4 +1,7 @@
 # Runtime data — never commit live results or secrets
+files/live.json
+files/results.json
+files/schedule.json
 files/buckets.json
 files/lineups.json
 files/live.json
