@@ -28,8 +28,9 @@ const SETTINGS_DEFAULTS = {
   showDay:          'true',
   dateFormat:       'short',
   dayFormat:        'long',
-  defaultTab:       'bracket',
-  defaultTabScope:  'both',
+  defaultTab:           'bracket',
+  defaultTabScope:      'both',
+  defaultScheduleGroup: 'day',
 };
 
 const VALID_ROLES = ['admin', 'results', 'team', 'buckets'];

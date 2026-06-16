@@ -282,6 +282,38 @@
   flex-shrink: 0;
   font-weight: 600;
 }
+
+/* ── Schedule grouping pills ── */
+.group-pills {
+  display: flex;
+  gap: 0.5em;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.group-pill {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.55em 1.5em;
+  border-radius: var(--radius-sm);
+  border: 0.1em solid var(--blue);
+  background: var(--surface2);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  line-height: 1;
+}
+.group-pill.active {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+.group-pill:hover:not(.active) {
+  color: var(--blue-lt);
+  border-color: var(--blue-lt);
+}
 select.styled {
   font-family: 'Barlow', sans-serif;
   font-size: var(--text-lg);

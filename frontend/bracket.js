@@ -5,6 +5,7 @@
 var results={}, schedule={}, settings={}, buckets={}, liveScores={};
 var _sessionRole = null;
 var _bucketEditMode = false;
+var scheduleMode = null; // null = uninitialised; set from settings on first render
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 var SETTING_DEFAULTS = {
@@ -21,8 +22,9 @@ var SETTING_DEFAULTS = {
   showDay:          'true',
   dateFormat:       'short',
   dayFormat:        'long',
-  defaultTab:       'bracket',
-  defaultTabScope:  'both',
+  defaultTab:          'bracket',
+  defaultTabScope:     'both',
+  defaultScheduleGroup: 'day',
 };
 
 function getSetting(key) {
@@ -313,7 +315,7 @@ function renderActive(){
   var v=activeView();
   updateTimestamp(); // keep bar in sync whenever view changes
   if(v==='bracket') renderBracket();
-  if(v==='schedule')  { renderRoundView(); setTimeout(scrollToLastCompletedCard, 60); }
+  if(v==='schedule')  { renderScheduleView(); setTimeout(scrollToLastCompletedCard, 60); }
   if(v==='teampath')  renderTeamView();
   if(v==='buckets') renderBucketView();
 }
@@ -564,6 +566,18 @@ function fmtDow(dowStr) {
   if (!dowStr || getSetting('showDay') === 'false') return '';
   if (getSetting('dayFormat') === 'short') return dowStr.substring(0, 3);
   return dowStr;
+}
+
+// Formats a 'YYYY-MM-DD' date key into a section header label for By Day mode.
+// Always shows both day and date regardless of showDate/showDay settings
+// (those only affect game-card time display, not section headers).
+function dayGroupLabel(dateKey) {
+  var d = new Date(dateKey + 'T12:00');
+  if (isNaN(d.getTime())) return dateKey;
+  var DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  var MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+  return DAYS[d.getDay()] + ' \xb7 ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1919,37 +1933,6 @@ function stickyNavH() {
        + (sel && !mobile && sel.offsetParent !== null ? sel.offsetHeight : 0);
 }
 
-// ── Round navigation ──────────────────────────────────────
-function firstIncompleteRound() {
-  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
-  for (var i = 0; i < rounds.length; i++) {
-    var r = rounds[i];
-    var sids = Object.keys(GAMES).filter(function(s){ return GAMES[s].round === r; });
-    if (!sids.length) continue;
-    if (!sids.every(function(s){ return results[s] && results[s].winner; })) return r;
-  }
-  return 'CHAMP';
-}
-
-function scrollToRound(round) {
-  var el = document.getElementById('round-section-' + round);
-  if (!el) return;
-  var mobile = window.innerWidth < 1024;
-  if (mobile) {
-    // On mobile the scrollable container is .round-panel, not #view-schedule
-    var scroller = document.querySelector('#view-schedule .round-panel');
-    if (scroller) {
-      var scrollOffset = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 4;
-      scroller.scrollTo({ top: Math.max(0, scrollOffset), behavior: 'smooth' });
-    }
-  } else {
-    var offset = stickyNavH();
-    var top = el.getBoundingClientRect().top + window.scrollY - offset - 4;
-    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
-  }
-  document.getElementById('roundSelect').value = round;
-}
-
 function scrollToLastCompletedCard() {
   var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
   var lastSid = null;
@@ -1975,84 +1958,114 @@ function scrollToLastCompletedCard() {
     var top = card.getBoundingClientRect().top + window.scrollY - stickyNavH() - 4;
     window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
   }
-  document.getElementById('roundSelect').value = GAMES[lastSid].round;
 }
 
-var roundObserver = null;
-function setupRoundObserver() {
-  if (roundObserver) { roundObserver.disconnect(); roundObserver = null; }
-  if (!window.IntersectionObserver) return;
-  var navH = stickyNavH();
-  roundObserver = new IntersectionObserver(function(entries) {
-    entries.forEach(function(e) {
-      if (e.isIntersecting) document.getElementById('roundSelect').value = e.target.dataset.round;
-    });
-  }, { rootMargin: '-' + (navH + 1) + 'px 0px -70% 0px', threshold: 0 });
-  ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].forEach(function(r) {
-    var el = document.getElementById('round-section-' + r);
-    if (el) roundObserver.observe(el);
-  });
-}
-
-// Round selector navigates to section (doesn't re-render)
-document.getElementById('roundSelect').addEventListener('change', function() {
-  scrollToRound(this.value);
+// ── Schedule grouping pill handlers ──────────────────────────
+document.getElementById('groupPills').addEventListener('click', function(e) {
+  var btn = e.target.closest('.group-pill');
+  if (!btn || btn.disabled) return;
+  scheduleMode = btn.dataset.group;
+  var panel = document.querySelector('#view-schedule .round-panel');
+  if (panel) panel.scrollTop = 0;
+  renderScheduleView();
 });
 
-function renderRoundView() {
-  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
-  var html = '';
-  rounds.forEach(function(round) {
-    var sids = Object.keys(GAMES)
-      .filter(function(sid){ return GAMES[sid].round === round; })
-      .sort(function(a,b){ return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time); });
-    if (!sids.length) return;
-    html += '<div class="round-section" id="round-section-' + round + '" data-round="' + round + '">';
-    html += '<div class="round-section-hdr">' + esc(ROUND_LABELS[round]) + '</div>';
-    html += '<div class="round-games-grid">';
-    sids.forEach(function(sid) {
-      var g=GAMES[sid]; if(!g) return;
-      var t1=disp(sid,g.t1), t2=disp(sid,g.t2), r=results[sid]||{};
-      var ft=formatTime(g.time);
-      var dateStr='', dowStr='', timeStr=ft;
-      var m=ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
-      if(m){ dateStr=m[1]; dowStr=m[2]; timeStr=m[3]; }
-      var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
-      var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
-      var upcoming = !r.winner ? ' upcoming' : '';
-      // CHAMP2: apply if-necessary state
-      var champ2ExtraCls = '';
-      var champ2NoteHTML = '';
-      if (sid === 'CHAMP2.C.1') {
-        var rvc2s = champ2State();
-        if (rvc2s === 'not-needed') {
-          champ2ExtraCls = ' champ2-not-needed';
-          champ2NoteHTML = '<div class="champ2-rv-note champ2-rv-note--nn">Not Needed</div>';
-        } else if (rvc2s === 'pending') {
-          champ2ExtraCls = ' champ2-pending';
-          champ2NoteHTML = '<div class="champ2-rv-note">Played only if the LB finalist wins the Championship</div>';
-        }
-      }
-      html += '<div class="round-game-card' + upcoming + champ2ExtraCls + '" id="rgc-' + sid + '">'
-        +'<div class="round-game-header">'
-        +'<span class="round-game-id">'+esc(gameLabel(sid))+'</span>'
-        +fieldTagHTML(sid)
-        +timeOrLiveHTML(sid, dateStr, dowStr, timeStr)
-        +'</div>'
-        + champ2NoteHTML
-        +'<div class="round-team-row"><span class="round-team-name '+c1+'">'+esc(t1.name)+'</span>'
-        +(r.winner ? scoreHTML(r.t1score) : liveScoreHTML(sid,1))
-        +'</div>'
-        +'<div class="round-team-row"><span class="round-team-name '+c2+'">'+esc(t2.name)+'</span>'
-        +(r.winner ? scoreHTML(r.t2score) : liveScoreHTML(sid,2))
-        +'</div></div>';
-    });
-    html += '</div></div>'; // close round-games-grid + round-section
+function scheduleCardHTML(sid) {
+  var g = GAMES[sid]; if (!g) return '';
+  var t1 = disp(sid,g.t1), t2 = disp(sid,g.t2), r = results[sid] || {};
+  var ft = formatTime(g.time);
+  var dateStr = '', dowStr = '', timeStr = ft;
+  var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
+  if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
+  var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
+  var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
+  var upcoming = !r.winner ? ' upcoming' : '';
+  var champ2ExtraCls = '', champ2NoteHTML = '';
+  if (sid === 'CHAMP2.C.1') {
+    var rvc2s = champ2State();
+    if (rvc2s === 'not-needed') {
+      champ2ExtraCls = ' champ2-not-needed';
+      champ2NoteHTML = '<div class="champ2-rv-note champ2-rv-note--nn">Not Needed</div>';
+    } else if (rvc2s === 'pending') {
+      champ2ExtraCls = ' champ2-pending';
+      champ2NoteHTML = '<div class="champ2-rv-note">Played only if the LB finalist wins the Championship</div>';
+    }
+  }
+  return '<div class="round-game-card' + upcoming + champ2ExtraCls + '" id="rgc-' + sid + '">'
+    + '<div class="round-game-header">'
+    + '<span class="round-game-id">' + esc(gameLabel(sid)) + '</span>'
+    + fieldTagHTML(sid)
+    + timeOrLiveHTML(sid, dateStr, dowStr, timeStr)
+    + '</div>'
+    + champ2NoteHTML
+    + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
+    + (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(sid,1))
+    + '</div>'
+    + '<div class="round-team-row"><span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
+    + (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(sid,2))
+    + '</div></div>';
+}
+
+function renderScheduleView() {
+  // Initialise mode from settings on first render (persists for the session)
+  if (scheduleMode === null) scheduleMode = getSetting('defaultScheduleGroup') || 'day';
+
+  // Show/hide Field pill based on whether any game has a field set
+  var hasFields = Object.keys(GAMES).some(function(sid) { return !!GAMES[sid].field; });
+  var fieldPill = document.getElementById('fieldPill');
+  if (fieldPill) fieldPill.style.display = hasFields ? '' : 'none';
+  if (scheduleMode === 'field' && !hasFields) scheduleMode = 'day';
+
+  // Sync pill active states
+  document.querySelectorAll('.group-pill').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.group === scheduleMode);
   });
+
+  // All game IDs sorted by time (TBD games sort to end via parseTimeVal→Infinity)
+  var allSids = Object.keys(GAMES).sort(function(a, b) {
+    return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time);
+  });
+
+  var groups = [];
+  if (scheduleMode === 'day') {
+    var byDay = {}, dayKeys = [];
+    allSids.forEach(function(sid) {
+      var dateKey = (GAMES[sid].time || '').slice(0, 10); // 'YYYY-MM-DD' or ''
+      if (!byDay[dateKey]) { byDay[dateKey] = []; dayKeys.push(dateKey); }
+      byDay[dateKey].push(sid);
+    });
+    dayKeys.sort(function(a, b) { return !a ? 1 : !b ? -1 : a < b ? -1 : 1; });
+    dayKeys.forEach(function(k) {
+      groups.push({ id: k || 'tbd', label: k ? dayGroupLabel(k) : 'TBD', sids: byDay[k] });
+    });
+  } else if (scheduleMode === 'round') {
+    ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].forEach(function(round) {
+      var sids = allSids.filter(function(s) { return GAMES[s].round === round; });
+      if (sids.length) groups.push({ id: round, label: ROUND_LABELS[round], sids: sids });
+    });
+  } else { // field
+    var byField = {}, fieldKeys = [];
+    allSids.forEach(function(sid) {
+      var f = GAMES[sid].field || '';
+      if (!byField[f]) { byField[f] = []; fieldKeys.push(f); }
+      byField[f].push(sid);
+    });
+    fieldKeys.sort(function(a, b) { return !a ? 1 : !b ? -1 : a.localeCompare(b); });
+    fieldKeys.forEach(function(f) {
+      groups.push({ id: f || 'nofield', label: f || 'No Field', sids: byField[f] });
+    });
+  }
+
+  var html = '';
+  groups.forEach(function(group) {
+    html += '<div class="round-section" id="sched-section-' + esc(group.id) + '">';
+    html += '<div class="round-section-hdr">' + esc(group.label) + '</div>';
+    html += '<div class="round-games-grid">';
+    group.sids.forEach(function(sid) { html += scheduleCardHTML(sid); });
+    html += '</div></div>';
+  });
+
   document.getElementById('roundGames').innerHTML = html;
-  // Default selector to the first round with upcoming games
-  document.getElementById('roundSelect').value = firstIncompleteRound();
-  setupRoundObserver();
   applyStickyOffsets();
 }
 

@@ -20,8 +20,9 @@ var SETTING_DEFAULTS = {
   showDay:          'true',
   dateFormat:       'short',
   dayFormat:        'long',
-  defaultTab:       'bracket',
-  defaultTabScope:  'both',
+  defaultTab:           'bracket',
+  defaultTabScope:      'both',
+  defaultScheduleGroup: 'day',
 };
 
 function getSetting(key) {
