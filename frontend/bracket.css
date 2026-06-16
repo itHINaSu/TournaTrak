@@ -458,12 +458,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   color: var(--live-color);
   letter-spacing: 0.02em;
   white-space: nowrap;
-  animation: livePulse 1.4s ease-in-out infinite;
-}
-
-@keyframes livePulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.35; }
 }
 .live-period {
   display: inline-block;
