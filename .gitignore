@@ -3,6 +3,7 @@
 # (inspecting real bracket build-out). Re-add both before going public.
 files/buckets.json
 files/lineups.json
+files/live.json
 files/settings.json
 files/users.json
 

@@ -39,11 +39,11 @@
         </div>
         <h1>
           Run your tournament from your phone.<br>
-          <span class="gold">Let everyone follow along from theirs.</span>
+          <span class="gold">Keep players and fans in the loop — automatically.</span>
         </h1>
         <p class="hero-sub">
-          Live brackets, real-time scores, and schedules — one link, any device.
-          No app download. No group-chat chaos.
+          Live bracket · By-round schedule · Team Path · Coach lineups.
+          One link, any device. No app download. No group-chat chaos.
         </p>
         <div class="hero-actions">
           <!-- TODO: Replace href="#" with your live demo tournament URL -->
@@ -174,6 +174,16 @@
         </div>
 
         <div class="feature-card reveal">
+          <div class="feature-icon" aria-hidden="true">📋</div>
+          <h3>Coach lineup tool</h3>
+          <p>
+            Coaches get a private link to submit their batting order and positions
+            before each game. Import last game's lineup in one tap. Automatically
+            locks once the result is entered — no more late edits.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
           <div class="feature-icon" aria-hidden="true">🎨</div>
           <h3>Customizable to your event</h3>
           <p>
@@ -242,111 +252,117 @@
     </div>
   </section>
 
+  <!-- ── Market differentiation ── -->
+  <section class="problem" id="why" aria-label="Why TournaTrak">
+    <div class="container">
+      <div class="solution-card" style="max-width:680px;margin:0 auto;text-align:center;">
+        <div class="solution-icon">🎯</div>
+        <h2>Purpose-built for tournament directors.</h2>
+        <p style="margin-top:0.75rem;">
+          Most bracket tools are either glorified spreadsheets or overpowered
+          registration platforms. TournaTrak is built specifically for the TD who
+          needs to run the day, not spend it copying scores into a PDF and
+          answering texts. The combination of a live bracket, inline schedule,
+          Team Path with shareable links, and a coach lineup tool in one
+          self-hosted app is — to our knowledge — rare in this space.
+        </p>
+      </div>
+    </div>
+  </section>
+
   <!-- ── Screenshot Gallery ── -->
   <section class="gallery" id="gallery" aria-label="Screenshots">
     <div class="container">
       <h2 class="section-title">See it in action</h2>
       <p class="section-sub">
-        Screenshots coming soon —
+        Real screenshots from a live demo tournament.
         <!-- TODO: Replace href="#" with your live demo tournament URL -->
-        <a href="#" class="link-gold">try the live demo</a> to see the real thing.
+        <a href="#" class="link-gold">Try the live demo →</a>
       </p>
       <div class="gallery-grid">
 
-        <div class="screenshot-placeholder phone reveal" aria-label="Screenshot placeholder: Mobile bracket view">
+        <!-- Row 1: phone | phone | desktop (span 2) -->
+        <div class="screenshot-placeholder phone reveal" aria-label="Mobile bracket view">
           <div class="ph-frame phone-frame">
             <div class="ph-screen">
-              <div class="ph-content">
-                <span class="ph-icon" aria-hidden="true">📱</span>
-                <p class="ph-label">Mobile bracket view</p>
-                <p class="ph-caption">"Follow the whole bracket from your phone."</p>
-              </div>
+              <img src="screenshots/mobile-bracket.png" alt="Mobile bracket view showing live tournament games" loading="lazy">
             </div>
           </div>
+          <p class="gallery-caption">Mobile bracket — live scores on any phone</p>
         </div>
 
-        <div class="screenshot-placeholder phone highlight reveal" aria-label="Screenshot placeholder: Live game card">
+        <div class="screenshot-placeholder phone reveal" aria-label="By-round schedule view">
           <div class="ph-frame phone-frame">
             <div class="ph-screen">
-              <div class="ph-content">
-                <span class="ph-icon live-pulse" aria-hidden="true">●</span>
-                <p class="ph-label">Live game card</p>
-                <p class="ph-caption">"Live scores update in real time."</p>
-              </div>
+              <img src="screenshots/mobile-schedule.png" alt="By-round schedule view showing all games by time" loading="lazy">
             </div>
           </div>
+          <p class="gallery-caption">By-round schedule — every game by time &amp; field</p>
         </div>
 
-        <div class="screenshot-placeholder desktop reveal" aria-label="Screenshot placeholder: Desktop full bracket">
+        <div class="screenshot-placeholder desktop reveal" aria-label="Full tournament bracket on desktop">
           <div class="ph-frame desktop-frame">
             <div class="ph-screen">
-              <div class="ph-content">
-                <span class="ph-icon" aria-hidden="true">🖥️</span>
-                <p class="ph-label">Desktop full bracket</p>
-                <p class="ph-caption">"The big-screen view for the venue."</p>
-              </div>
+              <img src="screenshots/desktop-bracket.png" alt="Full 32-team tournament bracket on desktop" loading="lazy">
             </div>
           </div>
+          <p class="gallery-caption">Desktop full bracket — 32 teams, at a glance</p>
         </div>
 
-        <div class="screenshot-placeholder phone reveal" aria-label="Screenshot placeholder: Schedule view">
-          <div class="ph-frame phone-frame">
-            <div class="ph-screen">
-              <div class="ph-content">
-                <span class="ph-icon" aria-hidden="true">📅</span>
-                <p class="ph-label">Schedule view</p>
-                <p class="ph-caption">"Every game, sorted by time and field."</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="screenshot-placeholder phone reveal" aria-label="Screenshot placeholder: Team Path view">
-          <div class="ph-frame phone-frame">
-            <div class="ph-screen">
-              <div class="ph-content">
-                <span class="ph-icon" aria-hidden="true">🛤️</span>
-                <p class="ph-label">Team Path view</p>
-                <p class="ph-caption">"See your team's road to the title — shareable by link."</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="screenshot-placeholder phone reveal" aria-label="Screenshot placeholder: Challenge leaderboard">
-          <div class="ph-frame phone-frame">
-            <div class="ph-screen">
-              <div class="ph-content">
-                <span class="ph-icon" aria-hidden="true">🏅</span>
-                <p class="ph-label">Challenge leaderboard</p>
-                <p class="ph-caption">"Keep fans engaged with a pick-'em leaderboard."</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="screenshot-placeholder desktop reveal" aria-label="Screenshot placeholder: Admin panel">
+        <!-- Row 2: desktop (span 2 — teampath diagram) | phone | phone -->
+        <div class="screenshot-placeholder desktop reveal" aria-label="Team path journey diagram">
           <div class="ph-frame desktop-frame">
             <div class="ph-screen">
-              <div class="ph-content">
-                <span class="ph-icon" aria-hidden="true">⚙️</span>
-                <p class="ph-label">Admin panel</p>
-                <p class="ph-caption">"Run it all from one simple panel."</p>
-              </div>
+              <img src="screenshots/teampath-landscape.png" alt="Team Path feature showing a team's complete tournament journey" loading="lazy">
             </div>
           </div>
+          <p class="gallery-caption">Team Path — follow any team's full tournament journey, shareable by link</p>
         </div>
 
-        <div class="screenshot-placeholder desktop reveal" aria-label="Screenshot placeholder: Light and dark themes">
-          <div class="ph-frame desktop-frame">
+        <div class="screenshot-placeholder phone reveal" aria-label="Team path on mobile">
+          <div class="ph-frame phone-frame">
             <div class="ph-screen">
-              <div class="ph-content">
-                <span class="ph-icon" aria-hidden="true">🌙</span>
-                <p class="ph-label">Light &amp; dark themes</p>
-                <p class="ph-caption">"Looks great day or night."</p>
-              </div>
+              <img src="screenshots/mobile-teampath.png" alt="Team path view on mobile phone" loading="lazy">
             </div>
           </div>
+          <p class="gallery-caption">Team Path on mobile</p>
+        </div>
+
+        <div class="screenshot-placeholder phone reveal" aria-label="Challenge leaderboard">
+          <div class="ph-frame phone-frame">
+            <div class="ph-screen">
+              <img src="screenshots/mobile-buckets.png" alt="Challenge leaderboard showing team standings" loading="lazy">
+            </div>
+          </div>
+          <p class="gallery-caption">Bucket challenge leaderboard</p>
+        </div>
+
+        <!-- Row 3: phone | phone | desktop (span 2) -->
+        <div class="screenshot-placeholder phone reveal" aria-label="Admin panel on mobile">
+          <div class="ph-frame phone-frame">
+            <div class="ph-screen">
+              <img src="screenshots/mobile-admin.png" alt="Admin panel on mobile phone" loading="lazy">
+            </div>
+          </div>
+          <p class="gallery-caption">Admin panel — run it from your phone</p>
+        </div>
+
+        <div class="screenshot-placeholder phone reveal" aria-label="Coach lineup tool">
+          <div class="ph-frame phone-frame">
+            <div class="ph-screen">
+              <img src="screenshots/mobile-lineup.png" alt="Coach lineup entry tool on mobile" loading="lazy">
+            </div>
+          </div>
+          <p class="gallery-caption">Coach lineup tool — secure link per team</p>
+        </div>
+
+        <div class="screenshot-placeholder desktop reveal" aria-label="Admin panel on desktop">
+          <div class="ph-frame desktop-frame">
+            <div class="ph-screen">
+              <img src="screenshots/desktop-admin.png" alt="Full admin panel on desktop showing results and settings" loading="lazy">
+            </div>
+          </div>
+          <p class="gallery-caption">Full admin panel — results, schedule, settings, users</p>
         </div>
 
       </div>

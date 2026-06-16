@@ -71,6 +71,7 @@ When starting v3:
 Planning-stage ideas discussed but not scoped in detail. Add specifics as they're decided.
 
 ### Candidate features
+- **Lineup multi-sport support** — lineup fields (`jersey`, `name`, `position`) are currently softball/baseball-specific. For other sports: configurable field labels per tournament or a generic "player slot" UI (e.g., "Player 1 / Player 2" for volleyball). The periodLabel setting already handles sport labeling; lineup is the remaining softball-specific piece.
 - **Multiple bracket formats** — single elimination, pools + bracket, round robin
 - **Variable team counts** — not locked to 16 teams; bracket structure derived from registration
 - **Public registration / team management** — teams sign up, admin approves

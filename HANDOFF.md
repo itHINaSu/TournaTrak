@@ -130,12 +130,27 @@ dateFormat, dayFormat, defaultTab, defaultTabScope`.
   (`/`, index.html, fonts.css, base.css, bracket.css, bracket-data.js, bracket.js).
   `admin.*`/`lineup.*` are NOT precached (network-first serves them fresh).
 
+## Lineup: softball-specific — needs v3 attention
+The lineup row fields (`jersey`, `name`, `position`) and the lineup UI are
+softball/baseball-specific. The sport label comes from `periodLabel` in settings,
+but the lineup form itself has no configurable field labels. For v3/v4 multi-sport
+support, lineup fields need to be either configurable per-tournament or abstracted
+to generic "player slot" labels. **Do not change in v2.** Noted in `ROADMAP.md`.
+
+## Sales site (`sales-site/`)
+Static HTML/CSS/JS marketing site in `sales-site/` — separate nginx:alpine container,
+port 8081. See `sales-site/SALES_SITE_BRIEF.md`. Screenshots in `sales-site/screenshots/`
+were generated from a local demo instance (API + generate-schedule.js). The team-path
+diagram (`teampath-landscape.png`) is a generated illustration, not a live screenshot.
+TODOs in index.html: demo URL (`href="#"`) and contact email (`mailto:YOUR@EMAIL.COM`).
+
 ## Current state
 `main` clean and pushed. **SW cache at `tournatrak-v2.15`.**
 Recent work this session: live-card color swap (scores blue / inning gold), date &
 day format settings, field-tag layout fix, configurable default landing tab, mobile
 lateY hide for same-column-fed cards, team-path pill affordance, team-path
-open-at-top + scroll-container reset fix, `ROADMAP.md`, `SALES_SITE_BRIEF.md`.
+open-at-top + scroll-container reset fix, `ROADMAP.md`, `SALES_SITE_BRIEF.md`,
+`sales-site/` marketing site with real screenshots, `RECOMMENDATION.md` code review.
 
 ⚠️ **Rectify before going public / starting v3:** `.gitignore` currently
 un-ignores `files/results.json` + `files/schedule.json` (temporary, for dev
