@@ -1,9 +1,9 @@
 # Runtime data — never commit live results or secrets
-# NOTE: results.json + schedule.json temporarily un-ignored for development
-# (inspecting real bracket build-out). Re-add both before going public.
 files/buckets.json
 files/lineups.json
 files/live.json
+files/results.json
+files/schedule.json
 files/settings.json
 files/users.json
 
