@@ -16,6 +16,19 @@
   flex-shrink: 0;
 }
 
+/* ── Weather / delay notice banner ── */
+.delay-notice {
+  background: rgba(196,154,26,0.14);
+  border-bottom: 0.08em solid rgba(196,154,26,0.45);
+  color: var(--gold-lt);
+  text-align: center;
+  padding: 0.55em 1em;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
 /* ── Tabs ── */
 .view-tabs {
   display: flex;
@@ -989,7 +1002,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
    ════════════════════════════════════════════════════════════ */
 
 @media (max-width: 1279px) {
-  .update-bar { flex-shrink: 0; position: static; }
+  .update-bar, .delay-notice { flex-shrink: 0; position: static; }
 
   .bracket-outer { display: none; }
 

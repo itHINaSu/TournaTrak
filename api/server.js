@@ -156,6 +156,7 @@ function ensureDataFiles() {
     [LINEUPS_FILE]:  {},
     [BUCKETS_FILE]:  { counts: {}, bucketOnlyTeams: [] },
     [LIVE_FILE]:     {},
+    [OFFSETS_FILE]:  { entries: [], banner: '' },
   };
 
   Object.entries(defaults).forEach(([file, empty]) => {
@@ -660,12 +661,12 @@ app.delete('/api/live/:slot', requireResults, (req, res) => {
 });
 
 app.post('/api/offsets', requireAdmin, (req, res) => {
-  const { entries } = req.body || {};
+  const { entries, banner } = req.body || {};
   if (!Array.isArray(entries)) return res.status(400).json({ error: 'entries must be an array' });
   for (const e of entries) {
     if (typeof e.minutes !== 'number') return res.status(400).json({ error: 'each entry needs a numeric minutes field' });
   }
-  writeJSON(OFFSETS_FILE, { entries });
+  writeJSON(OFFSETS_FILE, { entries, banner: typeof banner === 'string' ? banner.slice(0, 300) : '' });
   res.json({ ok: true });
 });
 

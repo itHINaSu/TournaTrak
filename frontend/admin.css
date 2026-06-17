@@ -107,7 +107,30 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .admin-clear-btn:active { background: rgba(192,80,80,0.1); }
 
 
-/* ── Delays admin ── */
+/* ── Delays admin chips ── */
+.delay-chip-row { display: flex; flex-wrap: wrap; gap: 0.4em; margin-top: 0.25em; }
+.delay-chip {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.45em 0.9em;
+  border-radius: var(--radius-sm);
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.delay-chip:hover { color: var(--text); border-color: var(--text-dim); }
+.delay-chip--sel  { background: var(--blue); border-color: var(--blue); color: #fff; }
+.delay-chip--auto { background: var(--surface2); color: var(--text-dim); cursor: default; }
+.delay-chips-empty { font-size: 0.76rem; color: var(--text-mute); font-style: italic; }
+
+/* ── Delays admin offset rows ── */
 .delay-offset-row {
   display: flex;
   align-items: center;
@@ -232,17 +255,20 @@ input, select, textarea { font-size: max(1rem, 16px); }
   background: var(--bg);
 }
 .results-mode-btn {
+  flex: 1;
   font-family: 'Oswald', sans-serif;
   font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.38em 0.88em;
+  padding: 0.38em 0.5em;
   border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;
   color: var(--text-dim);
   cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
 }
 .results-mode-btn.active {
   background: var(--blue);
@@ -550,6 +576,8 @@ input[type="time"]:focus {
 .bucket-admin-row {
   display: flex;
   align-items: center;
+  user-select: none;
+  -webkit-user-select: none;
   gap: 0.6em;
   padding: 0.55em 0.75em;
   border: 0.07em solid var(--border);
@@ -620,6 +648,9 @@ input[type="time"]:focus {
 .bucket-drag-handle {
   flex-shrink: 0;
   color: var(--text-mute);
+  touch-action: none;      /* prevents scroll interception — pointer events fire immediately */
+  user-select: none;
+  -webkit-user-select: none;
   cursor: grab;
   user-select: none;
   touch-action: none;

@@ -1257,58 +1257,47 @@ function getScheduleDays() {
 function fmtDayLabel(iso) {
   var d = new Date(iso + 'T12:00');
   if (isNaN(d.getTime())) return iso;
-  var DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var DAYS   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return DAYS[d.getDay()] + ' ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
 }
 
 function renderDelaysAdmin() {
-  var fields   = getScheduleFields();
-  var days     = getScheduleDays();
-  var fieldSel = document.getElementById('delayFields');
-  var daySel   = document.getElementById('delayDays');
-  var fieldWrap = document.getElementById('delayFieldWrap');
-  var dayWrap   = document.getElementById('delayDayWrap');
+  var fields  = getScheduleFields();
+  var days    = getScheduleDays();
 
-  // Populate and enable/disable field selector
-  if (fieldSel) {
-    fieldSel.innerHTML = '';
+  // Field chips
+  var fieldChips = document.getElementById('delayFieldChips');
+  if (fieldChips) {
     if (fields.length === 0) {
-      fieldSel.disabled = true;
-      var opt = document.createElement('option');
-      opt.textContent = '— no fields in schedule —';
-      opt.disabled = true;
-      fieldSel.appendChild(opt);
+      fieldChips.innerHTML = '<span class="delay-chips-empty">No fields in schedule — offset applies to all games</span>';
     } else if (fields.length === 1) {
-      fieldSel.disabled = true;
-      var opt2 = document.createElement('option');
-      opt2.value = fields[0]; opt2.textContent = fields[0]; opt2.selected = true;
-      fieldSel.appendChild(opt2);
+      fieldChips.innerHTML = '<span class="delay-chip delay-chip--auto">' + esc(fields[0]) + '</span>';
     } else {
-      fieldSel.disabled = false;
-      fields.forEach(function(f) {
-        var opt3 = document.createElement('option');
-        opt3.value = f; opt3.textContent = f;
-        fieldSel.appendChild(opt3);
-      });
+      fieldChips.innerHTML = fields.map(function(f) {
+        return '<button class="delay-chip" data-value="' + esc(f) + '" onclick="this.classList.toggle(\'delay-chip--sel\')">' + esc(f) + '</button>';
+      }).join('');
     }
   }
 
-  // Show day selector only when schedule spans multiple days
-  if (dayWrap) dayWrap.style.display = days.length > 1 ? '' : 'none';
-  if (daySel && days.length > 1) {
-    daySel.innerHTML = '';
-    days.forEach(function(d) {
-      var opt4 = document.createElement('option');
-      opt4.value = d; opt4.textContent = fmtDayLabel(d);
-      daySel.appendChild(opt4);
-    });
+  // Day chips — only if tournament spans multiple days
+  var dayWrap  = document.getElementById('delayDayWrap');
+  var dayChips = document.getElementById('delayDayChips');
+  if (dayWrap)  dayWrap.style.display = days.length > 1 ? '' : 'none';
+  if (dayChips && days.length > 1) {
+    dayChips.innerHTML = days.map(function(d) {
+      return '<button class="delay-chip" data-value="' + esc(d) + '" onclick="this.classList.toggle(\'delay-chip--sel\')">' + esc(fmtDayLabel(d)) + '</button>';
+    }).join('');
   }
 
-  // Render active offsets list
+  // Banner input
+  var bannerEl = document.getElementById('delayBannerInput');
+  if (bannerEl) bannerEl.value = _offsets.banner || '';
+
+  // Active offsets list
   var list = document.getElementById('activeOffsetsList');
   if (!list) return;
-  if (!_offsets.entries.length) {
+  if (!_offsets.entries || !_offsets.entries.length) {
     list.innerHTML = '<div class="admin-subtitle" style="margin:0">No active offsets.</div>';
     return;
   }
@@ -1328,50 +1317,52 @@ function renderDelaysAdmin() {
   list.innerHTML = html;
 }
 
+function getSelectedChips(containerId) {
+  return Array.prototype.map.call(
+    document.querySelectorAll('#' + containerId + ' .delay-chip--sel'),
+    function(c) { return c.dataset.value; }
+  );
+}
+
+async function _saveOffsets(entries, banner) {
+  return apiFetch('/api/offsets', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ entries: entries, banner: banner !== undefined ? banner : (_offsets.banner || '') })
+  });
+}
+
 async function applyOffset() {
-  var minsEl   = document.getElementById('delayMinutes');
-  var fieldSel = document.getElementById('delayFields');
-  var daySel   = document.getElementById('delayDays');
-  var status   = document.getElementById('delayApplyStatus');
-  var mins = minsEl ? parseInt(minsEl.value, 10) : NaN;
+  var minsEl = document.getElementById('delayMinutes');
+  var status = document.getElementById('delayApplyStatus');
+  var mins   = minsEl ? parseInt(minsEl.value, 10) : NaN;
   if (isNaN(mins)) { showToast('Enter a valid number of minutes', true); return; }
-  var fields = fieldSel && !fieldSel.disabled
-    ? Array.prototype.filter.call(fieldSel.options, function(o) { return o.selected; }).map(function(o) { return o.value; })
-    : (getScheduleFields().length === 1 ? getScheduleFields() : []);
-  var days = daySel
-    ? Array.prototype.filter.call(daySel.options, function(o) { return o.selected; }).map(function(o) { return o.value; })
-    : [];
-  var newEntry = { minutes: mins, fields: fields, days: days };
+  var fields = getSelectedChips('delayFieldChips');
+  if (!fields.length && getScheduleFields().length === 1) fields = getScheduleFields();
+  var days   = getSelectedChips('delayDayChips');
   var entries = _offsets.entries.slice();
-  entries.push(newEntry);
+  entries.push({ minutes: mins, fields: fields, days: days });
   try {
-    var r = await apiFetch('/api/offsets', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ entries: entries })
-    });
+    var r = await _saveOffsets(entries);
     if (!r) return;
     if (!r.ok) throw new Error();
-    _offsets = { entries: entries };
+    _offsets = { entries: entries, banner: _offsets.banner || '' };
     if (minsEl) minsEl.value = '';
     showToast('Offset applied');
     if (status) { status.textContent = '✓ Applied'; setTimeout(function(){ status.textContent = ''; }, 3000); }
     renderDelaysAdmin();
   } catch(e) {
     showToast('Save failed', true);
-    if (status) { status.textContent = '✗ Error'; }
+    if (status) { status.textContent = '✗ Error'; setTimeout(function(){ status.textContent = ''; }, 3000); }
   }
 }
 
 async function deleteOffset(idx) {
   var entries = _offsets.entries.filter(function(_, i) { return i !== idx; });
   try {
-    var r = await apiFetch('/api/offsets', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ entries: entries })
-    });
+    var r = await _saveOffsets(entries);
     if (!r) return;
     if (!r.ok) throw new Error();
-    _offsets = { entries: entries };
+    _offsets = { entries: entries, banner: _offsets.banner || '' };
     renderDelaysAdmin();
   } catch(e) { showToast('Delete failed', true); }
 }
@@ -1379,13 +1370,10 @@ async function deleteOffset(idx) {
 async function clearAllOffsets() {
   var status = document.getElementById('delayClearStatus');
   try {
-    var r = await apiFetch('/api/offsets', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ entries: [] })
-    });
+    var r = await _saveOffsets([]);
     if (!r) return;
     if (!r.ok) throw new Error();
-    _offsets = { entries: [] };
+    _offsets = { entries: [], banner: _offsets.banner || '' };
     showToast('All offsets cleared');
     if (status) { status.textContent = '✓ Cleared'; setTimeout(function(){ status.textContent = ''; }, 3000); }
     renderDelaysAdmin();
@@ -1393,6 +1381,41 @@ async function clearAllOffsets() {
     showToast('Clear failed', true);
     if (status) { status.textContent = '✗ Error'; }
   }
+}
+
+async function saveDelayBanner() {
+  var inp    = document.getElementById('delayBannerInput');
+  var status = document.getElementById('delayBannerStatus');
+  var text   = inp ? inp.value.trim() : '';
+  try {
+    var r = await apiFetch('/api/offsets', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ entries: _offsets.entries || [], banner: text })
+    });
+    if (!r) return;
+    if (!r.ok) throw new Error();
+    _offsets = { entries: _offsets.entries || [], banner: text };
+    showToast(text ? 'Notice set' : 'Notice cleared');
+    if (status) { status.textContent = '✓ Saved'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+  } catch(e) {
+    showToast('Save failed', true);
+    if (status) { status.textContent = '✗ Error'; }
+  }
+}
+
+async function clearDelayBanner() {
+  var inp = document.getElementById('delayBannerInput');
+  if (inp) inp.value = '';
+  try {
+    var r = await apiFetch('/api/offsets', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ entries: _offsets.entries || [], banner: '' })
+    });
+    if (!r) return;
+    if (!r.ok) throw new Error();
+    _offsets = { entries: _offsets.entries || [], banner: '' };
+    showToast('Notice cleared');
+  } catch(e) { showToast('Clear failed', true); }
 }
 
 function getScheduleTeams() {

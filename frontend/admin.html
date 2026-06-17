@@ -166,22 +166,20 @@
       </div>
     </div>
     <div id="resultsDelaysPanel" style="display:none">
-      <div class="admin-subtitle">Set a time offset for games on a specific field and day. The offset appears on the public schedule as colored text next to the game time and clears automatically once a final score is recorded.</div>
+      <div class="admin-subtitle">Set a time offset per field and day. Shows as colored text next to the game time on the public page and disappears once a final score is recorded.</div>
       <div class="settings-section">
         <div class="settings-section-hdr">Set Offset</div>
         <div class="settings-field">
-          <label>Offset in minutes <span class="field-label-hint">(positive = behind/late, negative = ahead/early)</span></label>
+          <label>Minutes <span class="field-label-hint">(positive = behind/late · negative = ahead/early)</span></label>
           <input type="number" id="delayMinutes" placeholder="e.g. 20 or -5" style="max-width:10em">
         </div>
         <div class="settings-field" id="delayFieldWrap">
-          <label>Fields impacted</label>
-          <select id="delayFields" multiple size="4" style="width:100%;min-height:5em"></select>
-          <div class="field-hint">Hold Ctrl / Cmd to select multiple. Leave all unselected to apply to every field.</div>
+          <label>Fields impacted <span class="field-label-hint">(none selected = all fields)</span></label>
+          <div class="delay-chip-row" id="delayFieldChips"></div>
         </div>
         <div class="settings-field" id="delayDayWrap" style="display:none">
-          <label>Days impacted</label>
-          <select id="delayDays" multiple size="4" style="width:100%;min-height:5em"></select>
-          <div class="field-hint">Leave all unselected to apply to every day.</div>
+          <label>Days impacted <span class="field-label-hint">(none selected = all days)</span></label>
+          <div class="delay-chip-row" id="delayDayChips"></div>
         </div>
         <div class="settings-save-row">
           <button class="sched-save-btn" onclick="applyOffset()">Apply Offset</button>
@@ -189,10 +187,22 @@
         </div>
       </div>
       <div class="settings-section">
+        <div class="settings-section-hdr">Weather / Delay Notice</div>
+        <div class="settings-field">
+          <label>Public notice <span class="field-label-hint">(shown as a banner on the public page — clear when done)</span></label>
+          <input type="text" id="delayBannerInput" placeholder="e.g. Rain delay — games resume at 2:00 PM" maxlength="300">
+        </div>
+        <div class="settings-save-row">
+          <button class="sched-save-btn" onclick="saveDelayBanner()">Set Notice</button>
+          <button class="admin-clear-btn" onclick="clearDelayBanner()">Clear</button>
+          <span class="sched-status" id="delayBannerStatus"></span>
+        </div>
+      </div>
+      <div class="settings-section">
         <div class="settings-section-hdr">Active Offsets</div>
         <div id="activeOffsetsList"></div>
         <div class="settings-save-row" style="margin-top:0.6em">
-          <button class="admin-clear-btn" onclick="clearAllOffsets()">Clear All</button>
+          <button class="admin-clear-btn" onclick="clearAllOffsets()">Clear All Offsets</button>
           <span class="sched-status" id="delayClearStatus"></span>
         </div>
       </div>

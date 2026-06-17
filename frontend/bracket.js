@@ -44,6 +44,14 @@ function applySettings() {
 }
 
 // ── Results notification bar ──────────────────────────────────────────
+function updateDelayNotice() {
+  var el   = document.getElementById('delayNotice');
+  var text = document.getElementById('delayNoticeText');
+  var msg  = (_offsets && _offsets.banner) ? _offsets.banner.trim() : '';
+  if (el) el.style.display = msg ? '' : 'none';
+  if (text) text.textContent = msg;
+}
+
 function updateTimestamp() {
   var bar  = document.getElementById('updateBar');
   var text = document.getElementById('updateBarText');
@@ -347,6 +355,7 @@ async function fetchAll(){
   }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; rawTexts=null; }
   applySettings();
   updateTimestamp();
+  updateDelayNotice();
   populateTeamSelect();
 
   // ?view=X from lineup page tab links — consume once then strip from URL
