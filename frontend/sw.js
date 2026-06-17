@@ -1,5 +1,13 @@
 // sw.js — public PWA service worker (network-first)
-var CACHE = 'tournatrak-v2.29';
+//
+// Cache versioning: bump CACHE on every release that changes any precached
+// asset below. Changing this string is what makes the browser see a new SW,
+// re-run install (re-precaching fresh files) and purge the old cache on
+// activate. Fetches are network-first and successful responses are written
+// back into this cache, so the offline copy also self-heals on each online
+// visit — but a forgotten bump still leaves stale assets for fully-offline
+// clients, so bump it.
+var CACHE = 'tournatrak-v2.30';
 var PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -17,7 +25,14 @@ var PRECACHE_URLS = [
 self.addEventListener('install', function(e) {
   e.waitUntil(
     caches.open(CACHE).then(function(cache) {
-      return cache.addAll(PRECACHE_URLS);
+      // Precache each URL independently. addAll() is all-or-nothing: a single
+      // failing URL during a deploy would reject install and leave the app
+      // with no offline support at all. Per-URL add lets the rest succeed.
+      return Promise.all(PRECACHE_URLS.map(function(url) {
+        return cache.add(url).catch(function(err) {
+          console.warn('SW precache failed for ' + url + ':', err);
+        });
+      }));
     }).then(function() {
       return self.skipWaiting();
     })

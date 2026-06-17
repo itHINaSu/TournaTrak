@@ -51,24 +51,45 @@ function _computeEtag(jsonStr) {
   return '"' + crypto.createHash('sha1').update(jsonStr).digest('hex') + '"';
 }
 
+// Write a file atomically: write to a temp sibling, then rename over the
+// target. rename(2) is atomic on the same filesystem, so a crash or full disk
+// mid-write leaves the original file intact instead of truncated/corrupt.
+function writeFileAtomic(file, str) {
+  const tmp = file + '.tmp';
+  fs.writeFileSync(tmp, str);
+  fs.renameSync(tmp, file);
+}
+
 function readJSON(file) {
   if (jsonCache.has(file)) {
     return structuredClone(jsonCache.get(file).data);
   }
+  let raw;
   try {
-    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-    const str  = JSON.stringify(data, null, 2);
-    jsonCache.set(file, { data, etag: _computeEtag(str) });
-    return structuredClone(data);
-  } catch {
-    return {};
+    raw = fs.readFileSync(file, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return {};   // not created yet — expected
+    throw err;                               // permission/IO error — surface it
   }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (err) {
+    // File exists but holds invalid JSON. Do NOT silently treat it as empty —
+    // that would let the next write overwrite a recoverable file. Fail loudly
+    // so the request 500s and the corrupt file is preserved for inspection.
+    console.error('Corrupt JSON in ' + file + ': ' + err.message);
+    throw new Error('Corrupt data file: ' + file);
+  }
+  const str = JSON.stringify(data, null, 2);
+  jsonCache.set(file, { data, etag: _computeEtag(str) });
+  return structuredClone(data);
 }
 
 function writeJSON(file, data) {
   const str = JSON.stringify(data, null, 2);
   jsonCache.set(file, { data, etag: _computeEtag(str) });
-  fs.writeFileSync(file, str);
+  writeFileAtomic(file, str);
 }
 
 // Return the cached ETag for a file (null if not yet loaded).
@@ -163,7 +184,7 @@ function FileSessionStore() {
 }
 require('util').inherits(FileSessionStore, Store);
 FileSessionStore.prototype._persist = function() {
-  try { fs.writeFileSync(SESSIONS_FILE, JSON.stringify(this._sessions)); } catch (e) {}
+  try { writeFileAtomic(SESSIONS_FILE, JSON.stringify(this._sessions)); } catch (e) {}
 };
 FileSessionStore.prototype._prune = function() {
   var now = Date.now();
@@ -914,6 +935,13 @@ app.delete('/api/buckets/teams/:teamName', requireAdmin, (req, res) => {
 app.use((err, req, res, _next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Internal server error' });
+});
+
+// Keep the server alive if an async route handler rejects (e.g. readJSON
+// throwing on a corrupt data file). The offending request fails to respond,
+// but the process — and everyone else's live session — stays up.
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled promise rejection:', reason && reason.stack ? reason.stack : reason);
 });
 
 app.listen(3000, () => console.log('API listening on :3000'));
