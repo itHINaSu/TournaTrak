@@ -328,11 +328,11 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 
 .team-share-btn {
   font-family: 'Oswald', sans-serif;
-  font-size: 0.74rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: 0.38em 0.88em;
+  padding: 0.55em 0.88em;
   border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;
