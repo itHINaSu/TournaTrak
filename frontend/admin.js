@@ -219,6 +219,14 @@ function populateSettingsFields() {
   });
 }
 
+function toggleSection(hdrEl) {
+  var body = hdrEl.nextElementSibling;
+  if (!body) return;
+  var closing = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', closing);
+  hdrEl.classList.toggle('section-closed', closing);
+}
+
 async function saveSettings() {
   var status = document.getElementById('settingsStatus');
   var out = {};
@@ -227,14 +235,25 @@ async function saveSettings() {
     if (!el) return;
     out[key] = el.type === 'checkbox' ? String(el.checked) : el.value.trim();
   });
+  var themeColors = {};
+  ['accent', 'interactive', 'winColor', 'loseColor'].forEach(function(key) {
+    var inp = document.getElementById('themeColor-' + key);
+    if (inp) themeColors[key] = inp.value;
+  });
+  var fieldColors = {};
+  document.querySelectorAll('.field-color-picker:not(.theme-color-picker)').forEach(function(inp) {
+    if (inp.dataset.field) fieldColors[inp.dataset.field] = inp.value;
+  });
   try {
-    var r = await apiFetch('/api/settings', {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(out)
-    });
-    if (!r) return;
-    if (!r.ok) throw new Error();
+    var [r, r1, r2] = await Promise.all([
+      apiFetch('/api/settings', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(out) }),
+      apiFetch('/api/theme-colors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(themeColors) }),
+      apiFetch('/api/field-colors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(fieldColors) }),
+    ]);
+    if (!r || !r.ok || !r1 || !r1.ok || !r2 || !r2.ok) throw new Error();
     settings = out;
+    _themeColors = themeColors;
+    _fieldColors = fieldColors;
     applySettingsToPage();
     showToast('Settings saved');
     status.textContent = '✓ Saved';
@@ -1297,33 +1316,8 @@ function resetOneFieldColor(btn) {
   if (preview) { preview.style.color = def; preview.style.borderColor = def; }
 }
 
-async function saveTheme() {
-  var statusEl = document.getElementById('themeStatus');
-  try {
-    var themeColors = {};
-    ['accent', 'interactive', 'winColor', 'loseColor'].forEach(function(key) {
-      var inp = document.getElementById('themeColor-' + key);
-      if (inp) themeColors[key] = inp.value;
-    });
-    var fieldColors = {};
-    document.querySelectorAll('.field-color-picker:not(.theme-color-picker)').forEach(function(inp) {
-      if (inp.dataset.field) fieldColors[inp.dataset.field] = inp.value;
-    });
-    var [r1, r2] = await Promise.all([
-      apiFetch('/api/theme-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(themeColors) }),
-      apiFetch('/api/field-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fieldColors) }),
-    ]);
-    if (!r1 || !r1.ok || !r2 || !r2.ok) throw new Error();
-    _themeColors = themeColors;
-    _fieldColors = fieldColors;
-    if (statusEl) { statusEl.textContent = '✓ Saved'; setTimeout(function(){ statusEl.textContent = ''; }, 3000); }
-  } catch(e) {
-    if (statusEl) statusEl.textContent = '✗ Error';
-  }
-}
-
 async function resetTheme() {
-  var statusEl = document.getElementById('themeStatus');
+  var statusEl = document.getElementById('themeResetStatus');
   try {
     var [r1, r2] = await Promise.all([
       apiFetch('/api/theme-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }),

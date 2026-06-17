@@ -297,131 +297,148 @@
         <div class="settings-panel active" id="sp-pageinfo">
           <div class="admin-subtitle">Configure tournament identity and display labels. Changes take effect on the public page after reload.</div>
           <div class="settings-section">
-            <div class="settings-section-hdr">Tournament Identity</div>
-            <div class="settings-field">
-              <label>Tournament Name <span class="field-label-hint">(public page header)</span></label>
-              <input type="text" id="set-tournamentName" placeholder="e.g. Summer Tournament 2025">
-            </div>
-            <div class="settings-field">
-              <label>Page Title <span class="field-label-hint">(browser tab)</span></label>
-              <input type="text" id="set-pageTitle" placeholder="e.g. 2025 Summer Tournament">
-            </div>
-            <div class="settings-field">
-              <label>Subtitle <span class="field-label-hint">(optional, below tournament name)</span></label>
-              <input type="text" id="set-subtitle" placeholder="e.g. Slowpitch · Double Elimination">
-            </div>
-            <div class="settings-field">
-              <label>Admin Panel Name <span class="field-label-hint">(this page's header)</span></label>
-              <input type="text" id="set-adminName" placeholder="Tournament Admin">
-            </div>
-          </div>
-          <div class="settings-section">
-            <div class="settings-section-hdr">Public Page Defaults</div>
-            <div class="settings-field">
-              <label>Default landing tab</label>
-              <select class="styled" id="set-defaultTab">
-                <option value="bracket">Bracket</option>
-                <option value="schedule">Schedule</option>
-                <option value="teampath">Team Path</option>
-                <option value="buckets">Buckets</option>
-              </select>
-              <div class="field-hint">Which view opens when a visitor first lands (before they pick a tab — their last choice is remembered after that).</div>
-            </div>
-            <div class="settings-field">
-              <label>Apply to</label>
-              <select class="styled" id="set-defaultTabScope">
-                <option value="both">Mobile &amp; Desktop</option>
-                <option value="mobile">Mobile only</option>
-              </select>
-              <div class="field-hint">"Mobile only" keeps Bracket as the desktop landing tab and uses the above only on phones/tablets.</div>
-            </div>
-            <div class="settings-field">
-              <label>Default schedule grouping</label>
-              <select class="styled" id="set-defaultScheduleGroup">
-                <option value="day">By Day</option>
-                <option value="round">By Round</option>
-                <option value="field">By Field</option>
-              </select>
-              <div class="field-hint">How the Schedule tab groups games for first-time visitors.</div>
-            </div>
-          </div>
-          <div class="settings-section">
-            <div class="settings-section-hdr">Bracket</div>
-            <div class="settings-field">
-              <label>Left Bracket Label</label>
-              <input type="text" id="set-leftLabel" placeholder="Left Bracket">
-              <div class="field-hint">Shown above the left side of the bracket and on mobile.</div>
-            </div>
-            <div class="settings-field">
-              <label>Right Bracket Label</label>
-              <input type="text" id="set-rightLabel" placeholder="Right Bracket">
-              <div class="field-hint">Shown above the right side of the bracket and on mobile.</div>
-            </div>
-            <div class="settings-field">
-              <label>Play-In Label <span class="field-label-hint">(mobile bracket divider)</span></label>
-              <input type="text" id="set-playInLabel" placeholder="Play-In">
-              <div class="field-hint">Label above the conditional game that determines the loser-bracket finalist (e.g. "Losers Final").</div>
-            </div>
-            <div class="settings-field settings-field--toggle">
-              <label>Show bracket-side dividers on mobile</label>
-              <input type="checkbox" id="set-showSideDividers">
-              <div class="field-hint">Displays a subtle label between winner and loser bracket games in each mobile swipe column.</div>
-            </div>
-          </div>
-          <div class="settings-section">
-            <div class="settings-section-hdr">Date &amp; Time Display</div>
-            <div class="settings-field-pair">
-              <div class="settings-field settings-field--toggle">
-                <label>Show date <span class="field-label-hint">(e.g. 6/19)</span></label>
-                <input type="checkbox" id="set-showDate">
+            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Tournament Identity</div>
+            <div class="collapsible-body">
+              <div class="settings-field">
+                <label>Tournament Name <span class="field-label-hint">(public page header)</span></label>
+                <input type="text" id="set-tournamentName" placeholder="e.g. Summer Tournament 2025">
               </div>
-              <div class="settings-field settings-field--sub">
-                <label>Format</label>
-                <select class="styled" id="set-dateFormat">
-                  <option value="short">Short — 6/19</option>
-                  <option value="long">Long — June 19</option>
+              <div class="settings-field">
+                <label>Page Title <span class="field-label-hint">(browser tab)</span></label>
+                <input type="text" id="set-pageTitle" placeholder="e.g. 2025 Summer Tournament">
+              </div>
+              <div class="settings-field">
+                <label>Subtitle <span class="field-label-hint">(optional, below tournament name)</span></label>
+                <input type="text" id="set-subtitle" placeholder="e.g. Slowpitch · Double Elimination">
+              </div>
+              <div class="settings-field">
+                <label>Admin Panel Name <span class="field-label-hint">(this page's header)</span></label>
+                <input type="text" id="set-adminName" placeholder="Tournament Admin">
+              </div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Public Page Defaults</div>
+            <div class="collapsible-body">
+              <div class="settings-field">
+                <label>Default landing tab</label>
+                <select class="styled" id="set-defaultTab">
+                  <option value="bracket">Bracket</option>
+                  <option value="schedule">Schedule</option>
+                  <option value="teampath">Team Path</option>
+                  <option value="buckets">Buckets</option>
                 </select>
+                <div class="field-hint">Which view opens when a visitor first lands (before they pick a tab — their last choice is remembered after that).</div>
               </div>
-            </div>
-            <div class="settings-field-pair">
-              <div class="settings-field settings-field--toggle">
-                <label>Show day of week <span class="field-label-hint">(e.g. Friday)</span></label>
-                <input type="checkbox" id="set-showDay">
-              </div>
-              <div class="settings-field settings-field--sub">
-                <label>Format</label>
-                <select class="styled" id="set-dayFormat">
-                  <option value="long">Long — Friday</option>
-                  <option value="short">Short — Fri</option>
+              <div class="settings-field">
+                <label>Apply to</label>
+                <select class="styled" id="set-defaultTabScope">
+                  <option value="both">Mobile &amp; Desktop</option>
+                  <option value="mobile">Mobile only</option>
                 </select>
+                <div class="field-hint">"Mobile only" keeps Bracket as the desktop landing tab and uses the above only on phones/tablets.</div>
+              </div>
+              <div class="settings-field">
+                <label>Default schedule grouping</label>
+                <select class="styled" id="set-defaultScheduleGroup">
+                  <option value="day">By Day</option>
+                  <option value="round">By Round</option>
+                  <option value="field">By Field</option>
+                </select>
+                <div class="field-hint">How the Schedule tab groups games for first-time visitors.</div>
               </div>
             </div>
           </div>
           <div class="settings-section">
-            <div class="settings-section-hdr">Live Scoring</div>
-            <div class="settings-field">
-              <label>Period Label <span class="field-label-hint">(shown on live game card)</span></label>
-              <input type="text" id="set-periodLabel" placeholder="Inning">
-              <div class="field-hint">Label for the scoring period displayed during live updates (e.g. "Inning", "Quarter", "Half", "Period").</div>
+            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Bracket</div>
+            <div class="collapsible-body">
+              <div class="settings-field">
+                <label>Left Bracket Label</label>
+                <input type="text" id="set-leftLabel" placeholder="Left Bracket">
+                <div class="field-hint">Shown above the left side of the bracket and on mobile.</div>
+              </div>
+              <div class="settings-field">
+                <label>Right Bracket Label</label>
+                <input type="text" id="set-rightLabel" placeholder="Right Bracket">
+                <div class="field-hint">Shown above the right side of the bracket and on mobile.</div>
+              </div>
+              <div class="settings-field">
+                <label>Play-In Label <span class="field-label-hint">(mobile bracket divider)</span></label>
+                <input type="text" id="set-playInLabel" placeholder="Play-In">
+                <div class="field-hint">Label above the conditional game that determines the loser-bracket finalist (e.g. "Losers Final").</div>
+              </div>
+              <div class="settings-field settings-field--toggle">
+                <label>Show bracket-side dividers on mobile</label>
+                <input type="checkbox" id="set-showSideDividers">
+                <div class="field-hint">Displays a subtle label between winner and loser bracket games in each mobile swipe column.</div>
+              </div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Date &amp; Time Display</div>
+            <div class="collapsible-body">
+              <div class="settings-field-pair">
+                <div class="settings-field settings-field--toggle">
+                  <label>Show date <span class="field-label-hint">(e.g. 6/19)</span></label>
+                  <input type="checkbox" id="set-showDate">
+                </div>
+                <div class="settings-field settings-field--sub">
+                  <label>Format</label>
+                  <select class="styled" id="set-dateFormat">
+                    <option value="short">Short — 6/19</option>
+                    <option value="long">Long — June 19</option>
+                  </select>
+                </div>
+              </div>
+              <div class="settings-field-pair">
+                <div class="settings-field settings-field--toggle">
+                  <label>Show day of week <span class="field-label-hint">(e.g. Friday)</span></label>
+                  <input type="checkbox" id="set-showDay">
+                </div>
+                <div class="settings-field settings-field--sub">
+                  <label>Format</label>
+                  <select class="styled" id="set-dayFormat">
+                    <option value="long">Long — Friday</option>
+                    <option value="short">Short — Fri</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Live Scoring</div>
+            <div class="collapsible-body">
+              <div class="settings-field">
+                <label>Period Label <span class="field-label-hint">(shown on live game card)</span></label>
+                <input type="text" id="set-periodLabel" placeholder="Inning">
+                <div class="field-hint">Label for the scoring period displayed during live updates (e.g. "Inning", "Quarter", "Half", "Period").</div>
+              </div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Application Colors</div>
+            <div class="collapsible-body">
+              <div class="settings-subsection-hdr">Field Colors</div>
+              <div class="field-hint" style="margin-bottom:0.6em">Assign a color to each field tag on game cards. Defaults are Teal / Orange / Purple / Pink / Blue.</div>
+              <div id="fieldsColorList"></div>
+              <label class="adv-toggle-label">
+                <input type="checkbox" id="themeAdvancedToggle" onchange="document.getElementById('themeAdvancedPanel').style.display=this.checked?'':'none'">
+                Advanced — Application Theme
+              </label>
+              <div id="themeAdvancedPanel" style="display:none">
+                <div class="settings-subsection-hdr" style="margin-top:0.75em">Application Theme</div>
+                <div class="field-hint" style="margin-bottom:0.6em">Override accent and result colors used across the public page. Light mode variants are auto-derived.</div>
+                <div id="themeColorsList"></div>
+                <div class="settings-save-row" style="margin-top:0.5em">
+                  <button class="admin-clear-btn" onclick="resetTheme()">Reset Defaults</button>
+                  <span class="sched-status" id="themeResetStatus"></span>
+                </div>
+              </div>
             </div>
           </div>
           <div class="settings-save-row">
             <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
             <span class="sched-status" id="settingsStatus"></span>
-          </div>
-          <div class="settings-section">
-            <div class="settings-section-hdr">Theme Colors</div>
-            <div id="themeColorsList"></div>
-          </div>
-          <div class="settings-section">
-            <div class="settings-section-hdr">Field Colors</div>
-            <div class="admin-subtitle" style="margin-bottom:0.5em;font-size:var(--text-sm);color:var(--text-dim)">Assign a color to each field tag on game cards. Defaults are Teal / Orange / Purple / Pink / Blue.</div>
-            <div id="fieldsColorList"></div>
-          </div>
-          <div class="settings-save-row">
-            <button class="sched-save-btn" onclick="saveTheme()">Save Theme</button>
-            <button class="admin-clear-btn" onclick="resetTheme()">Reset Defaults</button>
-            <span class="sched-status" id="themeStatus"></span>
           </div>
         </div>
 
