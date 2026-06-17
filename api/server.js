@@ -304,6 +304,16 @@ app.use(express.json({ limit: '10kb' }));
 const loginAttempts = new Map();
 const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 const LOGIN_MAX_FAILS = 10;
+
+// Sweep expired entries once per window so the map doesn't grow without bound
+// if the server is hit by many unique IPs (e.g. a scanner or high-traffic event).
+setInterval(function pruneLoginAttempts() {
+  const cutoff = Date.now() - LOGIN_WINDOW_MS;
+  for (const [ip, entry] of loginAttempts) {
+    if (entry.windowStart < cutoff) loginAttempts.delete(ip);
+  }
+}, LOGIN_WINDOW_MS).unref(); // .unref() so this timer doesn't keep the process alive on shutdown
+
 function loginRateLimit(req, res, next) {
   const ip = req.ip;
   const now = Date.now();
