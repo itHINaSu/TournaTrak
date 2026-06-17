@@ -2,9 +2,8 @@
 
 A primer for starting a fresh chat with full project context. Delete or update
 freely; this is a working note, not documentation. See also `ROADMAP.md`
-(v3/v4 plan), `SALES_SITE_BRIEF.md` (marketing-site brief), `SESSION_CONTEXT.md`,
-and `README.md` (note: README is stale — predates auth, live scoring, lineups,
-buckets).
+(v3/v4 plan), `SALES_SITE_BRIEF.md` (marketing-site brief), and `README.md`
+(note: README is stale — predates auth, live scoring, lineups, buckets).
 
 ## What it is
 16-team **double-elimination** bracket web app (softball/baseball tournament).
@@ -29,8 +28,8 @@ change is complete. Do not open PRs unless asked.
   - `sw.js` — service worker (network-first); bump `CACHE` version on any precached asset change
 - `api/server.js` — Express server, REST endpoints, JSON persistence in `/data`
 - `files/` — runtime data (deployment side; not in this container). `schedule.json`
-  + `results.json` are currently **un-ignored** in `.gitignore` for dev inspection
-  (see Current state). `schedule.example.json` documents the format.
+  + `results.json` are currently **un-ignored** in `.gitignore` for dev inspection.
+  `schedule.example.json` documents the format.
 
 ## Design tokens (base.css)
 All colors/sizes are CSS custom properties with dark (`:root`) + light
@@ -38,13 +37,13 @@ All colors/sizes are CSS custom properties with dark (`:root`) + light
 Key tokens: `--bg --surface --surface2 --border --blue --blue-lt --gold
 --gold-lt --text --text-dim --text-mute --win-color --lose-color --clear-color
 --clear-border --live-color`. Radius: `--radius-xs/sm/md`. Type: `--text-xs/sm/md/lg`.
-- **Color semantics:** green=`--win-color` and red=`--lose-color` are reserved for
-  finalized win/loss. **Gold (`--gold-lt`) = date/time AND the live inning/period.**
-  **Blue (`--blue-lt`) = live scores** + active/interactive accents. LIVE badge=
-  `--live-color` (red).
-  - NOTE: this is the *swapped* scheme as of this session. Previously live scores
-    were gold and the inning was blue; now scores are blue and the inning is gold
-    (gold reads as "game time"). See `.game-score.live-score` and `.live-period`.
+- **Color semantics:** `--win-color` (green) and `--lose-color` (red) are reserved
+  for finalized win/loss. `--gold-lt` = date/time text AND the live inning/period.
+  `--blue-lt` = live scores + active/interactive accents. LIVE badge = `--live-color`.
+- **Field tag palette** (5 defaults, overridable per Settings → Fields):
+  Field 1 Teal `#0d9488`, Field 2 Orange `#ea580c`, Field 3 Purple `#7c3aed`,
+  Field 4 Pink `#db2777`, Field 5 Blue `var(--blue-lt)`. These are intentionally
+  distinct from `--win-color` (green), `--lose-color` (red), and `--gold-lt` (time).
 - Fonts: Oswald (labels/numbers/time), Barlow (team names).
 - `theme-color` `<meta>` tags use literal hex (CSS vars invalid in meta) — keep in sync with `--bg`.
 
@@ -53,126 +52,191 @@ Key tokens: `--bg --surface --surface2 --border --blue --blue-lt --gold
 - `ROUND_ORDER`: R1, R2, QF, QF2, SF, CHAMP, CHAMP2. `ROUND_LABELS` maps these to
   "Round 1/2/3/4/5, Championship, If Necessary".
 - Slot ID format: `ROUND.SIDE.NUM` (e.g. `SF.R.1`, `CHAMP.C.1`). SIDE = L|R|C.
-- Card renderers in `bracket.js` (check ALL relevant ones when changing card
-  content / live behavior):
-  - `cardHTML` — desktop bracket
+- Card renderers in `bracket.js` (check ALL relevant ones when changing card content):
+  - `cardHTML` — desktop bracket `.bc` cards (compact header: game-id, field-tag, time, offset)
   - `champCardHTML` — mobile champ card
   - `mobileRoundCardHTML` — mobile bracket swipe view
-  - `roundCardHTML` — schedule / mobile alt
-  - inline in `renderRoundView` (schedule) and the team-path chain (`makeVerticalChain` / `renderTeamView`)
+  - `roundCardHTML` — schedule detail card (used in By-Round schedule view)
+  - `scheduleCardHTML` — schedule + team-path full detail card
+  - Team Path chain cards (inline in `makeVerticalChain` / `renderTeamView`)
+
+## Game card layout (detail cards — schedule + team path)
+The `.round-game-header` row shows: **[Game ID] [Date] [Field + DOW + Time + Offset]**
+- `gameDateHTML(dateStr)` renders just the date span — placed between game-id and the time block.
+- `timeOrLiveHTML(sid, dateStr, dowStr, timeStr)` renders `.round-game-day-time` containing:
+  field tag, DOW, time, and delay offset. `dateStr` is no longer used inside this function
+  (it was moved out). Field tag appears first inside the time block via `fieldTagHTML(sid)`.
+- `fieldTagHTML(sid)` checks `_fieldColors[field]` (loaded from `/api/field-colors`) first;
+  falls back to numbered CSS palette classes `.game-field-tag--1` through `--5`.
+- Bracket `.bc` cards (`cardHTML`) use their own compact header; offset displayed as
+  `.bc-offset` span (no "min" suffix due to space). Field tag stays next to game-id there.
+- **Date/field swap rationale:** date = "what game is this" (near game-id), field = "where/when" (near time).
 
 ## Mobile bracket peek layout (`renderMobileBracket`)
 - Two-column swipe view with `earlyY` (evenly spaced) ↔ `lateY` (bracket-tree
   midpoint) convergence as you scroll between rounds.
 - `anchored[gid]` = has a feeder in the adjacent (previous) column.
-- `selfFed[gid]` = has a feeder in its OWN column (combined/absorbed rounds, e.g.
-  a round-4 game derived from a round-3 game sharing the column). Such cards, plus
-  wave-split play-in cards (`data-playin="1"`), are **hidden in lateY** (opacity 0)
-  and fade in only when their column becomes active — they have no converging line
-  from the previous column. Applied in the DOM-positioning loop via
-  `if (selfFed[gid] && !anchored[gid]) card.dataset.playin = '1'`.
+- `selfFed[gid]` = has a feeder in its OWN column (combined/absorbed rounds). Such
+  cards and wave-split play-in cards (`data-playin="1"`) are hidden in lateY and fade
+  in only when their column is active. Applied via `if (selfFed && !anchored) card.dataset.playin = '1'`.
 
 ## Live scoring
-- Admin: each pending result card has **▶ Live** + **Final**. ▶ Live starts a live
-  card (Clear | Final | Update). `startLive(sid)` defaults period=1, scores 0/0 but
-  preserves typed scores; `updateLive` / `endLive` / `saveResult` manage state.
-- API: `GET /api/live` (public, no-store), `POST /api/live`, `DELETE /api/live/:sid`
-  (results role). Saving a result clears its live entry. File: `/data/live.json`.
-- Public (`bracket.js`): `liveScores` fetched alongside results/schedule/settings.
-  Helpers: `liveScoreHTML`, `gameIsLive`, `liveHeaderHTML`, `timeOrLiveHTML`.
-  - When a game is live the date/time is **replaced in place** by `● LIVE` +
-    `<periodLabel> N` (same slot, no layout shift). Restored on finalize.
-  - `.live-badge` (red) + `.live-period` (gold); `.game-score.live-score` (blue).
+- Admin: each pending result card has **▶ Live** + **Final**. `startLive` / `updateLive` /
+  `endLive` / `saveResult` manage state.
+- API: `GET /api/live` (public, no-store), `POST /api/live`, `DELETE /api/live/:sid`.
+  File: `/data/live.json`.
+- Public: `gameIsLive`, `liveScoreHTML`, `liveHeaderHTML`, `timeOrLiveHTML`. When live,
+  `timeOrLiveHTML` returns a `.round-game-live` div with the field tag + live score.
+  `.live-badge` (red), `.live-period` (gold), `.game-score.live-score` (blue).
+
+## Delays / time offsets
+Admin Results tab → Delays panel (also reachable via "→ Delays" button in the Schedule tab).
+
+- **Data:** `/data/offsets.json` — `{ entries: [], banner: "" }`. Each entry:
+  `{ minutes: N, fields: ["Field 1"], days: ["2025-06-20"] }`. Empty arrays = all.
+- **Sign convention:** +N = behind/late (red), −N = ahead/early (green).
+- **Server:** `GET /api/offsets` (public, max-age=15), `POST /api/offsets` (admin).
+- **Public page:** `_offsets` loaded in `fetchAll()`. `getGameOffset(sid)` finds the
+  last-matching entry; returns `null` for completed games. `timeOrLiveHTML` appends
+  `.round-game-offset--late` / `--early` spans. Bracket `.bc` cards show compact
+  `.bc-offset` span. Offset is **suppressed** once a result is recorded.
+- **Delay notice banner:** `_offsets.banner` (free text) shown in `.delay-notice` strip
+  on the public page via `updateDelayNotice()`. Saved/cleared via the Delays panel.
+- **UI (admin):** Field and day selection via toggle chips (tap to select/deselect;
+  none selected = all). Active offsets listed with delete buttons. "Clear All" resets
+  everything. The Delays panel is one of three Results sub-modes (Games / Bucket Challenge / Delays).
+
+## Admin mobile UX
+- **Quick bar** (mobile-only, order:9, above tab bar): visible only when Results tab
+  is active. Contains "Games", "Bucket Challenge", "Delays" mode buttons — replaces the
+  old Results/Bucket swap in the tab bar itself. Controlled by `updateQuickBar()`.
+- Results tab has NO in-panel mode pill bar on mobile (`display:none` via media query);
+  the quick bar is the only mode switcher there.
+- Admin tab panels have `order` CSS to stack: quick bar (9), tab bar (10), panel content.
+- `gotoDelays()` in admin.js programmatically switches to the Results tab → Delays mode.
+- **Per-game save button** in the Schedule editor: each `occupiedCard` footer has a
+  "Save" button calling `saveOneGame(sid)` — merges the single game into the schedule
+  and POSTs, so the TD doesn't have to scroll to Save All.
+
+## Auth / sessions
+- `express-session` with a **`FileSessionStore`** (custom, in `server.js`) writing to
+  `/data/sessions.json`. Survives `docker compose restart`. Cookie `maxAge` = 30 days,
+  `rolling: true` (refreshed on each request). Prunes expired sessions every 60 s.
+- No new npm packages; uses built-in `fs` + `util.inherits`. The `Store` base class
+  comes from `express-session`.
+- Login: POST `/api/login` → bcrypt verify → `req.session.regenerate()`.
+- `/api/session` GET: returns `{ authenticated, username, role, teamName, teams, mustChangePassword }`.
+- Rate limiter is still **in-memory** (resets on restart) — see security items below.
+
+## PWA home preference (Account settings)
+- Results/admin users see **"PWA opens to"** select in Settings → Account → Session.
+- Stored in `localStorage` as `ttPwaHome` (`'admin'` | `'public'`). Per-device.
+- Redirect fires in `bracket.js` session check: if standalone mode + role is admin/results
+  + `ttPwaHome === 'admin'` → `window.location.replace('/admin')`.
+- Takes effect on next fresh standalone launch. Changing to 'public' disables the redirect.
+- Two PWA manifests: `manifest.json` (start_url: `/`) and `admin-manifest.json` (start_url: `/admin`).
+  The preference is only relevant when the user has installed the public PWA.
+
+## Field colors
+- **Storage:** `/data/field-colors.json` — `{ "Field 1": "#hex", ... }`. Separate from settings
+  (settings POST handler stringifies everything; objects can't live there).
+- **Server:** `GET /api/field-colors` (public, max-age=60), `POST /api/field-colors` (admin,
+  validates hex colors).
+- **Public page:** `_fieldColors` loaded in `fetchAll()`. `fieldTagHTML` checks it first;
+  falls back to numbered CSS palette.
+- **Admin:** Settings → Fields panel (admin-only). `renderFieldsPanel()` reads
+  `getScheduleFields()` (scans schedule for unique field names) and renders a color picker
+  (`<input type="color">`) per field with a live preview. `saveFieldColors()` / `resetFieldColors()`.
+  `FIELD_DEFAULT_COLORS = ['#0d9488', '#ea580c', '#7c3aed', '#db2777', '#4a90d9']` (teal/orange/purple/pink/blue).
 
 ## Settings system
 Three layers must stay in sync: `api/server.js` `SETTINGS_DEFAULTS`,
 `frontend/admin.js` `SETTING_DEFAULTS`, `frontend/bracket.js` `SETTING_DEFAULTS`.
-The server's allowlist controls what POST `/api/settings` persists — **a key missing
-there is silently dropped on save** (this bit us this session; now fixed/synced).
-Current keys: `tournamentName, pageTitle, adminName, subtitle, leftLabel,
-rightLabel, playInLabel, showSideDividers, periodLabel, showDate, showDay,
-dateFormat, dayFormat, defaultTab, defaultTabScope`.
-- **Date/Day display** (admin → Page Info → "Date & Time Display"): `showDate`,
-  `showDay` (toggles); `dateFormat` short `6/19` / long `June 19`; `dayFormat`
-  long `Friday` / short `Fri`. Applied via `fmtDate`/`fmtDow` helpers + `bracketTime`.
-- **Default landing tab** (admin → "Default Landing Tab"): `defaultTab`
-  (bracket/schedule/teampath/buckets, default bracket); `defaultTabScope`
-  `both` (apply everywhere) / `mobile` (apply below 1280px only; desktop keeps
-  Bracket). Precedence on load: `?view=` → `tt_tab` cookie → configured default.
+The server's allowlist controls what POST `/api/settings` persists — a key missing
+there is silently dropped. **Field colors are NOT in settings** — they use
+`/api/field-colors`. Current settings keys: `tournamentName, pageTitle, adminName,
+subtitle, leftLabel, rightLabel, playInLabel, showSideDividers, periodLabel,
+showDate, showDay, dateFormat, dayFormat, defaultTab, defaultTabScope, defaultScheduleGroup`.
+
+Admin Settings → Page Info is organized into **5 sections** (merged from 7):
+1. Tournament Identity — name, page title, subtitle, admin name
+2. Public Page Defaults — default tab + scope + schedule grouping (formerly 2 separate sections)
+3. Bracket — left/right labels, play-in label, side dividers (formerly 2 separate sections)
+4. Date & Time Display — show/format pairs for date and day-of-week, grouped with left-border
+5. Live Scoring — period label
+
+Section headers: blue (`--blue-lt`), 0.82rem, bold bottom border. All selects in settings
+fields use `class="styled"` (the `admin-winner-sel` inline-style inconsistency is fixed).
 
 ## Tabs / URL
 - Tabs: Bracket, Schedule (By Round), Team Path, Buckets. Switch via JS; persisted
-  in `tt_tab` cookie. `?view=<tab>` is consumed-and-stripped (lineup links only;
-  not shareable — clean per-path URLs like `/schedule` are a v3 item).
-- Shareable team link: `?team=` query param + Share button. Leaving Team Path
-  strips it via `history.replaceState(null,'',pathname)`.
+  in `tt_tab` cookie. `?view=<tab>` consumed-and-stripped (lineup links).
+- Shareable team link: `?team=` query param + Share button.
+- Schedule selector widths: 3/8 Group-by + 5/8 View (flex: 3 / flex: 5).
 
 ## Team Path view (`renderTeamView`)
-- Opens at the **top** (Win path bar first) — there is intentionally NO auto-scroll
-  to the next game (removed this session; it hid the Win path bar). The
-  "LOSS ↓ G#" boxes (`data-lose-anchor`) jump to later sections on demand.
-- No team-name heading (removed as redundant — the selector bar always shows it).
-- `scrollTeamPathTop()` must reset **`#teamOut`** (the `.team-panel`, the mobile
-  `overflow-y` scroll container) in addition to `#view-teampath`/window — otherwise
-  switching teams inherits the previous team's scroll position.
-- Clickable loss-destination game name is styled as a pill (matches `.tp-opp-chip`)
-  so the tap affordance shows at rest, not just on hover.
+- Opens at the top (Win path bar first). No auto-scroll to next game.
+- `scrollTeamPathTop()` resets `#teamOut` (mobile overflow-y container) in addition
+  to `#view-teampath` / window.
+- Clickable loss-destination styled as a pill (`.tp-opp-chip`) for tap affordance.
 
 ## Conventions / gotchas
-- `upcoming` cards use a **dashed border only** — do NOT add `opacity` (dims team
-  names to a grey/TBD look).
-- Theme toggle: admin.js claims it via `window.__ttThemeManaged = true` so lineup.js
-  doesn't double-bind `#themeToggle`. `_userPicked` guard + sessionStorage fallback.
-- Mobile inputs: numeric fields use `inputmode="numeric" pattern="[0-9]*"` +
-  `onfocus="this.select()"`. Avoid programmatic `.focus()` on mobile.
-- `.admin-res-footer button` uses fixed `height` (not min-height) for even boxes.
-- Bump `sw.js` `CACHE` (`tournatrak-vX.YY`) whenever a **precached** asset changes
-  (`/`, index.html, fonts.css, base.css, bracket.css, bracket-data.js, bracket.js).
-  `admin.*`/`lineup.*` are NOT precached (network-first serves them fresh).
+- `upcoming` cards use dashed border only — do NOT add `opacity`.
+- Theme toggle: admin.js claims it via `window.__ttThemeManaged = true`.
+- Mobile inputs: `inputmode="numeric" pattern="[0-9]*"` + `onfocus="this.select()"`.
+- `.admin-res-footer button` uses fixed `height` for even boxes.
+- **Bump `sw.js` `CACHE` whenever a precached asset changes.** Currently `tournatrak-v2.27`.
+  Precached: `/`, `index.html`, `fonts.css`, `base.css`, `bracket.css`, `bracket-data.js`,
+  `bracket.js`, `/lineup`, `lineup.html`, `lineup.css`, `lineup.js`.
+  `admin.*` / `admin-sw.js` are NOT in `sw.js` precache (they have their own `admin-sw.js`).
+- Bucket drag on mobile: `.bucket-drag-handle` has `touch-action: none` (eliminates
+  long-press delay) and `user-select: none` (prevents text selection during drag).
+  `.bucket-admin-row` also has `user-select: none`.
+
+## Data files (all in `/data/`)
+| File | Default | Notes |
+|------|---------|-------|
+| `results.json` | `{}` | Game results keyed by slot ID |
+| `schedule.json` | `{}` | Game schedule keyed by slot ID |
+| `settings.json` | see SETTINGS_DEFAULTS | Tournament config |
+| `users.json` | bootstrapped from env | Auth users |
+| `lineups.json` | `{}` | Team lineups |
+| `buckets.json` | `{ counts:{}, bucketOnlyTeams:[] }` | Bucket challenge |
+| `live.json` | `{}` | In-progress live scores |
+| `offsets.json` | `{ entries:[], banner:"" }` | Time delay offsets |
+| `field-colors.json` | `{}` | Per-field hex color overrides |
+| `sessions.json` | `{}` | Persistent session store |
 
 ## Lineup: softball-specific — needs v3 attention
-The lineup row fields (`jersey`, `name`, `position`) and the lineup UI are
-softball/baseball-specific. The sport label comes from `periodLabel` in settings,
-but the lineup form itself has no configurable field labels. For v3/v4 multi-sport
-support, lineup fields need to be either configurable per-tournament or abstracted
-to generic "player slot" labels. **Do not change in v2.** Noted in `ROADMAP.md`.
+Lineup fields (`jersey`, `name`, `position`) are sport-specific. For v3 multi-sport,
+these need to be configurable or abstracted. **Do not change in v2.**
 
 ## Sales site (`sales-site/`)
-Static HTML/CSS/JS marketing site in `sales-site/` — separate nginx:alpine container,
-port 8081. See `sales-site/SALES_SITE_BRIEF.md`. Screenshots in `sales-site/screenshots/`
-were generated from a local demo instance (API + generate-schedule.js). The team-path
-diagram (`teampath-landscape.png`) is a generated illustration, not a live screenshot.
-TODOs in index.html: demo URL (`href="#"`) and contact email (`mailto:YOUR@EMAIL.COM`).
+Static HTML/CSS/JS marketing site — separate nginx:alpine container, port 8081.
+See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `index.html`.
 
 ## Current state
-`main` clean and pushed. **SW cache at `tournatrak-v2.15`.**
-Recent work: live-card color swap (scores blue / inning gold), date & day format
-settings, field-tag layout fix, configurable default landing tab, mobile lateY hide
-for same-column-fed cards, team-path pill affordance, team-path open-at-top +
-scroll-container reset fix, `ROADMAP.md`, `SALES_SITE_BRIEF.md`, `sales-site/`
-marketing site with real screenshots, doc cleanup (removed RECOMMENDATION.md and
-SESSION_CONTEXT.md), CSP added to sales-site nginx, README rewrite.
+`main` clean and pushed. **SW cache at `tournatrak-v2.27`.**
 
-**`.gitignore`:** `files/results.json` and `files/schedule.json` are currently
-gitignored (standard). During active development they may be temporarily un-ignored
-for bracket inspection — re-add them before any public push or v3 branch.
-(See ROADMAP.md pre-v3 checklist.)
+**Recent work (this session wave):**
+- Auth persistence: `FileSessionStore` → `/data/sessions.json`; 30-day cookie; `rolling: true`
+- Game card layout: date moved next to game ID, field tag moved into time block; `gameDateHTML` helper added
+- Field tag colors: per-field palette (teal/orange/purple/pink/blue by default), user-overridable via Settings → Fields panel; stored in `/data/field-colors.json`
+- Time delay offsets: Delays panel in admin Results tab; field+day chip selectors; inline colored offset in schedule, team path, and bracket cards; weather notice banner
+- Admin mobile: quick bar above tab bar (Games / Bucket Challenge / Delays), replaces confusing Results/Bucket tab swap
+- Admin schedule: per-game save button; "→ Delays" nav button replacing redundant "Public Page" link
+- Account settings: "PWA opens to" preference (admin/public) stored in `localStorage`; auto-redirects on standalone launch
+- Admin settings UX: 5 sections (merged from 7), more prominent section headers, consistent select styling
+- Bucket drag: `touch-action: none` + `user-select: none` for snappy mobile drag without text selection
 
-## Security items deferred to v2 cleanup / v3
-Two medium-effort security improvements are not yet done — see ROADMAP.md:
-- **`unsafe-inline` in main app CSP** — requires moving all inline `<script>` /
-  `<style>` blocks in HTML files to external files before the CSP can be tightened.
-- **Rate limiter + session store persistence** — both are in-memory; a container
-  restart clears them. Low actual risk for a single low-traffic instance but worth
-  fixing before scaling.
+## Security items
+- **`unsafe-inline` in main app CSP** — deferred; requires moving inline `<script>`/`<style>` to external files.
+- **Rate limiter** still in-memory (resets on container restart). Low risk for single-instance but noted for v3.
+- **Session persistence:** ✅ DONE — `FileSessionStore` writing to `/data/sessions.json`.
 
-## Cost / workflow notes (user preferences)
-- Use the lowest-cost model that fits the task; flag when a fresh chat would be
-  cheaper than continuing a long one (long transcripts re-send as input tokens).
-- The harness can't monitor account usage limits or auto-switch models — model is
-  set user-side (`/model`, `/config`, `/fast`). User currently on Sonnet for this work.
-- When usage is near a limit or the user asks to wrap up: pause, commit, regenerate
-  this `HANDOFF.md`.
+## Cost / workflow notes
+- Use the lowest-cost model that fits the task.
+- When usage is near a limit or the user asks to wrap up: pause, commit, push, regenerate this `HANDOFF.md`.
 
 ## Git
 - Commit messages end with the Claude Code session URL line (harness convention).
