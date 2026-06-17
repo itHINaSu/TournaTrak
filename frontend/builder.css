@@ -100,6 +100,30 @@
 }
 .bld-check input { width: 1.1em; height: 1.1em; }
 
+/* Manual bye picker */
+.bld-bye-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10em, 1fr));
+  gap: 0.35em 0.75em;
+  max-height: 16em;
+  overflow-y: auto;
+  margin-top: 0.4em;
+  padding: 0.5em;
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.bld-bye-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  font-size: var(--text-sm);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 2.2rem;
+}
+.bld-bye-item input { width: 1.1em; height: 1.1em; flex: none; }
+
 .bld-muted {
   font-size: var(--text-sm);
   color: var(--text-mute);

@@ -7,8 +7,12 @@ function esc(s) {
 }
 function $(id) { return document.getElementById(id); }
 
-var FORMATS = [];        // [{ id, label, description, teamCount }]
+var FORMATS = [];        // [{ id, label, description, minTeams, maxTeams }]
 var currentFormat = null;
+var byeSelection = {};   // team name -> true, for manual mode
+
+// Smallest power of two >= n (mirrors the server helper).
+function nextPow2(n) { var b = 1; while (b < n) b <<= 1; return b; }
 
 // ── Auth gate ─────────────────────────────────────────────────────────
 async function init() {
@@ -45,7 +49,7 @@ async function init() {
   $('loading').style.display = 'none';
   $('builder').style.display = '';
   wireEvents();
-  updateTeamCount();
+  refresh();
 }
 
 // ── Format selection ──────────────────────────────────────────────────
@@ -60,7 +64,7 @@ function buildFormatOptions() {
 function selectFormat(id) {
   currentFormat = FORMATS.filter(function (f) { return f.id === id; })[0] || FORMATS[0];
   $('formatDesc').textContent = currentFormat.description || '';
-  updateTeamCount();
+  refresh();
 }
 
 // ── Teams ─────────────────────────────────────────────────────────────
@@ -70,12 +74,82 @@ function parsedTeams() {
     .filter(function (s) { return s.length; });
 }
 
-function updateTeamCount() {
-  var have = parsedTeams().length;
-  var need = currentFormat ? currentFormat.teamCount : 0;
-  var el = $('teamCount');
-  el.textContent = have + ' / ' + need;
-  el.className = 'bld-count' + (have === need ? ' bld-count--ok' : '');
+// How many first-round byes the current team count implies (0 if a power of
+// two, or if the count is below the format minimum).
+function byesNeeded() {
+  var n = parsedTeams().length;
+  if (!currentFormat || n < currentFormat.minTeams) return 0;
+  return nextPow2(n) - n;
+}
+
+// ── Refresh derived UI (team count, bye note, bye picker) ─────────────
+function refresh() {
+  var teams = parsedTeams();
+  var n = teams.length;
+  var min = currentFormat.minTeams, max = currentFormat.maxTeams;
+
+  // Team count badge
+  var countEl = $('teamCount');
+  var inRange = n >= min && n <= max;
+  countEl.textContent = n + ' team' + (n === 1 ? '' : 's') + ' (' + min + '–' + max + ')';
+  countEl.className = 'bld-count' + (inRange ? ' bld-count--ok' : '');
+
+  // Bye note
+  var byes = byesNeeded();
+  var noteEl = $('byeNote');
+  if (!inRange) {
+    noteEl.textContent = '';
+  } else if (byes === 0) {
+    noteEl.textContent = 'A clean bracket of ' + n + ' — no byes needed.';
+  } else {
+    noteEl.textContent = nextPow2(n) + '-team bracket → ' + byes + ' first-round bye' +
+      (byes === 1 ? '' : 's') + '.';
+  }
+
+  renderByePicker(teams, byes);
+}
+
+// ── Manual bye picker ─────────────────────────────────────────────────
+function renderByePicker(teams, byes) {
+  var manual = $('seedMode').value === 'manual';
+  var picker = $('byePicker');
+
+  if (!manual || byes === 0 || !teams.length) {
+    picker.style.display = 'none';
+    return;
+  }
+  picker.style.display = '';
+
+  // Drop selections for teams that no longer exist in the list.
+  var teamSet = {};
+  teams.forEach(function (t) { teamSet[t] = true; });
+  Object.keys(byeSelection).forEach(function (t) { if (!teamSet[t]) delete byeSelection[t]; });
+
+  $('byeList').innerHTML = teams.map(function (t) {
+    var on = byeSelection[t] ? ' checked' : '';
+    return '<label class="bld-bye-item">' +
+      '<input type="checkbox" data-team="' + esc(t) + '"' + on + '> ' + esc(t) + '</label>';
+  }).join('');
+
+  Array.prototype.forEach.call($('byeList').querySelectorAll('input'), function (cb) {
+    cb.addEventListener('change', onByeToggle);
+  });
+  updateByeCount(byes);
+}
+
+function selectedByes() { return Object.keys(byeSelection); }
+
+function onByeToggle(e) {
+  var t = e.target.getAttribute('data-team');
+  if (e.target.checked) byeSelection[t] = true; else delete byeSelection[t];
+  updateByeCount(byesNeeded());
+}
+
+function updateByeCount(byes) {
+  var have = selectedByes().length;
+  var el = $('byeCount');
+  el.textContent = have + ' / ' + byes;
+  el.className = 'bld-count' + (have === byes ? ' bld-count--ok' : '');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -98,19 +172,35 @@ function showError(msg) {
 function onGenerate() {
   showError('');
   var teams = parsedTeams();
-  var need = currentFormat.teamCount;
-  if (teams.length !== need) {
-    showError('Need exactly ' + need + ' teams — you have ' + teams.length + '.');
+  var n = teams.length;
+  var min = currentFormat.minTeams, max = currentFormat.maxTeams;
+
+  if (n < min || n > max) {
+    showError('Need between ' + min + ' and ' + max + ' teams — you have ' + n + '.');
     return;
   }
   var dupes = teams.filter(function (t, i) { return teams.indexOf(t) !== i; });
   if (dupes.length) { showError('Duplicate team name: "' + dupes[0] + '"'); return; }
   if (!$('startDate').value) { showError('Pick a start date.'); return; }
 
+  var mode = $('seedMode').value;
+  var byes = byesNeeded();
+  if (mode === 'manual' && byes > 0 && selectedByes().length !== byes) {
+    showError('Pick exactly ' + byes + ' bye team' + (byes === 1 ? '' : 's') +
+      ' — you have ' + selectedByes().length + '.');
+    return;
+  }
+
+  var seedDesc = mode === 'random' ? 'random seeding'
+    : mode === 'order' ? 'list-order seeding'
+    : byes > 0 ? selectedByes().length + ' manual bye' + (selectedByes().length === 1 ? '' : 's')
+    : 'list-order seeding';
+
   $('confirmText').innerHTML =
     'This replaces the current schedule with a new <strong>' + esc(currentFormat.label) +
-    '</strong> bracket for <strong>' + esc(String(need)) + ' teams</strong> starting <strong>' +
-    esc($('startDate').value) + '</strong>.<br><span class="bld-warn">Existing schedule will be overwritten.</span>';
+    '</strong> bracket for <strong>' + esc(String(n)) + ' teams</strong> (' + esc(seedDesc) +
+    ') starting <strong>' + esc($('startDate').value) +
+    '</strong>.<br><span class="bld-warn">Existing schedule will be overwritten.</span>';
   $('confirmOverlay').style.display = '';
 }
 
@@ -127,7 +217,8 @@ async function doGenerate() {
         format: currentFormat.id,
         startDate: $('startDate').value,
         teams: parsedTeams(),
-        shuffle: $('shuffleChk').checked,
+        seedMode: $('seedMode').value,
+        byeTeams: selectedByes(),
       }),
     });
     var data = await r.json().catch(function () { return {}; });
@@ -147,7 +238,8 @@ async function doGenerate() {
 // ── Events ────────────────────────────────────────────────────────────
 function wireEvents() {
   $('formatSel').addEventListener('change', function () { selectFormat(this.value); });
-  $('teamsInput').addEventListener('input', updateTeamCount);
+  $('teamsInput').addEventListener('input', refresh);
+  $('seedMode').addEventListener('change', refresh);
   $('generateBtn').addEventListener('click', onGenerate);
   $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').style.display = 'none'; });
   $('confirmBtn').addEventListener('click', doGenerate);

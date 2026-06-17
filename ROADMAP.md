@@ -148,6 +148,35 @@ Planning-stage ideas discussed but not scoped in detail. Add specifics as they'r
 
 ---
 
+## Bracket Builder (branch: `feature/bracket-builder`)
+
+Admin tool at `/builder` that generates a full bracket schedule from a format +
+team list and writes `schedule.json`. Backed by `api/schedule-formats.js` (a
+shared FORMATS registry used by both the builder API and the CLI).
+
+### Done
+- **Single Elimination, 4–32 teams** with automatic byes for non-power-of-two
+  counts. Three seeding modes: random, list order, and manual bye selection.
+- Byes use a "mixed" game (one side a fixed team name, the other a winner-slot),
+  which the data model + `applySchedule()` already support.
+
+### Follow-ups
+- **Round-header labels for sub-32 brackets.** Brackets smaller than 32 anchor to
+  `CHAMP` and borrow the tail round names, so an 8-team bracket's first column
+  reads "Round 3" (positions/advancement are correct — header text only).
+  Full 32-team brackets label perfectly. Fix: derive `ROUND_LABELS` dynamically
+  from the populated rounds (touches `bracket.js`, `admin.js`; needs in-browser
+  verification).
+- **64-team support.** Generator scales trivially, but requires prepending one
+  round name in `ROUND_BY_DEPTH` (schedule-formats.js) AND widening `SLOT_DEFS`
+  in both `api/slot-defs.js` and `frontend/bracket-data.js` (must stay in sync),
+  plus verifying the 6-round / 32-per-side bracket renders legibly on mobile.
+- **16-team double-elimination** format (winners + losers bracket, `CHAMP2`
+  "if necessary" reset game). Design collaboratively before building.
+- **Admin nav link** to `/builder` (currently reached by direct URL only).
+
+---
+
 ## Notes for future sessions
 
 - The `feature/regional` branch is the authoritative Postgres prototype. Read it before designing the v3 schema.

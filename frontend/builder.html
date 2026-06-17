@@ -51,14 +51,29 @@
       <textarea class="bld-input bld-textarea" id="teamsInput" rows="10"
         placeholder="Paste or type one team name per line…" spellcheck="false"></textarea>
     </div>
-    <label class="bld-check">
-      <input type="checkbox" id="shuffleChk" checked>
-      Shuffle team seeding (random first-round matchups)
-    </label>
+    <p class="bld-muted" id="byeNote"></p>
   </div>
 
   <div class="bld-card">
-    <h2 class="bld-h2">3 · Schedule</h2>
+    <h2 class="bld-h2">3 · Seeding &amp; byes</h2>
+    <div class="bld-field">
+      <label for="seedMode">How should teams be seeded?</label>
+      <select class="bld-input" id="seedMode">
+        <option value="random">Random — shuffle everything (byes to random teams)</option>
+        <option value="order">By list order — line 1 is the top seed (byes to top teams)</option>
+        <option value="manual">Manual — I’ll pick which teams get byes</option>
+      </select>
+    </div>
+    <!-- Manual bye picker — shown only for manual mode when byes are needed -->
+    <div id="byePicker" style="display:none">
+      <label class="bld-field" style="display:block">Pick the teams that get a first-round bye
+        <span class="bld-count" id="byeCount"></span></label>
+      <div class="bld-bye-list" id="byeList"></div>
+    </div>
+  </div>
+
+  <div class="bld-card">
+    <h2 class="bld-h2">4 · Schedule</h2>
     <div class="bld-field">
       <label for="startDate">Start date (day 1)</label>
       <input type="date" class="bld-input" id="startDate">
