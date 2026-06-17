@@ -73,16 +73,11 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       toggleSettingsSidebar();
       return;
     }
-    // Results tab while already active → toggle between games and bucket mode
-    if (tab.dataset.tab === 'results' && tab.classList.contains('active')) {
-      setResultsMode(_resultsMode === 'buckets' ? 'games' : 'buckets');
-      return;
-    }
     document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
     document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
     tab.classList.add('active');
     document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
-    syncResultsTabLabel();
+    updateQuickBar();
     if (tab.dataset.tab === 'lineups' && !window._lineupInitDone) {
       window._lineupInitDone = true;
       lineupInit();
@@ -108,14 +103,11 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
   });
 });
 
-function syncResultsTabLabel() {
-  var tab = document.querySelector('.admin-tab[data-tab="results"]');
-  if (!tab) return;
-  var label = tab.querySelector('.tab-label');
-  if (label) {
-    var showBucket = tab.classList.contains('active') && _resultsMode === 'games';
-    label.textContent = showBucket ? 'Bucket' : 'Results';
-  }
+function updateQuickBar() {
+  var bar = document.getElementById('adminQuickBar');
+  if (!bar) return;
+  var resultsActive = document.querySelector('.admin-tab[data-tab="results"].active');
+  bar.classList.toggle('admin-quick-bar--visible', !!resultsActive);
 }
 
 // ── Settings sidebar ───────────────────────────────────────────────────
@@ -201,7 +193,7 @@ async function fetchAll() {
       panel.classList.add('active');
     }
   }
-  syncResultsTabLabel();
+  updateQuickBar();
 }
 
 function applySettingsToPage() {
@@ -552,6 +544,8 @@ function occupiedCard(sid) {
   h += '<div class="sched-game-footer">'
     + '<button class="admin-clear-btn" onclick="clearSlot(\'' + sid + '\')">Clear Slot</button>'
     + '<span class="sched-footer-note">Removes this game entirely — slot returns to empty</span>'
+    + '<button class="sched-save-btn sched-game-save-btn" onclick="saveOneGame(\'' + sid + '\')">Save</button>'
+    + '<span class="sched-status" id="sgstatus-' + sid + '"></span>'
     + '</div>';
 
   h += '</div></div>';
@@ -712,6 +706,55 @@ async function saveAllSchedule() {
     if (statusB) statusB.textContent = '✗ Error';
   }
   btn.disabled = false;
+}
+
+async function saveOneGame(sid) {
+  var labelEl   = document.getElementById('slabel-' + sid);
+  var slotEl    = document.getElementById('sslot-'  + sid);
+  var t1El      = document.getElementById('st1-'    + sid);
+  var t2El      = document.getElementById('st2-'    + sid);
+  var st1typeEl = document.getElementById('st1-' + sid + '-type');
+  var st1srcEl  = document.getElementById('st1-' + sid + '-slot');
+  var st2typeEl = document.getElementById('st2-' + sid + '-type');
+  var st2srcEl  = document.getElementById('st2-' + sid + '-slot');
+  var status    = document.getElementById('sgstatus-' + sid);
+  var entry     = {};
+  var newLabel  = labelEl ? labelEl.value.trim() : '';
+  var timeVal   = readDatetime('stime-' + sid);
+  var fieldEl   = document.getElementById('sfield-' + sid);
+  var fieldVal  = fieldEl ? fieldEl.value.trim() : '';
+  if (newLabel)                  entry.label  = newLabel;
+  if (fieldVal)                  entry.field  = fieldVal;
+  if (timeVal)                   entry.time   = timeVal;
+  if (slotEl && slotEl.value)    entry.num    = parseInt(slotEl.value);
+  if (t1El && t1El.value.trim()) entry.t1name = t1El.value.trim();
+  if (t2El && t2El.value.trim()) entry.t2name = t2El.value.trim();
+  if (st1typeEl && st1srcEl && st1srcEl.value) {
+    entry.t1type = st1typeEl.value;
+    entry.t1slot = st1srcEl.value;
+  }
+  if (st2typeEl && st2srcEl && st2srcEl.value) {
+    entry.t2type = st2typeEl.value;
+    entry.t2slot = st2srcEl.value;
+  }
+  var out = Object.assign({}, schedule);
+  out[sid] = entry;
+  try {
+    var r = await apiFetch('/api/schedule', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(out)
+    });
+    if (!r) return;
+    if (!r.ok) throw new Error();
+    schedule = out;
+    if (typeof applySchedule === 'function') applySchedule(schedule);
+    showToast(gameLabel(sid) + ' saved');
+    if (status) { status.textContent = '✓ Saved'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+    renderScheduleEditor();
+  } catch(e) {
+    showToast('Save failed', true);
+    if (status) { status.textContent = '✗ Error'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+  }
 }
 
 // ── Auth ───────────────────────────────────────────────────────────────
@@ -1169,7 +1212,10 @@ function setResultsMode(mode) {
   if (saveBtn)  saveBtn.style.display  = mode === 'buckets' ? '' : 'none';
   if (saveStat) saveStat.style.display = mode === 'buckets' ? '' : 'none';
   if (mode === 'buckets') renderBucketAdmin();
-  syncResultsTabLabel();
+  var qgBtn = document.getElementById('qModeGamesBtn');
+  var qbBtn = document.getElementById('qModeBucketsBtn');
+  if (qgBtn) qgBtn.classList.toggle('active', mode === 'games');
+  if (qbBtn) qbBtn.classList.toggle('active', mode === 'buckets');
 }
 
 function getScheduleTeams() {

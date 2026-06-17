@@ -295,8 +295,8 @@
   flex-direction: column;
   min-width: 0;
 }
-.sched-select-wrap--group { flex: 1; }
-.sched-select-wrap--view  { flex: 2; }
+.sched-select-wrap--group { flex: 3; }
+.sched-select-wrap--view  { flex: 5; }
 .sched-select { width: 100%; }
 select.styled {
   font-family: 'Barlow', sans-serif;
@@ -1590,23 +1590,27 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     flex-shrink: 0;
   }
 
-  /* ── Team view mobile overrides ── */
+  /* ── Team view / schedule mobile overrides ── */
   .team-path-label {
-    font-size: 1.05rem;
-    padding: 0.7em 1em;
+    font-size: 1em;
+    padding: 0.55em 0.9em;
   }
   .round-game-card {
-    margin-bottom: 1em;
+    margin-bottom: 0.65em;
   }
   .round-game-header {
-    padding: 0.6em 0.9em;
+    padding: 0.4em 0.75em;
+  }
+  .round-game-dow,
+  .round-game-time {
+    font-size: 0.85rem;
   }
   .round-team-row {
-    padding: 0.85em 0.9em;
-    min-height: 3.6em;
+    padding: 0.55em 0.75em;
+    min-height: 2.8em;
   }
   .round-team-name {
-    font-size: 1.05rem;
+    font-size: 0.95rem;
   }
 }
 

@@ -107,6 +107,11 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .admin-clear-btn:active { background: rgba(192,80,80,0.1); }
 
 
+/* ── Quick bar (mobile only — Games / Bucket Challenge above tab bar) ── */
+.admin-quick-bar {
+  display: none; /* hidden on desktop; shown via media query on mobile */
+}
+
 /* ── Results tab: card layout (mirrors By Round view) ── */
 .admin-res-card {
   border: 0.07em solid var(--border);
@@ -239,7 +244,9 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .sched-action-row { display: flex; align-items: center; gap: 0.6em; flex-wrap: wrap; }
 .sched-action-row--top  { margin-bottom: 1em; }
 .sched-action-row--bottom { margin-top: 1.5em; padding-top: 1em; border-top: 0.07em solid var(--border); }
-.sched-game-footer { margin-top: 0.6em; padding-top: 0.6em; border-top: 0.07em solid var(--border); }
+.sched-game-footer { margin-top: 0.6em; padding-top: 0.6em; border-top: 0.07em solid var(--border); display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; }
+.sched-footer-note { flex: 1; min-width: 0; }
+.sched-game-save-btn { flex-shrink: 0; }
 .sched-footer-note { font-size: 0.65em; color: var(--text-mute); margin-left: 0.6em; }
 .sched-side-label { font-family: 'Oswald', sans-serif; font-size: 0.6em; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue-lt); padding: 0.4em 0 0.2em; }
 .source-dropdown-row { display: flex; gap: 0.4em; align-items: center; flex-wrap: wrap; }
@@ -742,6 +749,29 @@ input[type="time"]:focus {
   .settings-nav-item:last-child { border-bottom: none; }
   .settings-nav-item.active { color: var(--gold-lt); background: rgba(196,154,26,0.08); }
 
+  /* Quick bar: sits just above the tab bar (order:9 vs tab-bar order:10) */
+  .admin-quick-bar--visible {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    padding: 0.55em 1.2em;
+    border-top: 0.07em solid var(--border);
+    background: var(--bg);
+    flex-shrink: 0;
+    order: 9;
+  }
+  /* Hide in-panel Games/Bucket bar when quick bar is active on mobile */
+  #tab-results .results-mode-bar { display: none; }
+
+  /* Compact results cards to fit more per screen */
+  .admin-res-card { margin-bottom: 0.85em; }
+  .admin-res-hdr { padding: 0.4em 0.75em; }
+  .admin-res-day, .admin-res-time { font-size: clamp(0.82rem, 0.14vw + 0.79rem, 1rem); }
+  .admin-res-team-row { padding: 0.5em 0.75em; min-height: 2.5em; }
+  .admin-res-team { font-size: 0.88rem; }
+  .admin-res-footer { padding: 0.45em 0.75em; }
+  .admin-res-footer button { font-size: 0.72rem; }
+
 }
 
 /* ── Touch target sizing (coarse pointer = touchscreen) ── */
@@ -816,5 +846,5 @@ input[type="time"]:focus {
 .admin-res-footer .admin-live-start-btn { background: transparent; color: var(--gold-lt); border-color: var(--gold-lt); }
 .admin-res-footer .admin-live-start-btn:hover { background: rgba(196,154,26,0.12); }
 @media (pointer: coarse) {
-  .admin-res-footer button { height: 2.85rem; }
+  .admin-res-footer button { height: 2.4rem; }
 }
