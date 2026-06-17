@@ -387,6 +387,7 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .field-color-input-row { display: flex; align-items: center; gap: 0.75em; margin-top: 0.25em; }
 .field-color-picker { width: 2.8em; height: 2.2em; padding: 0.1em 0.2em; border-radius: var(--radius-xs); border: 0.07em solid var(--border); background: var(--surface2); cursor: pointer; flex-shrink: 0; }
 .field-color-preview { font-family: 'Oswald', sans-serif; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; border: 1px solid; border-radius: 0.6em; padding: 0.1em 0.55em; white-space: nowrap; }
+.theme-color-swatch { display: inline-block; width: 3.2em; height: 1.6em; border-radius: var(--radius-xs); border: 0.07em solid var(--border); flex-shrink: 0; }
 
 /* ── Account tab ── */
 .account-username {

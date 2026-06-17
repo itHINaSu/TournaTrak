@@ -1,5 +1,5 @@
 // admin.js — admin panel logic
-var results = {}, schedule = {}, settings = {}, buckets = {}, _offsets = { entries: [] }, _fieldColors = {};
+var results = {}, schedule = {}, settings = {}, buckets = {}, _offsets = { entries: [] }, _fieldColors = {}, _themeColors = {};
 var currentRole = null;
 var currentTeamName = null;
 var _bucketTeams = [];
@@ -111,7 +111,7 @@ function updateQuickBar() {
 }
 
 // ── Settings sidebar ───────────────────────────────────────────────────
-var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users', coaches: 'Coaches', fields: 'Fields' };
+var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users', coaches: 'Coaches' };
 
 function showSettingsSection(section) {
   document.querySelectorAll('.settings-panel').forEach(function(p) {
@@ -123,7 +123,7 @@ function showSettingsSection(section) {
   closeSettingsSidebar();
   if (section === 'coaches') loadCoaches();
   if (section === 'users')   loadUsers();
-  if (section === 'fields')  renderFieldsPanel();
+  if (section === 'pageinfo') { renderThemeSection(); renderFieldsPanel(); }
 }
 
 function openSettingsSidebar() {
@@ -162,7 +162,7 @@ function showToast(msg, err) {
 // ── Fetch ──────────────────────────────────────────────────────────────
 async function fetchAll() {
   try {
-    var [rr, sr, str, br, lr, or2, fc] = await Promise.all([
+    var [rr, sr, str, br, lr, or2, fc, tc] = await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
@@ -170,6 +170,7 @@ async function fetchAll() {
       fetch('/api/live'),
       fetch('/api/offsets'),
       fetch('/api/field-colors'),
+      fetch('/api/theme-colors'),
     ]);
     results  = await rr.json();
     schedule = await sr.json();
@@ -180,8 +181,9 @@ async function fetchAll() {
     _offsets = or2.ok ? await or2.json() : { entries: [] };
     if (!Array.isArray(_offsets.entries)) _offsets = { entries: [] };
     _fieldColors = fc.ok ? await fc.json() : {};
+    _themeColors = tc.ok ? await tc.json() : {};
     if (typeof applySchedule === 'function') applySchedule(schedule);
-  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; _offsets = { entries: [] }; _fieldColors = {}; }
+  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; _offsets = { entries: [] }; _fieldColors = {}; _themeColors = {}; }
   applySettingsToPage();
   renderAdmin();
   renderScheduleEditor();
@@ -784,8 +786,8 @@ function applyRoleRestrictions(role) {
       document.getElementById('tab-results').classList.add('active');
     }
   });
-  // Settings sidebar: pageinfo, users, coaches, fields are admin-only
-  var adminOnlySections = ['pageinfo', 'users', 'coaches', 'fields'];
+  // Settings sidebar: pageinfo, users, coaches are admin-only
+  var adminOnlySections = ['pageinfo', 'users', 'coaches'];
   adminOnlySections.forEach(function(section) {
     var navItem = document.querySelector('.settings-nav-item[data-section="' + section + '"]');
     if (navItem) navItem.style.display = role === 'admin' ? '' : 'none';
@@ -1207,8 +1209,53 @@ function savePwaHome(val) {
   try { localStorage.setItem('ttPwaHome', val); } catch(e) {}
 }
 
-// ── Field color management ──────────────────────────────────────────────
+// ── Theme & field color management ─────────────────────────────────────
 var FIELD_DEFAULT_COLORS = ['#0d9488', '#ea580c', '#7c3aed', '#db2777', '#4a90d9'];
+
+var THEME_COLOR_DEFAULTS = { accent: '#e8b82a', interactive: '#4a90d9', winColor: '#4a9a4a', loseColor: '#c05050' };
+var THEME_COLOR_LABELS   = { accent: 'Accent (gold)', interactive: 'Interactive (blue)', winColor: 'Win color', loseColor: 'Lose color' };
+var THEME_COLOR_HINTS    = {
+  accent:      'Date/time text, championship borders, schedule labels',
+  interactive: 'Active tabs, live scores, buttons, highlights',
+  winColor:    'Score text color for the winning team',
+  loseColor:   'Score text color for the losing team',
+};
+
+function renderThemeSection() {
+  var el = document.getElementById('themeColorsList');
+  if (!el) return;
+  var keys = ['accent', 'interactive', 'winColor', 'loseColor'];
+  var html = '';
+  keys.forEach(function(key) {
+    var def = THEME_COLOR_DEFAULTS[key];
+    var cur = _themeColors[key] || def;
+    html += '<div class="settings-field">'
+      + '<label>' + THEME_COLOR_LABELS[key] + ' <span class="field-label-hint">— ' + THEME_COLOR_HINTS[key] + '</span></label>'
+      + '<div class="field-color-input-row">'
+      + '<input type="color" class="field-color-picker theme-color-picker" id="themeColor-' + key + '" data-key="' + key + '" data-default="' + esc(def) + '" value="' + esc(cur) + '">'
+      + '<span class="theme-color-swatch" style="background:' + esc(cur) + '"></span>'
+      + '<button class="admin-clear-btn" onclick="resetOneThemeColor(this)">Reset</button>'
+      + '</div>'
+      + '</div>';
+  });
+  el.innerHTML = html;
+  el.querySelectorAll('.theme-color-picker').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+      var swatch = inp.parentElement.querySelector('.theme-color-swatch');
+      if (swatch) swatch.style.background = inp.value;
+    });
+  });
+}
+
+function resetOneThemeColor(btn) {
+  var row = btn.closest('.field-color-input-row');
+  if (!row) return;
+  var inp = row.querySelector('.theme-color-picker');
+  var swatch = row.querySelector('.theme-color-swatch');
+  var def = inp ? inp.dataset.default : '';
+  if (inp) inp.value = def;
+  if (swatch) swatch.style.background = def;
+}
 
 function renderFieldsPanel() {
   var el = document.getElementById('fieldsColorList');
@@ -1218,7 +1265,7 @@ function renderFieldsPanel() {
     el.innerHTML = '<div class="settings-field" style="color:var(--text-mute);font-size:0.9rem">No fields found in schedule yet.</div>';
     return;
   }
-  var html = '<div class="settings-section"><div class="settings-section-hdr">Field Colors</div>';
+  var html = '';
   fields.forEach(function(f, i) {
     var defColor = FIELD_DEFAULT_COLORS[i % FIELD_DEFAULT_COLORS.length];
     var curColor = _fieldColors[f] || defColor;
@@ -1226,14 +1273,13 @@ function renderFieldsPanel() {
       + '<label>' + esc(f) + '</label>'
       + '<div class="field-color-input-row">'
       + '<input type="color" class="field-color-picker" data-field="' + esc(f) + '" data-default="' + esc(defColor) + '" value="' + esc(curColor) + '">'
-      + '<span class="game-field-tag field-color-preview" style="color:' + esc(curColor) + ';border-color:' + esc(curColor) + '">' + esc(f) + '</span>'
+      + '<span class="field-color-preview" style="color:' + esc(curColor) + ';border-color:' + esc(curColor) + '">' + esc(f) + '</span>'
       + '<button class="admin-clear-btn" onclick="resetOneFieldColor(this)">Reset</button>'
       + '</div>'
       + '</div>';
   });
-  html += '</div>';
   el.innerHTML = html;
-  el.querySelectorAll('.field-color-picker').forEach(function(inp) {
+  el.querySelectorAll('.field-color-picker:not(.theme-color-picker)').forEach(function(inp) {
     inp.addEventListener('input', function() {
       var preview = inp.parentElement.querySelector('.field-color-preview');
       if (preview) { preview.style.color = inp.value; preview.style.borderColor = inp.value; }
@@ -1251,34 +1297,42 @@ function resetOneFieldColor(btn) {
   if (preview) { preview.style.color = def; preview.style.borderColor = def; }
 }
 
-async function saveFieldColors() {
-  var statusEl = document.getElementById('fieldColorsStatus');
-  var colors = {};
-  document.querySelectorAll('.field-color-picker').forEach(function(inp) {
-    if (inp.dataset.field) colors[inp.dataset.field] = inp.value;
-  });
+async function saveTheme() {
+  var statusEl = document.getElementById('themeStatus');
   try {
-    var r = await apiFetch('/api/field-colors', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(colors)
+    var themeColors = {};
+    ['accent', 'interactive', 'winColor', 'loseColor'].forEach(function(key) {
+      var inp = document.getElementById('themeColor-' + key);
+      if (inp) themeColors[key] = inp.value;
     });
-    if (!r || !r.ok) throw new Error();
-    _fieldColors = colors;
+    var fieldColors = {};
+    document.querySelectorAll('.field-color-picker:not(.theme-color-picker)').forEach(function(inp) {
+      if (inp.dataset.field) fieldColors[inp.dataset.field] = inp.value;
+    });
+    var [r1, r2] = await Promise.all([
+      apiFetch('/api/theme-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(themeColors) }),
+      apiFetch('/api/field-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fieldColors) }),
+    ]);
+    if (!r1 || !r1.ok || !r2 || !r2.ok) throw new Error();
+    _themeColors = themeColors;
+    _fieldColors = fieldColors;
     if (statusEl) { statusEl.textContent = '✓ Saved'; setTimeout(function(){ statusEl.textContent = ''; }, 3000); }
   } catch(e) {
     if (statusEl) statusEl.textContent = '✗ Error';
   }
 }
 
-async function resetFieldColors() {
-  var statusEl = document.getElementById('fieldColorsStatus');
+async function resetTheme() {
+  var statusEl = document.getElementById('themeStatus');
   try {
-    var r = await apiFetch('/api/field-colors', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({})
-    });
-    if (!r || !r.ok) throw new Error();
+    var [r1, r2] = await Promise.all([
+      apiFetch('/api/theme-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }),
+      apiFetch('/api/field-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }),
+    ]);
+    if (!r1 || !r1.ok || !r2 || !r2.ok) throw new Error();
+    _themeColors = {};
     _fieldColors = {};
+    renderThemeSection();
     renderFieldsPanel();
     if (statusEl) { statusEl.textContent = '✓ Reset'; setTimeout(function(){ statusEl.textContent = ''; }, 3000); }
   } catch(e) {

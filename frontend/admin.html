@@ -290,7 +290,6 @@
         <div class="settings-nav-item" data-section="account" onclick="showSettingsSection('account')">Account</div>
         <div class="settings-nav-item" data-section="users" onclick="showSettingsSection('users')">Users</div>
         <div class="settings-nav-item" data-section="coaches" onclick="showSettingsSection('coaches')">Coaches</div>
-        <div class="settings-nav-item" data-section="fields" onclick="showSettingsSection('fields')">Fields</div>
       </nav>
 
       <div class="settings-content">
@@ -410,6 +409,20 @@
             <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
             <span class="sched-status" id="settingsStatus"></span>
           </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Theme Colors</div>
+            <div id="themeColorsList"></div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Field Colors</div>
+            <div class="admin-subtitle" style="margin-bottom:0.5em;font-size:var(--text-sm);color:var(--text-dim)">Assign a color to each field tag on game cards. Defaults are Teal / Orange / Purple / Pink / Blue.</div>
+            <div id="fieldsColorList"></div>
+          </div>
+          <div class="settings-save-row">
+            <button class="sched-save-btn" onclick="saveTheme()">Save Theme</button>
+            <button class="admin-clear-btn" onclick="resetTheme()">Reset Defaults</button>
+            <span class="sched-status" id="themeStatus"></span>
+          </div>
         </div>
 
         <!-- ── Account panel ── -->
@@ -490,17 +503,6 @@
               <button class="sched-save-btn" onclick="addUser()">Add User</button>
               <span class="sched-status" id="addUserStatus"></span>
             </div>
-          </div>
-        </div>
-
-        <!-- ── Fields panel (admin only) ── -->
-        <div class="settings-panel" id="sp-fields">
-          <div class="admin-subtitle">Assign a color to each field tag shown on game cards. Defaults are Teal / Orange / Purple / Pink / Blue by field number.</div>
-          <div id="fieldsColorList"></div>
-          <div class="settings-save-row">
-            <button class="sched-save-btn" onclick="saveFieldColors()">Save Colors</button>
-            <button class="admin-clear-btn" onclick="resetFieldColors()">Reset Defaults</button>
-            <span class="sched-status" id="fieldColorsStatus"></span>
           </div>
         </div>
 

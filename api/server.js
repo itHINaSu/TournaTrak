@@ -4,8 +4,9 @@ const bcrypt  = require('bcryptjs');
 const fs      = require('fs');
 const crypto  = require('crypto');
 
-const OFFSETS_FILE      = '/data/offsets.json';
-const FIELD_COLORS_FILE = '/data/field-colors.json';
+const OFFSETS_FILE       = '/data/offsets.json';
+const FIELD_COLORS_FILE  = '/data/field-colors.json';
+const THEME_COLORS_FILE  = '/data/theme-colors.json';
 const SESSIONS_FILE     = '/data/sessions.json';
 const RESULTS_FILE  = '/data/results.json';
 const SCHEDULE_FILE = '/data/schedule.json';
@@ -741,6 +742,24 @@ app.post('/api/field-colors', requireAdmin, (req, res) => {
     }
   });
   writeJSON(FIELD_COLORS_FILE, clean);
+  res.json({ ok: true });
+});
+
+const THEME_COLOR_KEYS = ['accent', 'interactive', 'winColor', 'loseColor'];
+
+app.get('/api/theme-colors', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json(readJSON(THEME_COLORS_FILE) || {});
+});
+
+app.post('/api/theme-colors', requireAdmin, (req, res) => {
+  const incoming = req.body || {};
+  const clean = {};
+  THEME_COLOR_KEYS.forEach(key => {
+    const val = incoming[key];
+    if (typeof val === 'string' && /^#[0-9a-f]{6}$/i.test(val)) clean[key] = val;
+  });
+  writeJSON(THEME_COLORS_FILE, clean);
   res.json({ ok: true });
 });
 

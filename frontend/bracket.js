@@ -2,7 +2,7 @@
 // ══════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════
-var results={}, schedule={}, settings={}, buckets={}, liveScores={}, _offsets={entries:[]}, _fieldColors={};
+var results={}, schedule={}, settings={}, buckets={}, liveScores={}, _offsets={entries:[]}, _fieldColors={}, _themeColors={};
 var _sessionRole = null;
 var _bucketEditMode = false;
 var scheduleMode = null; // null = uninitialised; set from settings on first render
@@ -30,6 +30,44 @@ var SETTING_DEFAULTS = {
 function getSetting(key) {
   return (settings[key] !== undefined && settings[key] !== '')
     ? settings[key] : SETTING_DEFAULTS[key];
+}
+
+function _hexToHsl(hex) {
+  var r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
+  var max=Math.max(r,g,b), min=Math.min(r,g,b), l=(max+min)/2, s=0, h=0;
+  if (max!==min) { var d=max-min; s=d/(l>0.5?2-max-min:max+min); if(max===r)h=((g-b)/d+(g<b?6:0))/6; else if(max===g)h=((b-r)/d+2)/6; else h=((r-g)/d+4)/6; }
+  return [h*360, s*100, l*100];
+}
+function _hslToHex(h,s,l) {
+  h/=360; s/=100; l/=100;
+  var r,g,b; if(s===0){r=g=b=l;}else{var q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q; function hue(t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;} r=hue(h+1/3);g=hue(h);b=hue(h-1/3);}
+  return '#'+[r,g,b].map(function(x){return Math.round(x*255).toString(16).padStart(2,'0');}).join('');
+}
+function _lightModeColor(hex) {
+  var hsl = _hexToHsl(hex);
+  // Dark mode colors are bright (high L). For light mode, reduce lightness by ~40% for contrast on white.
+  var l = Math.max(10, hsl[2] - 40);
+  return _hslToHex(hsl[0], hsl[1], l);
+}
+
+function applyThemeColors() {
+  var root = document.documentElement;
+  var tc = _themeColors;
+  var darkMap = { accent: ['--gold','--gold-lt'], interactive: ['--blue','--blue-lt'], winColor: ['--win-color'], loseColor: ['--lose-color'] };
+  var lightRules = [];
+  Object.keys(darkMap).forEach(function(key) {
+    darkMap[key].forEach(function(prop) {
+      if (tc[key]) root.style.setProperty(prop, tc[key]);
+      else root.style.removeProperty(prop);
+    });
+    if (tc[key]) {
+      var lc = _lightModeColor(tc[key]);
+      darkMap[key].forEach(function(prop) { lightRules.push('  ' + prop + ':' + lc + ';'); });
+    }
+  });
+  var styleEl = document.getElementById('tt-theme-overrides');
+  if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'tt-theme-overrides'; document.head.appendChild(styleEl); }
+  styleEl.textContent = lightRules.length ? 'body.light{' + lightRules.join('') + '}' : '';
 }
 
 function applySettings() {
@@ -338,7 +376,7 @@ var _fetchFingerprint = '';
 async function fetchAll(){
   var rawTexts;
   try{
-    var [rr,sr,str,br,lr,or2,fc]=await Promise.all([
+    var [rr,sr,str,br,lr,or2,fc,tc]=await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
@@ -346,6 +384,7 @@ async function fetchAll(){
       fetch('/api/live'),
       fetch('/api/offsets'),
       fetch('/api/field-colors'),
+      fetch('/api/theme-colors'),
     ]);
     rawTexts = await Promise.all([rr.text(), sr.text(), str.text(), br.ok ? br.text() : Promise.resolve(''), lr.ok ? lr.text() : Promise.resolve('{}'), or2.ok ? or2.text() : Promise.resolve('{"entries":[]}')]);
     results=JSON.parse(rawTexts[0]); schedule=JSON.parse(rawTexts[1]); settings=JSON.parse(rawTexts[2]);
@@ -353,8 +392,10 @@ async function fetchAll(){
     liveScores=JSON.parse(rawTexts[4]);
     var _offParsed=JSON.parse(rawTexts[5]); _offsets=(_offParsed&&Array.isArray(_offParsed.entries))?_offParsed:{entries:[]};
     _fieldColors=fc.ok ? await fc.json() : {};
+    _themeColors=tc.ok ? await tc.json() : {};
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; _fieldColors={}; rawTexts=null; }
+  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; _fieldColors={}; _themeColors={}; rawTexts=null; }
+  applyThemeColors();
   applySettings();
   updateTimestamp();
   updateDelayNotice();
