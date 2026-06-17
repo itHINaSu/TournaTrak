@@ -34,6 +34,13 @@
   --medal-bronze-border:#5c3018;
   --medal-bronze-text: #c87840;
 
+  /* Per-field tag colors (defaults; user-overridable in Settings > Fields) */
+  --field-1: #0d9488; /* teal */
+  --field-2: #ea580c; /* orange */
+  --field-3: #7c3aed; /* purple */
+  --field-4: #db2777; /* pink */
+  --field-5: var(--blue-lt);
+
   /* Border radius scale */
   --radius-sm: 0.35em;
   --radius-xs: 0.2em;
@@ -91,6 +98,13 @@ body.light {
   --medal-bronze-bg:   #f5e8d8;
   --medal-bronze-border:#a86030;
   --medal-bronze-text: #4a2010;
+
+  /* Per-field tag colors — darker shades for AA contrast on light surfaces.
+     --field-5 references --blue-lt, which is already overridden above. */
+  --field-1: #0f766e; /* teal */
+  --field-2: #c2410c; /* orange */
+  --field-3: #6d28d9; /* purple */
+  --field-4: #be185d; /* pink */
 }
 
 body {

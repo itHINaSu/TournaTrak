@@ -233,7 +233,7 @@
 .bucket-edit-inp {
   width: 4.5em;
   font-family: 'Oswald', sans-serif;
-  font-size: var(--text-lg);
+  font-size: var(--text-lg); /* 1rem = 16px, also prevents iOS zoom */
   font-weight: 700;
   text-align: right;
   background: var(--bg);
@@ -241,7 +241,6 @@
   border-radius: 0.25em;
   color: var(--blue-lt);
   padding: 0.2em 0.4em;
-  font-size: var(--text-lg); /* prevent iOS zoom */
 }
 .bucket-edit-actions {
   max-width: 42em;
@@ -1658,11 +1657,11 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .mbc-champ-label .game-field-tag { font-size: 0.7rem; }
 /* Per-field colors: Teal / Orange / Purple / Pink / Blue (user-overridable in Settings > Fields) */
-.game-field-tag--1 { color: #0d9488;        border-color: #0d9488; }
-.game-field-tag--2 { color: #ea580c;        border-color: #ea580c; }
-.game-field-tag--3 { color: #7c3aed;        border-color: #7c3aed; }
-.game-field-tag--4 { color: #db2777;        border-color: #db2777; }
-.game-field-tag--5 { color: var(--blue-lt); border-color: var(--blue-lt); }
+.game-field-tag--1 { color: var(--field-1); border-color: var(--field-1); }
+.game-field-tag--2 { color: var(--field-2); border-color: var(--field-2); }
+.game-field-tag--3 { color: var(--field-3); border-color: var(--field-3); }
+.game-field-tag--4 { color: var(--field-4); border-color: var(--field-4); }
+.game-field-tag--5 { color: var(--field-5); border-color: var(--field-5); }
 /* Field tag sits as first item inside the time block — no extra left margin needed */
 .round-game-day-time .game-field-tag { margin-left: 0; }
 

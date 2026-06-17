@@ -90,7 +90,6 @@
 }
 .lineup-row--reorder-hover .lineup-order--tap,
 .lineup-row:hover .lineup-order--tap { border-color: var(--blue-lt); color: var(--blue-lt); }
-.lineup-row--selected { background: rgba(26, 95, 168, 0.12) !important; }
 .lineup-row--selected { background: color-mix(in srgb, var(--blue) 12%, transparent) !important; }
 .lineup-row--selected .lineup-order--tap {
   background: var(--blue-lt);
