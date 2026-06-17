@@ -288,25 +288,21 @@
   align-items: stretch;
   justify-content: stretch;
   gap: 0.75em;
+  padding-top: 0.45em;
+  padding-bottom: 0.45em;
 }
 .sched-select-wrap {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.25em;
   min-width: 0;
 }
-.sched-select-label {
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--text-mute);
-  padding-left: 0.15em;
-}
+.sched-select-wrap--group { flex: 1; }
+.sched-select-wrap--view  { flex: 2; }
 .sched-select {
   width: 100%;
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+  min-height: 0;
 }
 select.styled {
   font-family: 'Barlow', sans-serif;

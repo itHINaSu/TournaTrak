@@ -76,16 +76,15 @@
 <div class="view-panel" id="view-schedule">
   <div class="selector-row">
     <div class="selector-inner sched-selector-inner">
-      <div class="sched-select-wrap">
-        <span class="sched-select-label">Group by</span>
+      <div class="sched-select-wrap sched-select-wrap--group">
         <select class="styled sched-select" id="schedGroup">
+          <option value="" disabled>Group by</option>
           <option value="day">Day</option>
           <option value="round">Round</option>
           <option value="field">Field</option>
         </select>
       </div>
-      <div class="sched-select-wrap">
-        <span class="sched-select-label">View</span>
+      <div class="sched-select-wrap sched-select-wrap--view">
         <select class="styled sched-select" id="schedSection">
           <option value="">—</option>
         </select>
