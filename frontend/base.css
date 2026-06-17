@@ -192,31 +192,78 @@ select:focus-visible,
 .team-chip:focus-visible,
 .lineup-tool-btn:focus-visible { outline: 0.13em solid var(--blue-lt); outline-offset: 0.15em; }
 
-/* ── Primary buttons (shared baseline) ── */
-.admin-save-btn,
-.sched-save-btn,
-.bucket-edit-save-btn,
-.lineup-submit-btn {
+/* ── Universal button base ── */
+.admin-public-btn,
+.admin-save-btn, .sched-save-btn, .bucket-edit-save-btn,
+.admin-clear-btn,
+.admin-live-update-btn, .admin-live-start-btn,
+.bucket-edit-cancel-btn,
+.lineup-submit-btn, .lineup-tool-btn,
+.lineup-sub-add-btn, .lineup-sub-del-btn,
+.results-mode-btn,
+.bucket-hide-btn,
+.team-share-btn {
   font-family: 'Oswald', sans-serif;
   font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: 0.55em 1.1em;
+  padding: 0.4em 0.88em;
   border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+
+/* Small: compact inline buttons */
+.admin-clear-btn, .bucket-hide-btn {
+  font-size: var(--text-xs);
+  padding: 0.22em 0.55em;
+}
+
+/* Primary: solid blue */
+.admin-save-btn, .sched-save-btn, .bucket-edit-save-btn, .lineup-submit-btn {
   background: var(--blue);
   color: #fff;
-  border: 0.07em solid var(--blue);
-  cursor: pointer;
+  border-color: var(--blue);
 }
 .admin-save-btn:hover, .admin-save-btn:active,
 .sched-save-btn:hover, .sched-save-btn:active,
 .bucket-edit-save-btn:hover, .bucket-edit-save-btn:active,
 .lineup-submit-btn:hover, .lineup-submit-btn:active { background: var(--blue-lt); border-color: var(--blue-lt); }
-.admin-save-btn:disabled,
-.sched-save-btn:disabled,
-.bucket-edit-save-btn:disabled,
-.lineup-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.admin-save-btn:disabled, .sched-save-btn:disabled,
+.bucket-edit-save-btn:disabled, .lineup-submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Secondary: ghost hover */
+.admin-public-btn:hover, .admin-public-btn:active,
+.bucket-edit-cancel-btn:hover, .bucket-edit-cancel-btn:active,
+.results-mode-btn:hover:not(.active),
+.team-share-btn:hover, .team-share-btn:active { color: var(--text); border-color: var(--text-dim); }
+.results-mode-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* Danger: red outline */
+.admin-clear-btn { color: var(--clear-color); border-color: var(--clear-border); }
+.admin-clear-btn:hover, .admin-clear-btn:active { background: rgba(192,80,80,0.1); }
+
+/* bucket-hide-btn states */
+.bucket-hide-btn { color: var(--text-mute); }
+.bucket-hide-btn:hover { border-color: var(--text-dim); color: var(--text); }
+.bucket-hide-btn.is-hidden { border-color: var(--gold); color: var(--gold-lt); }
+
+/* lineup tool modifier colors */
+.lineup-tool-btn--import { border-color: var(--blue-lt); color: var(--blue-lt); }
+.lineup-tool-btn--reorder,
+.lineup-tool-btn--cancel { border-color: var(--lose-color); color: var(--lose-color); }
+.lineup-tool-btn--done { border-color: var(--win-color); color: var(--win-color); }
+.lineup-tool-btn:hover { opacity: 0.8; }
+.lineup-sub-add-btn { border-color: var(--win-color); color: var(--win-color); }
+.lineup-sub-add-btn:hover { opacity: 0.8; }
+.lineup-sub-del-btn { border-color: var(--lose-color); color: var(--lose-color); }
+.lineup-sub-del-btn:hover { opacity: 0.8; }
+.lineup-sub-del-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
 @media (max-width: 1023px) {
   .toast { bottom: calc(6em + env(safe-area-inset-bottom, 0px)); }
@@ -225,5 +272,5 @@ select:focus-visible,
 /* ── Touch target sizing (coarse pointer = touchscreen) ── */
 @media (pointer: coarse) {
   .theme-toggle    { min-height: 2.75rem; min-width: 2.75rem; }
-  .admin-public-btn { min-height: 2.75rem; }
+  .admin-public-btn, .team-share-btn { min-height: 2.75rem; }
 }

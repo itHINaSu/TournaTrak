@@ -53,26 +53,8 @@
   justify-content: space-between;
   margin-bottom: 0.75em;
 }
-.lineup-tool-btn {
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0.55em 1.1em;
-  border-radius: 0.3em;
-  border: 0.07em solid var(--border);
-  background: var(--surface2);
-  color: var(--text-dim);
-  cursor: pointer;
-}
-.lineup-tool-btn:hover { opacity: 0.8; }
+/* lineup-tool-btn: base styles from base.css universal button rule */
 .lineup-tool-btn--right { margin-left: auto; }
-.lineup-tool-btn--import { border-color: var(--blue-lt); color: var(--blue-lt); }
-.lineup-tool-btn--reorder { border-color: var(--lose-color); color: var(--lose-color); }
-.lineup-tool-btn--done { border-color: var(--win-color); color: var(--win-color); }
-.lineup-tool-btn--cancel { color: var(--lose-color); border-color: var(--lose-color); }
-.lineup-tool-btn--cancel:hover { opacity: 0.8; }
 
 /* ── Reorder tap-to-swap ── */
 .lineup-td-order--reorder { cursor: pointer; }
@@ -237,33 +219,10 @@
   padding-top: 1em;
   border-top: 0.07em solid var(--border);
 }
-/* lineup-submit-btn: base styles from base.css primary-button rule;
-   larger padding intentional — this is the page's primary CTA */
-.lineup-submit-btn { padding: 0.65em 1.6em; }
+/* lineup-submit-btn: primary CTA — wider padding than standard */
+.lineup-submit-btn { padding: 0.55em 1.6em; }
 
-.lineup-sub-add-btn,
-.lineup-sub-del-btn {
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0.65em 1.2em;
-  border-radius: 0.3em;
-  background: transparent;
-  cursor: pointer;
-}
-.lineup-sub-add-btn {
-  border: 0.07em solid var(--win-color);
-  color: var(--win-color);
-}
-.lineup-sub-add-btn:hover { opacity: 0.8; }
-.lineup-sub-del-btn {
-  border: 0.07em solid var(--lose-color);
-  color: var(--lose-color);
-}
-.lineup-sub-del-btn:hover { opacity: 0.8; }
-.lineup-sub-del-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+/* lineup-sub-add/del-btn: base styles from base.css universal button rule */
 
 .lineup-status {
   font-size: 0.82rem;
