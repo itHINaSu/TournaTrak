@@ -2,7 +2,7 @@
 // ══════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════
-var results={}, schedule={}, settings={}, buckets={}, liveScores={}, _offsets={entries:[]};
+var results={}, schedule={}, settings={}, buckets={}, liveScores={}, _offsets={entries:[]}, _fieldColors={};
 var _sessionRole = null;
 var _bucketEditMode = false;
 var scheduleMode = null; // null = uninitialised; set from settings on first render
@@ -338,21 +338,23 @@ var _fetchFingerprint = '';
 async function fetchAll(){
   var rawTexts;
   try{
-    var [rr,sr,str,br,lr,or2]=await Promise.all([
+    var [rr,sr,str,br,lr,or2,fc]=await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
       fetch('/api/buckets'),
       fetch('/api/live'),
       fetch('/api/offsets'),
+      fetch('/api/field-colors'),
     ]);
     rawTexts = await Promise.all([rr.text(), sr.text(), str.text(), br.ok ? br.text() : Promise.resolve(''), lr.ok ? lr.text() : Promise.resolve('{}'), or2.ok ? or2.text() : Promise.resolve('{"entries":[]}')]);
     results=JSON.parse(rawTexts[0]); schedule=JSON.parse(rawTexts[1]); settings=JSON.parse(rawTexts[2]);
     buckets=br.ok ? JSON.parse(rawTexts[3]) : {};
     liveScores=JSON.parse(rawTexts[4]);
     var _offParsed=JSON.parse(rawTexts[5]); _offsets=(_offParsed&&Array.isArray(_offParsed.entries))?_offParsed:{entries:[]};
+    _fieldColors=fc.ok ? await fc.json() : {};
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; rawTexts=null; }
+  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; _fieldColors={}; rawTexts=null; }
   applySettings();
   updateTimestamp();
   updateDelayNotice();
@@ -450,9 +452,14 @@ function gameLabel(sid){
 function fieldTagHTML(sid){
   var g = GAMES[sid];
   if (!g || !g.field) return '';
-  var num = parseInt(g.field.replace(/\D/g, ''), 10) || 0;
+  var field = g.field;
+  var userColor = _fieldColors && _fieldColors[field];
+  if (userColor) {
+    return '<span class="game-field-tag" style="color:' + esc(userColor) + ';border-color:' + esc(userColor) + '">' + esc(field) + '</span>';
+  }
+  var num = parseInt(field.replace(/\D/g, ''), 10) || 0;
   var cls = 'game-field-tag' + (num >= 1 && num <= 5 ? ' game-field-tag--' + num : '');
-  return '<span class="' + cls + '">' + esc(g.field) + '</span>';
+  return '<span class="' + cls + '">' + esc(field) + '</span>';
 }
 function gameDateHTML(dateStr) {
   var d = fmtDate(dateStr);
@@ -2637,5 +2644,10 @@ fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(fun
   if (adminBtn)  adminBtn.style.display  = (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
   if (lineupBtn) lineupBtn.style.display = (_sessionRole === 'team') ? '' : 'none';
   if (editBtn)   editBtn.style.display   = (_sessionRole === 'buckets') ? '' : 'none';
+  // PWA home preference: redirect to admin if user prefers it and is in standalone mode
+  if (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) {
+    var pref; try { pref = localStorage.getItem('ttPwaHome'); } catch(e) {}
+    if (pref === 'admin') { window.location.replace('/admin'); }
+  }
 }).catch(function(){});
 fetchAll();

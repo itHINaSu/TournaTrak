@@ -1,5 +1,5 @@
 // admin.js — admin panel logic
-var results = {}, schedule = {}, settings = {}, buckets = {}, _offsets = { entries: [] };
+var results = {}, schedule = {}, settings = {}, buckets = {}, _offsets = { entries: [] }, _fieldColors = {};
 var currentRole = null;
 var currentTeamName = null;
 var _bucketTeams = [];
@@ -111,7 +111,7 @@ function updateQuickBar() {
 }
 
 // ── Settings sidebar ───────────────────────────────────────────────────
-var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users', coaches: 'Coaches' };
+var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users', coaches: 'Coaches', fields: 'Fields' };
 
 function showSettingsSection(section) {
   document.querySelectorAll('.settings-panel').forEach(function(p) {
@@ -123,6 +123,7 @@ function showSettingsSection(section) {
   closeSettingsSidebar();
   if (section === 'coaches') loadCoaches();
   if (section === 'users')   loadUsers();
+  if (section === 'fields')  renderFieldsPanel();
 }
 
 function openSettingsSidebar() {
@@ -161,13 +162,14 @@ function showToast(msg, err) {
 // ── Fetch ──────────────────────────────────────────────────────────────
 async function fetchAll() {
   try {
-    var [rr, sr, str, br, lr, or2] = await Promise.all([
+    var [rr, sr, str, br, lr, or2, fc] = await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
       fetch('/api/buckets'),
       fetch('/api/live'),
       fetch('/api/offsets'),
+      fetch('/api/field-colors'),
     ]);
     results  = await rr.json();
     schedule = await sr.json();
@@ -177,8 +179,9 @@ async function fetchAll() {
     Object.assign(_liveGames, liveFromServer);
     _offsets = or2.ok ? await or2.json() : { entries: [] };
     if (!Array.isArray(_offsets.entries)) _offsets = { entries: [] };
+    _fieldColors = fc.ok ? await fc.json() : {};
     if (typeof applySchedule === 'function') applySchedule(schedule);
-  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; _offsets = { entries: [] }; }
+  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; _offsets = { entries: [] }; _fieldColors = {}; }
   applySettingsToPage();
   renderAdmin();
   renderScheduleEditor();
@@ -781,8 +784,8 @@ function applyRoleRestrictions(role) {
       document.getElementById('tab-results').classList.add('active');
     }
   });
-  // Settings sidebar: pageinfo, users, coaches are admin-only
-  var adminOnlySections = ['pageinfo', 'users', 'coaches'];
+  // Settings sidebar: pageinfo, users, coaches, fields are admin-only
+  var adminOnlySections = ['pageinfo', 'users', 'coaches', 'fields'];
   adminOnlySections.forEach(function(section) {
     var navItem = document.querySelector('.settings-nav-item[data-section="' + section + '"]');
     if (navItem) navItem.style.display = role === 'admin' ? '' : 'none';
@@ -829,6 +832,8 @@ function showAdmin(username, role, teamName) {
   var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = '';
   var unEl = document.getElementById('accountUsername');
   if (unEl) unEl.textContent = username || 'admin';
+  var pwaHomeEl = document.getElementById('set-pwaHome');
+  if (pwaHomeEl) { try { pwaHomeEl.value = localStorage.getItem('ttPwaHome') || 'admin'; } catch(e) {} }
   applyRoleRestrictions(currentRole);
   var roleEl = document.getElementById('newUserRole');
   if (roleEl) {
@@ -1195,6 +1200,90 @@ async function deleteUser(username) {
   }
   showToast('User ' + username + ' deleted');
   loadUsers();
+}
+
+// ── PWA home preference ────────────────────────────────────────────────
+function savePwaHome(val) {
+  try { localStorage.setItem('ttPwaHome', val); } catch(e) {}
+}
+
+// ── Field color management ──────────────────────────────────────────────
+var FIELD_DEFAULT_COLORS = ['#0d9488', '#ea580c', '#7c3aed', '#db2777', '#4a90d9'];
+
+function renderFieldsPanel() {
+  var el = document.getElementById('fieldsColorList');
+  if (!el) return;
+  var fields = getScheduleFields();
+  if (!fields.length) {
+    el.innerHTML = '<div class="settings-field" style="color:var(--text-mute);font-size:0.9rem">No fields found in schedule yet.</div>';
+    return;
+  }
+  var html = '<div class="settings-section"><div class="settings-section-hdr">Field Colors</div>';
+  fields.forEach(function(f, i) {
+    var defColor = FIELD_DEFAULT_COLORS[i % FIELD_DEFAULT_COLORS.length];
+    var curColor = _fieldColors[f] || defColor;
+    html += '<div class="settings-field">'
+      + '<label>' + esc(f) + '</label>'
+      + '<div class="field-color-input-row">'
+      + '<input type="color" class="field-color-picker" data-field="' + esc(f) + '" data-default="' + esc(defColor) + '" value="' + esc(curColor) + '">'
+      + '<span class="game-field-tag field-color-preview" style="color:' + esc(curColor) + ';border-color:' + esc(curColor) + '">' + esc(f) + '</span>'
+      + '<button class="admin-clear-btn" onclick="resetOneFieldColor(this)">Reset</button>'
+      + '</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
+  el.querySelectorAll('.field-color-picker').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+      var preview = inp.parentElement.querySelector('.field-color-preview');
+      if (preview) { preview.style.color = inp.value; preview.style.borderColor = inp.value; }
+    });
+  });
+}
+
+function resetOneFieldColor(btn) {
+  var row = btn.closest('.field-color-input-row');
+  if (!row) return;
+  var inp = row.querySelector('.field-color-picker');
+  var preview = row.querySelector('.field-color-preview');
+  var def = inp ? inp.dataset.default : '';
+  if (inp) inp.value = def;
+  if (preview) { preview.style.color = def; preview.style.borderColor = def; }
+}
+
+async function saveFieldColors() {
+  var statusEl = document.getElementById('fieldColorsStatus');
+  var colors = {};
+  document.querySelectorAll('.field-color-picker').forEach(function(inp) {
+    if (inp.dataset.field) colors[inp.dataset.field] = inp.value;
+  });
+  try {
+    var r = await apiFetch('/api/field-colors', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(colors)
+    });
+    if (!r || !r.ok) throw new Error();
+    _fieldColors = colors;
+    if (statusEl) { statusEl.textContent = '✓ Saved'; setTimeout(function(){ statusEl.textContent = ''; }, 3000); }
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '✗ Error';
+  }
+}
+
+async function resetFieldColors() {
+  var statusEl = document.getElementById('fieldColorsStatus');
+  try {
+    var r = await apiFetch('/api/field-colors', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    if (!r || !r.ok) throw new Error();
+    _fieldColors = {};
+    renderFieldsPanel();
+    if (statusEl) { statusEl.textContent = '✓ Reset'; setTimeout(function(){ statusEl.textContent = ''; }, 3000); }
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '✗ Error';
+  }
 }
 
 function gotoDelays() {

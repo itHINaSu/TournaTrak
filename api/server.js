@@ -4,8 +4,9 @@ const bcrypt  = require('bcryptjs');
 const fs      = require('fs');
 const crypto  = require('crypto');
 
-const OFFSETS_FILE   = '/data/offsets.json';
-const SESSIONS_FILE  = '/data/sessions.json';
+const OFFSETS_FILE      = '/data/offsets.json';
+const FIELD_COLORS_FILE = '/data/field-colors.json';
+const SESSIONS_FILE     = '/data/sessions.json';
 const RESULTS_FILE  = '/data/results.json';
 const SCHEDULE_FILE = '/data/schedule.json';
 const SETTINGS_FILE = '/data/settings.json';
@@ -209,7 +210,8 @@ function ensureDataFiles() {
     [LINEUPS_FILE]:  {},
     [BUCKETS_FILE]:  { counts: {}, bucketOnlyTeams: [] },
     [LIVE_FILE]:     {},
-    [OFFSETS_FILE]:  { entries: [], banner: '' },
+    [OFFSETS_FILE]:       { entries: [], banner: '' },
+    [FIELD_COLORS_FILE]:  {},
   };
 
   Object.entries(defaults).forEach(([file, empty]) => {
@@ -722,6 +724,23 @@ app.post('/api/offsets', requireAdmin, (req, res) => {
     if (typeof e.minutes !== 'number') return res.status(400).json({ error: 'each entry needs a numeric minutes field' });
   }
   writeJSON(OFFSETS_FILE, { entries, banner: typeof banner === 'string' ? banner.slice(0, 300) : '' });
+  res.json({ ok: true });
+});
+
+app.get('/api/field-colors', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json(readJSON(FIELD_COLORS_FILE) || {});
+});
+
+app.post('/api/field-colors', requireAdmin, (req, res) => {
+  const incoming = req.body || {};
+  const clean = {};
+  Object.entries(incoming).forEach(([field, color]) => {
+    if (typeof field === 'string' && typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color)) {
+      clean[field.slice(0, 100)] = color;
+    }
+  });
+  writeJSON(FIELD_COLORS_FILE, clean);
   res.json({ ok: true });
 });
 

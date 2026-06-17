@@ -290,6 +290,7 @@
         <div class="settings-nav-item" data-section="account" onclick="showSettingsSection('account')">Account</div>
         <div class="settings-nav-item" data-section="users" onclick="showSettingsSection('users')">Users</div>
         <div class="settings-nav-item" data-section="coaches" onclick="showSettingsSection('coaches')">Coaches</div>
+        <div class="settings-nav-item" data-section="fields" onclick="showSettingsSection('fields')">Fields</div>
       </nav>
 
       <div class="settings-content">
@@ -420,6 +421,14 @@
               <label>Logged in as</label>
               <div id="accountUsername" class="account-username">—</div>
             </div>
+            <div class="settings-field">
+              <label>PWA opens to <span class="field-label-hint">(home screen launch)</span></label>
+              <select class="styled" id="set-pwaHome" onchange="savePwaHome(this.value)">
+                <option value="admin">Admin panel</option>
+                <option value="public">Public page</option>
+              </select>
+              <div class="field-hint">When you tap the app icon to launch it fresh, which page opens. Only applies for admin and results roles in standalone mode.</div>
+            </div>
             <div class="settings-save-row">
               <button class="admin-clear-btn" onclick="doLogout()">Sign Out</button>
             </div>
@@ -481,6 +490,17 @@
               <button class="sched-save-btn" onclick="addUser()">Add User</button>
               <span class="sched-status" id="addUserStatus"></span>
             </div>
+          </div>
+        </div>
+
+        <!-- ── Fields panel (admin only) ── -->
+        <div class="settings-panel" id="sp-fields">
+          <div class="admin-subtitle">Assign a color to each field tag shown on game cards. Defaults are Teal / Orange / Purple / Pink / Blue by field number.</div>
+          <div id="fieldsColorList"></div>
+          <div class="settings-save-row">
+            <button class="sched-save-btn" onclick="saveFieldColors()">Save Colors</button>
+            <button class="admin-clear-btn" onclick="resetFieldColors()">Reset Defaults</button>
+            <span class="sched-status" id="fieldColorsStatus"></span>
           </div>
         </div>
 

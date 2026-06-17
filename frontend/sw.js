@@ -1,5 +1,5 @@
 // sw.js — public PWA service worker (network-first)
-var CACHE = 'tournatrak-v2.26';
+var CACHE = 'tournatrak-v2.27';
 var PRECACHE_URLS = [
   '/',
   '/index.html',
