@@ -706,6 +706,9 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .round-game-day  { font-family: 'Oswald', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--text-dim); line-height: 1; margin-right: 0.25em; }
 .round-game-dow  { font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-game-time { font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold-lt); line-height: 1; }
+.round-game-offset { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 700; line-height: 1; margin-left: 0.35em; }
+.round-game-offset--late  { color: var(--lose-color); }
+.round-game-offset--early { color: var(--win-color); }
 .round-team-row {
   display: flex;
   align-items: center;

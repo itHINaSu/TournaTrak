@@ -4,6 +4,7 @@ const bcrypt  = require('bcryptjs');
 const fs      = require('fs');
 const crypto  = require('crypto');
 
+const OFFSETS_FILE  = '/data/offsets.json';
 const RESULTS_FILE  = '/data/results.json';
 const SCHEDULE_FILE = '/data/schedule.json';
 const SETTINGS_FILE = '/data/settings.json';
@@ -590,6 +591,12 @@ app.get('/api/schedule', (req, res) => {
   res.json(readJSON(SCHEDULE_FILE));
 });
 
+app.get('/api/offsets', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=15');
+  const data = readJSON(OFFSETS_FILE) || {};
+  res.json({ entries: Array.isArray(data.entries) ? data.entries : [] });
+});
+
 app.get('/api/settings', (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=300');
   res.json(Object.assign({}, SETTINGS_DEFAULTS, readJSON(SETTINGS_FILE)));
@@ -649,6 +656,16 @@ app.delete('/api/live/:slot', requireResults, (req, res) => {
   const data = readJSON(LIVE_FILE);
   delete data[game];
   writeJSON(LIVE_FILE, data);
+  res.json({ ok: true });
+});
+
+app.post('/api/offsets', requireAdmin, (req, res) => {
+  const { entries } = req.body || {};
+  if (!Array.isArray(entries)) return res.status(400).json({ error: 'entries must be an array' });
+  for (const e of entries) {
+    if (typeof e.minutes !== 'number') return res.status(400).json({ error: 'each entry needs a numeric minutes field' });
+  }
+  writeJSON(OFFSETS_FILE, { entries });
   res.json({ ok: true });
 });
 

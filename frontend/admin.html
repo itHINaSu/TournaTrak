@@ -130,6 +130,7 @@
   <div class="admin-quick-bar" id="adminQuickBar">
     <button class="results-mode-btn active" id="qModeGamesBtn" onclick="setResultsMode('games')">Games</button>
     <button class="results-mode-btn" id="qModeBucketsBtn" onclick="setResultsMode('buckets')">Bucket Challenge</button>
+    <button class="results-mode-btn" id="qModeDelaysBtn" onclick="setResultsMode('delays')">Delays</button>
   </div>
 
   <!-- ── RESULTS TAB ── -->
@@ -137,6 +138,7 @@
     <div class="results-mode-bar">
       <button class="results-mode-btn active" id="modeGamesBtn" onclick="setResultsMode('games')">Games</button>
       <button class="results-mode-btn" id="modeBucketsBtn" onclick="setResultsMode('buckets')">Bucket Challenge</button>
+      <button class="results-mode-btn" id="modeDelaysBtn" onclick="setResultsMode('delays')">Delays</button>
       <button class="sched-save-btn" id="bucketModeSaveBtn" style="display:none;margin-left:auto" onclick="saveBucketCounts()">Save</button>
       <span class="sched-status" id="bucketModeSaveStatus" style="display:none"></span>
     </div>
@@ -160,6 +162,38 @@
         <div class="settings-save-row">
           <button class="sched-save-btn" onclick="addBucketTeam()">Add Team</button>
           <span class="sched-status" id="addBucketTeamStatus"></span>
+        </div>
+      </div>
+    </div>
+    <div id="resultsDelaysPanel" style="display:none">
+      <div class="admin-subtitle">Set a time offset for games on a specific field and day. The offset appears on the public schedule as colored text next to the game time and clears automatically once a final score is recorded.</div>
+      <div class="settings-section">
+        <div class="settings-section-hdr">Set Offset</div>
+        <div class="settings-field">
+          <label>Offset in minutes <span class="field-label-hint">(positive = behind/late, negative = ahead/early)</span></label>
+          <input type="number" id="delayMinutes" placeholder="e.g. 20 or -5" style="max-width:10em">
+        </div>
+        <div class="settings-field" id="delayFieldWrap">
+          <label>Fields impacted</label>
+          <select id="delayFields" multiple size="4" style="width:100%;min-height:5em"></select>
+          <div class="field-hint">Hold Ctrl / Cmd to select multiple. Leave all unselected to apply to every field.</div>
+        </div>
+        <div class="settings-field" id="delayDayWrap" style="display:none">
+          <label>Days impacted</label>
+          <select id="delayDays" multiple size="4" style="width:100%;min-height:5em"></select>
+          <div class="field-hint">Leave all unselected to apply to every day.</div>
+        </div>
+        <div class="settings-save-row">
+          <button class="sched-save-btn" onclick="applyOffset()">Apply Offset</button>
+          <span class="sched-status" id="delayApplyStatus"></span>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-hdr">Active Offsets</div>
+        <div id="activeOffsetsList"></div>
+        <div class="settings-save-row" style="margin-top:0.6em">
+          <button class="admin-clear-btn" onclick="clearAllOffsets()">Clear All</button>
+          <span class="sched-status" id="delayClearStatus"></span>
         </div>
       </div>
     </div>

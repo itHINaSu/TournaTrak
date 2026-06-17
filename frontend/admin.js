@@ -1,5 +1,5 @@
 // admin.js — admin panel logic
-var results = {}, schedule = {}, settings = {}, buckets = {};
+var results = {}, schedule = {}, settings = {}, buckets = {}, _offsets = { entries: [] };
 var currentRole = null;
 var currentTeamName = null;
 var _bucketTeams = [];
@@ -161,12 +161,13 @@ function showToast(msg, err) {
 // ── Fetch ──────────────────────────────────────────────────────────────
 async function fetchAll() {
   try {
-    var [rr, sr, str, br, lr] = await Promise.all([
+    var [rr, sr, str, br, lr, or2] = await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
       fetch('/api/buckets'),
       fetch('/api/live'),
+      fetch('/api/offsets'),
     ]);
     results  = await rr.json();
     schedule = await sr.json();
@@ -174,8 +175,10 @@ async function fetchAll() {
     buckets  = br.ok ? await br.json() : {};
     var liveFromServer = lr.ok ? await lr.json() : {};
     Object.assign(_liveGames, liveFromServer);
+    _offsets = or2.ok ? await or2.json() : { entries: [] };
+    if (!Array.isArray(_offsets.entries)) _offsets = { entries: [] };
     if (typeof applySchedule === 'function') applySchedule(schedule);
-  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; }
+  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; _offsets = { entries: [] }; }
   applySettingsToPage();
   renderAdmin();
   renderScheduleEditor();
@@ -1201,21 +1204,195 @@ function setResultsMode(mode) {
   _resultsMode = mode;
   var gPanel   = document.getElementById('resultsGamesPanel');
   var bPanel   = document.getElementById('resultsBucketPanel');
+  var dPanel   = document.getElementById('resultsDelaysPanel');
   var gBtn     = document.getElementById('modeGamesBtn');
   var bBtn     = document.getElementById('modeBucketsBtn');
+  var dBtn     = document.getElementById('modeDelaysBtn');
   var saveBtn  = document.getElementById('bucketModeSaveBtn');
   var saveStat = document.getElementById('bucketModeSaveStatus');
   if (gPanel)   gPanel.style.display = mode === 'games'   ? '' : 'none';
   if (bPanel)   bPanel.style.display = mode === 'buckets' ? '' : 'none';
+  if (dPanel)   dPanel.style.display = mode === 'delays'  ? '' : 'none';
   if (gBtn)     gBtn.classList.toggle('active', mode === 'games');
   if (bBtn)     bBtn.classList.toggle('active', mode === 'buckets');
+  if (dBtn)     dBtn.classList.toggle('active', mode === 'delays');
   if (saveBtn)  saveBtn.style.display  = mode === 'buckets' ? '' : 'none';
   if (saveStat) saveStat.style.display = mode === 'buckets' ? '' : 'none';
   if (mode === 'buckets') renderBucketAdmin();
+  if (mode === 'delays')  renderDelaysAdmin();
   var qgBtn = document.getElementById('qModeGamesBtn');
   var qbBtn = document.getElementById('qModeBucketsBtn');
+  var qdBtn = document.getElementById('qModeDelaysBtn');
   if (qgBtn) qgBtn.classList.toggle('active', mode === 'games');
   if (qbBtn) qbBtn.classList.toggle('active', mode === 'buckets');
+  if (qdBtn) qdBtn.classList.toggle('active', mode === 'delays');
+}
+
+// ── Delays admin ───────────────────────────────────────────────────────
+function getScheduleFields() {
+  var fields = [];
+  if (typeof GAMES !== 'undefined') {
+    Object.keys(GAMES).forEach(function(sid) {
+      var over = schedule[sid] || {};
+      var f = over.field || GAMES[sid].field || '';
+      if (f) fields.push(f);
+    });
+  }
+  return fields.filter(function(f, i, a) { return a.indexOf(f) === i; }).sort();
+}
+
+function getScheduleDays() {
+  var days = [];
+  if (typeof GAMES !== 'undefined') {
+    Object.keys(GAMES).forEach(function(sid) {
+      var over = schedule[sid] || {};
+      var t = over.time || GAMES[sid].time || '';
+      var m = t.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (m) days.push(m[1]);
+    });
+  }
+  return days.filter(function(d, i, a) { return a.indexOf(d) === i; }).sort();
+}
+
+function fmtDayLabel(iso) {
+  var d = new Date(iso + 'T12:00');
+  if (isNaN(d.getTime())) return iso;
+  var DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return DAYS[d.getDay()] + ' ' + MONTHS[d.getMonth()] + ' ' + d.getDate();
+}
+
+function renderDelaysAdmin() {
+  var fields   = getScheduleFields();
+  var days     = getScheduleDays();
+  var fieldSel = document.getElementById('delayFields');
+  var daySel   = document.getElementById('delayDays');
+  var fieldWrap = document.getElementById('delayFieldWrap');
+  var dayWrap   = document.getElementById('delayDayWrap');
+
+  // Populate and enable/disable field selector
+  if (fieldSel) {
+    fieldSel.innerHTML = '';
+    if (fields.length === 0) {
+      fieldSel.disabled = true;
+      var opt = document.createElement('option');
+      opt.textContent = '— no fields in schedule —';
+      opt.disabled = true;
+      fieldSel.appendChild(opt);
+    } else if (fields.length === 1) {
+      fieldSel.disabled = true;
+      var opt2 = document.createElement('option');
+      opt2.value = fields[0]; opt2.textContent = fields[0]; opt2.selected = true;
+      fieldSel.appendChild(opt2);
+    } else {
+      fieldSel.disabled = false;
+      fields.forEach(function(f) {
+        var opt3 = document.createElement('option');
+        opt3.value = f; opt3.textContent = f;
+        fieldSel.appendChild(opt3);
+      });
+    }
+  }
+
+  // Show day selector only when schedule spans multiple days
+  if (dayWrap) dayWrap.style.display = days.length > 1 ? '' : 'none';
+  if (daySel && days.length > 1) {
+    daySel.innerHTML = '';
+    days.forEach(function(d) {
+      var opt4 = document.createElement('option');
+      opt4.value = d; opt4.textContent = fmtDayLabel(d);
+      daySel.appendChild(opt4);
+    });
+  }
+
+  // Render active offsets list
+  var list = document.getElementById('activeOffsetsList');
+  if (!list) return;
+  if (!_offsets.entries.length) {
+    list.innerHTML = '<div class="admin-subtitle" style="margin:0">No active offsets.</div>';
+    return;
+  }
+  var html = '';
+  _offsets.entries.forEach(function(entry, idx) {
+    var mins = entry.minutes;
+    var sign = mins >= 0 ? '+' : '';
+    var color = mins > 0 ? 'var(--lose-color)' : mins < 0 ? 'var(--win-color)' : 'var(--text-dim)';
+    var fieldStr = (entry.fields && entry.fields.length) ? entry.fields.join(', ') : 'All fields';
+    var dayStrs  = (entry.days  && entry.days.length)   ? entry.days.map(fmtDayLabel).join(', ') : 'All days';
+    html += '<div class="delay-offset-row">'
+      + '<span class="delay-offset-val" style="color:' + color + '">' + sign + mins + ' min</span>'
+      + '<span class="delay-offset-desc">' + esc(fieldStr) + ' · ' + esc(dayStrs) + '</span>'
+      + '<button class="admin-clear-btn delay-offset-del" onclick="deleteOffset(' + idx + ')">✕</button>'
+      + '</div>';
+  });
+  list.innerHTML = html;
+}
+
+async function applyOffset() {
+  var minsEl   = document.getElementById('delayMinutes');
+  var fieldSel = document.getElementById('delayFields');
+  var daySel   = document.getElementById('delayDays');
+  var status   = document.getElementById('delayApplyStatus');
+  var mins = minsEl ? parseInt(minsEl.value, 10) : NaN;
+  if (isNaN(mins)) { showToast('Enter a valid number of minutes', true); return; }
+  var fields = fieldSel && !fieldSel.disabled
+    ? Array.prototype.filter.call(fieldSel.options, function(o) { return o.selected; }).map(function(o) { return o.value; })
+    : (getScheduleFields().length === 1 ? getScheduleFields() : []);
+  var days = daySel
+    ? Array.prototype.filter.call(daySel.options, function(o) { return o.selected; }).map(function(o) { return o.value; })
+    : [];
+  var newEntry = { minutes: mins, fields: fields, days: days };
+  var entries = _offsets.entries.slice();
+  entries.push(newEntry);
+  try {
+    var r = await apiFetch('/api/offsets', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ entries: entries })
+    });
+    if (!r) return;
+    if (!r.ok) throw new Error();
+    _offsets = { entries: entries };
+    if (minsEl) minsEl.value = '';
+    showToast('Offset applied');
+    if (status) { status.textContent = '✓ Applied'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+    renderDelaysAdmin();
+  } catch(e) {
+    showToast('Save failed', true);
+    if (status) { status.textContent = '✗ Error'; }
+  }
+}
+
+async function deleteOffset(idx) {
+  var entries = _offsets.entries.filter(function(_, i) { return i !== idx; });
+  try {
+    var r = await apiFetch('/api/offsets', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ entries: entries })
+    });
+    if (!r) return;
+    if (!r.ok) throw new Error();
+    _offsets = { entries: entries };
+    renderDelaysAdmin();
+  } catch(e) { showToast('Delete failed', true); }
+}
+
+async function clearAllOffsets() {
+  var status = document.getElementById('delayClearStatus');
+  try {
+    var r = await apiFetch('/api/offsets', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ entries: [] })
+    });
+    if (!r) return;
+    if (!r.ok) throw new Error();
+    _offsets = { entries: [] };
+    showToast('All offsets cleared');
+    if (status) { status.textContent = '✓ Cleared'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+    renderDelaysAdmin();
+  } catch(e) {
+    showToast('Clear failed', true);
+    if (status) { status.textContent = '✗ Error'; }
+  }
 }
 
 function getScheduleTeams() {

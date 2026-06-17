@@ -2,7 +2,7 @@
 // ══════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════
-var results={}, schedule={}, settings={}, buckets={}, liveScores={};
+var results={}, schedule={}, settings={}, buckets={}, liveScores={}, _offsets={entries:[]};
 var _sessionRole = null;
 var _bucketEditMode = false;
 var scheduleMode = null; // null = uninitialised; set from settings on first render
@@ -330,19 +330,21 @@ var _fetchFingerprint = '';
 async function fetchAll(){
   var rawTexts;
   try{
-    var [rr,sr,str,br,lr]=await Promise.all([
+    var [rr,sr,str,br,lr,or2]=await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
       fetch('/api/buckets'),
       fetch('/api/live'),
+      fetch('/api/offsets'),
     ]);
-    rawTexts = await Promise.all([rr.text(), sr.text(), str.text(), br.ok ? br.text() : Promise.resolve(''), lr.ok ? lr.text() : Promise.resolve('{}')]);
+    rawTexts = await Promise.all([rr.text(), sr.text(), str.text(), br.ok ? br.text() : Promise.resolve(''), lr.ok ? lr.text() : Promise.resolve('{}'), or2.ok ? or2.text() : Promise.resolve('{"entries":[]}')]);
     results=JSON.parse(rawTexts[0]); schedule=JSON.parse(rawTexts[1]); settings=JSON.parse(rawTexts[2]);
     buckets=br.ok ? JSON.parse(rawTexts[3]) : {};
     liveScores=JSON.parse(rawTexts[4]);
+    var _offParsed=JSON.parse(rawTexts[5]); _offsets=(_offParsed&&Array.isArray(_offParsed.entries))?_offParsed:{entries:[]};
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; rawTexts=null; }
+  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; rawTexts=null; }
   applySettings();
   updateTimestamp();
   populateTeamSelect();
@@ -631,15 +633,40 @@ function liveHeaderHTML(sid) {
 
 // Date/time block for round-style cards — swapped for the live indicator when
 // a game is live, restored to date/time once finalized.
+function getGameOffset(sid) {
+  var g = GAMES[sid]; if (!g) return null;
+  var r = results[sid]; if (r && r.winner) return null;
+  var gameField = g.field || '';
+  var gameTime  = g.time  || '';
+  var gameDate  = gameTime.slice(0, 10);
+  var lastMatch = null;
+  (_offsets.entries || []).forEach(function(entry) {
+    var noFields = !entry.fields || entry.fields.length === 0;
+    var noDays   = !entry.days   || entry.days.length   === 0;
+    var fieldsOk = noFields || (gameField && entry.fields.indexOf(gameField) !== -1);
+    var daysOk   = noDays   || (gameDate  && entry.days.indexOf(gameDate)   !== -1);
+    if (fieldsOk && daysOk) lastMatch = entry;
+  });
+  return lastMatch ? lastMatch.minutes : null;
+}
+
 function timeOrLiveHTML(sid, dateStr, dowStr, timeStr) {
   if (gameIsLive(sid)) {
     return '<div class="round-game-day-time round-game-live">' + liveHeaderHTML(sid) + '</div>';
   }
   var d = fmtDate(dateStr), w = fmtDow(dowStr);
+  var offMin = getGameOffset(sid);
+  var offHTML = '';
+  if (offMin !== null && offMin !== 0) {
+    var late = offMin > 0;
+    offHTML = '<span class="round-game-offset ' + (late ? 'round-game-offset--late' : 'round-game-offset--early') + '">'
+      + (late ? '+' : '') + offMin + ' min</span>';
+  }
   return '<div class="round-game-day-time">'
     + (d       ? '<span class="round-game-day">'  + esc(d)       + '</span>' : '')
     + (w       ? '<span class="round-game-dow">'  + esc(w)       + '</span>' : '')
     + (timeStr ? '<span class="round-game-time">' + esc(timeStr) + '</span>' : '')
+    + offHTML
     + '</div>';
 }
 

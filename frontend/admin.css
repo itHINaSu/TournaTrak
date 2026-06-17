@@ -107,6 +107,35 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .admin-clear-btn:active { background: rgba(192,80,80,0.1); }
 
 
+/* ── Delays admin ── */
+.delay-offset-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.55em 0;
+  border-bottom: 0.07em solid var(--border);
+}
+.delay-offset-row:last-child { border-bottom: none; }
+.delay-offset-val {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  min-width: 4em;
+}
+.delay-offset-desc {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  flex: 1;
+  min-width: 0;
+}
+.delay-offset-del {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  padding: 0.2em 0.55em;
+  min-height: 0;
+}
+
 /* ── Quick bar (mobile only — Games / Bucket Challenge above tab bar) ── */
 .admin-quick-bar {
   display: none; /* hidden on desktop; shown via media query on mobile */
