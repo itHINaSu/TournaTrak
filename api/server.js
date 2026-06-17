@@ -135,6 +135,11 @@ if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
   console.error('Fatal: SESSION_SECRET must be at least 32 characters');
   process.exit(1);
 }
+if (/CHANGEME/i.test(SESSION_SECRET)) {
+  console.error('Fatal: SESSION_SECRET is still set to the placeholder value from .env.example');
+  console.error('       Replace it with at least 32 random characters, e.g.: openssl rand -base64 48');
+  process.exit(1);
+}
 if (!ADMIN_PASSWORD_HASH.startsWith('$2')) {
   console.error('Fatal: ADMIN_PASSWORD_HASH must be a valid bcrypt hash');
   console.error('       Generate one with: docker compose run --rm api node generate-hash.js <password>');

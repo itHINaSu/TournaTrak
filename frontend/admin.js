@@ -272,6 +272,20 @@ function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
+// Escape a value for safe embedding inside a single-quoted JS string literal
+// that itself sits inside an inline event handler attribute (e.g. onclick="fn('VALUE')").
+// We backslash-escape JS-significant chars first, then HTML-escape the result so the
+// attribute parser cannot reconstruct a quote that breaks out of the JS string.
+function jsStr(s) {
+  return esc(String(s)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029'));
+}
+
 // Split stored ISO string into date and time parts for the two inputs
 function splitTime(iso) {
   if (!iso) return { date:'', time:'' };
@@ -1080,17 +1094,17 @@ function renderUsersList(users) {
 
     var actions = '';
     if (u.role === 'team' && u.accessToken) {
-      actions += '<button class="sched-save-btn" onclick="copyMagicLink(\'' + esc(u.accessToken) + '\')">Copy Link</button>';
-      actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>';
+      actions += '<button class="sched-save-btn" onclick="copyMagicLink(\'' + jsStr(u.accessToken) + '\')">Copy Link</button>';
+      actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + jsStr(u.username) + '\')">Regenerate</button>';
     } else if (u.setupToken) {
-      actions += '<button class="sched-save-btn" onclick="copySetupLink(\'' + esc(u.setupToken) + '\')">Copy Setup Link</button>';
+      actions += '<button class="sched-save-btn" onclick="copySetupLink(\'' + jsStr(u.setupToken) + '\')">Copy Setup Link</button>';
     } else if (!isSelf && u.role !== 'team') {
-      actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateSetupLink(\'' + esc(u.username) + '\')">Regenerate Link</button>';
+      actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateSetupLink(\'' + jsStr(u.username) + '\')">Regenerate Link</button>';
     } else if (!isSelf) {
-      actions += '<button class="admin-clear-btn" onclick="openResetPwModal(\'' + esc(u.username) + '\')">Reset PW</button>';
+      actions += '<button class="admin-clear-btn" onclick="openResetPwModal(\'' + jsStr(u.username) + '\')">Reset PW</button>';
     }
     if (!isSelf) {
-      actions += '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + esc(u.username) + '\')">Delete</button>';
+      actions += '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + jsStr(u.username) + '\')">Delete</button>';
     } else {
       actions += '<span class="user-self-label">(you)</span>';
     }
@@ -1861,25 +1875,25 @@ function renderCoachesList(coaches) {
     var teamTags = teams.map(function(t) {
       var canRemove = teams.length > 1;
       return '<span class="coach-team-tag">' + esc(t)
-        + (canRemove ? '<button class="coach-team-remove" onclick="removeCoachTeam(\'' + esc(u.username) + '\',\'' + esc(t) + '\')" title="Remove team">✕</button>' : '')
+        + (canRemove ? '<button class="coach-team-remove" onclick="removeCoachTeam(\'' + jsStr(u.username) + '\',\'' + jsStr(t) + '\')" title="Remove team">✕</button>' : '')
         + '</span>';
     }).join('');
     return '<div class="coach-card">'
       + '<span class="coach-card-name">' + esc(u.username) + '</span>'
       + '<div class="coach-teams-wrap">'
       +   teamTags
-      +   '<button class="coach-add-team-btn" onclick="showAddCoachTeam(\'' + esc(u.username) + '\')">+ Team</button>'
+      +   '<button class="coach-add-team-btn" onclick="showAddCoachTeam(\'' + jsStr(u.username) + '\')">+ Team</button>'
       + '</div>'
       + '<div class="coach-add-team-row" id="cat-' + esc(u.username) + '" style="display:none">'
       +   '<select class="styled" id="cat-sel-' + esc(u.username) + '"></select>'
-      +   '<button class="admin-save-btn" onclick="addCoachTeam(\'' + esc(u.username) + '\')">Add</button>'
-      +   '<button class="admin-clear-btn" onclick="hideAddCoachTeam(\'' + esc(u.username) + '\')">Cancel</button>'
+      +   '<button class="admin-save-btn" onclick="addCoachTeam(\'' + jsStr(u.username) + '\')">Add</button>'
+      +   '<button class="admin-clear-btn" onclick="hideAddCoachTeam(\'' + jsStr(u.username) + '\')">Cancel</button>'
       + '</div>'
       + '<div class="coach-actions">'
       +   (link ? '<input type="text" class="coach-link-hidden" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly tabindex="-1" aria-hidden="true">' : '')
-      +   (link ? '<button class="admin-save-btn" onclick="copyCoachLink(\'' + esc(u.username) + '\')">Copy Link</button>' : '')
-      +   (u.accessToken ? '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + esc(u.username) + '\')">Regenerate</button>' : '')
-      +   '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + esc(u.username) + '\')">Delete</button>'
+      +   (link ? '<button class="admin-save-btn" onclick="copyCoachLink(\'' + jsStr(u.username) + '\')">Copy Link</button>' : '')
+      +   (u.accessToken ? '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + jsStr(u.username) + '\')">Regenerate</button>' : '')
+      +   '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + jsStr(u.username) + '\')">Delete</button>'
       + '</div>'
       + '</div>';
   }).join('');
