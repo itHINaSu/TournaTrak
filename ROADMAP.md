@@ -25,13 +25,64 @@ Items that must be addressed before branching v3 or going fully public:
   to external `.js`/`.css` files, then tightening the CSP to `'self'` only.
   Medium refactor; track for v2 cleanup before public exposure.
 
-- **Rate limiter + session store persistence** (`api/server.js`) — the login
-  rate limiter (`loginAttempts` Map) and Express session store (MemoryStore) are
-  both in-memory and reset on container restart. For the current single-instance
-  low-traffic use case the risk is low, but should be addressed before any
-  public-facing deployment at scale. Fix: file- or Redis-backed rate limiter and
-  session store (e.g. `rate-limit-redis`, `connect-redis`, or
-  `better-sqlite3-session-store`).
+- **Rate limiter persistence** (`api/server.js`) — the `loginAttempts` Map is
+  in-memory and resets on container restart (a reboot grants every IP a fresh
+  window). The map is now bounded via a periodic eviction sweep. For a
+  public-facing deployment at scale, consider a durable backing store (e.g.
+  `rate-limit-redis`). The session store is already file-backed (`FileSessionStore`
+  → `/data/sessions.json`) and survives restarts.
+
+---
+
+## v2 — Code quality backlog
+
+Deferred from the pre-tournament security/hardening pass. None are
+reliability-critical; address before going fully public or starting v3.
+
+### JS refactoring (Batch 4)
+- **Shared `tt-common.js` module** — `esc()`, `SETTING_DEFAULTS`/`getSetting`,
+  the theme-toggle block, and team-extraction logic are each duplicated across
+  2–3 page scripts (`lineup.js`, `admin.js`, `bracket.js`). Extract to a single
+  loaded-first file. The theme toggle has a fragile `__ttThemeManaged` flag as
+  a workaround for both scripts loading on one page.
+- **Fetch-failure UX** — bulk-fetch failure in `bracket.js`/`admin.js` resets
+  all state to empty silently. Add a non-blocking visible error/offline banner
+  rather than a blank page.
+- **Delegated listener refactor** — replace the remaining inline `onclick="fn('value')"` 
+  patterns with `data-*` attributes + `addEventListener`. This is the full fix
+  for the XSS escaping issue (currently mitigated by `jsStr()`), and is a
+  prerequisite for removing `unsafe-inline` from the CSP (tracked above).
+
+### CSS cleanup
+- **`rgba()` → `color-mix()` migration** — ~15 `rgba()` literals re-encode
+  `--gold`, `--blue`, `--win-color`, and `--clear-color` without adapting to
+  light mode. The pattern to follow is already in `lineup.css:94`. Note: some
+  literals use a slightly different hue than the nearest token; color-check
+  each before replacing rather than doing a blind swap.
+- **Mobile breakpoint unify** — `bracket.css` switches to mobile layout at
+  `max-width: 1279px`; `admin.css` and `lineup.css` at `1023px`. The 1024–1279px
+  range gets mixed layouts. Decide the intended contract and unify.
+
+### Security / ops
+- **Access token hashing** — `GET /api/users` returns all team access tokens
+  and setup tokens in plaintext; they're also stored cleartext in `users.json`.
+  Store only hashes; surface the raw token once at creation/regeneration.
+- **`COOKIE_SECURE` docs** — `.env.example` defaults to `false`. Document (or
+  enforce at startup) that any deployment not behind a TLS-terminating proxy
+  must set `COOKIE_SECURE=true`.
+
+### Accessibility
+- **Focus trapping on overlays** — login, change-password, import, and
+  reset-password overlays don't trap focus, move it on open, support `Esc` to
+  close, or carry `role="dialog"`/`aria-modal`. Screen-reader users aren't
+  informed when they open.
+- **Keyboard activation** — `role="button"` elements (`tp-opp-chip` in
+  `bracket.js`, reorder taps in `lineup.js`, tab buttons) lack `tabindex="0"`
+  and `keydown` handlers; they're not reachable by keyboard.
+- **Touch targets** — `.results-mode-btn`, `.lineup-tool-btn`, `.delay-chip`,
+  `.bucket-hide-btn`, and the 1.6em lineup reorder circle are below the 44px
+  recommended target on coarse-pointer devices. Add `min-height` under
+  `@media (pointer: coarse)` to match the pattern used for other buttons.
 
 ---
 
