@@ -1653,12 +1653,12 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   align-self: center;
 }
 .mbc-champ-label .game-field-tag { font-size: 0.7rem; vertical-align: middle; }
-/* Per-field colors — 5-color palette */
-.game-field-tag--1 { color: var(--blue-lt);  border-color: var(--blue-lt); }
-.game-field-tag--2 { color: #4caf7d;         border-color: #4caf7d; }
-.game-field-tag--3 { color: var(--gold-lt);  border-color: var(--gold-lt); }
-.game-field-tag--4 { color: #b48eff;         border-color: #b48eff; }
-.game-field-tag--5 { color: #ff8c5a;         border-color: #ff8c5a; }
+/* Per-field colors — avoids win-green, lose-red, and theme-gold */
+.game-field-tag--1 { color: var(--blue-lt); border-color: var(--blue-lt); }
+.game-field-tag--2 { color: #0d9488;        border-color: #0d9488; }
+.game-field-tag--3 { color: #ea580c;        border-color: #ea580c; }
+.game-field-tag--4 { color: #7c3aed;        border-color: #7c3aed; }
+.game-field-tag--5 { color: #db2777;        border-color: #db2777; }
 /* Field tag sits as first item inside the time block — no extra left margin needed */
 .round-game-day-time .game-field-tag { margin-left: 0; }
 
