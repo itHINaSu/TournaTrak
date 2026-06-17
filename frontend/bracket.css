@@ -251,7 +251,21 @@
   align-items: center;
   gap: 0.65em;
 }
-/* bucket-edit-cancel-btn: base styles from base.css universal button rule */
+.bucket-edit-cancel-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.55em 1.1em;
+  border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-dim);
+}
+.bucket-edit-cancel-btn:hover,
+.bucket-edit-cancel-btn:active { color: var(--text); border-color: var(--text-dim); }
 /* bucket-edit-save-btn: base styles from base.css primary-button rule */
 .bucket-edit-status {
   font-size: 0.8rem;
@@ -312,7 +326,24 @@ select.styled {
 }
 select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07em; }
 
-/* team-share-btn: base styles from base.css universal button rule */
+.team-share-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  padding: 0.38em 0.88em;
+  border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
+  min-height: 2.75rem;
+}
+.team-share-btn:hover,
+.team-share-btn:active { color: var(--text); border-color: var(--text-dim); }
 
 /* ════════════════════════════════════════════════════════════
    BRACKET LAYOUT

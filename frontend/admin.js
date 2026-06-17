@@ -392,7 +392,7 @@ function renderAdmin() {
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
         + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" placeholder="Score" onfocus="this.select()"></div>'
         + '<div class="admin-res-footer">'
-        + '<button class="admin-live-start-btn" onclick="startLive(\'' + sid + '\')">▶ Live</button>'
+        + '<button class="admin-live-start-btn" onclick="startLive(\'' + sid + '\')">Live</button>'
         + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
         + '</div></div>';
     }
