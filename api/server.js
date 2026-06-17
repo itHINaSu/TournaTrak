@@ -17,6 +17,7 @@ const BUCKETS_FILE  = '/data/buckets.json';
 const LIVE_FILE     = '/data/live.json';
 
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
+const { FORMATS, generateSchedule } = require('./schedule-formats');
 
 const SETTINGS_DEFAULTS = {
   tournamentName:   'Tournament Bracket',
@@ -804,6 +805,32 @@ app.post('/api/schedule', requireAdmin, (req, res) => {
   if (err) return res.status(400).json({ error: err });
   writeJSON(SCHEDULE_FILE, req.body);
   res.json({ ok: true });
+});
+
+// ── Bracket Builder ───────────────────────────────────────────────────
+// List the available tournament formats so the builder UI can render choices.
+app.get('/api/schedule/formats', requireAdmin, (req, res) => {
+  res.json(Object.values(FORMATS).map(f => ({
+    id: f.id, label: f.label, description: f.description, teamCount: f.teamCount,
+  })));
+});
+
+// Generate a full bracket schedule from a format + teams and REPLACE the
+// current schedule. Destructive — the UI confirms before calling this.
+app.post('/api/schedule/generate', requireAdmin, (req, res) => {
+  const { format, startDate, teams, shuffle } = req.body || {};
+  let schedule;
+  try {
+    schedule = generateSchedule(format, { startDate, teams, shuffle });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  // Defence in depth: the generator should always emit a valid schedule, but
+  // run it through the same validator the manual editor uses before saving.
+  const verr = validateSchedule(schedule);
+  if (verr) return res.status(500).json({ error: 'Generated schedule failed validation: ' + verr });
+  writeJSON(SCHEDULE_FILE, schedule);
+  res.json({ ok: true, games: Object.keys(schedule).length });
 });
 
 app.post('/api/settings', requireAdmin, (req, res) => {

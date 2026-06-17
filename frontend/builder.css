@@ -1,0 +1,176 @@
+/* builder.css — Bracket Builder page. Uses tokens from base.css. */
+
+.bld-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0.75em 1em;
+  padding-top: calc(0.75em + env(safe-area-inset-top));
+  background: var(--surface);
+  border-bottom: 0.15em solid var(--gold);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.bld-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+.bld-back {
+  font-size: var(--text-sm);
+  color: var(--blue-lt);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bld-back:hover { text-decoration: underline; }
+
+.bld-main {
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 1em;
+  padding-bottom: calc(2em + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.bld-card {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1em 1.1em;
+}
+
+.bld-h2 {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--blue-lt);
+  margin-bottom: 0.75em;
+}
+
+.bld-count {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  margin-left: 0.4em;
+}
+.bld-count--ok { color: var(--win-color); }
+
+.bld-field { margin-bottom: 0.75em; }
+.bld-field label {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  margin-bottom: 0.3em;
+}
+
+.bld-input {
+  width: 100%;
+  font-family: 'Barlow', sans-serif;
+  font-size: max(1rem, 16px); /* >=16px prevents iOS zoom on focus */
+  background: var(--bg);
+  color: var(--text);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.55em 0.7em;
+}
+.bld-input:focus-visible {
+  outline: none;
+  border-color: var(--blue-lt);
+}
+.bld-textarea {
+  resize: vertical;
+  min-height: 8em;
+  line-height: 1.5;
+}
+
+.bld-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.bld-check input { width: 1.1em; height: 1.1em; }
+
+.bld-muted {
+  font-size: var(--text-sm);
+  color: var(--text-mute);
+  line-height: 1.5;
+}
+
+.bld-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  align-items: stretch;
+}
+.bld-error {
+  color: var(--lose-color);
+  font-size: var(--text-sm);
+  display: none;
+}
+
+.bld-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--btn-font-size);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 0.7em 1.2em;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.bld-btn:hover { opacity: 0.85; }
+.bld-btn:disabled { opacity: 0.5; cursor: default; }
+.bld-btn--primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.bld-btn--danger  { background: var(--clear-color); border-color: var(--clear-border); color: #fff; }
+
+/* Auth gate */
+.bld-gate { text-align: center; display: flex; flex-direction: column; gap: 1em; align-items: center; }
+.bld-gate-msg { color: var(--text-dim); line-height: 1.5; }
+
+/* Overlays / modals */
+.bld-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1em;
+  z-index: 100;
+}
+.bld-modal {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.25em;
+  max-width: 26em;
+  width: 100%;
+}
+.bld-modal-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.6em;
+}
+.bld-modal-body { font-size: var(--text-sm); color: var(--text-dim); line-height: 1.6; margin-bottom: 1.1em; }
+.bld-modal-actions { display: flex; gap: 0.6em; justify-content: flex-end; flex-wrap: wrap; }
+.bld-warn { color: var(--lose-color); font-style: italic; }
