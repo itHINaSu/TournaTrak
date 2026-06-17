@@ -2014,15 +2014,15 @@ function updateSchedViewDropdown(groups) {
   var sel = document.getElementById('schedSection');
   if (!sel) return;
   sel.innerHTML = '';
-  var hdr = document.createElement('option');
-  hdr.value = ''; hdr.disabled = true; hdr.textContent = 'View';
-  sel.appendChild(hdr);
+  var grp = document.createElement('optgroup');
+  grp.label = 'View';
   groups.forEach(function(g) {
     var opt = document.createElement('option');
     opt.value = g.id;
     opt.textContent = g.label;
-    sel.appendChild(opt);
+    grp.appendChild(opt);
   });
+  sel.appendChild(grp);
 }
 
 function scheduleCardHTML(sid) {
