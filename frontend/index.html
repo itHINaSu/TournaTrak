@@ -75,11 +75,20 @@
 
 <div class="view-panel" id="view-schedule">
   <div class="selector-row">
-    <div class="selector-inner">
-      <div class="group-pills" id="groupPills">
-        <button class="group-pill" data-group="day">Day</button>
-        <button class="group-pill" data-group="round">Round</button>
-        <button class="group-pill" data-group="field" id="fieldPill">Field</button>
+    <div class="selector-inner sched-selector-inner">
+      <div class="sched-select-wrap">
+        <span class="sched-select-label">Group by</span>
+        <select class="styled sched-select" id="schedGroup">
+          <option value="day">Day</option>
+          <option value="round">Round</option>
+          <option value="field">Field</option>
+        </select>
+      </div>
+      <div class="sched-select-wrap">
+        <span class="sched-select-label">View</span>
+        <select class="styled sched-select" id="schedSection">
+          <option value="">—</option>
+        </select>
       </div>
     </div>
   </div>

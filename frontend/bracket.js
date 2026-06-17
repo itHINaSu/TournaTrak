@@ -1958,17 +1958,69 @@ function scrollToLastCompletedCard() {
     var top = card.getBoundingClientRect().top + window.scrollY - stickyNavH() - 4;
     window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
   }
+  var section = card.closest('.round-section');
+  if (section) {
+    var secId = section.id.replace('sched-section-', '');
+    var viewSel = document.getElementById('schedSection');
+    if (viewSel) viewSel.value = secId;
+  }
 }
 
-// ── Schedule grouping pill handlers ──────────────────────────
-document.getElementById('groupPills').addEventListener('click', function(e) {
-  var btn = e.target.closest('.group-pill');
-  if (!btn || btn.disabled) return;
-  scheduleMode = btn.dataset.group;
+// ── Schedule selector handlers ────────────────────────────
+document.getElementById('schedGroup').addEventListener('change', function() {
+  scheduleMode = this.value;
   var panel = document.querySelector('#view-schedule .round-panel');
   if (panel) panel.scrollTop = 0;
   renderScheduleView();
 });
+
+document.getElementById('schedSection').addEventListener('change', function() {
+  var id = this.value;
+  if (!id) return;
+  var el = document.getElementById('sched-section-' + id);
+  if (!el) return;
+  var mobile = window.innerWidth < 1024;
+  if (mobile) {
+    var scroller = document.querySelector('#view-schedule .round-panel');
+    if (scroller) {
+      var off = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 4;
+      scroller.scrollTo({ top: Math.max(0, off), behavior: 'smooth' });
+    }
+  } else {
+    var top = el.getBoundingClientRect().top + window.scrollY - stickyNavH() - 4;
+    window.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+  }
+});
+
+var schedObserver = null;
+function setupSchedObserver() {
+  if (schedObserver) { schedObserver.disconnect(); schedObserver = null; }
+  if (!window.IntersectionObserver) return;
+  var navH = stickyNavH();
+  schedObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(e) {
+      if (!e.isIntersecting) return;
+      var id = e.target.id.replace('sched-section-', '');
+      var sel = document.getElementById('schedSection');
+      if (sel) sel.value = id;
+    });
+  }, { rootMargin: '-' + (navH + 1) + 'px 0px -70% 0px', threshold: 0 });
+  document.querySelectorAll('#roundGames .round-section').forEach(function(el) {
+    schedObserver.observe(el);
+  });
+}
+
+function updateSchedViewDropdown(groups) {
+  var sel = document.getElementById('schedSection');
+  if (!sel) return;
+  sel.innerHTML = '';
+  groups.forEach(function(g) {
+    var opt = document.createElement('option');
+    opt.value = g.id;
+    opt.textContent = g.label;
+    sel.appendChild(opt);
+  });
+}
 
 function scheduleCardHTML(sid) {
   var g = GAMES[sid]; if (!g) return '';
@@ -2010,16 +2062,15 @@ function renderScheduleView() {
   // Initialise mode from settings on first render (persists for the session)
   if (scheduleMode === null) scheduleMode = getSetting('defaultScheduleGroup') || 'day';
 
-  // Show/hide Field pill based on whether any game has a field set
+  // Enable/disable the Field option based on whether any game has a field set
   var hasFields = Object.keys(GAMES).some(function(sid) { return !!GAMES[sid].field; });
-  var fieldPill = document.getElementById('fieldPill');
-  if (fieldPill) fieldPill.style.display = hasFields ? '' : 'none';
+  var fieldOpt = document.querySelector('#schedGroup option[value="field"]');
+  if (fieldOpt) fieldOpt.disabled = !hasFields;
   if (scheduleMode === 'field' && !hasFields) scheduleMode = 'day';
 
-  // Sync pill active states
-  document.querySelectorAll('.group-pill').forEach(function(btn) {
-    btn.classList.toggle('active', btn.dataset.group === scheduleMode);
-  });
+  // Sync Group dropdown
+  var groupSel = document.getElementById('schedGroup');
+  if (groupSel) groupSel.value = scheduleMode;
 
   // All game IDs sorted by time (TBD games sort to end via parseTimeVal→Infinity)
   var allSids = Object.keys(GAMES).sort(function(a, b) {
@@ -2066,6 +2117,8 @@ function renderScheduleView() {
   });
 
   document.getElementById('roundGames').innerHTML = html;
+  updateSchedViewDropdown(groups);
+  setupSchedObserver();
   applyStickyOffsets();
 }
 
