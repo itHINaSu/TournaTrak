@@ -45,6 +45,11 @@
   --text-md: 0.9rem;
   --text-lg: 1rem;
 
+  /* Button sizing tokens — change here to resize all buttons at once */
+  --btn-font-size: var(--text-sm);
+  --btn-pad-v:     0.55em;
+  --btn-h:         1.8rem;
+
   /* Bracket slot sizing — set by JS via setProperty */
   --slot-h:    10vh;
   --card-h:    8vh;
@@ -150,11 +155,11 @@ body {
 /* Cross-app toggle button (admin ↔ public) — shared by all pages */
 .admin-public-btn {
   font-family: 'Oswald', sans-serif;
-  font-size: var(--text-sm);
+  font-size: var(--btn-font-size);
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: 0.55em 0.88em;
+  padding: var(--btn-pad-v) 0.88em;
   border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;
@@ -198,11 +203,11 @@ select:focus-visible,
 .bucket-edit-save-btn,
 .lineup-submit-btn {
   font-family: 'Oswald', sans-serif;
-  font-size: var(--text-sm);
+  font-size: var(--btn-font-size);
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: 0.55em 1.1em;
+  padding: var(--btn-pad-v) 1.1em;
   border-radius: var(--radius-xs);
   background: var(--blue);
   color: #fff;

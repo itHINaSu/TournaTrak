@@ -102,7 +102,7 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .admin-winner-sel:focus { outline: 0.13em solid var(--blue-lt); }
 .admin-save-btn { white-space: nowrap; }
 .admin-locked { font-size: 0.74rem; color: var(--text-mute); font-style: italic; }
-.admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: var(--text-sm); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: 0.55em 0.62em; border-radius: var(--radius-xs); border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
+.admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) 0.62em; border-radius: var(--radius-xs); border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
 .admin-clear-btn:hover,
 .admin-clear-btn:active { background: rgba(192,80,80,0.1); }
 
@@ -257,11 +257,11 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .results-mode-btn {
   flex: 1;
   font-family: 'Oswald', sans-serif;
-  font-size: var(--text-sm);
+  font-size: var(--btn-font-size);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.55em 0.5em;
+  padding: var(--btn-pad-v) 0.5em;
   border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;
@@ -637,11 +637,11 @@ input[type="time"]:focus {
 .bucket-admin-row--hidden .bucket-admin-name { text-decoration: line-through; }
 .bucket-hide-btn {
   font-family: 'Oswald', sans-serif;
-  font-size: var(--text-sm);
+  font-size: var(--btn-font-size);
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: 0.55em 0.55em;
+  padding: var(--btn-pad-v) 0.55em;
   border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;
@@ -897,12 +897,12 @@ input[type="time"]:focus {
 /* Cancel / Final / Update / Live differ only in color; metrics are identical. */
 .admin-res-footer button {
   font-family: 'Oswald', sans-serif;
-  font-size: 0.78rem;
+  font-size: var(--btn-font-size);
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
   padding: 0 1.05em;
-  height: 2.3em;                        /* fixed height so labels can't change box size */
+  height: var(--btn-h);                 /* fixed height so labels can't change box size */
   border-radius: var(--radius-xs);
   border: 0.09em solid transparent;   /* every button has a border so box heights match */
   box-sizing: border-box;

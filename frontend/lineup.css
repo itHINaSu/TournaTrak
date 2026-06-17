@@ -55,11 +55,11 @@
 }
 .lineup-tool-btn {
   font-family: 'Oswald', sans-serif;
-  font-size: 0.8rem;
+  font-size: var(--btn-font-size);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.55em 1.1em;
+  padding: var(--btn-pad-v) 1.1em;
   border-radius: 0.3em;
   border: 0.07em solid var(--border);
   background: var(--surface2);
@@ -238,16 +238,16 @@
   border-top: 0.07em solid var(--border);
 }
 /* lineup-submit-btn: base styles from base.css primary-button rule */
-.lineup-submit-btn { padding: 0.55em 1.6em; }
+.lineup-submit-btn { padding: var(--btn-pad-v) 1.6em; }
 
 .lineup-sub-add-btn,
 .lineup-sub-del-btn {
   font-family: 'Oswald', sans-serif;
-  font-size: var(--text-sm);
+  font-size: var(--btn-font-size);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.55em 1.2em;
+  padding: var(--btn-pad-v) 1.2em;
   border-radius: 0.3em;
   background: transparent;
   cursor: pointer;
