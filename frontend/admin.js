@@ -1197,6 +1197,17 @@ async function deleteUser(username) {
   loadUsers();
 }
 
+function gotoDelays() {
+  document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  var rTab = document.querySelector('.admin-tab[data-tab="results"]');
+  if (rTab) rTab.classList.add('active');
+  var rPanel = document.getElementById('tab-results');
+  if (rPanel) rPanel.classList.add('active');
+  setResultsMode('delays');
+  updateQuickBar();
+}
+
 // ── Bucket challenge admin ─────────────────────────────────────────────
 var _resultsMode = 'games';
 

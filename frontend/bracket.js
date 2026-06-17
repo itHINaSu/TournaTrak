@@ -449,7 +449,14 @@ function gameLabel(sid){
 // Returns '' when no field is assigned so cards render unchanged.
 function fieldTagHTML(sid){
   var g = GAMES[sid];
-  return g && g.field ? '<span class="game-field-tag">' + esc(g.field) + '</span>' : '';
+  if (!g || !g.field) return '';
+  var num = parseInt(g.field.replace(/\D/g, ''), 10) || 0;
+  var cls = 'game-field-tag' + (num >= 1 && num <= 5 ? ' game-field-tag--' + num : '');
+  return '<span class="' + cls + '">' + esc(g.field) + '</span>';
+}
+function gameDateHTML(dateStr) {
+  var d = fmtDate(dateStr);
+  return d ? '<span class="round-game-day">' + esc(d) + '</span>' : '';
 }
 function disp(gid,slot){
   var team=resolveSlot(slot,results);
@@ -661,9 +668,9 @@ function getGameOffset(sid) {
 
 function timeOrLiveHTML(sid, dateStr, dowStr, timeStr) {
   if (gameIsLive(sid)) {
-    return '<div class="round-game-day-time round-game-live">' + liveHeaderHTML(sid) + '</div>';
+    return '<div class="round-game-day-time round-game-live">' + fieldTagHTML(sid) + liveHeaderHTML(sid) + '</div>';
   }
-  var d = fmtDate(dateStr), w = fmtDow(dowStr);
+  var w = fmtDow(dowStr);
   var offMin = getGameOffset(sid);
   var offHTML = '';
   if (offMin !== null && offMin !== 0) {
@@ -672,7 +679,7 @@ function timeOrLiveHTML(sid, dateStr, dowStr, timeStr) {
       + (late ? '+' : '') + offMin + ' min</span>';
   }
   return '<div class="round-game-day-time">'
-    + (d       ? '<span class="round-game-day">'  + esc(d)       + '</span>' : '')
+    + fieldTagHTML(sid)
     + (w       ? '<span class="round-game-dow">'  + esc(w)       + '</span>' : '')
     + (timeStr ? '<span class="round-game-time">' + esc(timeStr) + '</span>' : '')
     + offHTML
@@ -1147,7 +1154,7 @@ function roundCardHTML(gid) {
   return '<div class="round-game-card">'
     + '<div class="round-game-header">'
     + '<span class="round-game-id">' + esc(gameLabel(gid)) + '</span>'
-    + fieldTagHTML(gid)
+    + gameDateHTML(dateStr)
     + timeOrLiveHTML(gid, dateStr, dowStr, timeStr)
     + '</div>'
     + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
@@ -2085,7 +2092,7 @@ function scheduleCardHTML(sid) {
   return '<div class="round-game-card' + upcoming + champ2ExtraCls + '" id="rgc-' + sid + '">'
     + '<div class="round-game-header">'
     + '<span class="round-game-id">' + esc(gameLabel(sid)) + '</span>'
-    + fieldTagHTML(sid)
+    + gameDateHTML(dateStr)
     + timeOrLiveHTML(sid, dateStr, dowStr, timeStr)
     + '</div>'
     + champ2NoteHTML

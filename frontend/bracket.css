@@ -716,7 +716,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   flex-shrink: 0;
 }
 .round-game-day-time { display: flex; align-items: baseline; gap: 0.45em; flex: 1; justify-content: flex-end; }
-.round-game-day  { font-family: 'Oswald', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--text-dim); line-height: 1; margin-right: 0.25em; }
+.round-game-day  { font-family: 'Oswald', sans-serif; font-size: 0.82rem; font-weight: 600; color: var(--text-dim); line-height: 1; flex-shrink: 0; }
 .round-game-dow  { font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-game-time { font-family: 'Oswald', sans-serif; font-size: 0.95rem; font-weight: 700; color: var(--gold-lt); line-height: 1; }
 .round-game-offset { font-family: 'Oswald', sans-serif; font-size: 0.78rem; font-weight: 700; line-height: 1; margin-left: 0.35em; }
@@ -1653,6 +1653,14 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   align-self: center;
 }
 .mbc-champ-label .game-field-tag { font-size: 0.7rem; vertical-align: middle; }
+/* Per-field colors — 5-color palette */
+.game-field-tag--1 { color: var(--blue-lt);  border-color: var(--blue-lt); }
+.game-field-tag--2 { color: #4caf7d;         border-color: #4caf7d; }
+.game-field-tag--3 { color: var(--gold-lt);  border-color: var(--gold-lt); }
+.game-field-tag--4 { color: #b48eff;         border-color: #b48eff; }
+.game-field-tag--5 { color: #ff8c5a;         border-color: #ff8c5a; }
+/* Field tag sits as first item inside the time block — no extra left margin needed */
+.round-game-day-time .game-field-tag { margin-left: 0; }
 
 /* ── Team path: tappable opponent chip ("who might I play?") ──────────── */
 /* Distinct pill inside the game card; tapping it jumps to the opponent's

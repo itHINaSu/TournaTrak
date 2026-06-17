@@ -369,15 +369,20 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .settings-backdrop.open { display: block; }
 
 /* ── Settings tab ── */
-.settings-section { margin-bottom: 1.6em; }
-.settings-section-hdr { font-family: 'Oswald', sans-serif; font-size: 0.68em; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); padding: 0.5em 0; border-bottom: 0.07em solid var(--border); margin-bottom: 0.75em; }
-.settings-field { margin-bottom: 0.75em; }
+.settings-section { margin-bottom: 2em; }
+.settings-section-hdr { font-family: 'Oswald', sans-serif; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--blue-lt); padding: 0.55em 0 0.45em; border-bottom: 0.12em solid var(--blue); margin-bottom: 1em; }
+.settings-field { margin-bottom: 0.85em; }
 .settings-field label { display: block; font-family: 'Oswald', sans-serif; font-size: 0.62em; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-dim); margin-bottom: 0.3em; }
+.settings-field select.styled { width: 100%; }
 .settings-field .field-hint { font-size: 0.65em; color: var(--text-mute); margin-top: 0.2em; }
 .settings-field--toggle { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3em 0.6em; }
 .settings-field--toggle label { margin-bottom: 0; flex: 1; min-width: 0; }
 .settings-field--toggle input[type="checkbox"] { width: auto; flex-shrink: 0; width: 1.1em; height: 1.1em; accent-color: var(--blue-lt); cursor: pointer; }
 .settings-field--toggle .field-hint { flex: 0 0 100%; }
+.settings-field-pair { border-left: 2px solid var(--border); padding-left: 0.85em; margin-bottom: 1em; }
+.settings-field-pair .settings-field { margin-bottom: 0.6em; }
+.settings-field-pair .settings-field:last-child { margin-bottom: 0; }
+.settings-field--sub label { color: var(--text-mute); }
 .settings-save-row { display: flex; align-items: center; gap: 0.6em; margin-top: 0.5em; }
 
 /* ── Account tab ── */

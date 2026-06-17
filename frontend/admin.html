@@ -218,14 +218,14 @@
     <!-- Top action row -->
     <div class="sched-action-row sched-action-row--top">
       <button class="sched-save-btn" id="schedSaveBtn" onclick="saveAllSchedule()">Save All Changes</button>
-      <a href="/" class="admin-public-btn">↗ Public Page</a>
+      <button class="admin-public-btn" onclick="gotoDelays()">→ Delays</button>
       <span class="sched-status" id="schedStatus"></span>
     </div>
     <div id="scheduleEditor"></div>
     <!-- Bottom action row (duplicated) -->
     <div class="sched-action-row sched-action-row--bottom">
       <button class="sched-save-btn" onclick="saveAllSchedule()">Save All Changes</button>
-      <a href="/" class="admin-public-btn">↗ Public Page</a>
+      <button class="admin-public-btn" onclick="gotoDelays()">→ Delays</button>
       <span class="sched-status" id="schedStatusBottom"></span>
     </div>
   </div>
@@ -316,9 +316,9 @@
             </div>
           </div>
           <div class="settings-section">
-            <div class="settings-section-hdr">Default Landing Tab</div>
+            <div class="settings-section-hdr">Public Page Defaults</div>
             <div class="settings-field">
-              <label>Tab shown on first visit</label>
+              <label>Default landing tab</label>
               <select class="styled" id="set-defaultTab">
                 <option value="bracket">Bracket</option>
                 <option value="schedule">Schedule</option>
@@ -333,23 +333,20 @@
                 <option value="both">Mobile &amp; Desktop</option>
                 <option value="mobile">Mobile only</option>
               </select>
-              <div class="field-hint">"Mobile only" keeps Bracket as the desktop landing tab and uses the default above only on phones/tablets.</div>
+              <div class="field-hint">"Mobile only" keeps Bracket as the desktop landing tab and uses the above only on phones/tablets.</div>
             </div>
-          </div>
-          <div class="settings-section">
-            <div class="settings-section-hdr">Schedule Default</div>
             <div class="settings-field">
-              <label>Default grouping</label>
+              <label>Default schedule grouping</label>
               <select class="styled" id="set-defaultScheduleGroup">
                 <option value="day">By Day</option>
                 <option value="round">By Round</option>
                 <option value="field">By Field</option>
               </select>
-              <div class="field-hint">How the Schedule tab groups games for first-time visitors. They can switch grouping with the pills in the bar.</div>
+              <div class="field-hint">How the Schedule tab groups games for first-time visitors.</div>
             </div>
           </div>
           <div class="settings-section">
-            <div class="settings-section-hdr">Bracket Labels</div>
+            <div class="settings-section-hdr">Bracket</div>
             <div class="settings-field">
               <label>Left Bracket Label</label>
               <input type="text" id="set-leftLabel" placeholder="Left Bracket">
@@ -360,6 +357,11 @@
               <input type="text" id="set-rightLabel" placeholder="Right Bracket">
               <div class="field-hint">Shown above the right side of the bracket and on mobile.</div>
             </div>
+            <div class="settings-field">
+              <label>Play-In Label <span class="field-label-hint">(mobile bracket divider)</span></label>
+              <input type="text" id="set-playInLabel" placeholder="Play-In">
+              <div class="field-hint">Label above the conditional game that determines the loser-bracket finalist (e.g. "Losers Final").</div>
+            </div>
             <div class="settings-field settings-field--toggle">
               <label>Show bracket-side dividers on mobile</label>
               <input type="checkbox" id="set-showSideDividers">
@@ -367,36 +369,32 @@
             </div>
           </div>
           <div class="settings-section">
-            <div class="settings-section-hdr">Play-In Game</div>
-            <div class="settings-field">
-              <label>Play-In Label <span class="field-label-hint">(mobile bracket divider)</span></label>
-              <input type="text" id="set-playInLabel" placeholder="Play-In">
-              <div class="field-hint">Label shown above the conditional game that determines the loser-bracket finalist (e.g. "Losers Final", "Bracket Final").</div>
-            </div>
-          </div>
-          <div class="settings-section">
             <div class="settings-section-hdr">Date &amp; Time Display</div>
-            <div class="settings-field settings-field--toggle">
-              <label>Show date <span class="field-label-hint">(e.g. 6/19)</span></label>
-              <input type="checkbox" id="set-showDate">
+            <div class="settings-field-pair">
+              <div class="settings-field settings-field--toggle">
+                <label>Show date <span class="field-label-hint">(e.g. 6/19)</span></label>
+                <input type="checkbox" id="set-showDate">
+              </div>
+              <div class="settings-field settings-field--sub">
+                <label>Format</label>
+                <select class="styled" id="set-dateFormat">
+                  <option value="short">Short — 6/19</option>
+                  <option value="long">Long — June 19</option>
+                </select>
+              </div>
             </div>
-            <div class="settings-field">
-              <label>Date format</label>
-              <select class="styled" id="set-dateFormat">
-                <option value="short">Short — 6/19</option>
-                <option value="long">Long — June 19</option>
-              </select>
-            </div>
-            <div class="settings-field settings-field--toggle">
-              <label>Show day of week <span class="field-label-hint">(e.g. Friday)</span></label>
-              <input type="checkbox" id="set-showDay">
-            </div>
-            <div class="settings-field">
-              <label>Day format</label>
-              <select class="styled" id="set-dayFormat">
-                <option value="long">Long — Friday</option>
-                <option value="short">Short — Fri</option>
-              </select>
+            <div class="settings-field-pair">
+              <div class="settings-field settings-field--toggle">
+                <label>Show day of week <span class="field-label-hint">(e.g. Friday)</span></label>
+                <input type="checkbox" id="set-showDay">
+              </div>
+              <div class="settings-field settings-field--sub">
+                <label>Format</label>
+                <select class="styled" id="set-dayFormat">
+                  <option value="long">Long — Friday</option>
+                  <option value="short">Short — Fri</option>
+                </select>
+              </div>
             </div>
           </div>
           <div class="settings-section">
@@ -469,7 +467,7 @@
             </div>
             <div class="settings-field">
               <label>Role</label>
-              <select id="newUserRole" class="admin-winner-sel" style="width:100%;padding:0.5em 0.62em" onchange="onNewUserRoleChange()">
+              <select id="newUserRole" class="styled" onchange="onNewUserRoleChange()">
                 <option value="results">Results — enter results only</option>
                 <option value="admin">Admin — full access</option>
                 <option value="team">Team — lineup submission</option>
@@ -501,7 +499,7 @@
             </div>
             <div class="settings-field">
               <label>Team Name</label>
-              <select id="newCoachTeamName" class="admin-winner-sel" style="width:100%;padding:0.5em 0.62em">
+              <select id="newCoachTeamName" class="styled">
                 <option value="">— select team —</option>
               </select>
             </div>

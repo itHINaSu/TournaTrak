@@ -4,7 +4,8 @@ const bcrypt  = require('bcryptjs');
 const fs      = require('fs');
 const crypto  = require('crypto');
 
-const OFFSETS_FILE  = '/data/offsets.json';
+const OFFSETS_FILE   = '/data/offsets.json';
+const SESSIONS_FILE  = '/data/sessions.json';
 const RESULTS_FILE  = '/data/results.json';
 const SCHEDULE_FILE = '/data/schedule.json';
 const SETTINGS_FILE = '/data/settings.json';
@@ -138,6 +139,58 @@ if (!ADMIN_PASSWORD_HASH.startsWith('$2')) {
   process.exit(1);
 }
 
+// ── Persistent file-based session store ──────────────────────────────
+// Stores sessions in /data/sessions.json so they survive Docker restarts.
+// Implements the minimal express-session Store interface.
+const Store = session.Store;
+function FileSessionStore() {
+  Store.call(this);
+  this._sessions = {};
+  try {
+    var raw = fs.readFileSync(SESSIONS_FILE, 'utf8');
+    this._sessions = JSON.parse(raw) || {};
+  } catch (e) { /* first run — file doesn't exist yet */ }
+  this._prune();
+  var self = this;
+  setInterval(function() { self._prune(); self._persist(); }, 60 * 1000);
+}
+require('util').inherits(FileSessionStore, Store);
+FileSessionStore.prototype._persist = function() {
+  try { fs.writeFileSync(SESSIONS_FILE, JSON.stringify(this._sessions)); } catch (e) {}
+};
+FileSessionStore.prototype._prune = function() {
+  var now = Date.now();
+  var changed = false;
+  var self = this;
+  Object.keys(this._sessions).forEach(function(sid) {
+    var s = self._sessions[sid];
+    if (s && s.cookie && s.cookie.expires && new Date(s.cookie.expires).getTime() < now) {
+      delete self._sessions[sid];
+      changed = true;
+    }
+  });
+  if (changed) this._persist();
+};
+FileSessionStore.prototype.get = function(sid, fn) {
+  var s = this._sessions[sid];
+  if (!s) return fn(null, null);
+  if (s.cookie && s.cookie.expires && new Date(s.cookie.expires).getTime() < Date.now()) {
+    delete this._sessions[sid];
+    return fn(null, null);
+  }
+  fn(null, s);
+};
+FileSessionStore.prototype.set = function(sid, session, fn) {
+  this._sessions[sid] = session;
+  this._persist();
+  if (fn) fn(null);
+};
+FileSessionStore.prototype.destroy = function(sid, fn) {
+  delete this._sessions[sid];
+  this._persist();
+  if (fn) fn(null);
+};
+
 // Ensure /data directory and all required JSON files exist at startup.
 // readJSON already handles missing files gracefully (returns {}), but
 // writeJSON will throw if /data itself is absent, and buckets.json needs
@@ -240,11 +293,13 @@ function loginRateLimit(req, res, next) {
   next();
 }
 
-// Sessions
+// Sessions — backed by FileSessionStore so they persist across Docker restarts
 app.use(session({
   secret:            SESSION_SECRET,
   resave:            false,
   saveUninitialized: false,
+  rolling:           true,  // extend cookie expiry on each request
+  store:             new FileSessionStore(),
   cookie: {
     httpOnly: true,
     // Set COOKIE_SECURE=true in .env only when serving over HTTPS.
@@ -252,7 +307,7 @@ app.use(session({
     // and the internal path to nginx/Express is plain HTTP.
     secure:   process.env.COOKIE_SECURE === 'true',
     sameSite: 'strict',
-    maxAge:   8 * 60 * 60 * 1000, // 8 hours
+    maxAge:   30 * 24 * 60 * 60 * 1000, // 30 days
   },
 }));
 
