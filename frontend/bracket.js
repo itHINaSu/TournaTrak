@@ -868,7 +868,7 @@ function cardHTML(gid){
   var offHTML = (offMin !== null && offMin !== 0)
     ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
     : '';
-  return '<div class="bc-hdr"><span class="bc-id">'+esc(gameLabel(gid))+'</span>'
+  return '<div class="bc-hdr">'+(g.bye?'':'<span class="bc-id">'+esc(gameLabel(gid))+'</span>')
     +fieldTagHTML(gid)
     +(gameIsLive(gid)
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
