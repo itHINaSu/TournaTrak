@@ -177,6 +177,7 @@
       <button class="results-mode-btn" id="modeBuilderBtn" onclick="setSchedMode('builder')">Builder</button>
       <button class="results-mode-btn" id="modeSchedDelaysBtn" onclick="setSchedMode('delays')">Delays</button>
       <button class="results-mode-btn" id="modeSchedTeamsBtn" onclick="setSchedMode('teams')">Teams</button>
+      <button class="results-mode-btn" id="modeNamesBtn" onclick="setSchedMode('names')">Names</button>
     </div>
     <div id="schedEditorPanel">
       <div class="admin-subtitle">Edit game labels, times, team names, slot positions, and team sources.
@@ -264,6 +265,14 @@
           </div>
           <p class="bld-muted">Game times can be fine-tuned afterward in the Admin schedule editor.</p>
         </div>
+        <div class="bld-card">
+          <h2 class="bld-h2">5 · Game Labels</h2>
+          <div class="bld-field">
+            <label for="gamePrefixInput">Game number prefix</label>
+            <input type="text" class="bld-input" id="gamePrefixInput" placeholder="Game " value="Game ">
+          </div>
+          <p class="bld-muted">Use <code>[W/L]</code> to apply different text per bracket side — content before <code>/</code> for the left (Winner's) bracket, after for the right (Loser's). Example: <code>[W/L]G</code> produces <strong>WG1</strong>, <strong>LG2</strong>.</p>
+        </div>
         <div class="bld-actions">
           <div class="bld-error" id="builderError"></div>
           <button class="bld-btn bld-btn--primary" id="generateBtn">Generate Bracket</button>
@@ -286,6 +295,19 @@
       <div class="settings-save-row">
         <button class="sched-save-btn" id="teamsSaveBtn" onclick="saveTeams()">Save</button>
         <span class="sched-status" id="teamsSaveStatus"></span>
+      </div>
+    </div>
+    <div id="schedNamesPanel" style="display:none">
+      <div class="admin-subtitle">Edit game labels. Use find &amp; replace to rename in bulk.</div>
+      <div class="sched-names-toolbar">
+        <input type="text" class="sched-names-find" id="namesFindInput" placeholder="Find…">
+        <input type="text" class="sched-names-replace" id="namesReplaceInput" placeholder="Replace with…">
+        <button class="sched-save-btn" onclick="namesReplaceAll()">Replace All</button>
+      </div>
+      <div id="namesEditorList" class="names-editor-list"></div>
+      <div class="settings-save-row">
+        <button class="sched-save-btn" id="namesSaveBtn" onclick="saveGameNames()">Save</button>
+        <span class="sched-status" id="namesSaveStatus"></span>
       </div>
     </div>
   </div>

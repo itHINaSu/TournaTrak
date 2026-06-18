@@ -598,6 +598,8 @@ async function doGenerate() {
     if (currentFormat.supportsIfNecessary) body.ifNecessary = $('ifNecChk').checked;
     var mode = $('seedMode').value;
     if (mode === 'order' || mode === 'manual') body.showSeeds = $('showSeedsChk').checked;
+    var prefixEl = $('gamePrefixInput');
+    if (prefixEl && prefixEl.value.trim()) body.gamePrefix = prefixEl.value.trim();
     var r = await fetch('/api/schedule/generate', {
       method: 'POST',
       credentials: 'same-origin',

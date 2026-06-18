@@ -1427,15 +1427,18 @@ function setSchedMode(mode) {
   var ePanel  = document.getElementById('schedEditorPanel');
   var bPanel  = document.getElementById('schedBuilderPanel');
   var tPanel  = document.getElementById('schedTeamsPanel');
+  var nPanel  = document.getElementById('schedNamesPanel');
   var dPanel  = document.getElementById('resultsDelaysPanel');
   var slot    = document.getElementById('schedDelaysSlot');
   var eBtn    = document.getElementById('modeScheduleBtn');
   var bBtn    = document.getElementById('modeBuilderBtn');
   var dBtn    = document.getElementById('modeSchedDelaysBtn');
   var tBtn    = document.getElementById('modeSchedTeamsBtn');
+  var nBtn    = document.getElementById('modeNamesBtn');
   if (ePanel)  ePanel.style.display  = mode === 'editor'  ? '' : 'none';
   if (bPanel)  bPanel.style.display  = mode === 'builder' ? '' : 'none';
   if (tPanel)  tPanel.style.display  = mode === 'teams'   ? '' : 'none';
+  if (nPanel)  nPanel.style.display  = mode === 'names'   ? '' : 'none';
   if (mode === 'delays' && dPanel && slot) {
     slot.appendChild(dPanel);
     dPanel.style.display = '';
@@ -1447,11 +1450,13 @@ function setSchedMode(mode) {
   if (bBtn)    bBtn.classList.toggle('active',  mode === 'builder');
   if (dBtn)    dBtn.classList.toggle('active',  mode === 'delays');
   if (tBtn)    tBtn.classList.toggle('active',  mode === 'teams');
+  if (nBtn)    nBtn.classList.toggle('active',  mode === 'names');
   if (mode === 'builder' && !window._builderInitDone) {
     window._builderInitDone = true;
     if (typeof window.builderInit === 'function') window.builderInit();
   }
   if (mode === 'teams') loadTeams();
+  if (mode === 'names') renderNamesEditor();
 }
 
 function adminSwitchToBuilder() {
@@ -2170,6 +2175,76 @@ checkSession();
 // When showSeeds is on, the seed number is shown left of each name.
 
 var _teamsDrag = null;   // { el, ghost, startY, idx, ys:[] }
+
+// ── Names editor ───────────────────────────────────────────────────────
+
+function renderNamesEditor() {
+  var list = document.getElementById('namesEditorList');
+  if (!list) return;
+  var html = '';
+  // Group by round
+  ROUND_ORDER.forEach(function(round) {
+    var sides = Object.keys(SLOT_DEFS[round] || {}).sort();
+    var gidsInRound = [];
+    sides.forEach(function(side) {
+      (SLOT_DEFS[round][side] || []).forEach(function(n) {
+        var sid = round + '.' + side + '.' + n;
+        if (GAMES[sid]) gidsInRound.push(sid);
+      });
+    });
+    if (!gidsInRound.length) return;
+    html += '<div class="names-round-hdr">' + ROUND_LABELS[round] + '</div>';
+    gidsInRound.forEach(function(sid) {
+      var g = GAMES[sid];
+      html += '<div class="names-row">'
+        + '<span class="names-slot-id">' + esc(sid) + '</span>'
+        + '<input type="text" class="names-label-inp" data-sid="' + esc(sid) + '" value="' + esc(g.label || '') + '">'
+        + '</div>';
+    });
+  });
+  list.innerHTML = html || '<div class="bld-muted" style="padding:1em">No games in schedule.</div>';
+}
+
+function namesReplaceAll() {
+  var find = document.getElementById('namesFindInput');
+  var repl = document.getElementById('namesReplaceInput');
+  if (!find || !find.value) return;
+  var findStr = find.value;
+  var replStr = repl ? repl.value : '';
+  document.querySelectorAll('.names-label-inp').forEach(function(inp) {
+    if (inp.value.indexOf(findStr) !== -1) {
+      inp.value = inp.value.split(findStr).join(replStr);
+    }
+  });
+}
+
+async function saveGameNames() {
+  var btn = document.getElementById('namesSaveBtn');
+  var status = document.getElementById('namesSaveStatus');
+  btn.disabled = true;
+  var out = Object.assign({}, schedule);
+  document.querySelectorAll('.names-label-inp').forEach(function(inp) {
+    var sid = inp.dataset.sid;
+    var newLabel = inp.value.trim();
+    if (!newLabel || !out[sid]) return;
+    out[sid] = Object.assign({}, out[sid], { label: newLabel });
+  });
+  try {
+    var r = await apiFetch('/api/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(out)
+    });
+    if (!r || !r.ok) throw new Error();
+    schedule = out;
+    if (typeof applySchedule === 'function') applySchedule(schedule);
+    if (status) { status.textContent = 'Saved'; setTimeout(function() { status.textContent = ''; }, 2500); }
+  } catch(e) {
+    if (status) { status.textContent = 'Save failed'; setTimeout(function() { status.textContent = ''; }, 2500); }
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 function renderTeamsEditor() {
   var chk = document.getElementById('teams-showSeeds');

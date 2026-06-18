@@ -1005,3 +1005,61 @@ input[type="time"]:focus {
   margin: 0;
   padding: 0.75em 1em;
 }
+
+/* ── Names editor ── */
+.sched-names-toolbar {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  padding: 0.75em 1em;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.sched-names-find, .sched-names-replace {
+  flex: 1;
+  min-width: 120px;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.9rem;
+  padding: 0.4em 0.7em;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+}
+.names-editor-list { padding: 0 1em 3em; }
+.names-round-hdr {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-lt);
+  padding: 1em 0 0.4em;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.5em;
+}
+.names-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.35em 0;
+}
+.names-slot-id {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.75rem;
+  color: var(--text-mute);
+  min-width: 8em;
+  flex-shrink: 0;
+}
+.names-label-inp {
+  flex: 1;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.9rem;
+  padding: 0.3em 0.6em;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text);
+}
+.names-label-inp:focus { border-color: var(--blue); outline: none; }

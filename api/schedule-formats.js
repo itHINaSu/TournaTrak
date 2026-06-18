@@ -10,6 +10,25 @@
 //   advancing game:  { label, num, t1slot, t1type, t2slot, t2type, time, field? }
 //   bye (mixed) game: one side a fixed t1name, the other an advancing t2slot.
 
+// Expand a game-number prefix string, resolving [W/L] side tokens against the
+// slot ID (e.g. "R1.L.2" → side 'L'). Falls back to "Game " when prefix is blank.
+function expandPrefix(prefix, slotId) {
+  var p = (prefix == null || String(prefix).trim() === '') ? 'Game ' : String(prefix);
+  // Detect side from slot ID: the segment between the two dots is 'L', 'R', or 'C'.
+  var side = null;
+  if (slotId) {
+    var parts = slotId.split('.');
+    if (parts.length >= 2) side = parts[1];
+  }
+  // Replace [X/Y] patterns: X for L-side, Y for R-side.
+  p = p.replace(/\[([^/\]]*?)\/([^/\]]*?)\]/g, function(_m, left, right) {
+    if (side === 'L') return left;
+    if (side === 'R') return right;
+    return left; // fallback for 'C' or unknown
+  });
+  return p;
+}
+
 // Build a 'YYYY-MM-DDTHH:MM' local-time string. `dayOffset` adds whole days to
 // the start date; h/m are the hour/minute of that day.
 function isoLocal(startDateStr, dayOffset, h, m) {
@@ -196,7 +215,7 @@ function generateSingleElim(opts) {
       gameNum++;
       const slot = slotTimes ? (slotTimes[gameNum - 1] || {}) : null;   // unfilled slots blank for the editor
       entry = {
-        label: `Game ${gameNum}`,
+        label: expandPrefix(opts.gamePrefix, g.slot) + gameNum,
         num: gameNum,
         time: slot ? (slot.time || '') : gameTime(g.depth, totalRounds, idxInRound, startDate),
       };
@@ -324,7 +343,7 @@ function generateDoubleElim16(opts) {
   const schedule = {};
   specs.forEach((sp, i) => {
     const st = slotTimes[i] || {};
-    const entry = { label: `Game ${i + 1}`, num: i + 1, time: st.time || '' };
+    const entry = { label: expandPrefix(opts.gamePrefix, sp.slot) + (i + 1), num: i + 1, time: st.time || '' };
     if (st.field) entry.field = st.field;
     deSide(entry, 1, sp.t1);
     deSide(entry, 2, sp.t2);
@@ -439,7 +458,7 @@ function generateSchedule(formatId, opts) {
   }
 
   const seededTeams = resolveSeeding({ teams: clean, seedMode, byeTeams });
-  const schedule = fmt.generate({ startDate: opts.startDate, teams: clean, seedMode, byeTeams, playingDays, ifNecessary: opts.ifNecessary });
+  const schedule = fmt.generate({ startDate: opts.startDate, teams: clean, seedMode, byeTeams, playingDays, ifNecessary: opts.ifNecessary, gamePrefix: opts.gamePrefix });
   return { schedule, seededTeams };
 }
 
