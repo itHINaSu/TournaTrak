@@ -10,7 +10,8 @@ function $(id) { return document.getElementById(id); }
 var FORMATS = [];        // [{ id, label, description, minTeams, maxTeams }]
 var currentFormat = null;
 var byeSelection = {};   // team name -> true, for manual mode
-var playingDays = [];    // [{ date, startTime, games, interval, fields }] — build-time schedule (sorted by date)
+var playingDays = [];    // [{ date, startTime, games, interval, fields:[name,…] }] — build-time schedule (sorted by date)
+var fieldNames = ['Field 1'];  // venue's fields; each day picks which it's played on
 var calYear, calMonth;   // month currently shown in the schedule calendar (0-based month)
 
 // Smallest power of two >= n (mirrors the server helper).
@@ -148,8 +149,92 @@ function onAdvToggle() {
       addDayByDate($('simpleDate').value);
     }
     renderCalendar();
+    renderFieldsSetup();
     renderDays();
   }
+}
+
+// ── Fields (venue's playing surfaces) ─────────────────────────────────
+// The venue's fields are named once here; each playing day then picks which of
+// them it's played on (see the per-day chips). Field labels only appear on the
+// generated schedule when there's more than one field — a single-field event
+// needs none. Keep each day's selection ordered to match fieldNames so games
+// wave across the fields predictably.
+function normalizeDayFields(d) {
+  d.fields = fieldNames.filter(function (n) { return d.fields.indexOf(n) !== -1; });
+  if (!d.fields.length) d.fields = fieldNames.slice();
+}
+
+function renderFieldsSetup() {
+  var el = $('fieldsSetup');
+  if (!el) return;
+  var html = '<div class="bld-fields-hdr">Fields' +
+    '<span class="bld-muted"> — add a field to split games across them; untick a field below on days it isn’t used.</span></div>' +
+    '<div class="bld-fields-list">';
+  fieldNames.forEach(function (name, i) {
+    html += '<span class="bld-field-tag">' +
+      '<input type="text" class="bld-field-name" data-idx="' + i + '" value="' + esc(name) + '" maxlength="100" aria-label="Field name">' +
+      (fieldNames.length > 1 ? '<button type="button" class="bld-field-del" data-idx="' + i + '" aria-label="Remove field">&times;</button>' : '') +
+      '</span>';
+  });
+  html += '<button type="button" class="bld-field-add" id="fieldAddBtn">＋ Add field</button></div>';
+  el.innerHTML = html;
+
+  $('fieldAddBtn').addEventListener('click', addField);
+  Array.prototype.forEach.call(el.querySelectorAll('.bld-field-name'), function (inp) {
+    inp.addEventListener('change', onFieldRename);
+  });
+  Array.prototype.forEach.call(el.querySelectorAll('.bld-field-del'), function (b) {
+    b.addEventListener('click', function () { removeField(parseInt(b.getAttribute('data-idx'), 10)); });
+  });
+}
+
+function addField() {
+  var n = fieldNames.length + 1, name = 'Field ' + n;
+  while (fieldNames.indexOf(name) !== -1) { n++; name = 'Field ' + n; }
+  fieldNames.push(name);
+  playingDays.forEach(function (d) { d.fields.push(name); normalizeDayFields(d); });
+  renderFieldsSetup();
+  renderDays();
+}
+
+function removeField(idx) {
+  if (fieldNames.length <= 1) return;
+  var name = fieldNames[idx];
+  fieldNames.splice(idx, 1);
+  playingDays.forEach(function (d) {
+    var j = d.fields.indexOf(name);
+    if (j !== -1) d.fields.splice(j, 1);
+    normalizeDayFields(d);
+  });
+  renderFieldsSetup();
+  renderDays();
+}
+
+function onFieldRename(e) {
+  var idx = parseInt(e.target.getAttribute('data-idx'), 10);
+  var old = fieldNames[idx];
+  var nw = e.target.value.trim();
+  if (!nw || fieldNames.indexOf(nw) !== -1) { e.target.value = old; return; }  // empty or duplicate → revert
+  fieldNames[idx] = nw;
+  playingDays.forEach(function (d) {
+    var j = d.fields.indexOf(old);
+    if (j !== -1) d.fields[j] = nw;
+    normalizeDayFields(d);
+  });
+  renderFieldsSetup();
+  renderDays();
+}
+
+function toggleDayField(date, name) {
+  var i = dayIndex(date);
+  if (i === -1) return;
+  var d = playingDays[i];
+  var j = d.fields.indexOf(name);
+  if (j === -1) d.fields.push(name);
+  else if (d.fields.length > 1) d.fields.splice(j, 1);   // a day must keep at least one field
+  normalizeDayFields(d);
+  renderDays();
 }
 
 // ── Calendar (multi-day selector) ─────────────────────────────────────
@@ -161,7 +246,7 @@ function hasDay(date) { return dayIndex(date) !== -1; }
 
 function addDayByDate(date) {
   if (hasDay(date)) return;
-  playingDays.push({ date: date, startTime: '09:00', games: realGamesNeeded() || 4, interval: 60, fields: 1 });
+  playingDays.push({ date: date, startTime: '09:00', games: realGamesNeeded() || 4, interval: 60, fields: fieldNames.slice() });
   sortDays();
 }
 function sortDays() {
@@ -216,16 +301,25 @@ function prettyDate(ds) {
 }
 
 function renderDays() {
+  var multi = fieldNames.length > 1;
   $('daysList').innerHTML = playingDays.map(function (d) {
+    var chips = '';
+    if (multi) {
+      chips = '<div class="bld-day-chips" aria-label="Fields in use this day">' + fieldNames.map(function (name) {
+        var on = d.fields.indexOf(name) !== -1;
+        return '<button type="button" class="bld-day-chip' + (on ? ' bld-day-chip--on' : '') +
+          '" data-date="' + esc(d.date) + '" data-fieldname="' + esc(name) + '" aria-pressed="' + on + '">' + esc(name) + '</button>';
+      }).join('') + '</div>';
+    }
     return '<div class="bld-day">' +
       '<div class="bld-day-date">' + esc(prettyDate(d.date)) + '</div>' +
       '<div class="bld-day-fields">' +
         dayField('Start', '<input type="time" class="bld-input" data-date="' + esc(d.date) + '" data-field="startTime" value="' + esc(d.startTime) + '">') +
         dayField('Games', '<input type="number" min="1" max="100" inputmode="numeric" class="bld-input bld-input--sm" data-date="' + esc(d.date) + '" data-field="games" value="' + esc(String(d.games)) + '">') +
-        dayField('Fields', '<input type="number" min="1" max="50" inputmode="numeric" class="bld-input bld-input--sm" data-date="' + esc(d.date) + '" data-field="fields" value="' + esc(String(d.fields || 1)) + '">') +
         dayField('Min apart', '<input type="number" min="1" max="1440" inputmode="numeric" class="bld-input bld-input--sm" data-date="' + esc(d.date) + '" data-field="interval" value="' + esc(String(d.interval)) + '">') +
       '</div>' +
       '<button type="button" class="bld-day-del" data-date="' + esc(d.date) + '" aria-label="Remove day">&times;</button>' +
+      chips +
     '</div>';
   }).join('');
 
@@ -235,6 +329,9 @@ function renderDays() {
   });
   Array.prototype.forEach.call(list.querySelectorAll('.bld-day-del'), function (b) {
     b.addEventListener('click', function () { toggleDay(b.getAttribute('data-date')); });
+  });
+  Array.prototype.forEach.call(list.querySelectorAll('.bld-day-chip'), function (b) {
+    b.addEventListener('click', function () { toggleDayField(b.getAttribute('data-date'), b.getAttribute('data-fieldname')); });
   });
   updateSlotSummary();
 }
@@ -247,7 +344,7 @@ function onDayFieldChange(e) {
   var i = dayIndex(e.target.getAttribute('data-date'));
   var field = e.target.getAttribute('data-field');
   if (i === -1) return;
-  if (field === 'games' || field === 'interval' || field === 'fields') {
+  if (field === 'games' || field === 'interval') {
     playingDays[i][field] = parseInt(e.target.value, 10) || 0;
   } else {
     playingDays[i][field] = e.target.value;
@@ -363,7 +460,7 @@ function onGenerate() {
       var lbl = prettyDate(d.date);
       if (!d.startTime) { showError(lbl + ': set a start time.'); return; }
       if (!(parseInt(d.games, 10) >= 1)) { showError(lbl + ': games must be at least 1.'); return; }
-      if (!(parseInt(d.fields, 10) >= 1)) { showError(lbl + ': fields must be at least 1.'); return; }
+      if (!d.fields || !d.fields.length) { showError(lbl + ': select at least one field.'); return; }
       if (!(parseInt(d.interval, 10) >= 1)) { showError(lbl + ': minutes apart must be at least 1.'); return; }
     }
   } else if (!$('simpleDate').value) {
@@ -411,7 +508,7 @@ async function doGenerate() {
     };
     if (isAdvanced()) {
       body.playingDays = playingDays.map(function (d) {
-        return { date: d.date, startTime: d.startTime, games: parseInt(d.games, 10), interval: parseInt(d.interval, 10), fields: parseInt(d.fields, 10) || 1 };
+        return { date: d.date, startTime: d.startTime, games: parseInt(d.games, 10), interval: parseInt(d.interval, 10), fields: d.fields.slice() };
       });
     } else {
       body.startDate = $('simpleDate').value;

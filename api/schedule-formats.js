@@ -79,27 +79,35 @@ function gameTime(depth, totalRounds, idxInRound, startDate) {
 }
 
 // Flatten a playing-days plan into an ordered list of { time, field } slots.
-// Each day yields `games` slots starting at `startTime`. With more than one
-// field, games run in concurrent waves: the first `fields` games all kick off
-// at `startTime`, the next `fields` games a `interval` minutes later, and so on
-// — so a TD with several fields finishes in a fraction of the time instead of
-// running one game after another late into the night. Games are assigned to
-// these slots in chronological bracket order, so earlier rounds always land in
-// earlier waves. isoLocal normalises minute overflow, so interval math that
-// crosses an hour just rolls forward. The field label is blank for single-field
-// days (nothing to disambiguate).
-//   day: { date:'YYYY-MM-DD', startTime:'HH:MM', games:int, interval:int(min), fields:int }
+// Each day yields `games` slots starting at `startTime`. A day lists the
+// fields it's played on (by name); games run in concurrent waves across them —
+// the first `fields.length` games all kick off at `startTime`, the next wave a
+// `interval` minutes later, and so on — so a TD with several fields finishes in
+// a fraction of the time instead of running one game after another late into
+// the night. Games are assigned to these slots in chronological bracket order,
+// so earlier rounds always land in earlier waves. isoLocal normalises minute
+// overflow, so interval math that crosses an hour just rolls forward.
+//
+// Field labels are written only when the tournament as a whole uses more than
+// one field. A single-field event needs no disambiguation; a multi-field event
+// labels every game — including a day (e.g. championship day) played on just
+// one of the fields, which is exactly the value the field name carries.
+//   day: { date:'YYYY-MM-DD', startTime:'HH:MM', games:int, interval:int(min), fields:[name,…] }
 function buildSlotTimes(playingDays) {
+  const allFields = new Set();
+  playingDays.forEach(d => (d.fields || []).forEach(f => allFields.add(f)));
+  const labelFields = allFields.size > 1;
+
   const out = [];
   for (const d of playingDays) {
     const [h, m] = String(d.startTime).split(':').map(Number);
-    const fields = Math.max(1, d.fields || 1);
+    const dayFields = (d.fields && d.fields.length) ? d.fields : [''];
+    const F = dayFields.length;
     for (let k = 0; k < d.games; k++) {
-      const wave = Math.floor(k / fields);
-      const fieldIdx = k % fields;
+      const wave = Math.floor(k / F);
       out.push({
         time: isoLocal(d.date, 0, h, m + wave * d.interval),
-        field: fields > 1 ? `Field ${fieldIdx + 1}` : '',
+        field: labelFields ? dayFields[k % F] : '',
       });
     }
   }
@@ -354,12 +362,23 @@ function validatePlayingDays(days) {
     const startTime = String((d && d.startTime) || '');
     const games = parseInt(d && d.games, 10);
     const interval = parseInt(d && d.interval, 10);
-    const fields = (d && d.fields != null) ? parseInt(d.fields, 10) : 1;
+    // Fields are a named list (the days the venue's fields are in use). Accept a
+    // bare count for back-compat (expands to "Field 1"…"Field N").
+    let fields;
+    if (Array.isArray(d && d.fields)) {
+      fields = d.fields.map(f => String(f).trim()).filter(Boolean);
+    } else {
+      const n = (d && d.fields != null) ? parseInt(d.fields, 10) : 1;
+      const cnt = (n >= 1 && n <= 50) ? n : 1;
+      fields = Array.from({ length: cnt }, (_, k) => `Field ${k + 1}`);
+    }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`${where}: date must be YYYY-MM-DD`);
     if (!/^\d{2}:\d{2}$/.test(startTime)) throw new Error(`${where}: start time must be HH:MM`);
     if (!(games >= 1 && games <= 100)) throw new Error(`${where}: games must be 1–100`);
     if (!(interval >= 1 && interval <= 1440)) throw new Error(`${where}: interval must be 1–1440 minutes`);
-    if (!(fields >= 1 && fields <= 50)) throw new Error(`${where}: fields must be 1–50`);
+    if (!(fields.length >= 1 && fields.length <= 50)) throw new Error(`${where}: use 1–50 fields`);
+    if (fields.some(f => f.length > 100)) throw new Error(`${where}: field name too long (max 100)`);
+    if (new Set(fields).size !== fields.length) throw new Error(`${where}: duplicate field name`);
     return { date, startTime, games, interval, fields };
   });
 }

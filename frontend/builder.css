@@ -191,6 +191,7 @@
 .bld-days { display: flex; flex-direction: column; gap: 0.6em; margin-bottom: 0.6em; }
 .bld-day {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 0.5em;
   background: var(--bg);
@@ -208,7 +209,7 @@
 }
 .bld-day-fields {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr 0.8fr 0.9fr;
+  grid-template-columns: 1.2fr 0.8fr 0.9fr;
   gap: 0.5em;
   flex: 1;
   min-width: 0;
@@ -237,11 +238,88 @@
 }
 .bld-day-del:hover { opacity: 0.8; }
 
+/* Per-day field toggles — which of the venue's fields this day is played on.
+   Shown only when more than one field exists; wraps onto its own row. */
+.bld-day-chips {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  padding-top: 0.15em;
+}
+.bld-day-chip {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  padding: 0.3em 0.7em;
+  border: 0.07em solid var(--border);
+  border-radius: 1em;
+  background: var(--surface2);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.bld-day-chip--on {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.bld-day-chip:hover:not(.bld-day-chip--on) { color: var(--text); border-color: var(--text-dim); }
+
+/* Venue fields setup — name the fields, add/remove them. */
+.bld-fields-setup { margin: 0.2em 0 0.8em; }
+.bld-fields-hdr {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  color: var(--blue-lt);
+  margin-bottom: 0.45em;
+}
+.bld-fields-list { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em; }
+.bld-field-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  padding: 0.2em 0.3em 0.2em 0.45em;
+}
+.bld-field-name {
+  width: 6.5em;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  padding: 0.15em 0;
+}
+.bld-field-name:focus { outline: none; }
+.bld-field-del {
+  border: none;
+  background: transparent;
+  color: var(--lose-color);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.15em;
+}
+.bld-field-add {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  padding: 0.4em 0.7em;
+  border: 0.07em dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.bld-field-add:hover { color: var(--text); border-color: var(--text-dim); }
+
 /* Narrow screens: stack the date label above the fields */
 @media (max-width: 28rem) {
-  .bld-day { flex-wrap: wrap; align-items: stretch; }
+  .bld-day { align-items: stretch; }
   .bld-day-date { width: 100%; padding-bottom: 0.2em; }
-  .bld-day-fields { grid-template-columns: 1fr 1fr; }
+  .bld-day-fields { grid-template-columns: 1fr 1fr 1fr; }
 }
 
 .bld-muted {
