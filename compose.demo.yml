@@ -1,7 +1,7 @@
 # compose.demo.yml — public sandbox instance.
 #
 # A self-contained second stack for a "try it live" demo, isolated from the
-# real tournament: its own data volume (./demo-files), its own port (3119),
+# real tournament: its own data volume (./demo-files), its own port (3024),
 # and DEMO_MODE so the API restores ./demo-seed every DEMO_RESET_MINUTES.
 # Whatever a visitor changes is wiped back to the seed on the next reset.
 #
@@ -18,7 +18,7 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "3119:80"
+      - 3024:80
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./frontend:/usr/share/nginx/html:ro
