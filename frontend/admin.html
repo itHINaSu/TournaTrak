@@ -357,7 +357,7 @@
         <div class="settings-panel active" id="sp-pageinfo">
           <div class="admin-subtitle">Configure tournament identity and display labels. Changes take effect on the public page after reload.</div>
           <div class="settings-section">
-            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Tournament Identity</div>
+            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Site Settings</div>
             <div class="collapsible-body">
               <div class="settings-field">
                 <label>Tournament Name <span class="field-label-hint">(public page header)</span></label>
@@ -375,11 +375,7 @@
                 <label>Admin Panel Name <span class="field-label-hint">(this page's header)</span></label>
                 <input type="text" id="set-adminName" placeholder="Tournament Admin">
               </div>
-            </div>
-          </div>
-          <div class="settings-section">
-            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Public Page Defaults</div>
-            <div class="collapsible-body">
+              <div class="settings-subsection-hdr" style="margin-top:0.9em">Navigation Defaults</div>
               <div class="settings-field">
                 <label>Default landing tab</label>
                 <select class="styled" id="set-defaultTab">
@@ -406,6 +402,27 @@
                   <option value="field">By Field</option>
                 </select>
                 <div class="field-hint">How the Schedule tab groups games for first-time visitors.</div>
+              </div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Application Colors</div>
+            <div class="collapsible-body">
+              <div class="settings-subsection-hdr">Field Colors</div>
+              <div class="field-hint" style="margin-bottom:0.6em">Assign a color to each field tag on game cards. Defaults are Teal / Orange / Purple / Pink / Blue.</div>
+              <div id="fieldsColorList"></div>
+              <label class="adv-toggle-label">
+                <input type="checkbox" id="themeAdvancedToggle" onchange="document.getElementById('themeAdvancedPanel').style.display=this.checked?'':'none'; if(this.checked) renderThemeSection();">
+                Advanced — Application Theme
+              </label>
+              <div id="themeAdvancedPanel" style="display:none">
+                <div class="settings-subsection-hdr" style="margin-top:0.75em">Application Theme</div>
+                <div class="field-hint" style="margin-bottom:0.6em">Override accent and result colors used across the app. Light mode variants are auto-derived.</div>
+                <div id="themeColorsList"></div>
+                <div class="settings-save-row" style="margin-top:0.5em">
+                  <button class="admin-clear-btn" onclick="resetTheme()">Reset Defaults</button>
+                  <span class="sched-status" id="themeResetStatus"></span>
+                </div>
               </div>
             </div>
           </div>

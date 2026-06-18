@@ -1345,14 +1345,11 @@ function resetOneThemeColor(btn) {
 function renderFieldsPanel() {
   var el = document.getElementById('fieldsColorList');
   if (!el) return;
-  var section = document.getElementById('fieldColorsSection');
   var fields = getScheduleFields();
   if (!fields.length) {
-    if (section) section.style.display = 'none';
-    el.innerHTML = '';
+    el.innerHTML = '<div class="settings-field" style="color:var(--text-mute);font-size:0.9rem">No fields found in schedule yet.</div>';
     return;
   }
-  if (section) section.style.display = '';
   var html = '';
   fields.forEach(function(f, i) {
     var defColor = FIELD_DEFAULT_COLORS[i % FIELD_DEFAULT_COLORS.length];
