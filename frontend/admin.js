@@ -356,8 +356,8 @@ function renderAdmin() {
   var html = '';
   var periodLbl = getSetting('periodLabel') || 'Inning';
 
-  // Sort all games by date/time, then by game num as tiebreak
-  var allSids = Object.keys(GAMES).sort(function(a, b) {
+  // Sort all non-bye games by date/time, then by game num as tiebreak
+  var allSids = Object.keys(GAMES).filter(function(s) { return !GAMES[s].bye; }).sort(function(a, b) {
     var ta = parseTimeVal(GAMES[a].time);
     var tb = parseTimeVal(GAMES[b].time);
     if (ta !== tb) return ta - tb;
