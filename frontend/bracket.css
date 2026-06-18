@@ -489,6 +489,15 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   letter-spacing: 0.02em;
 }
 .game-score.live-score { color: var(--blue-lt); }
+/* Final game: score matches team name color */
+.bc-team.won .game-score,
+.mbc-champ-team.won .game-score,
+.mbc-game-team.won .game-score { color: var(--win-color); }
+.bc-team.lost .game-score,
+.mbc-champ-team.lost .game-score,
+.mbc-game-team.lost .game-score { color: var(--lose-color); }
+.round-team-row:has(.round-team-name.won) .game-score { color: var(--win-color); }
+.round-team-row:has(.round-team-name.lost) .game-score { color: var(--lose-color); }
 .live-badge {
   display: inline-block;
   font-family: 'Oswald', sans-serif;
@@ -516,11 +525,13 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   flex-wrap: nowrap;
 }
 .bc-time-live { max-width: none; overflow: visible; }
+.bc-time-live .live-badge,
+.bc-time-live .live-period { font-size: 1em; }
 .bc-team:last-child { border-bottom: none; }
 .bc-team.tbd  { color: var(--text-mute); font-style: italic; font-weight: 400; font-size: 0.7rem; }
 .bc-team.bye  { color: var(--text-mute); font-style: italic; font-weight: 400; opacity: 0.55; letter-spacing: 0.08em; }
 .bc-team.won  { color: var(--win-color); }
-.bc-team.lost { color: var(--lose-color); text-decoration: line-through; opacity: 0.65; }
+.bc-team.lost { color: var(--lose-color); }
 
 /* ── Admin drag-and-drop ── */
 .bc-dragging    { opacity: 0.3; pointer-events: none; }

@@ -103,19 +103,20 @@ function updateTimestamp() {
   var text = document.getElementById('updateBarText');
   var view = activeView();
 
-  // Buckets tab: show bucket update time or "no data" notice
+  // Buckets tab: show bucket update time only when scores exist
   if (view === 'buckets') {
     var updatedAt = buckets && buckets.updatedAt;
     var hasCounts = updatedAt && Object.keys((buckets && buckets.counts) || {}).length > 0;
+    if (!hasCounts) {
+      if (bar) bar.style.display = 'none';
+      applyStickyOffsets();
+      return;
+    }
     if (text) {
-      if (hasCounts) {
-        var bd = new Date(updatedAt);
-        text.textContent = isNaN(bd.getTime())
-          ? 'Bucket results updated — reload for latest'
-          : 'Bucket results updated ' + formatBucketTime(bd) + ' — reload for latest';
-      } else {
-        text.textContent = 'No Updates Have Been Submitted';
-      }
+      var bd = new Date(updatedAt);
+      text.textContent = isNaN(bd.getTime())
+        ? 'Bucket results updated'
+        : 'Bucket results updated ' + formatBucketTime(bd);
     }
     if (bar) bar.style.display = '';
     applyStickyOffsets();
@@ -142,7 +143,7 @@ function updateTimestamp() {
   } else {
     timeStr = null;
   }
-  if (text) text.textContent = timeStr ? 'Results updated ' + timeStr + ' — reload for latest' : 'Results updated — reload for latest';
+  if (text) text.textContent = timeStr ? 'Results updated ' + timeStr : 'Results updated';
   if (bar) bar.style.display = '';
   applyStickyOffsets();
 }
