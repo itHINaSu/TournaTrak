@@ -78,6 +78,24 @@ function gameTime(depth, totalRounds, idxInRound, startDate) {
   return isoLocal(startDate, day, base.h + wave * 2, base.m);
 }
 
+// Flatten a playing-days plan into an ordered list of kickoff times. Each day
+// yields `games` slots starting at `startTime`, spaced `interval` minutes apart.
+// Games are assigned to these slots in chronological bracket order, so earlier
+// rounds always land in earlier slots (dependencies hold regardless of how the
+// days are sized). isoLocal normalises minute overflow, so interval math that
+// crosses an hour just rolls forward.
+//   day: { date:'YYYY-MM-DD', startTime:'HH:MM', games:int, interval:int(min) }
+function buildSlotTimes(playingDays) {
+  const out = [];
+  for (const d of playingDays) {
+    const [h, m] = String(d.startTime).split(':').map(Number);
+    for (let k = 0; k < d.games; k++) {
+      out.push(isoLocal(d.date, 0, h, m + k * d.interval));
+    }
+  }
+  return out;
+}
+
 // Slot ID for the game node spanning bracket leaves [lo, hi) at `depth`.
 // Reproduces the canonical ROUND.SIDE.NUM scheme: depth 0 is CHAMP.C.1; below
 // that, the left half of the bracket is the L side, the right half the R side,
@@ -142,6 +160,11 @@ function generateSingleElim(opts) {
   // from the schedule. Their lone team auto-advances (resolved without a result).
   games.sort((a, b) => (b.depth - a.depth) || (a.lo - b.lo));
 
+  // Times come from an explicit playing-days plan when provided (assigned to
+  // games in this chronological order); otherwise the default day-spread scheme.
+  const slotTimes = (opts.playingDays && opts.playingDays.length)
+    ? buildSlotTimes(opts.playingDays) : null;
+
   const schedule = {};
   let curDepth = null, idxInRound = 0, gameNum = 0;
   games.forEach((g) => {
@@ -156,7 +179,9 @@ function generateSingleElim(opts) {
       entry = {
         label: `Game ${gameNum}`,
         num: gameNum,
-        time: gameTime(g.depth, totalRounds, idxInRound, startDate),
+        time: slotTimes
+          ? (slotTimes[gameNum - 1] || '')   // unfilled slots left blank for the editor
+          : gameTime(g.depth, totalRounds, idxInRound, startDate),
       };
       applySide(entry, 1, g.s1);
       applySide(entry, 2, g.s2);
@@ -212,17 +237,42 @@ const FORMATS = {
   },
 };
 
+// Validate + normalise a playing-days plan (used for build-time scheduling).
+function validatePlayingDays(days) {
+  if (days.length > 60) throw new Error('Too many playing days (max 60)');
+  return days.map((d, i) => {
+    const where = 'Playing day ' + (i + 1);
+    const date = String((d && d.date) || '');
+    const startTime = String((d && d.startTime) || '');
+    const games = parseInt(d && d.games, 10);
+    const interval = parseInt(d && d.interval, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`${where}: date must be YYYY-MM-DD`);
+    if (!/^\d{2}:\d{2}$/.test(startTime)) throw new Error(`${where}: start time must be HH:MM`);
+    if (!(games >= 1 && games <= 100)) throw new Error(`${where}: games must be 1–100`);
+    if (!(interval >= 1 && interval <= 1440)) throw new Error(`${where}: interval must be 1–1440 minutes`);
+    return { date, startTime, games, interval };
+  });
+}
+
 // Generate a schedule for `formatId`.
-// opts: { startDate:'YYYY-MM-DD', teams:[...], seedMode?, byeTeams?, shuffle? }
+// opts: { teams:[...], seedMode?, byeTeams?, shuffle?, startDate?, playingDays? }
 //   seedMode: 'random' (default) | 'order' | 'manual'
 //   byeTeams: required when seedMode==='manual' — exactly (nextPow2(N)-N) names
 //   shuffle:  legacy flag; shuffle===false is treated as seedMode 'order'
+//   Scheduling: pass a playingDays plan for explicit calendar control, or a
+//   startDate for the default day-spread fallback. playingDays wins if present.
 function generateSchedule(formatId, opts) {
   const fmt = FORMATS[formatId];
   if (!fmt) throw new Error('Unknown format: ' + formatId);
-  if (!opts || !/^\d{4}-\d{2}-\d{2}$/.test(opts.startDate || '')) {
-    throw new Error('startDate (YYYY-MM-DD) is required');
+
+  // Scheduling source: playingDays plan (preferred) or a startDate fallback.
+  let playingDays = null;
+  if (opts && Array.isArray(opts.playingDays) && opts.playingDays.length) {
+    playingDays = validatePlayingDays(opts.playingDays);
+  } else if (!opts || !/^\d{4}-\d{2}-\d{2}$/.test(opts.startDate || '')) {
+    throw new Error('A start date or a playing-days plan is required');
   }
+
   if (!Array.isArray(opts.teams)) throw new Error('teams must be an array');
 
   const clean = opts.teams.map(t => String(t == null ? '' : t).trim());
@@ -259,7 +309,7 @@ function generateSchedule(formatId, opts) {
     }
   }
 
-  return fmt.generate({ startDate: opts.startDate, teams: clean, seedMode, byeTeams });
+  return fmt.generate({ startDate: opts.startDate, teams: clean, seedMode, byeTeams, playingDays });
 }
 
 module.exports = { FORMATS, generateSchedule, isoLocal, shuffle, nextPow2 };

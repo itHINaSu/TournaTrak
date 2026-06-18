@@ -124,6 +124,69 @@
 }
 .bld-bye-item input { width: 1.1em; height: 1.1em; flex: none; }
 
+/* Playing-days schedule editor */
+.bld-presets { display: flex; flex-wrap: wrap; gap: 0.5em; margin-bottom: 0.75em; }
+.bld-chip {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  letter-spacing: 0.02em;
+  padding: 0.4em 0.8em;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 2.5rem;
+}
+.bld-chip:hover { opacity: 0.85; }
+.bld-chip--add { margin-top: 0.6em; color: var(--blue-lt); border-style: dashed; background: transparent; }
+
+.bld-days { display: flex; flex-direction: column; gap: 0.6em; }
+.bld-day {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5em;
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.55em;
+}
+.bld-day-fields {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.7fr 0.8fr;
+  gap: 0.5em;
+  flex: 1;
+  min-width: 0;
+}
+.bld-day-f {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  min-width: 0;
+}
+.bld-day-f .bld-input { padding: 0.4em 0.45em; }
+.bld-input--sm { text-align: center; }
+.bld-day-del {
+  flex: none;
+  width: 2rem;
+  height: 2.5rem;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--lose-color);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.bld-day-del:hover { opacity: 0.8; }
+
+/* Narrow screens: stack date/start on one row, games/interval on the next */
+@media (max-width: 28rem) {
+  .bld-day-fields { grid-template-columns: 1fr 1fr; }
+}
+
 .bld-muted {
   font-size: var(--text-sm);
   color: var(--text-mute);

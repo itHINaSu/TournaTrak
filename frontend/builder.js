@@ -10,9 +10,25 @@ function $(id) { return document.getElementById(id); }
 var FORMATS = [];        // [{ id, label, description, minTeams, maxTeams }]
 var currentFormat = null;
 var byeSelection = {};   // team name -> true, for manual mode
+var playingDays = [];    // [{ date, startTime, games, interval }] — build-time schedule
 
 // Smallest power of two >= n (mirrors the server helper).
 function nextPow2(n) { var b = 1; while (b < n) b <<= 1; return b; }
+
+// ── Date helpers ──────────────────────────────────────────────────────
+function pad2(n) { return String(n).padStart(2, '0'); }
+function ymd(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+function addDays(dateStr, n) {
+  var d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return ymd(d);
+}
+
+// Real games the current bracket needs a time slot for (single-elim: N - 1).
+function realGamesNeeded() {
+  var n = parsedTeams().length;
+  return n >= 2 ? n - 1 : 0;
+}
 
 // ── Auth gate ─────────────────────────────────────────────────────────
 async function init() {
@@ -45,10 +61,10 @@ async function init() {
   }
 
   buildFormatOptions();
-  $('startDate').value = defaultStartDate();
   $('loading').style.display = 'none';
   $('builder').style.display = '';
   wireEvents();
+  applyPreset('single');   // seed the schedule with one playing day
   refresh();
 }
 
@@ -107,6 +123,104 @@ function refresh() {
   }
 
   renderByePicker(teams, byes);
+  updateSlotSummary();
+}
+
+// ── Playing-days schedule editor ──────────────────────────────────────
+function applyPreset(which) {
+  if (which === 'clear') {
+    playingDays = [];
+  } else if (which === 'weekend') {
+    var sat = defaultStartDate();
+    playingDays = [
+      { date: sat, startTime: '09:00', games: 5, interval: 60 },
+      { date: addDays(sat, 1), startTime: '09:00', games: 5, interval: 60 },
+    ];
+  } else { // single
+    playingDays = [{ date: defaultStartDate(), startTime: '09:00', games: realGamesNeeded() || 12, interval: 60 }];
+  }
+  renderDays();
+}
+
+function addDay() {
+  var last = playingDays[playingDays.length - 1];
+  playingDays.push(last
+    ? { date: addDays(last.date, 2), startTime: last.startTime, games: last.games, interval: last.interval }
+    : { date: defaultStartDate(), startTime: '18:00', games: 4, interval: 90 });
+  renderDays();
+}
+
+function renderDays() {
+  $('daysList').innerHTML = playingDays.map(function (d, i) {
+    return '<div class="bld-day">' +
+      '<div class="bld-day-fields">' +
+        dayField(i, 'date', 'Date', '<input type="date" class="bld-input" data-idx="' + i + '" data-field="date" value="' + esc(d.date) + '">') +
+        dayField(i, 'startTime', 'Start', '<input type="time" class="bld-input" data-idx="' + i + '" data-field="startTime" value="' + esc(d.startTime) + '">') +
+        dayField(i, 'games', 'Games', '<input type="number" min="1" max="100" inputmode="numeric" class="bld-input bld-input--sm" data-idx="' + i + '" data-field="games" value="' + esc(String(d.games)) + '">') +
+        dayField(i, 'interval', 'Min apart', '<input type="number" min="1" max="1440" inputmode="numeric" class="bld-input bld-input--sm" data-idx="' + i + '" data-field="interval" value="' + esc(String(d.interval)) + '">') +
+      '</div>' +
+      '<button type="button" class="bld-day-del" data-idx="' + i + '" aria-label="Remove day">&times;</button>' +
+    '</div>';
+  }).join('');
+
+  var list = $('daysList');
+  Array.prototype.forEach.call(list.querySelectorAll('input'), function (inp) {
+    inp.addEventListener('input', onDayFieldChange);
+  });
+  Array.prototype.forEach.call(list.querySelectorAll('.bld-day-del'), function (b) {
+    b.addEventListener('click', onDayDelete);
+  });
+  updateSlotSummary();
+}
+
+function dayField(i, field, label, control) {
+  return '<label class="bld-day-f">' + esc(label) + control + '</label>';
+}
+
+function onDayFieldChange(e) {
+  var idx = parseInt(e.target.getAttribute('data-idx'), 10);
+  var field = e.target.getAttribute('data-field');
+  if (!playingDays[idx]) return;
+  if (field === 'games' || field === 'interval') {
+    playingDays[idx][field] = parseInt(e.target.value, 10) || 0;
+  } else {
+    playingDays[idx][field] = e.target.value;
+  }
+  updateSlotSummary();
+}
+
+function onDayDelete(e) {
+  var idx = parseInt(e.target.getAttribute('data-idx'), 10);
+  playingDays.splice(idx, 1);
+  renderDays();
+}
+
+function totalSlots() {
+  return playingDays.reduce(function (s, d) { return s + (parseInt(d.games, 10) || 0); }, 0);
+}
+
+function updateSlotSummary() {
+  var el = $('slotSummary');
+  if (!el) return;
+  var slots = totalSlots();
+  var need = realGamesNeeded();
+  if (!playingDays.length) {
+    el.textContent = 'No playing days set — add at least one.';
+    el.className = 'bld-muted';
+    return;
+  }
+  if (!need) {
+    el.textContent = playingDays.length + ' day' + (playingDays.length === 1 ? '' : 's') + ', ' + slots + ' game slot' + (slots === 1 ? '' : 's') + '.';
+    el.className = 'bld-muted';
+    return;
+  }
+  if (slots >= need) {
+    el.textContent = slots + ' slots for ' + need + ' games — ' + (slots - need) + ' spare.';
+    el.className = 'bld-muted bld-count--ok';
+  } else {
+    el.textContent = slots + ' slots for ' + need + ' games — ' + (need - slots) + ' game' + (need - slots === 1 ? '' : 's') + ' will have no time (set them in the editor).';
+    el.className = 'bld-muted bld-warn';
+  }
 }
 
 // ── Manual bye picker ─────────────────────────────────────────────────
@@ -181,7 +295,14 @@ function onGenerate() {
   }
   var dupes = teams.filter(function (t, i) { return teams.indexOf(t) !== i; });
   if (dupes.length) { showError('Duplicate team name: "' + dupes[0] + '"'); return; }
-  if (!$('startDate').value) { showError('Pick a start date.'); return; }
+
+  if (!playingDays.length) { showError('Add at least one playing day.'); return; }
+  for (var di = 0; di < playingDays.length; di++) {
+    var d = playingDays[di];
+    if (!d.date || !d.startTime) { showError('Playing day ' + (di + 1) + ': set a date and start time.'); return; }
+    if (!(parseInt(d.games, 10) >= 1)) { showError('Playing day ' + (di + 1) + ': games must be at least 1.'); return; }
+    if (!(parseInt(d.interval, 10) >= 1)) { showError('Playing day ' + (di + 1) + ': minutes apart must be at least 1.'); return; }
+  }
 
   var mode = $('seedMode').value;
   var byes = byesNeeded();
@@ -196,11 +317,12 @@ function onGenerate() {
     : byes > 0 ? selectedByes().length + ' manual bye' + (selectedByes().length === 1 ? '' : 's')
     : 'list-order seeding';
 
+  var dayWord = playingDays.length === 1 ? 'day' : 'days';
   $('confirmText').innerHTML =
     'This replaces the current schedule with a new <strong>' + esc(currentFormat.label) +
     '</strong> bracket for <strong>' + esc(String(n)) + ' teams</strong> (' + esc(seedDesc) +
-    ') starting <strong>' + esc($('startDate').value) +
-    '</strong>.<br><span class="bld-warn">Existing schedule will be overwritten.</span>';
+    ') across <strong>' + playingDays.length + ' playing ' + dayWord + '</strong> starting <strong>' +
+    esc(playingDays[0].date) + '</strong>.<br><span class="bld-warn">Existing schedule will be overwritten.</span>';
   $('confirmOverlay').style.display = '';
 }
 
@@ -215,10 +337,12 @@ async function doGenerate() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         format: currentFormat.id,
-        startDate: $('startDate').value,
         teams: parsedTeams(),
         seedMode: $('seedMode').value,
         byeTeams: selectedByes(),
+        playingDays: playingDays.map(function (d) {
+          return { date: d.date, startTime: d.startTime, games: parseInt(d.games, 10), interval: parseInt(d.interval, 10) };
+        }),
       }),
     });
     var data = await r.json().catch(function () { return {}; });
@@ -240,6 +364,10 @@ function wireEvents() {
   $('formatSel').addEventListener('change', function () { selectFormat(this.value); });
   $('teamsInput').addEventListener('input', refresh);
   $('seedMode').addEventListener('change', refresh);
+  $('addDayBtn').addEventListener('click', addDay);
+  Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'), function (btn) {
+    btn.addEventListener('click', function () { applyPreset(btn.getAttribute('data-preset')); });
+  });
   $('generateBtn').addEventListener('click', onGenerate);
   $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').style.display = 'none'; });
   $('confirmBtn').addEventListener('click', doGenerate);

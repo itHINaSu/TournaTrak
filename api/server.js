@@ -823,10 +823,10 @@ app.get('/api/schedule/formats', requireAdmin, (req, res) => {
 // Generate a full bracket schedule from a format + teams and REPLACE the
 // current schedule. Destructive — the UI confirms before calling this.
 app.post('/api/schedule/generate', requireAdmin, (req, res) => {
-  const { format, startDate, teams, seedMode, byeTeams, shuffle } = req.body || {};
+  const { format, startDate, teams, seedMode, byeTeams, shuffle, playingDays } = req.body || {};
   let schedule;
   try {
-    schedule = generateSchedule(format, { startDate, teams, seedMode, byeTeams, shuffle });
+    schedule = generateSchedule(format, { startDate, teams, seedMode, byeTeams, shuffle, playingDays });
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }

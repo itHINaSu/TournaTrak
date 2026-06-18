@@ -74,11 +74,18 @@
 
   <div class="bld-card">
     <h2 class="bld-h2">4 · Schedule</h2>
-    <div class="bld-field">
-      <label for="startDate">Start date (day 1)</label>
-      <input type="date" class="bld-input" id="startDate">
+    <p class="bld-muted">Set the days games are played. Use a preset, then add or edit days for
+      anything custom (e.g. Mon/Wed/Fri/Sun over two weeks). Games fill the days in bracket
+      order — early rounds first — and you can fine-tune individual times afterward in the
+      Admin schedule editor.</p>
+    <div class="bld-presets">
+      <button type="button" class="bld-chip" data-preset="single">Single day</button>
+      <button type="button" class="bld-chip" data-preset="weekend">Weekend</button>
+      <button type="button" class="bld-chip" data-preset="clear">Clear</button>
     </div>
-    <p class="bld-muted">Default game times are applied per round; fine-tune individual games afterward in the Admin schedule editor.</p>
+    <div class="bld-days" id="daysList"></div>
+    <button type="button" class="bld-chip bld-chip--add" id="addDayBtn">+ Add day</button>
+    <p class="bld-muted" id="slotSummary"></p>
   </div>
 
   <div class="bld-actions">
