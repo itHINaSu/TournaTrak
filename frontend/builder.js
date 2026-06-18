@@ -10,7 +10,7 @@ function $(id) { return document.getElementById(id); }
 var FORMATS = [];        // [{ id, label, description, minTeams, maxTeams }]
 var currentFormat = null;
 var byeSelection = {};   // team name -> true, for manual mode
-var playingDays = [];    // [{ date, startTime, games, interval }] — build-time schedule (sorted by date)
+var playingDays = [];    // [{ date, startTime, games, interval, fields }] — build-time schedule (sorted by date)
 var calYear, calMonth;   // month currently shown in the schedule calendar (0-based month)
 
 // Smallest power of two >= n (mirrors the server helper).
@@ -161,7 +161,7 @@ function hasDay(date) { return dayIndex(date) !== -1; }
 
 function addDayByDate(date) {
   if (hasDay(date)) return;
-  playingDays.push({ date: date, startTime: '09:00', games: realGamesNeeded() || 4, interval: 60 });
+  playingDays.push({ date: date, startTime: '09:00', games: realGamesNeeded() || 4, interval: 60, fields: 1 });
   sortDays();
 }
 function sortDays() {
@@ -222,6 +222,7 @@ function renderDays() {
       '<div class="bld-day-fields">' +
         dayField('Start', '<input type="time" class="bld-input" data-date="' + esc(d.date) + '" data-field="startTime" value="' + esc(d.startTime) + '">') +
         dayField('Games', '<input type="number" min="1" max="100" inputmode="numeric" class="bld-input bld-input--sm" data-date="' + esc(d.date) + '" data-field="games" value="' + esc(String(d.games)) + '">') +
+        dayField('Fields', '<input type="number" min="1" max="50" inputmode="numeric" class="bld-input bld-input--sm" data-date="' + esc(d.date) + '" data-field="fields" value="' + esc(String(d.fields || 1)) + '">') +
         dayField('Min apart', '<input type="number" min="1" max="1440" inputmode="numeric" class="bld-input bld-input--sm" data-date="' + esc(d.date) + '" data-field="interval" value="' + esc(String(d.interval)) + '">') +
       '</div>' +
       '<button type="button" class="bld-day-del" data-date="' + esc(d.date) + '" aria-label="Remove day">&times;</button>' +
@@ -246,7 +247,7 @@ function onDayFieldChange(e) {
   var i = dayIndex(e.target.getAttribute('data-date'));
   var field = e.target.getAttribute('data-field');
   if (i === -1) return;
-  if (field === 'games' || field === 'interval') {
+  if (field === 'games' || field === 'interval' || field === 'fields') {
     playingDays[i][field] = parseInt(e.target.value, 10) || 0;
   } else {
     playingDays[i][field] = e.target.value;
@@ -362,6 +363,7 @@ function onGenerate() {
       var lbl = prettyDate(d.date);
       if (!d.startTime) { showError(lbl + ': set a start time.'); return; }
       if (!(parseInt(d.games, 10) >= 1)) { showError(lbl + ': games must be at least 1.'); return; }
+      if (!(parseInt(d.fields, 10) >= 1)) { showError(lbl + ': fields must be at least 1.'); return; }
       if (!(parseInt(d.interval, 10) >= 1)) { showError(lbl + ': minutes apart must be at least 1.'); return; }
     }
   } else if (!$('simpleDate').value) {
@@ -409,7 +411,7 @@ async function doGenerate() {
     };
     if (isAdvanced()) {
       body.playingDays = playingDays.map(function (d) {
-        return { date: d.date, startTime: d.startTime, games: parseInt(d.games, 10), interval: parseInt(d.interval, 10) };
+        return { date: d.date, startTime: d.startTime, games: parseInt(d.games, 10), interval: parseInt(d.interval, 10), fields: parseInt(d.fields, 10) || 1 };
       });
     } else {
       body.startDate = $('simpleDate').value;

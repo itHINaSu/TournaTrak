@@ -78,19 +78,29 @@ function gameTime(depth, totalRounds, idxInRound, startDate) {
   return isoLocal(startDate, day, base.h + wave * 2, base.m);
 }
 
-// Flatten a playing-days plan into an ordered list of kickoff times. Each day
-// yields `games` slots starting at `startTime`, spaced `interval` minutes apart.
-// Games are assigned to these slots in chronological bracket order, so earlier
-// rounds always land in earlier slots (dependencies hold regardless of how the
-// days are sized). isoLocal normalises minute overflow, so interval math that
-// crosses an hour just rolls forward.
-//   day: { date:'YYYY-MM-DD', startTime:'HH:MM', games:int, interval:int(min) }
+// Flatten a playing-days plan into an ordered list of { time, field } slots.
+// Each day yields `games` slots starting at `startTime`. With more than one
+// field, games run in concurrent waves: the first `fields` games all kick off
+// at `startTime`, the next `fields` games a `interval` minutes later, and so on
+// — so a TD with several fields finishes in a fraction of the time instead of
+// running one game after another late into the night. Games are assigned to
+// these slots in chronological bracket order, so earlier rounds always land in
+// earlier waves. isoLocal normalises minute overflow, so interval math that
+// crosses an hour just rolls forward. The field label is blank for single-field
+// days (nothing to disambiguate).
+//   day: { date:'YYYY-MM-DD', startTime:'HH:MM', games:int, interval:int(min), fields:int }
 function buildSlotTimes(playingDays) {
   const out = [];
   for (const d of playingDays) {
     const [h, m] = String(d.startTime).split(':').map(Number);
+    const fields = Math.max(1, d.fields || 1);
     for (let k = 0; k < d.games; k++) {
-      out.push(isoLocal(d.date, 0, h, m + k * d.interval));
+      const wave = Math.floor(k / fields);
+      const fieldIdx = k % fields;
+      out.push({
+        time: isoLocal(d.date, 0, h, m + wave * d.interval),
+        field: fields > 1 ? `Field ${fieldIdx + 1}` : '',
+      });
     }
   }
   return out;
@@ -176,13 +186,13 @@ function generateSingleElim(opts) {
       entry.t2name = 'BYE';
     } else {
       gameNum++;
+      const slot = slotTimes ? (slotTimes[gameNum - 1] || {}) : null;   // unfilled slots blank for the editor
       entry = {
         label: `Game ${gameNum}`,
         num: gameNum,
-        time: slotTimes
-          ? (slotTimes[gameNum - 1] || '')   // unfilled slots left blank for the editor
-          : gameTime(g.depth, totalRounds, idxInRound, startDate),
+        time: slot ? (slot.time || '') : gameTime(g.depth, totalRounds, idxInRound, startDate),
       };
+      if (slot && slot.field) entry.field = slot.field;
       applySide(entry, 1, g.s1);
       applySide(entry, 2, g.s2);
       idxInRound++;
@@ -237,11 +247,13 @@ function deSide(entry, n, spec) {
 }
 
 // Fallback timing when no playing-days plan is given: lay games out
-// sequentially, eight per day, an hour apart from 09:00. Admins fine-tune later.
+// sequentially, eight per day, an hour apart from 09:00. Returns { time, field }
+// slots (field blank — no field plan without a playing-days configuration) to
+// match buildSlotTimes. Admins fine-tune later.
 function defaultSequentialTimes(startDate, count) {
   const out = [];
   for (let i = 0; i < count; i++) {
-    out.push(isoLocal(startDate, Math.floor(i / 8), 9, (i % 8) * 60));
+    out.push({ time: isoLocal(startDate, Math.floor(i / 8), 9, (i % 8) * 60), field: '' });
   }
   return out;
 }
@@ -303,7 +315,9 @@ function generateDoubleElim16(opts) {
 
   const schedule = {};
   specs.forEach((sp, i) => {
-    const entry = { label: `Game ${i + 1}`, num: i + 1, time: slotTimes[i] || '' };
+    const st = slotTimes[i] || {};
+    const entry = { label: `Game ${i + 1}`, num: i + 1, time: st.time || '' };
+    if (st.field) entry.field = st.field;
     deSide(entry, 1, sp.t1);
     deSide(entry, 2, sp.t2);
     schedule[sp.slot] = entry;
@@ -340,11 +354,13 @@ function validatePlayingDays(days) {
     const startTime = String((d && d.startTime) || '');
     const games = parseInt(d && d.games, 10);
     const interval = parseInt(d && d.interval, 10);
+    const fields = (d && d.fields != null) ? parseInt(d.fields, 10) : 1;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`${where}: date must be YYYY-MM-DD`);
     if (!/^\d{2}:\d{2}$/.test(startTime)) throw new Error(`${where}: start time must be HH:MM`);
     if (!(games >= 1 && games <= 100)) throw new Error(`${where}: games must be 1–100`);
     if (!(interval >= 1 && interval <= 1440)) throw new Error(`${where}: interval must be 1–1440 minutes`);
-    return { date, startTime, games, interval };
+    if (!(fields >= 1 && fields <= 50)) throw new Error(`${where}: fields must be 1–50`);
+    return { date, startTime, games, interval, fields };
   });
 }
 

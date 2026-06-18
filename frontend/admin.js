@@ -679,7 +679,6 @@ function toggleSched(sid) {
 async function saveAllSchedule() {
   var btn    = document.getElementById('schedSaveBtn');
   var status = document.getElementById('schedStatus');
-  var statusB = document.getElementById('schedStatusBottom');
   btn.disabled = true;
   var out = {};
 
@@ -734,17 +733,14 @@ async function saveAllSchedule() {
     if (typeof applySchedule === 'function') applySchedule(schedule);
     showToast('Schedule saved');
     status.textContent = '✓ Saved';
-    if (statusB) statusB.textContent = '✓ Saved';
     setTimeout(function(){
       status.textContent = '';
-      if (statusB) statusB.textContent = '';
     }, 3000);
     renderAdmin();
     renderScheduleEditor();
   } catch(e) {
     showToast('Save failed', true);
     status.textContent = '✗ Error';
-    if (statusB) statusB.textContent = '✗ Error';
   }
   btn.disabled = false;
 }

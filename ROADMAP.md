@@ -166,7 +166,9 @@ shared FORMATS registry used by both the builder API and the CLI).
 - **Bye games** render as a greyed "BYE" card; the team auto-advances and the
   card is hidden from the schedule and team path.
 - **Calendar schedule editor** (optional): pick playing days, set per-day start
-  time / game count / interval; games fill in bracket order. Build-time only.
+  time / game count / fields in use / interval; games fill in bracket order. With
+  more than one field, games run in concurrent waves (auto-assigned "Field N"
+  labels) so a multi-field day finishes sooner. Build-time only.
 - **Standard 16-team double elimination** (`double-elim-16`): WB on L, LB on R,
   cross-half loser drops, championship + optional "if necessary" bracket reset
   (the `supportsIfNecessary` checkbox — on for all double-elim formats). Verified

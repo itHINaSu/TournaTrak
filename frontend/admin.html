@@ -215,7 +215,7 @@
       Edit game labels, times, team names, slot positions, and team sources.
       Empty slots can be filled to create new games. Save All writes to schedule.json — public page picks up on reload.
     </div>
-    <!-- Top action row -->
+    <!-- Sticky action bar — mirrors the results-tab nav bar, stays in view while scrolling -->
     <div class="sched-action-row sched-action-row--top">
       <button class="sched-save-btn" id="schedSaveBtn" onclick="saveAllSchedule()">Save All Changes</button>
       <a class="admin-public-btn" href="/builder">+ Bracket Builder</a>
@@ -223,13 +223,6 @@
       <span class="sched-status" id="schedStatus"></span>
     </div>
     <div id="scheduleEditor"></div>
-    <!-- Bottom action row (duplicated) -->
-    <div class="sched-action-row sched-action-row--bottom">
-      <button class="sched-save-btn" onclick="saveAllSchedule()">Save All Changes</button>
-      <a class="admin-public-btn" href="/builder">+ Bracket Builder</a>
-      <button class="admin-public-btn" onclick="gotoDelays()">→ Delays</button>
-      <span class="sched-status" id="schedStatusBottom"></span>
-    </div>
   </div>
 
   <!-- ── LINEUPS TAB ── -->
