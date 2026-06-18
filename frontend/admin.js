@@ -88,10 +88,6 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       window._lineupInitDone = true;
       lineupInit();
     }
-    if (tab.dataset.tab === 'builder' && !window._builderInitDone) {
-      window._builderInitDone = true;
-      if (typeof window.builderInit === 'function') window.builderInit();
-    }
     // Reset results to games mode when re-entering the results tab
     if (tab.dataset.tab === 'results') setResultsMode('games');
     if (tab.dataset.tab === 'settings') {
@@ -828,9 +824,9 @@ async function apiFetch(url, opts) {
 
 // Apply role-based visibility restrictions. Idempotent — safe to call multiple times.
 function applyRoleRestrictions(role) {
-  // Schedule and Builder tabs are admin-only
+  // Schedule tab is admin-only (Builder is a sub-view of Schedule, no own tab)
   document.querySelectorAll('.admin-tab').forEach(function(tab) {
-    var hide = role !== 'admin' && (tab.dataset.tab === 'schedule' || tab.dataset.tab === 'builder');
+    var hide = role !== 'admin' && tab.dataset.tab === 'schedule';
     tab.style.display = hide ? 'none' : '';
     if (hide && tab.classList.contains('active')) {
       tab.classList.remove('active');
@@ -1391,9 +1387,23 @@ function toggleSchedDelays() {
   if (btn) btn.textContent = isOpen ? 'Delays ▼' : 'Delays ▲';
 }
 
+// Builder has no tab button — it is a sub-view of Schedule, reached via the
+// "+ Builder" action. Activate its panel directly and keep Schedule highlighted.
 function adminSwitchToBuilder() {
-  var tab = document.querySelector('.admin-tab[data-tab="builder"]');
-  if (tab) tab.click();
+  var _dp = document.getElementById('resultsDelaysPanel');
+  if (_dp) _dp.style.display = 'none';
+  var _sdb = document.getElementById('schedDelaysToggle');
+  if (_sdb) _sdb.textContent = 'Delays ▼';
+  document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  var schedTab = document.querySelector('.admin-tab[data-tab="schedule"]');
+  if (schedTab) schedTab.classList.add('active');
+  document.getElementById('tab-builder').classList.add('active');
+  updateQuickBar();
+  if (!window._builderInitDone) {
+    window._builderInitDone = true;
+    if (typeof window.builderInit === 'function') window.builderInit();
+  }
 }
 
 window.adminSwitchToSchedule = function() {
