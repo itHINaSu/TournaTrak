@@ -782,11 +782,15 @@ function cardHTML(gid){
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
   var isChampSlot = gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
+  var offMin = getGameOffset(gid);
+  var offHTML = (offMin !== null && offMin !== 0)
+    ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
+    : '';
   return '<div class="bc-hdr"><span class="bc-id">'+esc(gameLabel(gid))+'</span>'
     +fieldTagHTML(gid)
     +(gameIsLive(gid)
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
-        : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'))
+        : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'+offHTML))
     +'</div>'
     +'<div class="bc-team '+c1+'"><span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
     +'<div class="bc-team '+c2+'"><span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>';
