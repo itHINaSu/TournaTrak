@@ -862,7 +862,7 @@ function cardHTML(gid){
   var t1=disp(gid,g.t1), t2=disp(gid,g.t2), r=results[gid]||{};
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
-  if(g.bye){ c1='won'; c2='bye'; }   // lone team advances; opponent is a greyed BYE
+  if(g.bye){ c1=''; c2='bye'; }   // lone team advances; opponent is the BYE slot
   var isChampSlot = gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
   var offMin = getGameOffset(gid);
   var offHTML = (offMin !== null && offMin !== 0)
@@ -875,7 +875,9 @@ function cardHTML(gid){
         : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'+offHTML))
     +'</div>'
     +'<div class="bc-team '+c1+'">'+seedChip(t1.name)+'<span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
-    +'<div class="bc-team '+c2+'">'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>';
+    +(g.bye
+      ? '<div class="bc-team bye"><span class="bc-bye-label">— BYE —</span></div>'
+      : '<div class="bc-team '+c2+'">'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
 }
 
 // ══════════════════════════════════════════════════════════
