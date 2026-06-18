@@ -7,19 +7,21 @@
 
 // IMPORTANT: Keep in sync with api/slot-defs.js (API container cannot import this file).
 const SLOT_DEFS = {
-  R1:    { L:[1,2,3,4,5,6,7,8], R:[1,2,3,4,5,6,7,8] },
-  R2:    { L:[1,2,3,4],         R:[1,2,3,4] },
-  QF:    { L:[1,2,3,4],         R:[1,2,3,4] },
-  QF2:   { L:[1,2],             R:[1,2] },
-  SF:    { L:[1,2,3],           R:[1,2,3] },
+  R0:   { L:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], R:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16] },
+  R1:   { L:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], R:[1,2,3,4,5,6,7,8] },
+  R2:   { L:[1,2,3,4,5,6,7,8],                        R:[1,2,3,4,5,6,7,8] },
+  QF:   { L:[1,2,3,4],                                 R:[1,2,3,4] },
+  QF2:  { L:[1,2],                                     R:[1,2,3,4] },
+  SF:   { L:[1,2,3],                                   R:[1,2,3,4] },
+  SF2:  { L:[1],                                       R:[1,2] },
   CHAMP:  { C:[1] },
   CHAMP2: { C:[1] }
 };
 
-const ROUND_ORDER  = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
+const ROUND_ORDER  = ['R0','R1','R2','QF','QF2','SF','SF2','CHAMP','CHAMP2'];
 const ROUND_LABELS = {
-  R1:'Round 1', R2:'Round 2', QF:'Round 3', QF2:'Round 4',
-  SF:'Round 5', CHAMP:'Championship', CHAMP2:'If Necessary'
+  R0:'Round 0', R1:'Round 1', R2:'Round 2', QF:'Round 3', QF2:'Round 4',
+  SF:'Round 5', SF2:'Round 6', CHAMP:'Championship', CHAMP2:'If Necessary'
 };
 
 // roundLabel — display name for a round, numbered by the populated rounds only.

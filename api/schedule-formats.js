@@ -75,10 +75,8 @@ function seedOrder(size) {
 // Round name by tree depth from the root (depth 0 = championship). Earlier
 // rounds sit at deeper levels. The list anchors every bracket to CHAMP at the
 // final and walks backward, so a sub-32 bracket simply uses the tail names
-// (an 8-team bracket plays QF → SF → CHAMP). Index 4 (R1) caps the bracket at
-// 32 teams; supporting 64 means prepending one more name here and widening
-// SLOT_DEFS in slot-defs.js / bracket-data.js to match.
-const ROUND_BY_DEPTH = ['CHAMP', 'SF', 'QF', 'R2', 'R1'];
+// (an 8-team bracket plays QF → SF → CHAMP). Index 5 (R0) caps at 64 teams.
+const ROUND_BY_DEPTH = ['CHAMP', 'SF', 'QF', 'R2', 'R1', 'R0'];
 
 // Default kickoff times. Rounds spread over up to two days: the final three
 // rounds land on day 2 (finals day), earlier rounds on day 1. Within a round,
@@ -352,13 +350,93 @@ function generateDoubleElim16(opts) {
   return schedule;
 }
 
+// ── Format: standard 32-team double elimination ───────────────────────────
+// Mirrors the 16-team structure, scaled up. WB: R1.L(16) → R2.L(8) → QF.L(4)
+// → QF2.L(2) → SF.L(1 WB final). LB has 8 rounds packed into R1.R…SF2.R,
+// ending with SF2.R.2 as the LB final. Championship is SF.L.1 winner vs
+// SF2.R.2 winner. 62 games total (63 with if-necessary reset).
+function generateDoubleElim32(opts) {
+  const teams = resolveSeeding(opts);          // 32 teams, top seed first
+  const pos = seedOrder(32).map(s => teams[s - 1]);
+  const w = slot => ({ slot, type: 'winner' });
+  const l = slot => ({ slot, type: 'loser' });
+  const nm = name => ({ name });
+
+  const specs = [];
+  const add = (slot, t1, t2) => specs.push({ slot, t1, t2 });
+
+  // WB Round 1: 16 games
+  for (let i = 0; i < 16; i++) add(`R1.L.${i + 1}`, nm(pos[2 * i]), nm(pos[2 * i + 1]));
+  // LB Round 1: 8 games — pair WB-R1 losers sequentially
+  for (let i = 0; i < 8; i++) add(`R1.R.${i + 1}`, l(`R1.L.${2 * i + 1}`), l(`R1.L.${2 * i + 2}`));
+  // WB Round 2: 8 games
+  for (let i = 0; i < 8; i++) add(`R2.L.${i + 1}`, w(`R1.L.${2 * i + 1}`), w(`R1.L.${2 * i + 2}`));
+  // LB Round 2: 8 games — LB-R1 winners vs WB-R2 losers, cross-half to delay rematches
+  add('R2.R.1', w('R1.R.1'), l('R2.L.5'));
+  add('R2.R.2', w('R1.R.2'), l('R2.L.6'));
+  add('R2.R.3', w('R1.R.3'), l('R2.L.7'));
+  add('R2.R.4', w('R1.R.4'), l('R2.L.8'));
+  add('R2.R.5', w('R1.R.5'), l('R2.L.1'));
+  add('R2.R.6', w('R1.R.6'), l('R2.L.2'));
+  add('R2.R.7', w('R1.R.7'), l('R2.L.3'));
+  add('R2.R.8', w('R1.R.8'), l('R2.L.4'));
+  // WB QF: 4 games
+  add('QF.L.1', w('R2.L.1'), w('R2.L.2'));
+  add('QF.L.2', w('R2.L.3'), w('R2.L.4'));
+  add('QF.L.3', w('R2.L.5'), w('R2.L.6'));
+  add('QF.L.4', w('R2.L.7'), w('R2.L.8'));
+  // LB Round 3: 4 games — pair LB-R2 winners
+  add('QF.R.1', w('R2.R.1'), w('R2.R.2'));
+  add('QF.R.2', w('R2.R.3'), w('R2.R.4'));
+  add('QF.R.3', w('R2.R.5'), w('R2.R.6'));
+  add('QF.R.4', w('R2.R.7'), w('R2.R.8'));
+  // WB SF (QF2): 2 games
+  add('QF2.L.1', w('QF.L.1'), w('QF.L.2'));
+  add('QF2.L.2', w('QF.L.3'), w('QF.L.4'));
+  // LB Round 4: 4 games — LB-R3 winners vs WB-QF losers, cross to delay rematches
+  add('QF2.R.1', w('QF.R.1'), l('QF.L.3'));
+  add('QF2.R.2', w('QF.R.2'), l('QF.L.4'));
+  add('QF2.R.3', w('QF.R.3'), l('QF.L.1'));
+  add('QF2.R.4', w('QF.R.4'), l('QF.L.2'));
+  // WB Final: 1 game — winner is WB champ, loser drops to LB
+  add('SF.L.1', w('QF2.L.1'), w('QF2.L.2'));
+  // LB Round 5: 2 games — pair LB-R4 winners
+  add('SF.R.1', w('QF2.R.1'), w('QF2.R.2'));
+  add('SF.R.2', w('QF2.R.3'), w('QF2.R.4'));
+  // LB Round 6: 2 games — LB-R5 winners vs WB-SF losers, cross
+  add('SF.R.3', w('SF.R.1'), l('QF2.L.2'));
+  add('SF.R.4', w('SF.R.2'), l('QF2.L.1'));
+  // LB Round 7: 1 game — pair LB-R6 winners
+  add('SF2.R.1', w('SF.R.3'), w('SF.R.4'));
+  // LB Final: 1 game — LB-R7 winner vs WB-Final loser → LB champ
+  add('SF2.R.2', w('SF2.R.1'), l('SF.L.1'));
+  // Championship — WB champ vs LB champ
+  add('CHAMP.C.1', w('SF.L.1'), w('SF2.R.2'));
+  if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
+
+  const slotTimes = (opts.playingDays && opts.playingDays.length)
+    ? buildSlotTimes(opts.playingDays)
+    : defaultSequentialTimes(opts.startDate, specs.length);
+
+  const schedule = {};
+  specs.forEach((sp, i) => {
+    const st = slotTimes[i] || {};
+    const entry = { label: expandPrefix(opts.gamePrefix, sp.slot) + (i + 1), num: i + 1, time: st.time || '' };
+    if (st.field) entry.field = st.field;
+    deSide(entry, 1, sp.t1);
+    deSide(entry, 2, sp.t2);
+    schedule[sp.slot] = entry;
+  });
+  return schedule;
+}
+
 const FORMATS = {
   'single-elim': {
     id: 'single-elim',
     label: 'Single Elimination',
-    description: 'One bracket, single loss eliminates. Works for 4–32 teams; counts that aren’t a power of two give first-round byes to the top seeds.',
+    description: "One bracket, single loss eliminates. Works for 4-64 teams; counts that aren't a power of two give first-round byes to the top seeds.",
     minTeams: 4,
-    maxTeams: 32,
+    maxTeams: 64,
     generate: generateSingleElim,
   },
   'double-elim-16': {
@@ -369,6 +447,15 @@ const FORMATS = {
     doubleElim: true,
     supportsIfNecessary: true,
     generate: generateDoubleElim16,
+  },
+  'double-elim-32': {
+    id: 'double-elim-32',
+    label: 'Double Elimination — 32 teams',
+    description: 'Winners and losers brackets for 32 teams — a team is out after two losses. 62 games (63 with the optional if-necessary final).',
+    teamCount: 32,
+    doubleElim: true,
+    supportsIfNecessary: true,
+    generate: generateDoubleElim32,
   },
 };
 

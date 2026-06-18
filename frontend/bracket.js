@@ -580,11 +580,32 @@ var CARD_RATIO=0.82, CARD_ASPECT=2.6;
 /// slotTopVh: positions a card within its round column.
 // n = max(actual game count, highest slot number used) so slots spread evenly
 // across the full column height regardless of how many SLOT_DEFS defines.
+// gridHeight: max games in any single column across the loaded bracket.
+// Drives the bracket's virtual row grid — replaces the former hardcoded 8.
+// Cached per gamesGeneration; minimum is 8 so small brackets look the same.
+var _gridHeightCache = { gen: -1, val: 8 };
+function gridHeight() {
+  var curGen = gamesGeneration;
+  if (_gridHeightCache.gen === curGen) return _gridHeightCache.val;
+  var counts = {};
+  Object.keys(GAMES).forEach(function(gid) {
+    var g = GAMES[gid];
+    if (g.round === 'CHAMP' || g.round === 'CHAMP2') return;
+    var k = g.round + '|' + g.side;
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  var max = 8;
+  Object.keys(counts).forEach(function(k) { if (counts[k] > max) max = counts[k]; });
+  _gridHeightCache = { gen: curGen, val: max };
+  return max;
+}
+
 // _slotNCache memoizes the computed n per (round|side) key, keyed by gamesGeneration
 // so it is automatically invalidated whenever applySchedule() rebuilds GAMES.
 var _slotNCache = { gen: -1, data: {} };
 function slotTopVh(round, slot, slotVh, side) {
-  if (round === 'CHAMP' || round === 'CHAMP2') return 3.5 * slotVh;
+  var gridH = gridHeight();
+  if (round === 'CHAMP' || round === 'CHAMP2') return (gridH / 2 - 0.5) * slotVh;
   var s = side || 'L';
   var cacheKey = round + '|' + s;
   var curGen = gamesGeneration;
@@ -601,9 +622,7 @@ function slotTopVh(round, slot, slotVh, side) {
     n = Math.max(gids.length, maxSlot) || 1;
     _slotNCache.data[cacheKey] = n;
   }
-  // 8 = max games per side per round (R1 has 8); used as the grid row count so
-  // all rounds occupy the same total column height regardless of game count.
-  var spacing = 8 / n;
+  var spacing = gridH / n;
   return ((slot - 1) * spacing + spacing / 2 - 0.5) * slotVh;
 }
 function cardMidVh(round, slot, slotVh, side) {
@@ -645,10 +664,11 @@ function getDims(){
     var cardVh=(colVw*vwPx/CARD_ASPECT)/vhPx;
     var rowVh=cardVh/3;
     if(rowVh<2.4){ rowVh=2.4; cardVh=rowVh*3; }
-    var maxCardVh=(availVh/8)*CARD_RATIO;
+    var gridH = gridHeight();
+    var maxCardVh=(availVh/gridH)*CARD_RATIO;
     if(cardVh>maxCardVh){ cardVh=maxCardVh; rowVh=cardVh/3; }
     var slotVh=cardVh/CARD_RATIO;
-    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*8,isDesktop,isMobile};
+    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*gridH,isDesktop,isMobile};
   }
 
   if(isMobile){
@@ -931,7 +951,8 @@ function computeLBPositions(slotVh) {
   var posMap = {};
   var cols = buildSideColumns('R');
   if (!cols.length) return posMap;
-  var maxTop = 8 * slotVh - slotVh * CARD_RATIO; // keep cards inside the column
+  var gridH = gridHeight();
+  var maxTop = gridH * slotVh - slotVh * CARD_RATIO; // keep cards inside the column
 
   function clamp(v) { return Math.max(0, Math.min(v, maxTop)); }
 
@@ -962,7 +983,7 @@ function computeLBPositions(slotVh) {
   if (cols.length > 1) {
     var consumers = cols[1].games; // already sorted by slot in buildSideColumns
     var vGrid = 2 * consumers.length;
-    var vSpacing = 8 / vGrid;
+    var vSpacing = gridH / vGrid;
     consumers.forEach(function(entry, idx) {
       var cg = GAMES[entry.gid];
       if (!cg) return;
@@ -1050,7 +1071,7 @@ function computeLBPositions(slotVh) {
 }
 
 function buildConnPcts(srcCol, dstCol, slotVh, posMap) {
-  var totalVh = slotVh * 8, conns = [];
+  var totalVh = slotVh * gridHeight(), conns = [];
   function getTop(col, entry) {
     return (posMap && posMap[entry.gid] !== undefined)
       ? posMap[entry.gid]
