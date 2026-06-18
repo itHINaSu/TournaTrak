@@ -124,24 +124,71 @@
 }
 .bld-bye-item input { width: 1.1em; height: 1.1em; flex: none; }
 
-/* Playing-days schedule editor */
-.bld-presets { display: flex; flex-wrap: wrap; gap: 0.5em; margin-bottom: 0.75em; }
-.bld-chip {
+/* Schedule calendar (multi-day selector) */
+.bld-cal {
+  margin: 0.75em 0;
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6em;
+}
+.bld-cal-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5em;
+}
+.bld-cal-title {
   font-family: 'Oswald', sans-serif;
-  font-size: var(--text-sm);
-  letter-spacing: 0.02em;
-  padding: 0.4em 0.8em;
+  font-size: var(--text-md);
+  color: var(--text);
+}
+.bld-cal-nav {
+  width: 2.25rem;
+  height: 2.25rem;
   border: 0.07em solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface2);
   color: var(--text);
+  font-size: 1.2rem;
+  line-height: 1;
   cursor: pointer;
-  min-height: 2.5rem;
 }
-.bld-chip:hover { opacity: 0.85; }
-.bld-chip--add { margin-top: 0.6em; color: var(--blue-lt); border-style: dashed; background: transparent; }
+.bld-cal-nav:hover { opacity: 0.85; }
+.bld-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25em;
+}
+.bld-cal-dow {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-mute);
+  padding: 0.2em 0;
+}
+.bld-cal-cell {
+  aspect-ratio: 1;
+  min-height: 2.4rem;
+  border: 0.07em solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bld-cal-cell:hover { border-color: var(--blue-lt); }
+.bld-cal-cell--empty { background: transparent; cursor: default; }
+.bld-cal-cell--sel {
+  background: var(--blue);
+  color: #fff;
+  font-weight: 600;
+}
 
-.bld-days { display: flex; flex-direction: column; gap: 0.6em; }
+/* Per-day detail table */
+.bld-days { display: flex; flex-direction: column; gap: 0.6em; margin-bottom: 0.6em; }
 .bld-day {
   display: flex;
   align-items: flex-end;
@@ -151,9 +198,17 @@
   border-radius: var(--radius-sm);
   padding: 0.55em;
 }
+.bld-day-date {
+  flex: none;
+  width: 5.5em;
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  color: var(--blue-lt);
+  padding-bottom: 0.5em;
+}
 .bld-day-fields {
   display: grid;
-  grid-template-columns: 1.4fr 1fr 0.7fr 0.8fr;
+  grid-template-columns: 1.2fr 0.8fr 0.9fr;
   gap: 0.5em;
   flex: 1;
   min-width: 0;
@@ -182,9 +237,11 @@
 }
 .bld-day-del:hover { opacity: 0.8; }
 
-/* Narrow screens: stack date/start on one row, games/interval on the next */
+/* Narrow screens: stack the date label above the fields */
 @media (max-width: 28rem) {
-  .bld-day-fields { grid-template-columns: 1fr 1fr; }
+  .bld-day { flex-wrap: wrap; align-items: stretch; }
+  .bld-day-date { width: 100%; padding-bottom: 0.2em; }
+  .bld-day-fields { grid-template-columns: 1fr 1fr 1fr; }
 }
 
 .bld-muted {

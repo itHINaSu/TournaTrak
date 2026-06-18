@@ -10,7 +10,8 @@ function $(id) { return document.getElementById(id); }
 var FORMATS = [];        // [{ id, label, description, minTeams, maxTeams }]
 var currentFormat = null;
 var byeSelection = {};   // team name -> true, for manual mode
-var playingDays = [];    // [{ date, startTime, games, interval }] — build-time schedule
+var playingDays = [];    // [{ date, startTime, games, interval }] — build-time schedule (sorted by date)
+var calYear, calMonth;   // month currently shown in the schedule calendar (0-based month)
 
 // Smallest power of two >= n (mirrors the server helper).
 function nextPow2(n) { var b = 1; while (b < n) b <<= 1; return b; }
@@ -18,11 +19,6 @@ function nextPow2(n) { var b = 1; while (b < n) b <<= 1; return b; }
 // ── Date helpers ──────────────────────────────────────────────────────
 function pad2(n) { return String(n).padStart(2, '0'); }
 function ymd(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
-function addDays(dateStr, n) {
-  var d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() + n);
-  return ymd(d);
-}
 
 // Real games the current bracket needs a time slot for (single-elim: N - 1).
 function realGamesNeeded() {
@@ -61,10 +57,14 @@ async function init() {
   }
 
   buildFormatOptions();
+  var d0 = defaultStartDate();
+  $('simpleDate').value = d0;
+  var dt = new Date(d0 + 'T00:00:00');
+  calYear = dt.getFullYear();
+  calMonth = dt.getMonth();
   $('loading').style.display = 'none';
   $('builder').style.display = '';
   wireEvents();
-  applyPreset('single');   // seed the schedule with one playing day
   refresh();
 }
 
@@ -126,40 +126,96 @@ function refresh() {
   updateSlotSummary();
 }
 
-// ── Playing-days schedule editor ──────────────────────────────────────
-function applyPreset(which) {
-  if (which === 'clear') {
-    playingDays = [];
-  } else if (which === 'weekend') {
-    var sat = defaultStartDate();
-    playingDays = [
-      { date: sat, startTime: '09:00', games: 5, interval: 60 },
-      { date: addDays(sat, 1), startTime: '09:00', games: 5, interval: 60 },
-    ];
-  } else { // single
-    playingDays = [{ date: defaultStartDate(), startTime: '09:00', games: realGamesNeeded() || 12, interval: 60 }];
+// ── Optional schedule: toggle ─────────────────────────────────────────
+function isAdvanced() { return $('advSchedChk').checked; }
+
+function onAdvToggle() {
+  var on = isAdvanced();
+  $('advSched').style.display = on ? '' : 'none';
+  $('simpleDateField').style.display = on ? 'none' : '';
+  if (on) {
+    // Seed the calendar with the simple start date so there's a starting point.
+    if (!playingDays.length && $('simpleDate').value) {
+      addDayByDate($('simpleDate').value);
+    }
+    renderCalendar();
+    renderDays();
   }
+}
+
+// ── Calendar (multi-day selector) ─────────────────────────────────────
+function dayIndex(date) {
+  for (var i = 0; i < playingDays.length; i++) if (playingDays[i].date === date) return i;
+  return -1;
+}
+function hasDay(date) { return dayIndex(date) !== -1; }
+
+function addDayByDate(date) {
+  if (hasDay(date)) return;
+  playingDays.push({ date: date, startTime: '09:00', games: realGamesNeeded() || 4, interval: 60 });
+  sortDays();
+}
+function sortDays() {
+  playingDays.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+}
+
+function toggleDay(date) {
+  var i = dayIndex(date);
+  if (i === -1) addDayByDate(date); else playingDays.splice(i, 1);
+  renderCalendar();
   renderDays();
 }
 
-function addDay() {
-  var last = playingDays[playingDays.length - 1];
-  playingDays.push(last
-    ? { date: addDays(last.date, 2), startTime: last.startTime, games: last.games, interval: last.interval }
-    : { date: defaultStartDate(), startTime: '18:00', games: 4, interval: 90 });
-  renderDays();
+function shiftMonth(delta) {
+  calMonth += delta;
+  if (calMonth < 0) { calMonth = 11; calYear--; }
+  else if (calMonth > 11) { calMonth = 0; calYear++; }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  var first = new Date(calYear, calMonth, 1);
+  var startDow = first.getDay();
+  var daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  var title = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  var html = '<div class="bld-cal-hdr">' +
+    '<button type="button" class="bld-cal-nav" id="calPrev" aria-label="Previous month">&lsaquo;</button>' +
+    '<span class="bld-cal-title">' + esc(title) + '</span>' +
+    '<button type="button" class="bld-cal-nav" id="calNext" aria-label="Next month">&rsaquo;</button>' +
+    '</div><div class="bld-cal-grid">';
+  ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].forEach(function (d) { html += '<div class="bld-cal-dow">' + d + '</div>'; });
+  for (var i = 0; i < startDow; i++) html += '<div class="bld-cal-cell bld-cal-cell--empty"></div>';
+  for (var day = 1; day <= daysInMonth; day++) {
+    var ds = calYear + '-' + pad2(calMonth + 1) + '-' + pad2(day);
+    html += '<button type="button" class="bld-cal-cell' + (hasDay(ds) ? ' bld-cal-cell--sel' : '') +
+      '" data-date="' + ds + '">' + day + '</button>';
+  }
+  html += '</div>';
+  $('calendar').innerHTML = html;
+
+  $('calPrev').addEventListener('click', function () { shiftMonth(-1); });
+  $('calNext').addEventListener('click', function () { shiftMonth(1); });
+  Array.prototype.forEach.call($('calendar').querySelectorAll('[data-date]'), function (btn) {
+    btn.addEventListener('click', function () { toggleDay(btn.getAttribute('data-date')); });
+  });
+}
+
+// ── Per-day detail table (driven by the calendar selection) ───────────
+function prettyDate(ds) {
+  return new Date(ds + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 function renderDays() {
-  $('daysList').innerHTML = playingDays.map(function (d, i) {
+  $('daysList').innerHTML = playingDays.map(function (d) {
     return '<div class="bld-day">' +
+      '<div class="bld-day-date">' + esc(prettyDate(d.date)) + '</div>' +
       '<div class="bld-day-fields">' +
-        dayField(i, 'date', 'Date', '<input type="date" class="bld-input" data-idx="' + i + '" data-field="date" value="' + esc(d.date) + '">') +
-        dayField(i, 'startTime', 'Start', '<input type="time" class="bld-input" data-idx="' + i + '" data-field="startTime" value="' + esc(d.startTime) + '">') +
-        dayField(i, 'games', 'Games', '<input type="number" min="1" max="100" inputmode="numeric" class="bld-input bld-input--sm" data-idx="' + i + '" data-field="games" value="' + esc(String(d.games)) + '">') +
-        dayField(i, 'interval', 'Min apart', '<input type="number" min="1" max="1440" inputmode="numeric" class="bld-input bld-input--sm" data-idx="' + i + '" data-field="interval" value="' + esc(String(d.interval)) + '">') +
+        dayField('Start', '<input type="time" class="bld-input" data-date="' + esc(d.date) + '" data-field="startTime" value="' + esc(d.startTime) + '">') +
+        dayField('Games', '<input type="number" min="1" max="100" inputmode="numeric" class="bld-input bld-input--sm" data-date="' + esc(d.date) + '" data-field="games" value="' + esc(String(d.games)) + '">') +
+        dayField('Min apart', '<input type="number" min="1" max="1440" inputmode="numeric" class="bld-input bld-input--sm" data-date="' + esc(d.date) + '" data-field="interval" value="' + esc(String(d.interval)) + '">') +
       '</div>' +
-      '<button type="button" class="bld-day-del" data-idx="' + i + '" aria-label="Remove day">&times;</button>' +
+      '<button type="button" class="bld-day-del" data-date="' + esc(d.date) + '" aria-label="Remove day">&times;</button>' +
     '</div>';
   }).join('');
 
@@ -168,31 +224,25 @@ function renderDays() {
     inp.addEventListener('input', onDayFieldChange);
   });
   Array.prototype.forEach.call(list.querySelectorAll('.bld-day-del'), function (b) {
-    b.addEventListener('click', onDayDelete);
+    b.addEventListener('click', function () { toggleDay(b.getAttribute('data-date')); });
   });
   updateSlotSummary();
 }
 
-function dayField(i, field, label, control) {
+function dayField(label, control) {
   return '<label class="bld-day-f">' + esc(label) + control + '</label>';
 }
 
 function onDayFieldChange(e) {
-  var idx = parseInt(e.target.getAttribute('data-idx'), 10);
+  var i = dayIndex(e.target.getAttribute('data-date'));
   var field = e.target.getAttribute('data-field');
-  if (!playingDays[idx]) return;
+  if (i === -1) return;
   if (field === 'games' || field === 'interval') {
-    playingDays[idx][field] = parseInt(e.target.value, 10) || 0;
+    playingDays[i][field] = parseInt(e.target.value, 10) || 0;
   } else {
-    playingDays[idx][field] = e.target.value;
+    playingDays[i][field] = e.target.value;
   }
   updateSlotSummary();
-}
-
-function onDayDelete(e) {
-  var idx = parseInt(e.target.getAttribute('data-idx'), 10);
-  playingDays.splice(idx, 1);
-  renderDays();
 }
 
 function totalSlots() {
@@ -296,12 +346,18 @@ function onGenerate() {
   var dupes = teams.filter(function (t, i) { return teams.indexOf(t) !== i; });
   if (dupes.length) { showError('Duplicate team name: "' + dupes[0] + '"'); return; }
 
-  if (!playingDays.length) { showError('Add at least one playing day.'); return; }
-  for (var di = 0; di < playingDays.length; di++) {
-    var d = playingDays[di];
-    if (!d.date || !d.startTime) { showError('Playing day ' + (di + 1) + ': set a date and start time.'); return; }
-    if (!(parseInt(d.games, 10) >= 1)) { showError('Playing day ' + (di + 1) + ': games must be at least 1.'); return; }
-    if (!(parseInt(d.interval, 10) >= 1)) { showError('Playing day ' + (di + 1) + ': minutes apart must be at least 1.'); return; }
+  if (isAdvanced()) {
+    if (!playingDays.length) { showError('Select at least one playing day on the calendar.'); return; }
+    for (var di = 0; di < playingDays.length; di++) {
+      var d = playingDays[di];
+      var lbl = prettyDate(d.date);
+      if (!d.startTime) { showError(lbl + ': set a start time.'); return; }
+      if (!(parseInt(d.games, 10) >= 1)) { showError(lbl + ': games must be at least 1.'); return; }
+      if (!(parseInt(d.interval, 10) >= 1)) { showError(lbl + ': minutes apart must be at least 1.'); return; }
+    }
+  } else if (!$('simpleDate').value) {
+    showError('Pick a tournament start date.');
+    return;
   }
 
   var mode = $('seedMode').value;
@@ -317,12 +373,17 @@ function onGenerate() {
     : byes > 0 ? selectedByes().length + ' manual bye' + (selectedByes().length === 1 ? '' : 's')
     : 'list-order seeding';
 
-  var dayWord = playingDays.length === 1 ? 'day' : 'days';
+  var when;
+  if (isAdvanced()) {
+    var dayWord = playingDays.length === 1 ? 'day' : 'days';
+    when = 'across <strong>' + playingDays.length + ' playing ' + dayWord + '</strong> starting <strong>' + esc(playingDays[0].date) + '</strong>';
+  } else {
+    when = 'starting <strong>' + esc($('simpleDate').value) + '</strong>';
+  }
   $('confirmText').innerHTML =
     'This replaces the current schedule with a new <strong>' + esc(currentFormat.label) +
     '</strong> bracket for <strong>' + esc(String(n)) + ' teams</strong> (' + esc(seedDesc) +
-    ') across <strong>' + playingDays.length + ' playing ' + dayWord + '</strong> starting <strong>' +
-    esc(playingDays[0].date) + '</strong>.<br><span class="bld-warn">Existing schedule will be overwritten.</span>';
+    ') ' + when + '.<br><span class="bld-warn">Existing schedule will be overwritten.</span>';
   $('confirmOverlay').style.display = '';
 }
 
@@ -331,19 +392,24 @@ async function doGenerate() {
   btn.disabled = true;
   btn.textContent = 'Generating…';
   try {
+    var body = {
+      format: currentFormat.id,
+      teams: parsedTeams(),
+      seedMode: $('seedMode').value,
+      byeTeams: selectedByes(),
+    };
+    if (isAdvanced()) {
+      body.playingDays = playingDays.map(function (d) {
+        return { date: d.date, startTime: d.startTime, games: parseInt(d.games, 10), interval: parseInt(d.interval, 10) };
+      });
+    } else {
+      body.startDate = $('simpleDate').value;
+    }
     var r = await fetch('/api/schedule/generate', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        format: currentFormat.id,
-        teams: parsedTeams(),
-        seedMode: $('seedMode').value,
-        byeTeams: selectedByes(),
-        playingDays: playingDays.map(function (d) {
-          return { date: d.date, startTime: d.startTime, games: parseInt(d.games, 10), interval: parseInt(d.interval, 10) };
-        }),
-      }),
+      body: JSON.stringify(body),
     });
     var data = await r.json().catch(function () { return {}; });
     if (!r.ok) throw new Error(data.error || 'Generation failed');
@@ -364,10 +430,7 @@ function wireEvents() {
   $('formatSel').addEventListener('change', function () { selectFormat(this.value); });
   $('teamsInput').addEventListener('input', refresh);
   $('seedMode').addEventListener('change', refresh);
-  $('addDayBtn').addEventListener('click', addDay);
-  Array.prototype.forEach.call(document.querySelectorAll('[data-preset]'), function (btn) {
-    btn.addEventListener('click', function () { applyPreset(btn.getAttribute('data-preset')); });
-  });
+  $('advSchedChk').addEventListener('change', onAdvToggle);
   $('generateBtn').addEventListener('click', onGenerate);
   $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').style.display = 'none'; });
   $('confirmBtn').addEventListener('click', doGenerate);
