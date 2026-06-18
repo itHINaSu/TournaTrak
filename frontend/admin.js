@@ -81,6 +81,7 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
     tab.classList.add('active');
     document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+    try { localStorage.setItem('adminTab', tab.dataset.tab); } catch(e) {}
     updateQuickBar();
     if (tab.dataset.tab === 'lineups' && !window._lineupInitDone) {
       window._lineupInitDone = true;
@@ -208,16 +209,19 @@ async function fetchAll() {
   renderScheduleEditor();
   populateSettingsFields();
 
-  // ?tab=X from lineup page tab links: activate that tab on load
+  // ?tab=X from lineup page tab links takes priority; otherwise restore last tab from localStorage.
   var qTab = new URLSearchParams(window.location.search).get('tab');
-  if (qTab) {
-    var target = document.querySelector('.admin-tab[data-tab="' + qTab + '"]');
-    var panel  = document.getElementById('tab-' + qTab);
-    if (target && panel) {
+  var savedTab = qTab || (function(){ try { return localStorage.getItem('adminTab'); } catch(e) { return null; } }());
+  if (savedTab) {
+    var target = document.querySelector('.admin-tab[data-tab="' + savedTab + '"]');
+    var panel  = document.getElementById('tab-' + savedTab);
+    if (target && panel && target.style.display !== 'none') {
       document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
       document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
       target.classList.add('active');
       panel.classList.add('active');
+      if (savedTab === 'lineups' && !window._lineupInitDone) { window._lineupInitDone = true; lineupInit(); }
+      if (savedTab === 'schedule') setSchedMode('editor');
     }
   }
   updateQuickBar();
