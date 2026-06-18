@@ -1,0 +1,51 @@
+# compose.demo.yml — public sandbox instance.
+#
+# A self-contained second stack for a "try it live" demo, isolated from the
+# real tournament: its own data volume (./demo-files), its own port (3119),
+# and DEMO_MODE so the API restores ./demo-seed every DEMO_RESET_MINUTES.
+# Whatever a visitor changes is wiped back to the seed on the next reset.
+#
+# Run it alongside the real stack:
+#   docker compose -f compose.demo.yml -p tournatrak-demo up -d --build
+#
+# Public credentials (printed on the sales site / login screen): demo / demo
+#
+# NOTE: the values below are deliberately public — this stack is a throwaway
+# sandbox. Do NOT point it at real data or reuse the SESSION_SECRET elsewhere.
+
+services:
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "3119:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    build: ./api
+    volumes:
+      - ./demo-files:/data          # isolated runtime data (gitignored)
+      - ./demo-seed:/seed:ro        # canonical demo state, restored on reset
+      - ./frontend:/frontend:ro
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      NODE_ENV: production
+      COOKIE_SECURE: "false"
+      # Demo-only secret. ≥32 chars, public on purpose — never reuse in prod.
+      SESSION_SECRET: "tournatrak-public-demo-sandbox-secret-0000000000"
+      ADMIN_USERNAME: "demo"
+      # bcrypt hash of "demo" (matches demo-seed/users.json, which wins anyway).
+      # Each literal "$" is doubled to "$$" — Compose treats a single "$" as a
+      # variable reference in inline environment values.
+      ADMIN_PASSWORD_HASH: "$$2a$$12$$o8TRdSgRMSRO5k1h2YACL.pyDMMr2IauD7wZ/vb4N/KkoZLN9OXua"
+      FORCE_PASSWORD_CHANGE: "false"
+      DEMO_MODE: "true"
+      DEMO_SEED_DIR: "/seed"
+      DEMO_RESET_MINUTES: "30"

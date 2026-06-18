@@ -10,6 +10,10 @@ files/users.json
 # Keep the example for reference
 !files/schedule.example.json
 
+# Demo sandbox runtime data (recreated from demo-seed/ on every reset).
+# demo-seed/ itself IS tracked — it's the canonical demo snapshot.
+demo-files/
+
 # Docker and system noise
 .env
 *.log

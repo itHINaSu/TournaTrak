@@ -1,0 +1,18 @@
+{
+  "tournamentName": "TournaTrak Demo",
+  "pageTitle": "TournaTrak Demo",
+  "adminName": "Demo Admin",
+  "subtitle": "A live sandbox — log in and play. Everything resets automatically.",
+  "leftLabel": "Left Bracket",
+  "rightLabel": "Right Bracket",
+  "playInLabel": "Play-In",
+  "showSideDividers": "true",
+  "periodLabel": "Inning",
+  "showDate": "true",
+  "showDay": "true",
+  "dateFormat": "short",
+  "dayFormat": "long",
+  "defaultTab": "bracket",
+  "defaultTabScope": "both",
+  "defaultScheduleGroup": "day"
+}

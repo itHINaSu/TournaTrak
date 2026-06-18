@@ -184,6 +184,23 @@ docker compose up -d --build api        # rebuild after API changes
 
 The sales site runs as a separate service on port 8081.
 
+### Public demo sandbox
+
+`compose.demo.yml` runs a second, throwaway stack on port **3119** for a "try it
+live" link. It uses its own data volume (`./demo-files`, gitignored) and runs in
+`DEMO_MODE`, so the API restores the `./demo-seed` snapshot on boot and every
+`DEMO_RESET_MINUTES` (default 30) — anything a visitor changes is wiped back to
+the seed. Public credentials: **demo / demo**.
+
+```bash
+docker compose -f compose.demo.yml -p tournatrak-demo up -d --build
+```
+
+The demo shares one dataset (v2 is single-tenant), so simultaneous visitors see
+each other's edits until the next reset. Per-visitor isolation is a v3 concern.
+To change the demo's starting state, edit the files in `demo-seed/` (e.g.
+regenerate `schedule.json` via the Bracket Builder or `generate-schedule.js`).
+
 ---
 
 ## Setup for a new tournament

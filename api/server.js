@@ -986,4 +986,42 @@ process.on('unhandledRejection', (reason) => {
   console.error('Unhandled promise rejection:', reason && reason.stack ? reason.stack : reason);
 });
 
+// ── Demo mode (opt-in) ────────────────────────────────────────────────
+// When DEMO_MODE=true, restore /data from a read-only seed snapshot at
+// startup and on a fixed interval, so a public sandbox can't drift — anything
+// a visitor changes is wiped back to the seed within DEMO_RESET_MINUTES.
+// Entirely gated behind env vars; production never sets DEMO_MODE so this is a
+// no-op there. The restore is synchronous (file copy + cache clear in a single
+// tick, no await), so it cannot interleave with a request's read-modify-write.
+// sessions.json is deliberately NOT seeded, so a reset doesn't log visitors out.
+const DEMO_MODE          = process.env.DEMO_MODE === 'true';
+const DEMO_SEED_DIR      = process.env.DEMO_SEED_DIR || '/seed';
+const DEMO_RESET_MINUTES = parseInt(process.env.DEMO_RESET_MINUTES, 10) || 30;
+
+function restoreDemoSeed() {
+  let files;
+  try {
+    files = fs.readdirSync(DEMO_SEED_DIR).filter(f => f.endsWith('.json'));
+  } catch (e) {
+    console.error('Demo seed dir unreadable (' + DEMO_SEED_DIR + '): ' + e.message);
+    return;
+  }
+  for (const f of files) {
+    try {
+      fs.copyFileSync(DEMO_SEED_DIR + '/' + f, '/data/' + f);
+    } catch (e) {
+      console.error('Demo restore failed for ' + f + ': ' + e.message);
+    }
+  }
+  jsonCache.clear();        // drop in-memory copies so reads reload from disk
+  invalidateIndexCache();   // seeded settings may have changed the index HTML
+  console.log('Demo data restored from seed (' + files.length + ' files)');
+}
+
+if (DEMO_MODE) {
+  restoreDemoSeed();        // pristine state on boot
+  setInterval(restoreDemoSeed, DEMO_RESET_MINUTES * 60 * 1000).unref();
+  console.log('DEMO_MODE on — resetting every ' + DEMO_RESET_MINUTES + ' min from ' + DEMO_SEED_DIR);
+}
+
 app.listen(3000, () => console.log('API listening on :3000'));
