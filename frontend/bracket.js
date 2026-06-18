@@ -1014,6 +1014,33 @@ function computeLBPositions(slotVh) {
     });
   });
 
+  // ── Align LB final with WB SF for a clean horizontal championship row ──
+  // Find which WB game feeds CHAMP (there should be exactly one) and compute
+  // its top position. Then find which LB game feeds CHAMP and pin it to the
+  // same position, so both CHAMP feeders are at the same height. Since CHAMP
+  // is already hardcoded at 3.5*slotVh and the WB SF (n=1) is also naturally
+  // at 3.5*slotVh, this produces the canonical paper-bracket look.
+  var champG = GAMES['CHAMP.C.1'];
+  if (champG) {
+    var wbSFTops = [];
+    [champG.t1, champG.t2].forEach(function(slotDef) {
+      if (!slotDef || slotDef.type !== 'winner') return;
+      var fg = GAMES[slotDef.slot];
+      if (!fg || fg.side !== 'L') return;
+      var parts = slotDef.slot.split('.');
+      wbSFTops.push(slotTopVh(parts[0], parseInt(parts[2], 10), slotVh, 'L'));
+    });
+    var wbSFMidTop = wbSFTops.length
+      ? wbSFTops.reduce(function(a, b) { return a + b; }, 0) / wbSFTops.length
+      : 3.5 * slotVh;
+    [champG.t1, champG.t2].forEach(function(slotDef) {
+      if (!slotDef || slotDef.type !== 'winner') return;
+      var fg = GAMES[slotDef.slot];
+      if (!fg || fg.side !== 'R') return;
+      posMap[slotDef.slot] = clamp(wbSFMidTop);
+    });
+  }
+
   return posMap;
 }
 
