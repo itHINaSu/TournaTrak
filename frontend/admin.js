@@ -202,6 +202,7 @@ async function fetchAll() {
     _teamsData = tmr.ok ? await tmr.json() : { showSeeds: false, teams: [] };
     if (typeof applySchedule === 'function') applySchedule(schedule);
   } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; _offsets = { entries: [] }; _fieldColors = {}; _themeColors = {}; _teamsData = { showSeeds: false, teams: [] }; }
+  applyThemeColors();
   applySettingsToPage();
   renderAdmin();
   renderScheduleEditor();
@@ -272,6 +273,7 @@ async function saveSettings() {
     settings = out;
     _themeColors = themeColors;
     _fieldColors = fieldColors;
+    applyThemeColors();
     applySettingsToPage();
     showToast('Settings saved');
     status.textContent = '✓ Saved';
@@ -1259,6 +1261,42 @@ function savePwaHome(val) {
 // ── Theme & field color management ─────────────────────────────────────
 var FIELD_DEFAULT_COLORS = ['#0d9488', '#ea580c', '#7c3aed', '#db2777', '#4a90d9'];
 
+// ── Color utilities (mirrored from bracket.js) ─────────────────────────────
+function _hexToHsl(hex) {
+  var r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
+  var max=Math.max(r,g,b), min=Math.min(r,g,b), l=(max+min)/2, s=0, h=0;
+  if (max!==min) { var d=max-min; s=d/(l>0.5?2-max-min:max+min); if(max===r)h=((g-b)/d+(g<b?6:0))/6; else if(max===g)h=((b-r)/d+2)/6; else h=((r-g)/d+4)/6; }
+  return [h*360, s*100, l*100];
+}
+function _hslToHex(h,s,l) {
+  h/=360; s/=100; l/=100;
+  var r,g,b; if(s===0){r=g=b=l;}else{var q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q; function hue(t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;} r=hue(h+1/3);g=hue(h);b=hue(h-1/3);}
+  return '#'+[r,g,b].map(function(x){return Math.round(x*255).toString(16).padStart(2,'0');}).join('');
+}
+function _lightModeColor(hex) {
+  var hsl = _hexToHsl(hex);
+  return _hslToHex(hsl[0], hsl[1], Math.max(10, hsl[2] - 40));
+}
+function applyThemeColors() {
+  var root = document.documentElement;
+  var tc = _themeColors;
+  var darkMap = { accent: ['--gold','--gold-lt'], interactive: ['--blue','--blue-lt'], winColor: ['--win-color'], loseColor: ['--lose-color'] };
+  var lightRules = [];
+  Object.keys(darkMap).forEach(function(key) {
+    darkMap[key].forEach(function(prop) {
+      if (tc[key]) root.style.setProperty(prop, tc[key]);
+      else root.style.removeProperty(prop);
+    });
+    if (tc[key]) {
+      var lc = _lightModeColor(tc[key]);
+      darkMap[key].forEach(function(prop) { lightRules.push('  ' + prop + ':' + lc + ';'); });
+    }
+  });
+  var styleEl = document.getElementById('tt-theme-overrides');
+  if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'tt-theme-overrides'; document.head.appendChild(styleEl); }
+  styleEl.textContent = lightRules.length ? 'body.light{' + lightRules.join('') + '}' : '';
+}
+
 var THEME_COLOR_DEFAULTS = { accent: '#e8b82a', interactive: '#4a90d9', winColor: '#4a9a4a', loseColor: '#c05050' };
 var THEME_COLOR_LABELS   = { accent: 'Accent (gold)', interactive: 'Interactive (blue)', winColor: 'Win color', loseColor: 'Lose color' };
 var THEME_COLOR_HINTS    = {
@@ -1307,11 +1345,14 @@ function resetOneThemeColor(btn) {
 function renderFieldsPanel() {
   var el = document.getElementById('fieldsColorList');
   if (!el) return;
+  var section = document.getElementById('fieldColorsSection');
   var fields = getScheduleFields();
   if (!fields.length) {
-    el.innerHTML = '<div class="settings-field" style="color:var(--text-mute);font-size:0.9rem">No fields found in schedule yet.</div>';
+    if (section) section.style.display = 'none';
+    el.innerHTML = '';
     return;
   }
+  if (section) section.style.display = '';
   var html = '';
   fields.forEach(function(f, i) {
     var defColor = FIELD_DEFAULT_COLORS[i % FIELD_DEFAULT_COLORS.length];
@@ -1354,6 +1395,7 @@ async function resetTheme() {
     if (!r1 || !r1.ok || !r2 || !r2.ok) throw new Error();
     _themeColors = {};
     _fieldColors = {};
+    applyThemeColors();
     renderThemeSection();
     renderFieldsPanel();
     if (statusEl) { statusEl.textContent = '✓ Reset'; setTimeout(function(){ statusEl.textContent = ''; }, 3000); }
