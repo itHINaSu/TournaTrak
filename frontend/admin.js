@@ -1386,8 +1386,6 @@ function setSchedMode(mode) {
   var eBtn    = document.getElementById('modeScheduleBtn');
   var bBtn    = document.getElementById('modeBuilderBtn');
   var dBtn    = document.getElementById('modeSchedDelaysBtn');
-  var saveBtn = document.getElementById('schedSaveBtn');
-  var saveSt  = document.getElementById('schedStatus');
   if (ePanel)  ePanel.style.display  = mode === 'editor'  ? '' : 'none';
   if (bPanel)  bPanel.style.display  = mode === 'builder' ? '' : 'none';
   if (mode === 'delays' && dPanel && slot) {
@@ -1400,8 +1398,6 @@ function setSchedMode(mode) {
   if (eBtn)    eBtn.classList.toggle('active',  mode === 'editor');
   if (bBtn)    bBtn.classList.toggle('active',  mode === 'builder');
   if (dBtn)    dBtn.classList.toggle('active',  mode === 'delays');
-  if (saveBtn) saveBtn.style.display = mode === 'editor' ? '' : 'none';
-  if (saveSt)  saveSt.style.display  = mode === 'editor' ? '' : 'none';
   if (mode === 'builder' && !window._builderInitDone) {
     window._builderInitDone = true;
     if (typeof window.builderInit === 'function') window.builderInit();
