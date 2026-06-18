@@ -159,14 +159,18 @@ shared FORMATS registry used by both the builder API and the CLI).
   counts. Three seeding modes: random, list order, and manual bye selection.
 - Byes use a "mixed" game (one side a fixed team name, the other a winner-slot),
   which the data model + `applySchedule()` already support.
+- **Dynamic round-header labels** (`roundLabel()` in `bracket-data.js`): the
+  public bracket numbers populated rounds sequentially, so a sub-32 bracket
+  reads "Round 1, 2, …" instead of borrowing tail names. The full structure is
+  unchanged. The admin editor keeps static labels (it shows every defined round).
 
 ### Follow-ups
-- **Round-header labels for sub-32 brackets.** Brackets smaller than 32 anchor to
-  `CHAMP` and borrow the tail round names, so an 8-team bracket's first column
-  reads "Round 3" (positions/advancement are correct — header text only).
-  Full 32-team brackets label perfectly. Fix: derive `ROUND_LABELS` dynamically
-  from the populated rounds (touches `bracket.js`, `admin.js`; needs in-browser
-  verification).
+- **Game-guarantee brackets (2- and 3-game).** Planned. `isEliminated()` in
+  `bracket-data.js` currently hardcodes the double-elim rule (`losses >= 2`),
+  which won't generalize. Repurpose it to a **structural** test — a team is alive
+  iff some undecided slot can still feed it — which is format-agnostic across
+  single-elim, double-elim, and N-game guarantees. Likely pairs with a
+  per-format elimination/guarantee descriptor in the FORMATS registry.
 - **64-team support.** Generator scales trivially, but requires prepending one
   round name in `ROUND_BY_DEPTH` (schedule-formats.js) AND widening `SLOT_DEFS`
   in both `api/slot-defs.js` and `frontend/bracket-data.js` (must stay in sync),

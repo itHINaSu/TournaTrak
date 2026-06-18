@@ -1040,7 +1040,7 @@ function renderDesktopBracket(root,dims){
         cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" style="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
       });
       html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
-        +'<div class="round-col-hdr">'+ROUND_LABELS[col.round]+'</div>'+cardsHTML+'</div>';
+        +'<div class="round-col-hdr">'+roundLabel(col.round)+'</div>'+cardsHTML+'</div>';
       if(ci<ordCols.length-1){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
@@ -1271,7 +1271,7 @@ function renderMobileBracket(root, dims) {
   rounds.forEach(function(round) {
     var gids = gidsFor(round);
     if (round === 'CHAMP' || round === 'CHAMP2') {
-      cols.push({ round: round, label: ROUND_LABELS[round], gids: gids, divs: [] });
+      cols.push({ round: round, label: roundLabel(round), gids: gids, divs: [] });
       return;
     }
 
@@ -1283,8 +1283,8 @@ function renderMobileBracket(root, dims) {
     if (singleSide && cols.length > 0) {
       // Absorb into the previous column under a "Loser's Bracket" divider.
       var prev = cols[cols.length - 1];
-      prev.divs.push({ idx: prev.gids.length, label: ROUND_LABELS[round], type: 'absorbed' });
-      prev.label = prev.label + ' · ' + ROUND_LABELS[round];
+      prev.divs.push({ idx: prev.gids.length, label: roundLabel(round), type: 'absorbed' });
+      prev.label = prev.label + ' · ' + roundLabel(round);
       gids.forEach(function(gid) { prev.gids.push(gid); });
       return;
     }
@@ -1310,7 +1310,7 @@ function renderMobileBracket(root, dims) {
       if (wi) divs.push({ idx: flat.length, label: getSetting('playInLabel'), type: 'playin' });
       flat = flat.concat(wave);
     });
-    cols.push({ round: round, label: ROUND_LABELS[round], gids: flat, divs: divs });
+    cols.push({ round: round, label: roundLabel(round), gids: flat, divs: divs });
   });
 
   // ── Reorder each column so games feeding the same next-column game sit
@@ -2186,7 +2186,7 @@ function renderScheduleView() {
   } else if (scheduleMode === 'round') {
     ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].forEach(function(round) {
       var sids = allSids.filter(function(s) { return GAMES[s].round === round; });
-      if (sids.length) groups.push({ id: round, label: ROUND_LABELS[round], sids: sids });
+      if (sids.length) groups.push({ id: round, label: roundLabel(round), sids: sids });
     });
   } else { // field
     var byField = {}, fieldKeys = [];
