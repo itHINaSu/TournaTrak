@@ -191,24 +191,16 @@ shared FORMATS registry used by both the builder API and the CLI).
 - **Configurable container user** (`PUID`/`PGID`): both compose files run the
   API as `${PUID:-1000}:${PGID:-1000}` so bind-mounted data files are owned by
   the host user, not root. Documented in `.env.example`.
+- **Random team-name generator** (builder step 2): "Randomly generate [N] team
+  names" row fills the textarea with distinct generated names; the count dropdown
+  tracks the selected format's valid range.
+- **Teams tab ⇄ schedule sync**: `GET /api/teams` now treats the schedule as the
+  source of truth for which teams exist (merging in saved order/seeds), so
+  brackets built via the schedule editor populate the Teams tab. Excludes the
+  "BYE" placeholder. The tab re-fetches on open so editor changes show without a
+  reload.
 
 ### Follow-ups (next session, in progress)
-- **Random team name generator in builder step 2** (low priority). Above the
-  teams textarea, add a row: "Randomly generate [dropdown of valid counts for
-  the current format] team names" + Generate button. Clicking populates the
-  textarea with N randomly generated names (word-combination style). Dropdown
-  updates when format changes. Files to touch: `frontend/builder.html`,
-  `frontend/builder.js` (add gen bank + `updateGenCountOptions()` +
-  `genRandomTeams()`), `frontend/builder.css` (inline row style).
-- **Teams tab bug: schedule-editor-built brackets show empty list.** When a
-  bracket is built/edited via the admin schedule editor (not the bracket builder),
-  the Teams tab in Settings may show an empty list or stale data. Two-part fix:
-  1. `GET /api/teams` server handler: merge `teams.json` order with
-     `teamsFromSchedule()` — keep ordering for teams still in schedule, append
-     new teams, drop removed ones. Currently it uses `teams.json` exclusively
-     if it has entries, missing any changes made via the schedule editor.
-  2. `showSettingsSection('teams')` in `admin.js`: re-fetch `/api/teams` fresh
-     on each tab open instead of rendering stale `_teamsData` from page load.
 - **Admin nav link to `/builder`** still reachable only by direct URL; add to
   admin sidebar or header.
 - **Sales site demo URL placeholders**: three `href="#"` spots in the sales site
