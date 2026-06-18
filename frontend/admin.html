@@ -346,18 +346,18 @@
 
       <!-- Left sidebar navigation (desktop: always visible; mobile: drawer) -->
       <nav class="settings-sidebar" id="settingsSidebar">
-        <div class="settings-nav-item active" data-section="pageinfo" onclick="showSettingsSection('pageinfo')">Page Info</div>
+        <div class="settings-nav-item active" data-section="pageinfo" onclick="showSettingsSection('pageinfo')">Site Settings</div>
         <div class="settings-nav-item" data-section="account" onclick="showSettingsSection('account')">Account</div>
         <div class="settings-nav-item" data-section="users" onclick="showSettingsSection('users')">Users</div>
         <div class="settings-nav-item" data-section="coaches" onclick="showSettingsSection('coaches')">Coaches</div>
       </nav>
 
       <div class="settings-content">
-        <!-- ── Page Info panel ── -->
+        <!-- ── Site Settings panel ── -->
         <div class="settings-panel active" id="sp-pageinfo">
           <div class="admin-subtitle">Configure tournament identity and display labels. Changes take effect on the public page after reload.</div>
           <div class="settings-section">
-            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Site Settings</div>
+            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Page Info</div>
             <div class="collapsible-body">
               <div class="settings-field">
                 <label>Tournament Name <span class="field-label-hint">(public page header)</span></label>
@@ -403,6 +403,10 @@
                 </select>
                 <div class="field-hint">How the Schedule tab groups games for first-time visitors.</div>
               </div>
+              <div class="settings-save-row">
+                <button class="sched-save-btn" onclick="saveSettings()">Save</button>
+                <span class="sched-status" id="settingsStatus"></span>
+              </div>
             </div>
           </div>
           <div class="settings-section">
@@ -425,6 +429,9 @@
                 <div class="settings-subsection-hdr">Field Colors</div>
                 <div class="field-hint" style="margin-bottom:0.6em">Assign a color to each field tag on game cards. Defaults are Teal / Orange / Purple / Pink / Blue.</div>
                 <div id="fieldsColorList"></div>
+              </div>
+              <div class="settings-save-row" style="margin-top:1em">
+                <button class="sched-save-btn" onclick="saveSettings()">Save</button>
               </div>
             </div>
           </div>
@@ -450,6 +457,9 @@
                 <label>Show bracket-side dividers on mobile</label>
                 <input type="checkbox" id="set-showSideDividers">
                 <div class="field-hint">Displays a subtle label between winner and loser bracket games in each mobile swipe column.</div>
+              </div>
+              <div class="settings-save-row">
+                <button class="sched-save-btn" onclick="saveSettings()">Save</button>
               </div>
             </div>
           </div>
@@ -482,6 +492,9 @@
                   </select>
                 </div>
               </div>
+              <div class="settings-save-row">
+                <button class="sched-save-btn" onclick="saveSettings()">Save</button>
+              </div>
             </div>
           </div>
           <div class="settings-section">
@@ -492,28 +505,10 @@
                 <input type="text" id="set-periodLabel" placeholder="Inning">
                 <div class="field-hint">Label for the scoring period displayed during live updates (e.g. "Inning", "Quarter", "Half", "Period").</div>
               </div>
-            </div>
-          </div>
-          <div class="settings-section">
-            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Application Colors</div>
-            <div class="collapsible-body">
-              <div class="settings-subsection-hdr">Application Theme</div>
-              <div class="field-hint" style="margin-bottom:0.6em">Override accent and result colors used across the app. Light mode variants are auto-derived.</div>
-              <div id="themeColorsList"></div>
-              <div class="settings-save-row" style="margin-top:0.5em">
-                <button class="admin-clear-btn" onclick="resetTheme()">Reset Defaults</button>
-                <span class="sched-status" id="themeResetStatus"></span>
-              </div>
-              <div id="fieldColorsSection" style="margin-top:1em">
-                <div class="settings-subsection-hdr">Field Colors</div>
-                <div class="field-hint" style="margin-bottom:0.6em">Assign a color to each field tag on game cards. Defaults are Teal / Orange / Purple / Pink / Blue.</div>
-                <div id="fieldsColorList"></div>
+              <div class="settings-save-row">
+                <button class="sched-save-btn" onclick="saveSettings()">Save</button>
               </div>
             </div>
-          </div>
-          <div class="settings-save-row">
-            <button class="sched-save-btn" onclick="saveSettings()">Save Settings</button>
-            <span class="sched-status" id="settingsStatus"></span>
           </div>
         </div>
 

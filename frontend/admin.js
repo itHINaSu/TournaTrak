@@ -116,7 +116,7 @@ function updateQuickBar() {
 }
 
 // ── Settings sidebar ───────────────────────────────────────────────────
-var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users', coaches: 'Coaches' };
+var SETTINGS_SECTION_TITLES = { pageinfo: 'Site Settings', account: 'Account', users: 'Users', coaches: 'Coaches' };
 
 function showSettingsSection(section) {
   document.querySelectorAll('.settings-panel').forEach(function(p) {
