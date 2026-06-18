@@ -163,6 +163,16 @@ shared FORMATS registry used by both the builder API and the CLI).
   public bracket numbers populated rounds sequentially, so a sub-32 bracket
   reads "Round 1, 2, …" instead of borrowing tail names. The full structure is
   unchanged. The admin editor keeps static labels (it shows every defined round).
+- **Bye games** render as a greyed "BYE" card; the team auto-advances and the
+  card is hidden from the schedule and team path.
+- **Calendar schedule editor** (optional): pick playing days, set per-day start
+  time / game count / interval; games fill in bracket order. Build-time only.
+- **Standard 16-team double elimination** (`double-elim-16`): WB on L, LB on R,
+  cross-half loser drops, championship + optional "if necessary" bracket reset
+  (the `supportsIfNecessary` checkbox — on for all double-elim formats). Verified
+  structurally for all outcomes (every team can win; exactly 15 reach two losses).
+  ⚠️ Needs in-browser layout verification — the LB slot packing relies on the
+  renderer's LB-absorption / play-in handling and hasn't been seen rendered yet.
 
 ### Follow-ups
 - **Game-guarantee brackets (2- and 3-game).** Planned. `isEliminated()` in
@@ -175,9 +185,12 @@ shared FORMATS registry used by both the builder API and the CLI).
   round name in `ROUND_BY_DEPTH` (schedule-formats.js) AND widening `SLOT_DEFS`
   in both `api/slot-defs.js` and `frontend/bracket-data.js` (must stay in sync),
   plus verifying the 6-round / 32-per-side bracket renders legibly on mobile.
-- **16-team double-elimination** format (winners + losers bracket, `CHAMP2`
-  "if necessary" reset game). Design collaboratively before building.
-- **Admin nav link** to `/builder` (currently reached by direct URL only).
+- **More double-elim sizes / variants.** 16-team standard is built; the
+  generator (`generateDoubleElim16`) is a template for other sizes and the
+  "twists" (non-standard loser drops, etc.). Build off the same feed-list
+  structure when those are specced.
+- **Game-guarantee brackets** (per the TD: a losers bracket for Y rounds, then
+  single-elim after). Builds on the double-elim loser-feed logic. Not yet built.
 
 ---
 

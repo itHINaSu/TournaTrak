@@ -20,10 +20,13 @@ function nextPow2(n) { var b = 1; while (b < n) b <<= 1; return b; }
 function pad2(n) { return String(n).padStart(2, '0'); }
 function ymd(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
 
-// Real games the current bracket needs a time slot for (single-elim: N - 1).
+// Real games the current bracket needs a time slot for. Single-elim: N - 1.
+// Double-elim: 2N - 2, plus one for the "if necessary" reset when enabled.
 function realGamesNeeded() {
   var n = parsedTeams().length;
-  return n >= 2 ? n - 1 : 0;
+  if (n < 2 || !currentFormat) return 0;
+  if (currentFormat.doubleElim) return (2 * n - 2) + (ifNecessaryOn() ? 1 : 0);
+  return n - 1;
 }
 
 // ── Auth gate ─────────────────────────────────────────────────────────
@@ -80,7 +83,12 @@ function buildFormatOptions() {
 function selectFormat(id) {
   currentFormat = FORMATS.filter(function (f) { return f.id === id; })[0] || FORMATS[0];
   $('formatDesc').textContent = currentFormat.description || '';
+  $('ifNecField').style.display = currentFormat.supportsIfNecessary ? '' : 'none';
   refresh();
+}
+
+function ifNecessaryOn() {
+  return currentFormat && currentFormat.supportsIfNecessary && $('ifNecChk').checked;
 }
 
 // ── Teams ─────────────────────────────────────────────────────────────
@@ -107,7 +115,8 @@ function refresh() {
   // Team count badge
   var countEl = $('teamCount');
   var inRange = n >= min && n <= max;
-  countEl.textContent = n + ' team' + (n === 1 ? '' : 's') + ' (' + min + '–' + max + ')';
+  var range = (min === max) ? String(min) : (min + '–' + max);
+  countEl.textContent = n + ' team' + (n === 1 ? '' : 's') + ' (' + range + ')';
   countEl.className = 'bld-count' + (inRange ? ' bld-count--ok' : '');
 
   // Bye note
@@ -405,6 +414,7 @@ async function doGenerate() {
     } else {
       body.startDate = $('simpleDate').value;
     }
+    if (currentFormat.supportsIfNecessary) body.ifNecessary = $('ifNecChk').checked;
     var r = await fetch('/api/schedule/generate', {
       method: 'POST',
       credentials: 'same-origin',
@@ -430,6 +440,7 @@ function wireEvents() {
   $('formatSel').addEventListener('change', function () { selectFormat(this.value); });
   $('teamsInput').addEventListener('input', refresh);
   $('seedMode').addEventListener('change', refresh);
+  $('ifNecChk').addEventListener('change', refresh);
   $('advSchedChk').addEventListener('change', onAdvToggle);
   $('generateBtn').addEventListener('click', onGenerate);
   $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').style.display = 'none'; });

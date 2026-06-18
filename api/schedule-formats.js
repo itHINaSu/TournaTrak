@@ -226,6 +226,91 @@ function resolveSeeding(opts) {
   }
 }
 
+// Write one side of a double-elim game: a fixed name, or a winner/loser feed.
+function deSide(entry, n, spec) {
+  if (spec.name != null) {
+    entry['t' + n + 'name'] = spec.name;
+  } else {
+    entry['t' + n + 'slot'] = spec.slot;
+    entry['t' + n + 'type'] = spec.type;   // 'winner' | 'loser'
+  }
+}
+
+// Fallback timing when no playing-days plan is given: lay games out
+// sequentially, eight per day, an hour apart from 09:00. Admins fine-tune later.
+function defaultSequentialTimes(startDate, count) {
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    out.push(isoLocal(startDate, Math.floor(i / 8), 9, (i % 8) * 60));
+  }
+  return out;
+}
+
+// ── Format: standard 16-team double elimination ───────────────────────────
+// Winners bracket on the L side, losers bracket on the R side, championship on
+// C — matching the app's bracket model. Losers drop one round back with a
+// cross-half pairing to delay rematches. The "if necessary" bracket-reset game
+// (CHAMP2) is included unless opts.ifNecessary === false. 30 games (31 with the
+// reset). The LB rounds packed into R1.R…SF.R use the renderer's LB-absorption
+// and play-in handling.
+function generateDoubleElim16(opts) {
+  const teams = resolveSeeding(opts);          // 16 teams, top seed first
+  const pos = seedOrder(16).map(s => teams[s - 1]);
+  const w = slot => ({ slot, type: 'winner' });
+  const l = slot => ({ slot, type: 'loser' });
+  const nm = name => ({ name });
+
+  const specs = [];                            // ordered (chronological) game list
+  const add = (slot, t1, t2) => specs.push({ slot, t1, t2 });
+
+  // Winners Round 1 (16 teams → 8 games)
+  for (let i = 0; i < 8; i++) add(`R1.L.${i + 1}`, nm(pos[2 * i]), nm(pos[2 * i + 1]));
+  // Losers Round 1 — WB-R1 losers paired
+  add('R1.R.1', l('R1.L.1'), l('R1.L.2'));
+  add('R1.R.2', l('R1.L.3'), l('R1.L.4'));
+  add('R1.R.3', l('R1.L.5'), l('R1.L.6'));
+  add('R1.R.4', l('R1.L.7'), l('R1.L.8'));
+  // Winners Round 2 (8 → 4)
+  for (let i = 0; i < 4; i++) add(`R2.L.${i + 1}`, w(`R1.L.${2 * i + 1}`), w(`R1.L.${2 * i + 2}`));
+  // Losers Round 2 — LB-R1 winners vs WB-R2 losers (cross-half drop-in)
+  add('R2.R.1', w('R1.R.1'), l('R2.L.3'));
+  add('R2.R.2', w('R1.R.2'), l('R2.L.4'));
+  add('R2.R.3', w('R1.R.3'), l('R2.L.1'));
+  add('R2.R.4', w('R1.R.4'), l('R2.L.2'));
+  // Winners semifinals (4 → 2)
+  add('QF.L.1', w('R2.L.1'), w('R2.L.2'));
+  add('QF.L.2', w('R2.L.3'), w('R2.L.4'));
+  // Losers Round 3 — LB-R2 winners paired
+  add('QF.R.1', w('R2.R.1'), w('R2.R.2'));
+  add('QF.R.2', w('R2.R.3'), w('R2.R.4'));
+  // Winners final (2 → 1) — winner is WB champ, loser drops to the LB final
+  add('QF2.L.1', w('QF.L.1'), w('QF.L.2'));
+  // Losers Round 4 — LB-R3 winners vs WB-semifinal losers (cross)
+  add('QF2.R.1', w('QF.R.1'), l('QF.L.2'));
+  add('QF2.R.2', w('QF.R.2'), l('QF.L.1'));
+  // Losers Round 5 — LB-R4 winners paired
+  add('SF.R.1', w('QF2.R.1'), w('QF2.R.2'));
+  // Losers final — LB-R5 winner vs WB-final loser → LB champ
+  add('SF.R.2', w('SF.R.1'), l('QF2.L.1'));
+  // Championship — WB champ vs LB champ
+  add('CHAMP.C.1', w('QF2.L.1'), w('SF.R.2'));
+  // If necessary — bracket reset, replays the two finalists (optional)
+  if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
+
+  const slotTimes = (opts.playingDays && opts.playingDays.length)
+    ? buildSlotTimes(opts.playingDays)
+    : defaultSequentialTimes(opts.startDate, specs.length);
+
+  const schedule = {};
+  specs.forEach((sp, i) => {
+    const entry = { label: `Game ${i + 1}`, num: i + 1, time: slotTimes[i] || '' };
+    deSide(entry, 1, sp.t1);
+    deSide(entry, 2, sp.t2);
+    schedule[sp.slot] = entry;
+  });
+  return schedule;
+}
+
 const FORMATS = {
   'single-elim': {
     id: 'single-elim',
@@ -234,6 +319,15 @@ const FORMATS = {
     minTeams: 4,
     maxTeams: 32,
     generate: generateSingleElim,
+  },
+  'double-elim-16': {
+    id: 'double-elim-16',
+    label: 'Double Elimination — 16 teams',
+    description: 'Winners and losers brackets — a team is out after two losses. Optionally include the "if necessary" final (bracket reset) the losers-bracket team must win twice to take the title.',
+    teamCount: 16,
+    doubleElim: true,
+    supportsIfNecessary: true,
+    generate: generateDoubleElim16,
   },
 };
 
@@ -309,7 +403,7 @@ function generateSchedule(formatId, opts) {
     }
   }
 
-  return fmt.generate({ startDate: opts.startDate, teams: clean, seedMode, byeTeams, playingDays });
+  return fmt.generate({ startDate: opts.startDate, teams: clean, seedMode, byeTeams, playingDays, ifNecessary: opts.ifNecessary });
 }
 
 module.exports = { FORMATS, generateSchedule, isoLocal, shuffle, nextPow2 };

@@ -817,16 +817,18 @@ app.get('/api/schedule/formats', requireAdmin, (req, res) => {
     // A format declares either a fixed teamCount or a minTeams/maxTeams range.
     minTeams: f.minTeams != null ? f.minTeams : f.teamCount,
     maxTeams: f.maxTeams != null ? f.maxTeams : f.teamCount,
+    doubleElim: !!f.doubleElim,
+    supportsIfNecessary: !!f.supportsIfNecessary,
   })));
 });
 
 // Generate a full bracket schedule from a format + teams and REPLACE the
 // current schedule. Destructive — the UI confirms before calling this.
 app.post('/api/schedule/generate', requireAdmin, (req, res) => {
-  const { format, startDate, teams, seedMode, byeTeams, shuffle, playingDays } = req.body || {};
+  const { format, startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary } = req.body || {};
   let schedule;
   try {
-    schedule = generateSchedule(format, { startDate, teams, seedMode, byeTeams, shuffle, playingDays });
+    schedule = generateSchedule(format, { startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary });
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
