@@ -125,7 +125,18 @@ function showSettingsSection(section) {
   if (section === 'coaches') loadCoaches();
   if (section === 'users')   loadUsers();
   if (section === 'pageinfo') { renderThemeSection(); renderFieldsPanel(); }
-  if (section === 'teams')   renderTeamsEditor();
+  if (section === 'teams')   loadTeams();
+}
+
+// Re-fetch the team list each time the Teams tab opens so changes made via the
+// schedule editor (which derives teams from the schedule) are always reflected,
+// rather than rendering the possibly-stale snapshot taken at page load.
+async function loadTeams() {
+  renderTeamsEditor();   // paint immediately with whatever we have
+  try {
+    var r = await fetch('/api/teams');
+    if (r.ok) { _teamsData = await r.json(); renderTeamsEditor(); }
+  } catch (e) { /* keep the current snapshot on network error */ }
 }
 
 function openSettingsSidebar() {

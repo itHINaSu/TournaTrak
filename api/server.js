@@ -896,16 +896,47 @@ function teamsFromSchedule() {
   const sched = readJSON(SCHEDULE_FILE);
   const seen = new Set();
   const out = [];
+  const add = name => {
+    // 'BYE' is a placeholder opponent in bye games, not a real team.
+    if (name && name !== 'BYE' && !seen.has(name)) { seen.add(name); out.push(name); }
+  };
   Object.values(sched).forEach(g => {
-    if (g && g.t1name && !seen.has(g.t1name)) { seen.add(g.t1name); out.push({ name: g.t1name }); }
-    if (g && g.t2name && !seen.has(g.t2name)) { seen.add(g.t2name); out.push({ name: g.t2name }); }
+    if (g) { add(g.t1name); add(g.t2name); }
   });
   return out;
 }
 
+// Merge the saved team list with the teams currently in the schedule. The
+// schedule is the source of truth for WHICH teams exist (so brackets built or
+// edited via the schedule editor are always reflected); teams.json supplies the
+// ORDER (seeds) and the showSeeds flag. Saved teams still present keep their
+// order; new schedule teams are appended; teams no longer in the schedule drop.
+// When the schedule has no fixed team names yet, fall back to the saved list so
+// a manually-curated roster isn't wiped.
 app.get('/api/teams', (req, res) => {
   const data = readJSON(TEAMS_FILE);
-  const teams = data.teams && data.teams.length ? data.teams : teamsFromSchedule();
+  const saved = Array.isArray(data.teams) ? data.teams : [];
+  const fromSched = teamsFromSchedule();
+
+  let teams;
+  if (fromSched.length) {
+    const schedSet = new Set(fromSched);
+    const savedSet = new Set();
+    const kept = [];
+    saved.forEach(t => {
+      if (t && t.name && schedSet.has(t.name) && !savedSet.has(t.name)) {
+        savedSet.add(t.name);
+        kept.push({ name: t.name });
+      }
+    });
+    const appended = fromSched
+      .filter(name => !savedSet.has(name))
+      .map(name => ({ name }));
+    teams = kept.concat(appended);
+  } else {
+    teams = saved;
+  }
+
   res.json({ showSeeds: !!data.showSeeds, teams });
 });
 
