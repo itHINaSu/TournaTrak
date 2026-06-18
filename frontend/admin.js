@@ -74,11 +74,9 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       toggleSettingsSidebar();
       return;
     }
-    // Hide delays panel and reset schedule delays button on any tab switch
+    // Hide delays panel on any tab switch
     var _dp = document.getElementById('resultsDelaysPanel');
     if (_dp) _dp.style.display = 'none';
-    var _sdb = document.getElementById('schedDelaysToggle');
-    if (_sdb) _sdb.textContent = 'Delays ▼';
     document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
     document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
     tab.classList.add('active');
@@ -88,8 +86,9 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       window._lineupInitDone = true;
       lineupInit();
     }
-    // Reset results to games mode when re-entering the results tab
-    if (tab.dataset.tab === 'results') setResultsMode('games');
+    // Reset to default sub-view when re-entering a tab
+    if (tab.dataset.tab === 'results')  setResultsMode('games');
+    if (tab.dataset.tab === 'schedule') setSchedMode('editor');
     if (tab.dataset.tab === 'settings') {
       var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
       var anyActive = document.querySelector('.settings-panel.active');
@@ -1375,40 +1374,48 @@ function gotoDelays() {
   updateQuickBar();
 }
 
-function toggleSchedDelays() {
-  var dPanel = document.getElementById('resultsDelaysPanel');
-  var slot   = document.getElementById('schedDelaysSlot');
-  var btn    = document.getElementById('schedDelaysToggle');
-  if (!dPanel || !slot) return;
-  var isOpen = slot.contains(dPanel) && dPanel.style.display !== 'none';
-  slot.appendChild(dPanel);
-  dPanel.style.display = isOpen ? 'none' : '';
-  if (!isOpen) renderDelaysAdmin();
-  if (btn) btn.textContent = isOpen ? 'Delays ▼' : 'Delays ▲';
-}
+// ── Schedule sub-views (mirrors setResultsMode) ────────────────────────
+var _schedMode = 'editor';
 
-// Builder has no tab button — it is a sub-view of Schedule, reached via the
-// "+ Builder" action. Activate its panel directly and keep Schedule highlighted.
-function adminSwitchToBuilder() {
-  var _dp = document.getElementById('resultsDelaysPanel');
-  if (_dp) _dp.style.display = 'none';
-  var _sdb = document.getElementById('schedDelaysToggle');
-  if (_sdb) _sdb.textContent = 'Delays ▼';
-  document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
-  document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
-  var schedTab = document.querySelector('.admin-tab[data-tab="schedule"]');
-  if (schedTab) schedTab.classList.add('active');
-  document.getElementById('tab-builder').classList.add('active');
-  updateQuickBar();
-  if (!window._builderInitDone) {
+function setSchedMode(mode) {
+  _schedMode = mode;
+  var ePanel  = document.getElementById('schedEditorPanel');
+  var bPanel  = document.getElementById('schedBuilderPanel');
+  var dPanel  = document.getElementById('resultsDelaysPanel');
+  var slot    = document.getElementById('schedDelaysSlot');
+  var eBtn    = document.getElementById('modeScheduleBtn');
+  var bBtn    = document.getElementById('modeBuilderBtn');
+  var dBtn    = document.getElementById('modeSchedDelaysBtn');
+  var saveBtn = document.getElementById('schedSaveBtn');
+  var saveSt  = document.getElementById('schedStatus');
+  if (ePanel)  ePanel.style.display  = mode === 'editor'  ? '' : 'none';
+  if (bPanel)  bPanel.style.display  = mode === 'builder' ? '' : 'none';
+  if (mode === 'delays' && dPanel && slot) {
+    slot.appendChild(dPanel);
+    dPanel.style.display = '';
+    renderDelaysAdmin();
+  } else if (dPanel) {
+    dPanel.style.display = 'none';
+  }
+  if (eBtn)    eBtn.classList.toggle('active',  mode === 'editor');
+  if (bBtn)    bBtn.classList.toggle('active',  mode === 'builder');
+  if (dBtn)    dBtn.classList.toggle('active',  mode === 'delays');
+  if (saveBtn) saveBtn.style.display = mode === 'editor' ? '' : 'none';
+  if (saveSt)  saveSt.style.display  = mode === 'editor' ? '' : 'none';
+  if (mode === 'builder' && !window._builderInitDone) {
     window._builderInitDone = true;
     if (typeof window.builderInit === 'function') window.builderInit();
   }
 }
 
+function adminSwitchToBuilder() {
+  var schedTab = document.querySelector('.admin-tab[data-tab="schedule"]');
+  if (schedTab && !schedTab.classList.contains('active')) schedTab.click();
+  setSchedMode('builder');
+}
+
 window.adminSwitchToSchedule = function() {
-  var tab = document.querySelector('.admin-tab[data-tab="schedule"]');
-  if (tab) tab.click();
+  setSchedMode('editor');
 };
 
 // ── Bucket challenge admin ─────────────────────────────────────────────

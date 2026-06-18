@@ -172,109 +172,107 @@
 
   <!-- ── SCHEDULE TAB ── -->
   <div class="admin-tab-panel" id="tab-schedule">
-    <div class="admin-subtitle">
-      Edit game labels, times, team names, slot positions, and team sources.
-      Empty slots can be filled to create new games. Save All writes to schedule.json — public page picks up on reload.
-    </div>
-    <!-- Sticky action bar — mirrors the results-tab nav bar, stays in view while scrolling -->
-    <div class="sched-action-row sched-action-row--top">
-      <button class="sched-save-btn" id="schedSaveBtn" onclick="saveAllSchedule()">Save All Changes</button>
-      <button class="admin-public-btn" onclick="adminSwitchToBuilder()">+ Builder</button>
-      <button class="admin-public-btn" id="schedDelaysToggle" onclick="toggleSchedDelays()">Delays ▼</button>
+    <div class="results-mode-bar">
+      <button class="results-mode-btn active" id="modeScheduleBtn" onclick="setSchedMode('editor')">Schedule</button>
+      <button class="results-mode-btn" id="modeBuilderBtn" onclick="setSchedMode('builder')">Builder</button>
+      <button class="results-mode-btn" id="modeSchedDelaysBtn" onclick="setSchedMode('delays')">Delays</button>
+      <button class="sched-save-btn" id="schedSaveBtn" style="margin-left:auto" onclick="saveAllSchedule()">Save All</button>
       <span class="sched-status" id="schedStatus"></span>
     </div>
-    <div id="scheduleEditor"></div>
-    <!-- Slot where the shared delays panel is moved when toggled from Schedule tab -->
+    <div id="schedEditorPanel">
+      <div class="admin-subtitle">Edit game labels, times, team names, slot positions, and team sources.
+        Empty slots can be filled to create new games. Save All writes to schedule.json — public page picks up on reload.</div>
+      <div id="scheduleEditor"></div>
+    </div>
+    <div id="schedBuilderPanel" style="display:none">
+      <main class="bld-main" id="authGate" style="display:none">
+        <div class="bld-card bld-gate">
+          <div class="bld-gate-msg" id="authGateMsg">Sign in as an administrator to build a bracket.</div>
+          <a class="bld-btn bld-btn--primary" href="/admin">Go to Admin Login</a>
+        </div>
+      </main>
+      <main class="bld-main" id="loading">
+        <div class="bld-card"><div class="bld-muted">Loading…</div></div>
+      </main>
+      <main class="bld-main" id="builder" style="display:none">
+        <div class="bld-card">
+          <h2 class="bld-h2">1 · Format</h2>
+          <div class="bld-field">
+            <label for="formatSel">Tournament format</label>
+            <select class="bld-input" id="formatSel"></select>
+          </div>
+          <p class="bld-muted" id="formatDesc"></p>
+          <label class="bld-check" id="ifNecField" style="display:none">
+            <input type="checkbox" id="ifNecChk" checked>
+            Include "if necessary" final (bracket reset — losers-bracket team must win twice)
+          </label>
+        </div>
+        <div class="bld-card">
+          <h2 class="bld-h2">2 · Teams <span class="bld-count" id="teamCount"></span></h2>
+          <div class="bld-gen-row">
+            <span>Randomly generate</span>
+            <select class="bld-input bld-gen-count" id="genCount" aria-label="Number of teams to generate"></select>
+            <span>team names</span>
+            <button type="button" class="bld-btn bld-btn--small" id="genBtn">Generate</button>
+          </div>
+          <div class="bld-field">
+            <label for="teamsInput">One team name per line</label>
+            <textarea class="bld-input bld-textarea" id="teamsInput" rows="10"
+              placeholder="Paste or type one team name per line…" spellcheck="false"></textarea>
+          </div>
+          <p class="bld-muted" id="byeNote"></p>
+        </div>
+        <div class="bld-card">
+          <h2 class="bld-h2">3 · Seeding &amp; byes</h2>
+          <div class="bld-field">
+            <label for="seedMode">How should teams be seeded?</label>
+            <select class="bld-input" id="seedMode">
+              <option value="random">Random — shuffle everything (byes to random teams)</option>
+              <option value="order">By list order — line 1 is the top seed (byes to top teams)</option>
+              <option value="manual">Manual — I'll pick which teams get byes</option>
+            </select>
+          </div>
+          <label class="bld-check" id="showSeedsField" style="display:none">
+            <input type="checkbox" id="showSeedsChk">
+            Show seed numbers on the bracket <span class="bld-muted">(e.g. (1) Team Name)</span>
+          </label>
+          <div id="byePicker" style="display:none">
+            <label class="bld-field" style="display:block">Pick the teams that get a first-round bye
+              <span class="bld-count" id="byeCount"></span></label>
+            <div class="bld-bye-list" id="byeList"></div>
+          </div>
+        </div>
+        <div class="bld-card">
+          <h2 class="bld-h2">4 · Schedule</h2>
+          <div class="bld-field" id="simpleDateField">
+            <label for="simpleDate">Tournament start date</label>
+            <input type="date" class="bld-input" id="simpleDate">
+          </div>
+          <label class="bld-check">
+            <input type="checkbox" id="advSchedChk">
+            Set specific playing days (custom dates, times &amp; games per day)
+          </label>
+          <div id="advSched" style="display:none">
+            <p class="bld-muted">Tap the days games will be played, then set each day's start time,
+              number of games, and minutes between games. Add a field to run games on more than one
+              surface — games then run in concurrent waves so the day finishes sooner, and each day
+              can be limited to the fields it actually uses (e.g. championship day on one field).
+              Games fill the days in bracket order — early rounds first.</p>
+            <div class="bld-cal" id="calendar"></div>
+            <div class="bld-fields-setup" id="fieldsSetup"></div>
+            <div class="bld-days" id="daysList"></div>
+            <p class="bld-muted" id="slotSummary"></p>
+          </div>
+          <p class="bld-muted">Game times can be fine-tuned afterward in the Admin schedule editor.</p>
+        </div>
+        <div class="bld-actions">
+          <div class="bld-error" id="builderError"></div>
+          <button class="bld-btn bld-btn--primary" id="generateBtn">Generate Bracket</button>
+        </div>
+      </main>
+    </div>
+    <!-- Slot where the shared delays panel is moved when delays mode is active -->
     <div id="schedDelaysSlot"></div>
-  </div>
-
-  <!-- ── BUILDER TAB ── -->
-  <div class="admin-tab-panel" id="tab-builder">
-    <main class="bld-main" id="authGate" style="display:none">
-      <div class="bld-card bld-gate">
-        <div class="bld-gate-msg" id="authGateMsg">Sign in as an administrator to build a bracket.</div>
-        <a class="bld-btn bld-btn--primary" href="/admin">Go to Admin Login</a>
-      </div>
-    </main>
-    <main class="bld-main" id="loading">
-      <div class="bld-card"><div class="bld-muted">Loading…</div></div>
-    </main>
-    <main class="bld-main" id="builder" style="display:none">
-      <div class="bld-card">
-        <h2 class="bld-h2">1 · Format</h2>
-        <div class="bld-field">
-          <label for="formatSel">Tournament format</label>
-          <select class="bld-input" id="formatSel"></select>
-        </div>
-        <p class="bld-muted" id="formatDesc"></p>
-        <label class="bld-check" id="ifNecField" style="display:none">
-          <input type="checkbox" id="ifNecChk" checked>
-          Include "if necessary" final (bracket reset — losers-bracket team must win twice)
-        </label>
-      </div>
-      <div class="bld-card">
-        <h2 class="bld-h2">2 · Teams <span class="bld-count" id="teamCount"></span></h2>
-        <div class="bld-gen-row">
-          <span>Randomly generate</span>
-          <select class="bld-input bld-gen-count" id="genCount" aria-label="Number of teams to generate"></select>
-          <span>team names</span>
-          <button type="button" class="bld-btn bld-btn--small" id="genBtn">Generate</button>
-        </div>
-        <div class="bld-field">
-          <label for="teamsInput">One team name per line</label>
-          <textarea class="bld-input bld-textarea" id="teamsInput" rows="10"
-            placeholder="Paste or type one team name per line…" spellcheck="false"></textarea>
-        </div>
-        <p class="bld-muted" id="byeNote"></p>
-      </div>
-      <div class="bld-card">
-        <h2 class="bld-h2">3 · Seeding &amp; byes</h2>
-        <div class="bld-field">
-          <label for="seedMode">How should teams be seeded?</label>
-          <select class="bld-input" id="seedMode">
-            <option value="random">Random — shuffle everything (byes to random teams)</option>
-            <option value="order">By list order — line 1 is the top seed (byes to top teams)</option>
-            <option value="manual">Manual — I'll pick which teams get byes</option>
-          </select>
-        </div>
-        <label class="bld-check" id="showSeedsField" style="display:none">
-          <input type="checkbox" id="showSeedsChk">
-          Show seed numbers on the bracket <span class="bld-muted">(e.g. (1) Team Name)</span>
-        </label>
-        <div id="byePicker" style="display:none">
-          <label class="bld-field" style="display:block">Pick the teams that get a first-round bye
-            <span class="bld-count" id="byeCount"></span></label>
-          <div class="bld-bye-list" id="byeList"></div>
-        </div>
-      </div>
-      <div class="bld-card">
-        <h2 class="bld-h2">4 · Schedule</h2>
-        <div class="bld-field" id="simpleDateField">
-          <label for="simpleDate">Tournament start date</label>
-          <input type="date" class="bld-input" id="simpleDate">
-        </div>
-        <label class="bld-check">
-          <input type="checkbox" id="advSchedChk">
-          Set specific playing days (custom dates, times &amp; games per day)
-        </label>
-        <div id="advSched" style="display:none">
-          <p class="bld-muted">Tap the days games will be played, then set each day's start time,
-            number of games, and minutes between games. Add a field to run games on more than one
-            surface — games then run in concurrent waves so the day finishes sooner, and each day
-            can be limited to the fields it actually uses (e.g. championship day on one field).
-            Games fill the days in bracket order — early rounds first.</p>
-          <div class="bld-cal" id="calendar"></div>
-          <div class="bld-fields-setup" id="fieldsSetup"></div>
-          <div class="bld-days" id="daysList"></div>
-          <p class="bld-muted" id="slotSummary"></p>
-        </div>
-        <p class="bld-muted">Game times can be fine-tuned afterward in the Admin schedule editor.</p>
-      </div>
-      <div class="bld-actions">
-        <div class="bld-error" id="builderError"></div>
-        <button class="bld-btn bld-btn--primary" id="generateBtn">Generate Bracket</button>
-      </div>
-    </main>
   </div>
 
   <!-- ── LINEUPS TAB ── -->
