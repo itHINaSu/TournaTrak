@@ -1102,6 +1102,17 @@ function renderDesktopBracket(root,dims){
           : slotTopVh(col.round,entry.slot,slotVh,col.side);
         cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" style="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
       });
+      if (_bracketEditMode) {
+        var usedSlots = {};
+        col.games.forEach(function(e) { usedSlots[e.slot] = true; });
+        var slotNums = (SLOT_DEFS[col.round] && SLOT_DEFS[col.round][col.side]) || [];
+        slotNums.forEach(function(sn) {
+          if (usedSlots[sn]) return;
+          var slotId = col.round + '.' + col.side + '.' + sn;
+          var topVh = slotTopVh(col.round, sn, slotVh, col.side);
+          cardsHTML += '<div class="bc bc-empty-slot" data-slot="'+esc(slotId)+'" style="top:'+topVh+'vh"></div>';
+        });
+      }
       html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
         +'<div class="round-col-hdr">'+roundLabel(col.round)+'</div>'+cardsHTML+'</div>';
       if(ci<ordCols.length-1){
@@ -2808,9 +2819,9 @@ function initBracketDrag(root) {
     var target = null;
     for (var i = 0; i < els.length; i++) {
       var el = els[i];
-      if (el.dataset && el.dataset.gid && el !== dragState.el && el.classList.contains('bc')) {
-        target = el; break;
-      }
+      if (!el.classList || !el.classList.contains('bc')) continue;
+      if (el.dataset.gid && el !== dragState.el) { target = el; break; }
+      if (el.dataset.slot) { target = el; break; }
     }
     if (overEl && overEl !== target) overEl.classList.remove('bc-drop-target');
     overEl = target;
@@ -2821,13 +2832,13 @@ function initBracketDrag(root) {
     var src = dragState, tgt = overEl;
     cleanup();
     if (!tgt || !src) return;
-    var targetGid = tgt.dataset.gid;
-    if (!targetGid || targetGid === src.gid) return;
+    var targetId = tgt.dataset.gid || tgt.dataset.slot;
+    if (!targetId || targetId === src.gid) return;
 
     fetch('/api/schedule/swap', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slotA: src.gid, slotB: targetGid })
+      body: JSON.stringify({ slotA: src.gid, slotB: targetId })
     }).then(function(r) {
       return r.ok ? r.json() : r.json().then(function(d) { throw new Error(d.error || r.status); });
     }).then(function() {

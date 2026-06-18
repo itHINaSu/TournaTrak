@@ -525,6 +525,19 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 /* ── Admin drag-and-drop ── */
 .bc-dragging    { opacity: 0.3; pointer-events: none; }
 .bc-drop-target { box-shadow: 0 0 0 2px var(--blue), 0 0 12px rgba(60,130,220,0.35); }
+.bc-empty-slot  {
+  border: 2px dashed var(--line-color);
+  border-radius: 6px;
+  background: transparent;
+  opacity: 0.45;
+  pointer-events: all;
+  cursor: default;
+}
+.bc-empty-slot.bc-drop-target {
+  border-color: var(--blue);
+  opacity: 0.75;
+  box-shadow: 0 0 0 2px var(--blue), 0 0 12px rgba(60,130,220,0.35);
+}
 .bc-drag-ghost  {
   opacity: 0.88;
   transform: rotate(1.5deg);
