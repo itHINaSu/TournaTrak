@@ -837,6 +837,19 @@ app.post('/api/schedule/generate', requireAdmin, (req, res) => {
   const verr = validateSchedule(schedule);
   if (verr) return res.status(500).json({ error: 'Generated schedule failed validation: ' + verr });
   writeJSON(SCHEDULE_FILE, schedule);
+
+  // Double elimination has a true winners/losers split, so default the side
+  // labels to match. (Single-elim leaves the existing labels alone — its two
+  // sides are just bracket halves.)
+  const fmt = FORMATS[format];
+  if (fmt && fmt.doubleElim) {
+    const settings = readJSON(SETTINGS_FILE);
+    settings.leftLabel = 'Winners Bracket';
+    settings.rightLabel = 'Losers Bracket';
+    writeJSON(SETTINGS_FILE, settings);
+    invalidateIndexCache();
+  }
+
   res.json({ ok: true, games: Object.keys(schedule).length });
 });
 
