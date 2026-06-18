@@ -523,13 +523,19 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .bc-team.lost { color: var(--lose-color); text-decoration: line-through; opacity: 0.65; }
 
 /* ── Admin drag-and-drop ── */
-.bc-dragging   { opacity: 0.3; pointer-events: none; }
+.bc-dragging    { opacity: 0.3; pointer-events: none; }
 .bc-drop-target { box-shadow: 0 0 0 2px var(--blue), 0 0 12px rgba(60,130,220,0.35); }
-.bc-drag-ghost {
+.bc-drag-ghost  {
   opacity: 0.88;
   transform: rotate(1.5deg);
   box-shadow: 0 8px 28px rgba(0,0,0,0.55);
   cursor: grabbing !important;
+}
+/* Active state for the bracket Edit button */
+.admin-btn-active { color: var(--blue-lt) !important; border-color: var(--blue) !important; }
+/* Hide bracket edit button on mobile — drag-and-drop is desktop only */
+@media (max-width: 1279px) {
+  #bracketEditBtn { display: none !important; }
 }
 
 /* ── Championship center ── */

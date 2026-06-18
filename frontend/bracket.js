@@ -7,6 +7,7 @@ var _teamsData = { showSeeds: false, teams: [] };
 var _seedMap = {};   // { teamName: seedNumber (1-based) }
 var _sessionRole = null;
 var _bucketEditMode = false;
+var _bracketEditMode = false;
 var scheduleMode = null; // null = uninitialised; set from settings on first render
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
@@ -241,6 +242,18 @@ function renderBucketView() {
   }
 }
 
+function toggleBracketEdit() {
+  _bracketEditMode = !_bracketEditMode;
+  var btn = document.getElementById('bracketEditBtn');
+  if (btn) { btn.textContent = _bracketEditMode ? 'Done' : 'Edit'; btn.classList.toggle('admin-btn-active', _bracketEditMode); }
+  if (_bracketEditMode && activeView() !== 'bracket') {
+    var tab = document.querySelector('.view-tab[data-view="bracket"]');
+    if (tab) tab.click();
+  } else {
+    renderBracket();
+  }
+}
+
 function enterBucketEdit() {
   document.querySelectorAll('.view-tab').forEach(function(t){ t.classList.remove('active'); });
   document.querySelectorAll('.view-panel').forEach(function(p){ p.classList.remove('active'); });
@@ -355,6 +368,11 @@ document.querySelectorAll('.view-tab').forEach(function(tab){
     tab.classList.add('active');
     document.getElementById('view-'+tab.dataset.view).classList.add('active');
     setCookie('tt_tab', tab.dataset.view);
+    if (tab.dataset.view !== 'bracket' && _bracketEditMode) {
+      _bracketEditMode = false;
+      var editBtn = document.getElementById('bracketEditBtn');
+      if (editBtn) { editBtn.textContent = 'Edit'; editBtn.classList.remove('admin-btn-active'); }
+    }
     // Leaving the team path clears the shareable ?team= param so other tabs
     // aren't yanked back to team path by fetchAll re-reading the URL.
     if (tab.dataset.view !== 'teampath') {
@@ -1017,7 +1035,7 @@ function renderBracket(){
   applyCSSVars(dims);
   if(dims.isDesktop){
     renderDesktopBracket(root,dims);
-    if(_sessionRole==='admin') initBracketDrag(root);
+    if(_sessionRole==='admin' && _bracketEditMode) initBracketDrag(root);
   } else if(dims.isMobile){
     renderMobileBracket(root,dims);
   }
@@ -2780,7 +2798,7 @@ function initBracketDrag(root) {
     }).then(function(r) {
       return r.ok ? r.json() : r.json().then(function(d) { throw new Error(d.error || r.status); });
     }).then(function() {
-      return fetch('/api/schedule').then(function(r) { return r.json(); });
+      return fetch('/api/schedule', { cache: 'no-store' }).then(function(r) { return r.json(); });
     }).then(function(sched) {
       schedule = sched;
       if (typeof applySchedule === 'function') applySchedule(schedule);
@@ -2808,12 +2826,14 @@ function initBracketDrag(root) {
 fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(function(sess) {
   _sessionRole = sess.role || null;
   var isPwa    = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
-  var adminBtn  = document.getElementById('adminPortalBtn');
-  var lineupBtn = document.getElementById('lineupPortalBtn');
-  var editBtn   = document.getElementById('bucketEditBtn');
-  if (adminBtn)  adminBtn.style.display  = (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
-  if (lineupBtn) lineupBtn.style.display = (_sessionRole === 'team') ? '' : 'none';
-  if (editBtn)   editBtn.style.display   = (_sessionRole === 'buckets') ? '' : 'none';
+  var adminBtn       = document.getElementById('adminPortalBtn');
+  var lineupBtn      = document.getElementById('lineupPortalBtn');
+  var editBtn        = document.getElementById('bucketEditBtn');
+  var bracketEditBtn = document.getElementById('bracketEditBtn');
+  if (adminBtn)       adminBtn.style.display       = (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
+  if (lineupBtn)      lineupBtn.style.display      = (_sessionRole === 'team') ? '' : 'none';
+  if (editBtn)        editBtn.style.display        = (_sessionRole === 'buckets') ? '' : 'none';
+  if (bracketEditBtn) bracketEditBtn.style.display = (_sessionRole === 'admin') ? '' : 'none';
   // PWA home preference: redirect to admin if user prefers it and is in standalone mode
   if (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) {
     var pref; try { pref = localStorage.getItem('ttPwaHome'); } catch(e) {}
