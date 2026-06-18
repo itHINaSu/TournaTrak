@@ -242,3 +242,42 @@ See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `inde
 - Commit messages end with the Claude Code session URL line (harness convention).
 - Do NOT put model IDs in commits/PRs/code.
 - Push: `git push -u origin main`. Do not open PRs unless asked.
+
+## TODO / parked: mobile double-elim round combining (NOT done)
+Discussed but never implemented. Capturing the problem so it can be picked up.
+
+**Where it lives:** `renderMobileBracket()` in `frontend/bracket.js` (~line 1280),
+specifically the "Columns" block (~1306–1355). See also the Mobile bracket peek
+layout notes above (`anchored` / `selfFed` / `data-playin`).
+
+**Current heuristic (what ships today):**
+- One column per round, with two display-only exceptions:
+  1. **LB-only rounds** (all games on one side, L or R) are *absorbed* into the
+     previous column under a "Loser's Bracket" divider (`type: 'absorbed'`). This
+     keeps the previous column's WB games as adjacent feeders so convergence
+     animations still fire (e.g. R4 LB-only merges into R3).
+  2. **Intra-round same-side deps** (an LB final consuming two same-round LB
+     semis) are wave-split below a "Play-In" divider *within the same column*
+     rather than spilling into a continuation column.
+- The absorb decision is purely structural: `singleSide && cols.length > 0`.
+
+**Why it needs revisiting (the discussion):**
+- The single-side test is a proxy, not the real intent. It combines rounds based
+  on bracket geometry rather than on how much horizontal/vertical room a column
+  actually needs on a given viewport, so on some bracket sizes the wrong rounds
+  get merged (or rounds that *should* merge stay separate and force extra swipes).
+- We wanted the combine decision to be **size/round-count aware** — decide what to
+  combine based on the number of rounds and games per column relative to the
+  device, not just "is this round single-sided." Goal: a predictable, minimal set
+  of swipe columns that still preserves feeder adjacency for the convergence
+  animation.
+
+**Open questions to resolve before implementing:**
+- What's the target? Fixed max column count, or a per-viewport budget?
+- How to keep `anchored`/`selfFed` convergence correct when combining rounds that
+  the current absorb path doesn't touch (both-sides rounds)?
+- Does CHAMP/CHAMP2 (currently always their own columns) participate?
+
+**Note:** the specifics of the earlier verbal discussion weren't preserved in this
+context window — the above is reconstructed from the current code + intent. Confirm
+the exact desired behavior with the user before building.
