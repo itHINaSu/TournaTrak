@@ -283,136 +283,150 @@ function defaultSequentialTimes(startDate, count) {
   return out;
 }
 
-// ── Format: standard 16-team double elimination ───────────────────────────
-// Winners bracket on the L side, losers bracket on the R side, championship on
-// C — matching the app's bracket model. Losers drop one round back with a
-// cross-half pairing to delay rematches. The "if necessary" bracket-reset game
-// (CHAMP2) is included unless opts.ifNecessary === false. 30 games (31 with the
-// reset). The LB rounds packed into R1.R…SF.R use the renderer's LB-absorption
-// and play-in handling.
-function generateDoubleElim16(opts) {
-  const teams = resolveSeeding(opts);          // 16 teams, top seed first
-  const pos = seedOrder(16).map(s => teams[s - 1]);
+// ── Format: double elimination, 4/8/16/32 teams ───────────────────────────
+// Winners bracket (L side), losers bracket (R side), championship (C).
+// Losers drop one round back with a cross-half pairing to delay rematches.
+// Optional "if necessary" bracket-reset game (CHAMP2).
+//
+// Slot layout per bracket size:
+//   B= 4: WB[QF.L, SF.L]         LB[SF.R.1, SF.R.2]           →  6 games
+//   B= 8: WB[R1.L, R2.L, QF.L]   LB[R1.R, R2.R, QF.R, SF.R.1]→ 14 games
+//   B=16: WB[R1.L, R2.L, QF.L, QF2.L]  LB[...SF.R.1-2]        → 30 games
+//   B=32: WB[R1.L…SF.L]          LB[…SF.R.1-2, SF3.R.1-2, SF2.R.1-2] → 62 games
+function generateDoubleElim(opts) {
+  const teams = resolveSeeding(opts);
+  const N = teams.length;
+  const B = nextPow2(N);
+  if (![4, 8, 16, 32].includes(B)) {
+    throw new Error('Double elimination requires exactly 4, 8, 16, or 32 teams');
+  }
+  const pos = seedOrder(B).map(s => teams[s - 1]);
   const w = slot => ({ slot, type: 'winner' });
   const l = slot => ({ slot, type: 'loser' });
   const nm = name => ({ name });
-
-  const specs = [];                            // ordered (chronological) game list
-  const add = (slot, t1, t2) => specs.push({ slot, t1, t2 });
-
-  // Winners Round 1 (16 teams → 8 games)
-  for (let i = 0; i < 8; i++) add(`R1.L.${i + 1}`, nm(pos[2 * i]), nm(pos[2 * i + 1]));
-  // Losers Round 1 — WB-R1 losers paired
-  add('R1.R.1', l('R1.L.1'), l('R1.L.2'));
-  add('R1.R.2', l('R1.L.3'), l('R1.L.4'));
-  add('R1.R.3', l('R1.L.5'), l('R1.L.6'));
-  add('R1.R.4', l('R1.L.7'), l('R1.L.8'));
-  // Winners Round 2 (8 → 4)
-  for (let i = 0; i < 4; i++) add(`R2.L.${i + 1}`, w(`R1.L.${2 * i + 1}`), w(`R1.L.${2 * i + 2}`));
-  // Losers Round 2 — LB-R1 winners vs WB-R2 losers (cross-half drop-in)
-  add('R2.R.1', w('R1.R.1'), l('R2.L.3'));
-  add('R2.R.2', w('R1.R.2'), l('R2.L.4'));
-  add('R2.R.3', w('R1.R.3'), l('R2.L.1'));
-  add('R2.R.4', w('R1.R.4'), l('R2.L.2'));
-  // Winners semifinals (4 → 2)
-  add('QF.L.1', w('R2.L.1'), w('R2.L.2'));
-  add('QF.L.2', w('R2.L.3'), w('R2.L.4'));
-  // Losers Round 3 — LB-R2 winners paired
-  add('QF.R.1', w('R2.R.1'), w('R2.R.2'));
-  add('QF.R.2', w('R2.R.3'), w('R2.R.4'));
-  // Winners final (2 → 1) — winner is WB champ, loser drops to the LB final
-  add('QF2.L.1', w('QF.L.1'), w('QF.L.2'));
-  // Losers Round 4 — LB-R3 winners vs WB-semifinal losers (cross)
-  add('QF2.R.1', w('QF.R.1'), l('QF.L.2'));
-  add('QF2.R.2', w('QF.R.2'), l('QF.L.1'));
-  // Losers Round 5 — LB-R4 winners paired
-  add('SF.R.1', w('QF2.R.1'), w('QF2.R.2'));
-  // Losers final — LB-R5 winner vs WB-final loser → LB champ
-  add('SF.R.2', w('SF.R.1'), l('QF2.L.1'));
-  // Championship — WB champ vs LB champ
-  add('CHAMP.C.1', w('QF2.L.1'), w('SF.R.2'));
-  // If necessary — bracket reset, replays the two finalists (optional)
-  if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
-
-  const slotTimes = (opts.playingDays && opts.playingDays.length)
-    ? buildSlotTimes(opts.playingDays)
-    : defaultSequentialTimes(opts.startDate, specs.length);
-
-  const schedule = {};
-  specs.forEach((sp, i) => {
-    const st = slotTimes[i] || {};
-    const entry = { label: expandPrefix(opts.gamePrefix, sp.slot) + (i + 1), num: i + 1, time: st.time || '' };
-    if (st.field) entry.field = st.field;
-    deSide(entry, 1, sp.t1);
-    deSide(entry, 2, sp.t2);
-    schedule[sp.slot] = entry;
-  });
-  return schedule;
-}
-
-// ── Format: standard 32-team double elimination ───────────────────────────
-// Mirrors the 16-team structure, scaled up. WB: R1.L(16) → R2.L(8) → QF.L(4)
-// → QF2.L(2) → SF.L(1 WB final). LB has 8 rounds packed into R1.R…SF2.R,
-// ending with SF2.R.2 as the LB final. Championship is SF.L.1 winner vs
-// SF2.R.2 winner. 62 games total (63 with if-necessary reset).
-function generateDoubleElim32(opts) {
-  const teams = resolveSeeding(opts);          // 32 teams, top seed first
-  const pos = seedOrder(32).map(s => teams[s - 1]);
-  const w = slot => ({ slot, type: 'winner' });
-  const l = slot => ({ slot, type: 'loser' });
-  const nm = name => ({ name });
-
   const specs = [];
   const add = (slot, t1, t2) => specs.push({ slot, t1, t2 });
 
-  // WB Round 1: 16 games
-  for (let i = 0; i < 16; i++) add(`R1.L.${i + 1}`, nm(pos[2 * i]), nm(pos[2 * i + 1]));
-  // LB Round 1: 8 games — pair WB-R1 losers sequentially
-  for (let i = 0; i < 8; i++) add(`R1.R.${i + 1}`, l(`R1.L.${2 * i + 1}`), l(`R1.L.${2 * i + 2}`));
-  // WB Round 2: 8 games
-  for (let i = 0; i < 8; i++) add(`R2.L.${i + 1}`, w(`R1.L.${2 * i + 1}`), w(`R1.L.${2 * i + 2}`));
-  // LB Round 2: 8 games — LB-R1 winners vs WB-R2 losers, cross-half to delay rematches
-  add('R2.R.1', w('R1.R.1'), l('R2.L.5'));
-  add('R2.R.2', w('R1.R.2'), l('R2.L.6'));
-  add('R2.R.3', w('R1.R.3'), l('R2.L.7'));
-  add('R2.R.4', w('R1.R.4'), l('R2.L.8'));
-  add('R2.R.5', w('R1.R.5'), l('R2.L.1'));
-  add('R2.R.6', w('R1.R.6'), l('R2.L.2'));
-  add('R2.R.7', w('R1.R.7'), l('R2.L.3'));
-  add('R2.R.8', w('R1.R.8'), l('R2.L.4'));
-  // WB QF: 4 games
-  add('QF.L.1', w('R2.L.1'), w('R2.L.2'));
-  add('QF.L.2', w('R2.L.3'), w('R2.L.4'));
-  add('QF.L.3', w('R2.L.5'), w('R2.L.6'));
-  add('QF.L.4', w('R2.L.7'), w('R2.L.8'));
-  // LB Round 3: 4 games — pair LB-R2 winners
-  add('QF.R.1', w('R2.R.1'), w('R2.R.2'));
-  add('QF.R.2', w('R2.R.3'), w('R2.R.4'));
-  add('QF.R.3', w('R2.R.5'), w('R2.R.6'));
-  add('QF.R.4', w('R2.R.7'), w('R2.R.8'));
-  // WB SF (QF2): 2 games
-  add('QF2.L.1', w('QF.L.1'), w('QF.L.2'));
-  add('QF2.L.2', w('QF.L.3'), w('QF.L.4'));
-  // LB Round 4: 4 games — LB-R3 winners vs WB-QF losers, cross to delay rematches
-  add('QF2.R.1', w('QF.R.1'), l('QF.L.3'));
-  add('QF2.R.2', w('QF.R.2'), l('QF.L.4'));
-  add('QF2.R.3', w('QF.R.3'), l('QF.L.1'));
-  add('QF2.R.4', w('QF.R.4'), l('QF.L.2'));
-  // WB Final: 1 game — winner is WB champ, loser drops to LB
-  add('SF.L.1', w('QF2.L.1'), w('QF2.L.2'));
-  // LB Round 5: 2 games — pair LB-R4 winners
-  add('SF.R.1', w('QF2.R.1'), w('QF2.R.2'));
-  add('SF.R.2', w('QF2.R.3'), w('QF2.R.4'));
-  // LB Round 6: 2 games — LB-R5 winners vs WB-SF losers, cross
-  add('SF.R.3', w('SF.R.1'), l('QF2.L.2'));
-  add('SF.R.4', w('SF.R.2'), l('QF2.L.1'));
-  // LB Round 7: 1 game — pair LB-R6 winners
-  add('SF2.R.1', w('SF.R.3'), w('SF.R.4'));
-  // LB Final: 1 game — LB-R7 winner vs WB-Final loser → LB champ
-  add('SF2.R.2', w('SF2.R.1'), l('SF.L.1'));
-  // Championship — WB champ vs LB champ
-  add('CHAMP.C.1', w('SF.L.1'), w('SF2.R.2'));
-  if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
+  if (B === 4) {
+    // WB R1 (2 games)
+    add('QF.L.1', nm(pos[0]), nm(pos[1]));
+    add('QF.L.2', nm(pos[2]), nm(pos[3]));
+    // LB R1 (1 game)
+    add('SF.R.1', l('QF.L.1'), l('QF.L.2'));
+    // WB Final (1 game)
+    add('SF.L.1', w('QF.L.1'), w('QF.L.2'));
+    // LB Final (1 game)
+    add('SF.R.2', w('SF.R.1'), l('SF.L.1'));
+    // Championship
+    add('CHAMP.C.1', w('SF.L.1'), w('SF.R.2'));
+    if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
+
+  } else if (B === 8) {
+    // WB R1 (4 games)
+    for (let i = 0; i < 4; i++) add(`R1.L.${i + 1}`, nm(pos[2 * i]), nm(pos[2 * i + 1]));
+    // LB R1 (2 games — pair WB R1 losers)
+    add('R1.R.1', l('R1.L.1'), l('R1.L.2'));
+    add('R1.R.2', l('R1.L.3'), l('R1.L.4'));
+    // WB SF (2 games)
+    add('R2.L.1', w('R1.L.1'), w('R1.L.2'));
+    add('R2.L.2', w('R1.L.3'), w('R1.L.4'));
+    // LB R2 (2 games — LB R1 winners vs WB SF losers, cross)
+    add('R2.R.1', w('R1.R.1'), l('R2.L.2'));
+    add('R2.R.2', w('R1.R.2'), l('R2.L.1'));
+    // WB Final (1 game)
+    add('QF.L.1', w('R2.L.1'), w('R2.L.2'));
+    // LB R3 (1 game — pair LB R2 winners)
+    add('QF.R.1', w('R2.R.1'), w('R2.R.2'));
+    // LB Final (1 game — LB R3 winner vs WB Final loser)
+    add('SF.R.1', w('QF.R.1'), l('QF.L.1'));
+    // Championship
+    add('CHAMP.C.1', w('QF.L.1'), w('SF.R.1'));
+    if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
+
+  } else if (B === 16) {
+    // WB R1 (8 games)
+    for (let i = 0; i < 8; i++) add(`R1.L.${i + 1}`, nm(pos[2 * i]), nm(pos[2 * i + 1]));
+    // LB R1 (4 games — pair WB R1 losers)
+    add('R1.R.1', l('R1.L.1'), l('R1.L.2'));
+    add('R1.R.2', l('R1.L.3'), l('R1.L.4'));
+    add('R1.R.3', l('R1.L.5'), l('R1.L.6'));
+    add('R1.R.4', l('R1.L.7'), l('R1.L.8'));
+    // WB R2 (4 games)
+    for (let i = 0; i < 4; i++) add(`R2.L.${i + 1}`, w(`R1.L.${2 * i + 1}`), w(`R1.L.${2 * i + 2}`));
+    // LB R2 (4 games — LB R1 winners vs WB R2 losers, cross)
+    add('R2.R.1', w('R1.R.1'), l('R2.L.3'));
+    add('R2.R.2', w('R1.R.2'), l('R2.L.4'));
+    add('R2.R.3', w('R1.R.3'), l('R2.L.1'));
+    add('R2.R.4', w('R1.R.4'), l('R2.L.2'));
+    // WB SF (2 games)
+    add('QF.L.1', w('R2.L.1'), w('R2.L.2'));
+    add('QF.L.2', w('R2.L.3'), w('R2.L.4'));
+    // LB R3 (2 games — pair LB R2 winners)
+    add('QF.R.1', w('R2.R.1'), w('R2.R.2'));
+    add('QF.R.2', w('R2.R.3'), w('R2.R.4'));
+    // WB Final (1 game)
+    add('QF2.L.1', w('QF.L.1'), w('QF.L.2'));
+    // LB R4 (2 games — LB R3 winners vs WB SF losers, cross)
+    add('QF2.R.1', w('QF.R.1'), l('QF.L.2'));
+    add('QF2.R.2', w('QF.R.2'), l('QF.L.1'));
+    // LB R5 (1 game — pair LB R4 winners)
+    add('SF.R.1', w('QF2.R.1'), w('QF2.R.2'));
+    // LB Final (1 game — LB R5 winner vs WB Final loser)
+    add('SF.R.2', w('SF.R.1'), l('QF2.L.1'));
+    // Championship
+    add('CHAMP.C.1', w('QF2.L.1'), w('SF.R.2'));
+    if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
+
+  } else { // B === 32
+    // WB R1 (16 games)
+    for (let i = 0; i < 16; i++) add(`R1.L.${i + 1}`, nm(pos[2 * i]), nm(pos[2 * i + 1]));
+    // LB R1 (8 games — pair WB R1 losers)
+    for (let i = 0; i < 8; i++) add(`R1.R.${i + 1}`, l(`R1.L.${2 * i + 1}`), l(`R1.L.${2 * i + 2}`));
+    // WB R2 (8 games)
+    for (let i = 0; i < 8; i++) add(`R2.L.${i + 1}`, w(`R1.L.${2 * i + 1}`), w(`R1.L.${2 * i + 2}`));
+    // LB R2 (8 games — LB R1 winners vs WB R2 losers, cross-half to delay rematches)
+    add('R2.R.1', w('R1.R.1'), l('R2.L.5'));
+    add('R2.R.2', w('R1.R.2'), l('R2.L.6'));
+    add('R2.R.3', w('R1.R.3'), l('R2.L.7'));
+    add('R2.R.4', w('R1.R.4'), l('R2.L.8'));
+    add('R2.R.5', w('R1.R.5'), l('R2.L.1'));
+    add('R2.R.6', w('R1.R.6'), l('R2.L.2'));
+    add('R2.R.7', w('R1.R.7'), l('R2.L.3'));
+    add('R2.R.8', w('R1.R.8'), l('R2.L.4'));
+    // WB QF (4 games)
+    add('QF.L.1', w('R2.L.1'), w('R2.L.2'));
+    add('QF.L.2', w('R2.L.3'), w('R2.L.4'));
+    add('QF.L.3', w('R2.L.5'), w('R2.L.6'));
+    add('QF.L.4', w('R2.L.7'), w('R2.L.8'));
+    // LB R3 (4 games — pair LB R2 winners)
+    add('QF.R.1', w('R2.R.1'), w('R2.R.2'));
+    add('QF.R.2', w('R2.R.3'), w('R2.R.4'));
+    add('QF.R.3', w('R2.R.5'), w('R2.R.6'));
+    add('QF.R.4', w('R2.R.7'), w('R2.R.8'));
+    // WB SF (2 games)
+    add('QF2.L.1', w('QF.L.1'), w('QF.L.2'));
+    add('QF2.L.2', w('QF.L.3'), w('QF.L.4'));
+    // LB R4 (4 games — LB R3 winners vs WB QF losers, cross to delay rematches)
+    add('QF2.R.1', w('QF.R.1'), l('QF.L.3'));
+    add('QF2.R.2', w('QF.R.2'), l('QF.L.4'));
+    add('QF2.R.3', w('QF.R.3'), l('QF.L.1'));
+    add('QF2.R.4', w('QF.R.4'), l('QF.L.2'));
+    // WB Final (1 game)
+    add('SF.L.1', w('QF2.L.1'), w('QF2.L.2'));
+    // LB R5 (2 games — pair LB R4 winners)
+    add('SF.R.1', w('QF2.R.1'), w('QF2.R.2'));
+    add('SF.R.2', w('QF2.R.3'), w('QF2.R.4'));
+    // LB R6 (2 games — LB R5 winners vs WB Final loser, cross) — uses SF3 column
+    add('SF3.R.1', w('SF.R.1'), l('QF2.L.2'));
+    add('SF3.R.2', w('SF.R.2'), l('QF2.L.1'));
+    // LB R7 (1 game — pair LB R6 winners)
+    add('SF2.R.1', w('SF3.R.1'), w('SF3.R.2'));
+    // LB Final (1 game — LB R7 winner vs WB Final loser → LB champ)
+    add('SF2.R.2', w('SF2.R.1'), l('SF.L.1'));
+    // Championship
+    add('CHAMP.C.1', w('SF.L.1'), w('SF2.R.2'));
+    if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
+  }
 
   const slotTimes = (opts.playingDays && opts.playingDays.length)
     ? buildSlotTimes(opts.playingDays)
@@ -439,23 +453,14 @@ const FORMATS = {
     maxTeams: 64,
     generate: generateSingleElim,
   },
-  'double-elim-16': {
-    id: 'double-elim-16',
-    label: 'Double Elimination — 16 teams',
-    description: 'Winners and losers brackets — a team is out after two losses. Optionally include the "if necessary" final (bracket reset) the losers-bracket team must win twice to take the title.',
-    teamCount: 16,
+  'double-elim': {
+    id: 'double-elim',
+    label: 'Double Elimination',
+    description: 'Winners and losers brackets — a team is out after two losses. Supports 4, 8, 16, or 32 teams. Optionally include the "if necessary" final (bracket reset).',
+    validCounts: [4, 8, 16, 32],
     doubleElim: true,
     supportsIfNecessary: true,
-    generate: generateDoubleElim16,
-  },
-  'double-elim-32': {
-    id: 'double-elim-32',
-    label: 'Double Elimination — 32 teams',
-    description: 'Winners and losers brackets for 32 teams — a team is out after two losses. 62 games (63 with the optional if-necessary final).',
-    teamCount: 32,
-    doubleElim: true,
-    supportsIfNecessary: true,
-    generate: generateDoubleElim32,
+    generate: generateDoubleElim,
   },
 };
 
@@ -516,12 +521,19 @@ function generateSchedule(formatId, opts) {
   const dupes = clean.filter((t, i) => clean.indexOf(t) !== i);
   if (dupes.length) throw new Error('Duplicate team name: ' + dupes[0]);
 
-  // Team-count bounds — a format declares either a fixed teamCount or a range.
-  const min = fmt.minTeams != null ? fmt.minTeams : fmt.teamCount;
-  const max = fmt.maxTeams != null ? fmt.maxTeams : fmt.teamCount;
-  if (clean.length < min || clean.length > max) {
-    const range = min === max ? `${min}` : `${min}–${max}`;
-    throw new Error(`${fmt.label} requires ${range} teams (got ${clean.length})`);
+  // Team-count bounds — a format declares either a fixed teamCount, a range,
+  // or an explicit validCounts list (e.g. double-elim only accepts powers of 2).
+  if (fmt.validCounts) {
+    if (!fmt.validCounts.includes(clean.length)) {
+      throw new Error(`${fmt.label} requires exactly ${fmt.validCounts.join(', ')} teams (got ${clean.length})`);
+    }
+  } else {
+    const min = fmt.minTeams != null ? fmt.minTeams : fmt.teamCount;
+    const max = fmt.maxTeams != null ? fmt.maxTeams : fmt.teamCount;
+    if (clean.length < min || clean.length > max) {
+      const range = min === max ? `${min}` : `${min}–${max}`;
+      throw new Error(`${fmt.label} requires ${range} teams (got ${clean.length})`);
+    }
   }
 
   // Seeding mode (back-compat: shuffle===false means seed by input order).

@@ -164,13 +164,17 @@ function generateTeamNames(n) {
 function updateGenCountOptions() {
   var sel = $('genCount');
   if (!sel || !currentFormat) return;
-  var min = currentFormat.minTeams, max = currentFormat.maxTeams;
+  var counts;
+  if (currentFormat.validCounts) {
+    counts = currentFormat.validCounts.slice();
+  } else {
+    counts = [];
+    for (var n = currentFormat.minTeams; n <= currentFormat.maxTeams; n++) counts.push(n);
+  }
   var prev = parseInt(sel.value, 10);
-  var html = '';
-  for (var n = min; n <= max; n++) html += '<option value="' + n + '">' + n + '</option>';
-  sel.innerHTML = html;
-  if (prev >= min && prev <= max) sel.value = String(prev);
-  else sel.value = String(max);   // default to a full bracket
+  sel.innerHTML = counts.map(function(n) { return '<option value="' + n + '">' + n + '</option>'; }).join('');
+  if (counts.indexOf(prev) !== -1) sel.value = String(prev);
+  else sel.value = String(counts[counts.length - 1]);
 }
 
 function genRandomTeams() {
@@ -185,7 +189,9 @@ function genRandomTeams() {
 // two, or if the count is below the format minimum).
 function byesNeeded() {
   var n = parsedTeams().length;
-  if (!currentFormat || n < currentFormat.minTeams) return 0;
+  if (!currentFormat) return 0;
+  if (currentFormat.validCounts) return 0;
+  if (n < currentFormat.minTeams) return 0;
   return nextPow2(n) - n;
 }
 
@@ -193,12 +199,17 @@ function byesNeeded() {
 function refresh() {
   var teams = parsedTeams();
   var n = teams.length;
-  var min = currentFormat.minTeams, max = currentFormat.maxTeams;
-
   // Team count badge
   var countEl = $('teamCount');
-  var inRange = n >= min && n <= max;
-  var range = (min === max) ? String(min) : (min + '–' + max);
+  var inRange, range;
+  if (currentFormat.validCounts) {
+    inRange = currentFormat.validCounts.indexOf(n) !== -1;
+    range = currentFormat.validCounts.join(', ');
+  } else {
+    var min = currentFormat.minTeams, max = currentFormat.maxTeams;
+    inRange = n >= min && n <= max;
+    range = (min === max) ? String(min) : (min + '–' + max);
+  }
   countEl.textContent = n + ' team' + (n === 1 ? '' : 's') + ' (' + range + ')';
   countEl.className = 'bld-count' + (inRange ? ' bld-count--ok' : '');
 
@@ -526,11 +537,17 @@ function onGenerate() {
   showError('');
   var teams = parsedTeams();
   var n = teams.length;
-  var min = currentFormat.minTeams, max = currentFormat.maxTeams;
-
-  if (n < min || n > max) {
-    showError('Need between ' + min + ' and ' + max + ' teams — you have ' + n + '.');
-    return;
+  if (currentFormat.validCounts) {
+    if (currentFormat.validCounts.indexOf(n) === -1) {
+      showError('Need exactly ' + currentFormat.validCounts.join(', ') + ' teams — you have ' + n + '.');
+      return;
+    }
+  } else {
+    var min = currentFormat.minTeams, max = currentFormat.maxTeams;
+    if (n < min || n > max) {
+      showError('Need between ' + min + ' and ' + max + ' teams — you have ' + n + '.');
+      return;
+    }
   }
   var dupes = teams.filter(function (t, i) { return teams.indexOf(t) !== i; });
   if (dupes.length) { showError('Duplicate team name: "' + dupes[0] + '"'); return; }
