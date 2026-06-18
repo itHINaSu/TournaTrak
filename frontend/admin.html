@@ -174,7 +174,7 @@
   <div class="admin-tab-panel" id="tab-schedule">
     <div class="results-mode-bar">
       <button class="results-mode-btn active" id="modeScheduleBtn" onclick="setSchedMode('editor')">Schedule</button>
-      <button class="results-mode-btn" id="modeBuilderBtn" onclick="setSchedMode('builder')">Builder</button>
+      <button class="results-mode-btn" id="modeBuilderBtn" onclick="setSchedMode('builder')">Bracket Builder</button>
       <button class="results-mode-btn" id="modeSchedDelaysBtn" onclick="setSchedMode('delays')">Delays</button>
     </div>
     <div id="schedEditorPanel">
@@ -684,7 +684,7 @@
     <div class="bld-modal-title">Bracket created</div>
     <div class="bld-modal-body" id="doneText"></div>
     <div class="bld-modal-actions">
-      <a class="bld-btn" href="/">View public bracket</a>
+      <a class="bld-btn" id="doneViewPublicBtn" href="/">View public bracket</a>
       <a class="bld-btn bld-btn--primary" id="doneToScheduleBtn" href="/admin">Open schedule editor</a>
     </div>
   </div>

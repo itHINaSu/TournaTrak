@@ -997,3 +997,11 @@ input[type="time"]:focus {
 }
 .team-ed-up:disabled, .team-ed-down:disabled { opacity: 0.2; cursor: not-allowed; }
 .team-ed-up:not(:disabled):hover, .team-ed-down:not(:disabled):hover { color: var(--text); border-color: var(--text-dim); }
+
+
+/* Builder embedded in schedule tab — fill the full panel width */
+#schedBuilderPanel .bld-main {
+  max-width: none;
+  margin: 0;
+  padding: 0.75em 1em;
+}

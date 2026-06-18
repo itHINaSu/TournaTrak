@@ -629,6 +629,13 @@ function wireEvents() {
   $('generateBtn').addEventListener('click', onGenerate);
   $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').style.display = 'none'; });
   $('confirmBtn').addEventListener('click', doGenerate);
+  var doneViewPublic = $('doneViewPublicBtn');
+  if (doneViewPublic) {
+    doneViewPublic.addEventListener('click', function (e) {
+      e.preventDefault();
+      window.location.href = '/?v=' + Date.now();
+    });
+  }
   var doneToSched = $('doneToScheduleBtn');
   if (doneToSched && window.__builderEmbedded) {
     doneToSched.addEventListener('click', function (e) {
