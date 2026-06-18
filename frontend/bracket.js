@@ -160,7 +160,7 @@ function renderBucketView() {
   var schedTeams = [];
   Object.values(GAMES).forEach(function(g) {
     if (g.t1 && g.t1.type === 'fixed' && g.t1.team) schedTeams.push(g.t1.team);
-    if (g.t2 && g.t2.type === 'fixed' && g.t2.team) schedTeams.push(g.t2.team);
+    if (!g.bye && g.t2 && g.t2.type === 'fixed' && g.t2.team) schedTeams.push(g.t2.team);
   });
   schedTeams = schedTeams.filter(function(t, i, a) { return a.indexOf(t) === i; });
   var allTeams = schedTeams.concat(extraTeams.filter(function(t) { return schedTeams.indexOf(t) === -1; }));
@@ -780,6 +780,7 @@ function cardHTML(gid){
   var t1=disp(gid,g.t1), t2=disp(gid,g.t2), r=results[gid]||{};
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
+  if(g.bye){ c1='won'; c2='bye'; }   // lone team advances; opponent is a greyed BYE
   var isChampSlot = gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
   return '<div class="bc-hdr"><span class="bc-id">'+esc(gameLabel(gid))+'</span>'
     +fieldTagHTML(gid)
@@ -1158,6 +1159,7 @@ function mobileRoundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
+  if (g.bye) { c1 = 'won'; c2 = 'bye'; }   // lone team advances; opponent is a greyed BYE
   var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
   if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
@@ -1196,6 +1198,7 @@ function roundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
+  if (g.bye) { c1 = 'won'; c2 = 'bye'; }   // lone team advances; opponent is a greyed BYE
   var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
   if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
@@ -2166,8 +2169,9 @@ function renderScheduleView() {
   var groupSel = document.getElementById('schedGroup');
   if (groupSel) groupSel.value = scheduleMode;
 
-  // All game IDs sorted by time (TBD games sort to end via parseTimeVal→Infinity)
-  var allSids = Object.keys(GAMES).sort(function(a, b) {
+  // All game IDs sorted by time (TBD games sort to end via parseTimeVal→Infinity).
+  // Bye games are excluded — they aren't played, so they never appear in the schedule.
+  var allSids = Object.keys(GAMES).filter(function(s) { return !GAMES[s].bye; }).sort(function(a, b) {
     return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time);
   });
 
@@ -2274,7 +2278,7 @@ function populateTeamSelect(){
   var teams={};
   Object.values(GAMES).forEach(function(g){
     if(g.t1&&g.t1.type==='fixed'&&g.t1.team) teams[g.t1.team]=1;
-    if(g.t2&&g.t2.type==='fixed'&&g.t2.team) teams[g.t2.team]=1;
+    if(!g.bye&&g.t2&&g.t2.type==='fixed'&&g.t2.team) teams[g.t2.team]=1;
   });
   Object.keys(teams).sort().forEach(function(name){
     var o=document.createElement('option');
@@ -2474,7 +2478,7 @@ function renderTeamView(){
     var teamNames = [];
     Object.values(GAMES).forEach(function(g){
       if(g.t1&&g.t1.type==='fixed'&&g.t1.team) teamNames.push(g.t1.team);
-      if(g.t2&&g.t2.type==='fixed'&&g.t2.team) teamNames.push(g.t2.team);
+      if(!g.bye&&g.t2&&g.t2.type==='fixed'&&g.t2.team) teamNames.push(g.t2.team);
     });
     teamNames = teamNames.filter(function(t,i,a){ return a.indexOf(t)===i; }).sort();
     if(!teamNames.length){ out.innerHTML=''; return; }
@@ -2504,6 +2508,7 @@ function renderTeamView(){
   var firstGid=null;
   occupiedSlots().forEach(function(sid){
     if(firstGid) return;
+    if(GAMES[sid].bye) return;   // a bye isn't a real game in the team's path
     if(resolveSlot(GAMES[sid].t1,results)===team||resolveSlot(GAMES[sid].t2,results)===team)
       firstGid=sid;
   });

@@ -107,10 +107,11 @@ function generateSingleElim(opts) {
   const posTeam = order.map(seed => (seed <= N ? orderedTeams[seed - 1] : null));
 
   // Resolve the bracket bottom-up. A node yields an "occupant" that flows
-  // upward: a real team name (leaf or bye passthrough) or the winner of a game
-  // played at that node. A game is emitted only when BOTH children have an
-  // occupant — a lone occupant (bye) advances without playing.
-  const games = [];   // { depth, lo, slot, s1, s2 } in discovery order
+  // upward: a real team name (leaf) or the winner of a game played at that node.
+  // A first-round matchup with one empty side becomes a *bye game* — a visible
+  // card (Team vs BYE) whose lone team auto-advances, so the bracket renders
+  // complete instead of leaving holes where byes would be.
+  const games = [];   // { depth, lo, slot, s1, s2, bye? } in discovery order
   function resolve(lo, hi, depth) {
     if (hi - lo === 1) {
       return posTeam[lo] == null ? null : { name: posTeam[lo] };
@@ -119,8 +120,16 @@ function generateSingleElim(opts) {
     const left = resolve(lo, mid, depth + 1);
     const right = resolve(mid, hi, depth + 1);
     if (left == null && right == null) return null;
-    if (left == null) return right;          // bye passes up, no game here
-    if (right == null) return left;
+    if (left == null || right == null) {
+      const occ = left || right;
+      // Leaf-level matchup (spans two seeds) with one empty side → a bye.
+      if (hi - lo === 2) {
+        const slot = slotIdFor(depth, lo, B);
+        games.push({ depth, lo, slot, s1: occ, s2: { bye: true }, bye: true });
+        return { slot };
+      }
+      return occ;   // deeper passthrough — not expected for byes, kept for safety
+    }
     const slot = slotIdFor(depth, lo, B);
     games.push({ depth, lo, slot, s1: left, s2: right });
     return { slot };
@@ -129,22 +138,31 @@ function generateSingleElim(opts) {
 
   // Number + time games deepest round first (the first round played), left to
   // right — so "Game 1" is the earliest game, matching chronological feel.
+  // Bye games are not numbered or timed: they aren't played and are excluded
+  // from the schedule. Their lone team auto-advances (resolved without a result).
   games.sort((a, b) => (b.depth - a.depth) || (a.lo - b.lo));
 
   const schedule = {};
-  let curDepth = null, idxInRound = 0;
-  games.forEach((g, i) => {
+  let curDepth = null, idxInRound = 0, gameNum = 0;
+  games.forEach((g) => {
     if (g.depth !== curDepth) { curDepth = g.depth; idxInRound = 0; }
-    const num = i + 1;
-    const entry = {
-      label: `Game ${num}`,
-      num,
-      time: gameTime(g.depth, totalRounds, idxInRound, startDate),
-    };
-    applySide(entry, 1, g.s1);
-    applySide(entry, 2, g.s2);
+    let entry;
+    if (g.bye) {
+      entry = { label: 'Bye', bye: true, time: '' };
+      applySide(entry, 1, g.s1);   // the advancing team (always a fixed name)
+      entry.t2name = 'BYE';
+    } else {
+      gameNum++;
+      entry = {
+        label: `Game ${gameNum}`,
+        num: gameNum,
+        time: gameTime(g.depth, totalRounds, idxInRound, startDate),
+      };
+      applySide(entry, 1, g.s1);
+      applySide(entry, 2, g.s2);
+      idxInRound++;
+    }
     schedule[g.slot] = entry;
-    idxInRound++;
   });
   return schedule;
 }

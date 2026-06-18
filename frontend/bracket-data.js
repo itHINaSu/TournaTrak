@@ -115,7 +115,14 @@ function occupiedSlots() {
 function resolveSlot(teamSlot, results) {
   if (!teamSlot) return null;
   if (teamSlot.type==='fixed')  return teamSlot.team || null;
-  if (teamSlot.type==='winner') return (results[teamSlot.slot]||{}).winner || null;
+  if (teamSlot.type==='winner') {
+    var w = (results[teamSlot.slot]||{}).winner;
+    if (w) return w;
+    // Bye game: no result is ever entered, but the lone team auto-advances.
+    var g = GAMES[teamSlot.slot];
+    if (g && g.bye) return resolveSlot(g.t1, results);
+    return null;
+  }
   if (teamSlot.type==='loser')  return (results[teamSlot.slot]||{}).loser  || null;
   return null;
 }
@@ -205,6 +212,7 @@ function applySchedule(schedule) {
       num:   ov.num != null ? parseInt(ov.num) : parsed.num,
       time:  ov.time || '',
       field: typeof ov.field === 'string' ? ov.field.trim() : '',
+      bye:   ov.bye === true,
       t1: ov.t1name
         ? { type:'fixed', team:ov.t1name }
         : { type:(ov.t1type||'winner'), slot:ov.t1slot },
