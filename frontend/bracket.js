@@ -425,7 +425,8 @@ async function fetchAll(){
     }
     _themeColors=tc.ok ? await tc.json() : {};
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; _fieldColors={}; _themeColors={}; rawTexts=null; }
+    _rebuildFieldDefaultColors();
+  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; _fieldColors={}; _themeColors={}; _fieldDefaultColorMap={}; rawTexts=null; }
   applyThemeColors();
   applySettings();
   updateTimestamp();
@@ -531,17 +532,31 @@ function gameLabel(sid){
 
 // Small badge showing which field a game is played on (set via admin panel).
 // Returns '' when no field is assigned so cards render unchanged.
+// Mirrors FIELD_DEFAULT_COLORS in admin.js so the public bracket and admin panel
+// assign the same palette when no user-set colors exist.
+var FIELD_DEFAULT_COLORS = ['#0d9488','#ea580c','#7c3aed','#db2777','#4a90d9'];
+// Stable mapping from field name → default color, built once per fetchAll().
+var _fieldDefaultColorMap = {};
+function _rebuildFieldDefaultColors() {
+  _fieldDefaultColorMap = {};
+  var seen = [];
+  Object.keys(GAMES).forEach(function(sid) {
+    var f = GAMES[sid].field;
+    if (f && seen.indexOf(f) === -1) seen.push(f);
+  });
+  seen.sort();
+  seen.forEach(function(f, i) { _fieldDefaultColorMap[f] = FIELD_DEFAULT_COLORS[i % FIELD_DEFAULT_COLORS.length]; });
+}
+
 function fieldTagHTML(sid){
   var g = GAMES[sid];
   if (!g || !g.field) return '';
   var field = g.field;
-  var userColor = _fieldColors && _fieldColors[field];
-  if (userColor) {
-    return '<span class="game-field-tag" style="color:' + esc(userColor) + ';border-color:' + esc(userColor) + '">' + esc(field) + '</span>';
+  var color = (_fieldColors && _fieldColors[field]) || _fieldDefaultColorMap[field];
+  if (color) {
+    return '<span class="game-field-tag" style="color:' + esc(color) + ';border-color:' + esc(color) + '">' + esc(field) + '</span>';
   }
-  var num = parseInt(field.replace(/\D/g, ''), 10) || 0;
-  var cls = 'game-field-tag' + (num >= 1 && num <= 5 ? ' game-field-tag--' + num : '');
-  return '<span class="' + cls + '">' + esc(field) + '</span>';
+  return '<span class="game-field-tag">' + esc(field) + '</span>';
 }
 function gameDateHTML(dateStr) {
   var d = fmtDate(dateStr);
@@ -2802,6 +2817,7 @@ function initBracketDrag(root) {
     }).then(function(sched) {
       schedule = sched;
       if (typeof applySchedule === 'function') applySchedule(schedule);
+      _rebuildFieldDefaultColors();
       renderBracket();
     }).catch(function(err) {
       showToast('Swap failed: ' + (err.message || 'unknown error'), true);

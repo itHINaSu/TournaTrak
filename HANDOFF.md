@@ -11,9 +11,18 @@ Plain JS frontend (no framework, no build step), Node/Express API, JSON-file
 storage. PWA with a service worker. Role-based auth (bcrypt, rate-limited login):
 roles are `admin`, `results`, `team` (coach), `buckets`.
 
-## Branch rule (IMPORTANT)
-**Work only on `main` unless explicitly told otherwise.** Commit and push when a
-change is complete. Do not open PRs unless asked.
+## START OF SESSION PROMPT (always do this first)
+At the start of every new session (or when told to "get up to speed"), ask:
+
+> "Which branch should I work on this session? (default: `main`)"
+
+Then `git checkout <branch>` before touching anything. Do not assume `main`.
+
+## Branch rule
+**Work only on `main` unless the user specifies another branch.** Commit and
+push when a change is complete. Do not open PRs unless asked.
+- `main` — production-ready. All completed features land here.
+- `feature/bracket-builder` — bracket generator / teams / seeding / drag-and-drop swap. Active development branch.
 - `feature/regional` — parked Postgres / multi-tournament migration ("v3").
   Branched off old work; lacks the entire v2 feature wave. **Do not touch** in
   normal sessions. See `ROADMAP.md` for the reconciliation plan.
