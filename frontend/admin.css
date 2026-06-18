@@ -954,7 +954,7 @@ input[type="time"]:focus {
 }
 .team-ed-row[draggable="true"]:active { cursor: grabbing; }
 .team-ed-row--dragging { opacity: 0.4; }
-.team-ed-row--over { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 8%, var(--surface)); }
+.team-ed-row--over { box-shadow: 0 -2px 0 0 var(--blue); }
 .team-ed-handle {
   flex: none;
   color: var(--text-mute);

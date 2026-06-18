@@ -31,20 +31,22 @@ function realGamesNeeded() {
 }
 
 // ── Auth gate ─────────────────────────────────────────────────────────
-async function init() {
-  var sess;
-  try {
-    var r = await fetch('/api/session', { credentials: 'same-origin' });
-    sess = await r.json();
-  } catch (e) { sess = null; }
+async function init(skipAuth) {
+  if (!skipAuth) {
+    var sess;
+    try {
+      var r = await fetch('/api/session', { credentials: 'same-origin' });
+      sess = await r.json();
+    } catch (e) { sess = null; }
 
-  if (!sess || !sess.authenticated || sess.role !== 'admin') {
-    $('loading').style.display = 'none';
-    if (sess && sess.authenticated) {
-      $('authGateMsg').textContent = 'Your account does not have administrator access. Sign in as an admin to build a bracket.';
+    if (!sess || !sess.authenticated || sess.role !== 'admin') {
+      $('loading').style.display = 'none';
+      if (sess && sess.authenticated) {
+        $('authGateMsg').textContent = 'Your account does not have administrator access. Sign in as an admin to build a bracket.';
+      }
+      $('authGate').style.display = '';
+      return;
     }
-    $('authGate').style.display = '';
-    return;
   }
 
   // Admin confirmed — load formats and reveal the builder.
@@ -145,8 +147,8 @@ function generateTeamNames(n) {
   while (out.length < n && guard < n * 50) {
     guard++;
     var name = adj[ai % adj.length] + ' ' + noun[ni % noun.length];
+    ai++;
     ni++;
-    if (ni % noun.length === 0) ai++;
     if (seen[name]) continue;
     seen[name] = true;
     out.push(name);
@@ -627,6 +629,15 @@ function wireEvents() {
   $('generateBtn').addEventListener('click', onGenerate);
   $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').style.display = 'none'; });
   $('confirmBtn').addEventListener('click', doGenerate);
+  var doneToSched = $('doneToScheduleBtn');
+  if (doneToSched && window.__builderEmbedded) {
+    doneToSched.addEventListener('click', function (e) {
+      e.preventDefault();
+      $('doneOverlay').style.display = 'none';
+      if (typeof window.adminSwitchToSchedule === 'function') window.adminSwitchToSchedule();
+    });
+  }
 }
 
-init();
+window.builderInit = function () { init(true); };
+if (!window.__builderEmbedded) init();

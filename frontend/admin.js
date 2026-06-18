@@ -74,6 +74,11 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       toggleSettingsSidebar();
       return;
     }
+    // Hide delays panel and reset schedule delays button on any tab switch
+    var _dp = document.getElementById('resultsDelaysPanel');
+    if (_dp) _dp.style.display = 'none';
+    var _sdb = document.getElementById('schedDelaysToggle');
+    if (_sdb) _sdb.textContent = 'Delays ▼';
     document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
     document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
     tab.classList.add('active');
@@ -82,6 +87,10 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     if (tab.dataset.tab === 'lineups' && !window._lineupInitDone) {
       window._lineupInitDone = true;
       lineupInit();
+    }
+    if (tab.dataset.tab === 'builder' && !window._builderInitDone) {
+      window._builderInitDone = true;
+      if (typeof window.builderInit === 'function') window.builderInit();
     }
     // Reset results to games mode when re-entering the results tab
     if (tab.dataset.tab === 'results') setResultsMode('games');
@@ -819,9 +828,9 @@ async function apiFetch(url, opts) {
 
 // Apply role-based visibility restrictions. Idempotent — safe to call multiple times.
 function applyRoleRestrictions(role) {
-  // Schedule tab is admin-only
+  // Schedule and Builder tabs are admin-only
   document.querySelectorAll('.admin-tab').forEach(function(tab) {
-    var hide = role !== 'admin' && tab.dataset.tab === 'schedule';
+    var hide = role !== 'admin' && (tab.dataset.tab === 'schedule' || tab.dataset.tab === 'builder');
     tab.style.display = hide ? 'none' : '';
     if (hide && tab.classList.contains('active')) {
       tab.classList.remove('active');
@@ -1370,6 +1379,28 @@ function gotoDelays() {
   updateQuickBar();
 }
 
+function toggleSchedDelays() {
+  var dPanel = document.getElementById('resultsDelaysPanel');
+  var slot   = document.getElementById('schedDelaysSlot');
+  var btn    = document.getElementById('schedDelaysToggle');
+  if (!dPanel || !slot) return;
+  var isOpen = slot.contains(dPanel) && dPanel.style.display !== 'none';
+  slot.appendChild(dPanel);
+  dPanel.style.display = isOpen ? 'none' : '';
+  if (!isOpen) renderDelaysAdmin();
+  if (btn) btn.textContent = isOpen ? 'Delays ▼' : 'Delays ▲';
+}
+
+function adminSwitchToBuilder() {
+  var tab = document.querySelector('.admin-tab[data-tab="builder"]');
+  if (tab) tab.click();
+}
+
+window.adminSwitchToSchedule = function() {
+  var tab = document.querySelector('.admin-tab[data-tab="schedule"]');
+  if (tab) tab.click();
+};
+
 // ── Bucket challenge admin ─────────────────────────────────────────────
 var _resultsMode = 'games';
 
@@ -1385,7 +1416,13 @@ function setResultsMode(mode) {
   var saveStat = document.getElementById('bucketModeSaveStatus');
   if (gPanel)   gPanel.style.display = mode === 'games'   ? '' : 'none';
   if (bPanel)   bPanel.style.display = mode === 'buckets' ? '' : 'none';
-  if (dPanel)   dPanel.style.display = mode === 'delays'  ? '' : 'none';
+  if (mode === 'delays' && dPanel) {
+    var _rSlot = document.getElementById('resultsDelaysSlot');
+    if (_rSlot) _rSlot.appendChild(dPanel);
+    dPanel.style.display = '';
+  } else if (dPanel) {
+    dPanel.style.display = 'none';
+  }
   if (gBtn)     gBtn.classList.toggle('active', mode === 'games');
   if (bBtn)     bBtn.classList.toggle('active', mode === 'buckets');
   if (dBtn)     dBtn.classList.toggle('active', mode === 'delays');
