@@ -129,7 +129,6 @@ function showSettingsSection(section) {
   if (section === 'coaches') loadCoaches();
   if (section === 'users')   loadUsers();
   if (section === 'pageinfo') { renderThemeSection(); renderFieldsPanel(); }
-  if (section === 'teams')   loadTeams();
 }
 
 // Re-fetch the team list each time the Teams tab opens so changes made via the
@@ -1381,13 +1380,16 @@ function setSchedMode(mode) {
   _schedMode = mode;
   var ePanel  = document.getElementById('schedEditorPanel');
   var bPanel  = document.getElementById('schedBuilderPanel');
+  var tPanel  = document.getElementById('schedTeamsPanel');
   var dPanel  = document.getElementById('resultsDelaysPanel');
   var slot    = document.getElementById('schedDelaysSlot');
   var eBtn    = document.getElementById('modeScheduleBtn');
   var bBtn    = document.getElementById('modeBuilderBtn');
   var dBtn    = document.getElementById('modeSchedDelaysBtn');
+  var tBtn    = document.getElementById('modeSchedTeamsBtn');
   if (ePanel)  ePanel.style.display  = mode === 'editor'  ? '' : 'none';
   if (bPanel)  bPanel.style.display  = mode === 'builder' ? '' : 'none';
+  if (tPanel)  tPanel.style.display  = mode === 'teams'   ? '' : 'none';
   if (mode === 'delays' && dPanel && slot) {
     slot.appendChild(dPanel);
     dPanel.style.display = '';
@@ -1398,10 +1400,12 @@ function setSchedMode(mode) {
   if (eBtn)    eBtn.classList.toggle('active',  mode === 'editor');
   if (bBtn)    bBtn.classList.toggle('active',  mode === 'builder');
   if (dBtn)    dBtn.classList.toggle('active',  mode === 'delays');
+  if (tBtn)    tBtn.classList.toggle('active',  mode === 'teams');
   if (mode === 'builder' && !window._builderInitDone) {
     window._builderInitDone = true;
     if (typeof window.builderInit === 'function') window.builderInit();
   }
+  if (mode === 'teams') loadTeams();
 }
 
 function adminSwitchToBuilder() {

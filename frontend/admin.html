@@ -174,8 +174,9 @@
   <div class="admin-tab-panel" id="tab-schedule">
     <div class="results-mode-bar">
       <button class="results-mode-btn active" id="modeScheduleBtn" onclick="setSchedMode('editor')">Schedule</button>
-      <button class="results-mode-btn" id="modeBuilderBtn" onclick="setSchedMode('builder')">Bracket Builder</button>
+      <button class="results-mode-btn" id="modeBuilderBtn" onclick="setSchedMode('builder')">Builder</button>
       <button class="results-mode-btn" id="modeSchedDelaysBtn" onclick="setSchedMode('delays')">Delays</button>
+      <button class="results-mode-btn" id="modeSchedTeamsBtn" onclick="setSchedMode('teams')">Teams</button>
     </div>
     <div id="schedEditorPanel">
       <div class="admin-subtitle">Edit game labels, times, team names, slot positions, and team sources.
@@ -271,6 +272,22 @@
     </div>
     <!-- Slot where the shared delays panel is moved when delays mode is active -->
     <div id="schedDelaysSlot"></div>
+    <!-- Teams panel -->
+    <div id="schedTeamsPanel" style="display:none">
+      <div class="admin-subtitle">All teams from the current schedule. Drag to reorder (the list order is the seed order when seeding is on). Edit a name to rename it everywhere.</div>
+      <div class="settings-field settings-field--toggle" style="margin-bottom:1em">
+        <label>Show seed numbers on the bracket</label>
+        <input type="checkbox" id="teams-showSeeds">
+        <div class="field-hint">Displays <span style="opacity:.7">(1)</span> before team names on bracket cards. Only meaningful when teams are ordered intentionally.</div>
+      </div>
+      <div id="teamsEditorWrap">
+        <div id="teamsEditorList" class="teams-editor-list"></div>
+      </div>
+      <div class="settings-save-row">
+        <button class="sched-save-btn" id="teamsSaveBtn" onclick="saveTeams()">Save</button>
+        <span class="sched-status" id="teamsSaveStatus"></span>
+      </div>
+    </div>
   </div>
 
   <!-- ── LINEUPS TAB ── -->
@@ -333,7 +350,6 @@
         <div class="settings-nav-item" data-section="account" onclick="showSettingsSection('account')">Account</div>
         <div class="settings-nav-item" data-section="users" onclick="showSettingsSection('users')">Users</div>
         <div class="settings-nav-item" data-section="coaches" onclick="showSettingsSection('coaches')">Coaches</div>
-        <div class="settings-nav-item" data-section="teams" onclick="showSettingsSection('teams')">Teams</div>
       </nav>
 
       <div class="settings-content">
@@ -590,26 +606,6 @@
               <button class="sched-save-btn" onclick="addCoach()">Add Coach</button>
               <span class="sched-status" id="addCoachStatus"></span>
             </div>
-          </div>
-        </div>
-
-        <!-- ── Teams panel ── -->
-        <div class="settings-panel" id="sp-teams">
-          <div class="admin-subtitle">All teams from the current schedule. Drag to reorder (the list order is the seed order when seeding is on). Edit a name to rename it everywhere.</div>
-
-          <div class="settings-field settings-field--toggle" style="margin-bottom:1em">
-            <label>Show seed numbers on the bracket</label>
-            <input type="checkbox" id="teams-showSeeds">
-            <div class="field-hint">Displays <span style="opacity:.7">(1)</span> before team names on bracket cards. Only meaningful when teams are ordered intentionally.</div>
-          </div>
-
-          <div id="teamsEditorWrap">
-            <div id="teamsEditorList" class="teams-editor-list"></div>
-          </div>
-
-          <div class="settings-save-row">
-            <button class="sched-save-btn" id="teamsSaveBtn" onclick="saveTeams()">Save</button>
-            <span class="sched-status" id="teamsSaveStatus"></span>
           </div>
         </div>
 
