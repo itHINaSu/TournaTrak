@@ -362,6 +362,28 @@
 .bld-btn:disabled { opacity: 0.5; cursor: default; }
 .bld-btn--primary { background: var(--blue); border-color: var(--blue); color: #fff; }
 .bld-btn--danger  { background: var(--clear-color); border-color: var(--clear-border); color: #fff; }
+.bld-btn--small {
+  padding: 0.4em 0.9em;
+  min-height: 2.2rem;
+  font-size: var(--text-sm);
+}
+
+/* Random team-name generator row (step 2) */
+.bld-gen-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.85em;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+}
+.bld-gen-count {
+  width: auto;
+  min-width: 4.5em;
+  padding: 0.4em 0.5em;
+  font-size: max(0.95rem, 16px); /* keep >=16px to avoid iOS zoom */
+}
 
 /* Auth gate */
 .bld-gate { text-align: center; display: flex; flex-direction: column; gap: 1em; align-items: center; }

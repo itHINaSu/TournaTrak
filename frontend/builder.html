@@ -51,6 +51,13 @@
 
   <div class="bld-card">
     <h2 class="bld-h2">2 · Teams <span class="bld-count" id="teamCount"></span></h2>
+    <!-- Quick-fill: drop in N randomly generated names for testing/demo -->
+    <div class="bld-gen-row">
+      <span>Randomly generate</span>
+      <select class="bld-input bld-gen-count" id="genCount" aria-label="Number of teams to generate"></select>
+      <span>team names</span>
+      <button type="button" class="bld-btn bld-btn--small" id="genBtn">Generate</button>
+    </div>
     <div class="bld-field">
       <label for="teamsInput">One team name per line</label>
       <textarea class="bld-input bld-textarea" id="teamsInput" rows="10"

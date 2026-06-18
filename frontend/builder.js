@@ -85,6 +85,7 @@ function selectFormat(id) {
   currentFormat = FORMATS.filter(function (f) { return f.id === id; })[0] || FORMATS[0];
   $('formatDesc').textContent = currentFormat.description || '';
   $('ifNecField').style.display = currentFormat.supportsIfNecessary ? '' : 'none';
+  updateGenCountOptions();
   refresh();
   updateShowSeedsVisibility();
 }
@@ -103,6 +104,79 @@ function parsedTeams() {
   return $('teamsInput').value.split('\n')
     .map(function (s) { return s.trim(); })
     .filter(function (s) { return s.length; });
+}
+
+// ── Random team-name generator (quick-fill for testing / demos) ───────
+// Combines a place/mascot adjective with a sports nickname. Names are drawn
+// without repeats within a single generation so the list is always valid.
+var GEN_ADJ = [
+  'Northside', 'Riverside', 'Eastside', 'Westfield', 'Lakeview', 'Summit',
+  'Harbor', 'Ironwood', 'Sunset', 'Valley', 'Capital', 'Coastal', 'Mountain',
+  'Blue Ridge', 'Steel City', 'Silver Creek', 'Granite', 'Cedar Falls',
+  'Maple Grove', 'Stonewall', 'Highland', 'Brookside', 'Fairview', 'Oakdale',
+  'Pinecrest', 'Redwood', 'Bayshore', 'Crestwood', 'Glenwood', 'Westgate',
+  'Ridgeline', 'Clearwater', 'Thornbury', 'Ashford', 'Bramble', 'Foxhollow',
+];
+var GEN_NOUN = [
+  'Eagles', 'Rats', 'Sluggers', 'Hooks', 'Crushers', 'Diamonds', 'Thunder',
+  'Bombers', 'Lions', 'Sox', 'Heat', 'Rockets', 'Stars', 'Warriors',
+  'Chiefs', 'Knights', 'Wolves', 'Bears', 'Marlins', 'Kings', 'Rams',
+  'Hawks', 'Aces', 'Hornets', 'Pirates', 'Marines', 'Ducks', 'Kingfishers',
+  'Cyclones', 'Vipers', 'Outlaws', 'Mustangs', 'Titans', 'Comets', 'Ravens',
+  'Bobcats', 'Gators', 'Surge', 'Blizzard', 'Renegades',
+];
+
+// Fisher–Yates shuffle of a fresh copy.
+function shuffled(arr) {
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
+// Generate `n` distinct team names. Walks shuffled adjective/noun lists and
+// falls back to a numeric suffix if the unique-pair space is exhausted.
+function generateTeamNames(n) {
+  var adj = shuffled(GEN_ADJ), noun = shuffled(GEN_NOUN);
+  var out = [], seen = {}, guard = 0;
+  var ai = 0, ni = 0;
+  while (out.length < n && guard < n * 50) {
+    guard++;
+    var name = adj[ai % adj.length] + ' ' + noun[ni % noun.length];
+    ni++;
+    if (ni % noun.length === 0) ai++;
+    if (seen[name]) continue;
+    seen[name] = true;
+    out.push(name);
+  }
+  // Extremely unlikely fallback for very large n: append a counter.
+  var k = 2;
+  while (out.length < n) { out.push(adj[0] + ' ' + noun[0] + ' ' + k); k++; }
+  return out;
+}
+
+// Populate the count dropdown with every valid team count for the current
+// format. Keeps the previously selected value when it's still valid.
+function updateGenCountOptions() {
+  var sel = $('genCount');
+  if (!sel || !currentFormat) return;
+  var min = currentFormat.minTeams, max = currentFormat.maxTeams;
+  var prev = parseInt(sel.value, 10);
+  var html = '';
+  for (var n = min; n <= max; n++) html += '<option value="' + n + '">' + n + '</option>';
+  sel.innerHTML = html;
+  if (prev >= min && prev <= max) sel.value = String(prev);
+  else sel.value = String(max);   // default to a full bracket
+}
+
+function genRandomTeams() {
+  var n = parseInt($('genCount').value, 10);
+  if (!(n >= 1)) return;
+  $('teamsInput').value = generateTeamNames(n).join('\n');
+  byeSelection = {};   // stale manual byes referenced old names
+  refresh();
 }
 
 // How many first-round byes the current team count implies (0 if a power of
@@ -546,6 +620,7 @@ async function doGenerate() {
 function wireEvents() {
   $('formatSel').addEventListener('change', function () { selectFormat(this.value); });
   $('teamsInput').addEventListener('input', refresh);
+  $('genBtn').addEventListener('click', genRandomTeams);
   $('seedMode').addEventListener('change', function () { refresh(); updateShowSeedsVisibility(); });
   $('ifNecChk').addEventListener('change', refresh);
   $('advSchedChk').addEventListener('change', onAdvToggle);
