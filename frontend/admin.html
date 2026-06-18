@@ -408,9 +408,6 @@
           <div class="settings-section">
             <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Application Colors</div>
             <div class="collapsible-body">
-              <div class="settings-subsection-hdr">Field Colors</div>
-              <div class="field-hint" style="margin-bottom:0.6em">Assign a color to each field tag on game cards. Defaults are Teal / Orange / Purple / Pink / Blue.</div>
-              <div id="fieldsColorList"></div>
               <label class="adv-toggle-label">
                 <input type="checkbox" id="themeAdvancedToggle" onchange="document.getElementById('themeAdvancedPanel').style.display=this.checked?'':'none'; if(this.checked) renderThemeSection();">
                 Advanced — Application Theme
@@ -423,6 +420,11 @@
                   <button class="admin-clear-btn" onclick="resetTheme()">Reset Defaults</button>
                   <span class="sched-status" id="themeResetStatus"></span>
                 </div>
+              </div>
+              <div id="fieldColorsSection" style="display:none;margin-top:1em">
+                <div class="settings-subsection-hdr">Field Colors</div>
+                <div class="field-hint" style="margin-bottom:0.6em">Assign a color to each field tag on game cards. Defaults are Teal / Orange / Purple / Pink / Blue.</div>
+                <div id="fieldsColorList"></div>
               </div>
             </div>
           </div>
