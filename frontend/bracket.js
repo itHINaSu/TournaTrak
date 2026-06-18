@@ -3,6 +3,8 @@
 // STATE
 // ══════════════════════════════════════════════════════════
 var results={}, schedule={}, settings={}, buckets={}, liveScores={}, _offsets={entries:[]}, _fieldColors={}, _themeColors={};
+var _teamsData = { showSeeds: false, teams: [] };
+var _seedMap = {};   // { teamName: seedNumber (1-based) }
 var _sessionRole = null;
 var _bucketEditMode = false;
 var scheduleMode = null; // null = uninitialised; set from settings on first render
@@ -30,6 +32,11 @@ var SETTING_DEFAULTS = {
 function getSetting(key) {
   return (settings[key] !== undefined && settings[key] !== '')
     ? settings[key] : SETTING_DEFAULTS[key];
+}
+
+function seedChip(name) {
+  var n = _seedMap[name];
+  return n ? '<span class="tt-seed">(' + n + ')</span>' : '';
 }
 
 function _hexToHsl(hex) {
@@ -376,7 +383,7 @@ var _fetchFingerprint = '';
 async function fetchAll(){
   var rawTexts;
   try{
-    var [rr,sr,str,br,lr,or2,fc,tc]=await Promise.all([
+    var [rr,sr,str,br,lr,or2,fc,tc,tmr]=await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
@@ -385,6 +392,7 @@ async function fetchAll(){
       fetch('/api/offsets'),
       fetch('/api/field-colors'),
       fetch('/api/theme-colors'),
+      fetch('/api/teams'),
     ]);
     rawTexts = await Promise.all([rr.text(), sr.text(), str.text(), br.ok ? br.text() : Promise.resolve(''), lr.ok ? lr.text() : Promise.resolve('{}'), or2.ok ? or2.text() : Promise.resolve('{"entries":[]}')]);
     results=JSON.parse(rawTexts[0]); schedule=JSON.parse(rawTexts[1]); settings=JSON.parse(rawTexts[2]);
@@ -392,6 +400,11 @@ async function fetchAll(){
     liveScores=JSON.parse(rawTexts[4]);
     var _offParsed=JSON.parse(rawTexts[5]); _offsets=(_offParsed&&Array.isArray(_offParsed.entries))?_offParsed:{entries:[]};
     _fieldColors=fc.ok ? await fc.json() : {};
+    _teamsData = tmr.ok ? await tmr.json() : { showSeeds: false, teams: [] };
+    _seedMap = {};
+    if (_teamsData.showSeeds && Array.isArray(_teamsData.teams)) {
+      _teamsData.teams.forEach(function(t, i) { if (t && t.name) _seedMap[t.name] = i + 1; });
+    }
     _themeColors=tc.ok ? await tc.json() : {};
     if(typeof applySchedule==='function') applySchedule(schedule);
   }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; _fieldColors={}; _themeColors={}; rawTexts=null; }
@@ -788,8 +801,8 @@ function cardHTML(gid){
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
         : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'))
     +'</div>'
-    +'<div class="bc-team '+c1+'"><span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
-    +'<div class="bc-team '+c2+'"><span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>';
+    +'<div class="bc-team '+c1+'">'+seedChip(t1.name)+'<span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
+    +'<div class="bc-team '+c2+'">'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>';
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1179,11 +1192,11 @@ function mobileRoundCardHTML(gid) {
             + '</span>')
     + '</div>'
     + '<div class="mbc-game-team ' + c1 + '">'
-    +   '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
+    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
     +   (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     + '</div>'
     + '<div class="mbc-game-team ' + c2 + '">'
-    +   '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
+    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
     +   (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     + '</div>'
     + '</div>';
@@ -1208,10 +1221,10 @@ function roundCardHTML(gid) {
     + gameDateHTML(dateStr)
     + timeOrLiveHTML(gid, dateStr, dowStr, timeStr)
     + '</div>'
-    + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t1.name) + '<span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
     + (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid, 1))
     + '</div>'
-    + '<div class="round-team-row"><span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t2.name) + '<span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
     + (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid, 2))
     + '</div>'
     + '</div>';
@@ -2147,10 +2160,10 @@ function scheduleCardHTML(sid) {
     + timeOrLiveHTML(sid, dateStr, dowStr, timeStr)
     + '</div>'
     + champ2NoteHTML
-    + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t1.name) + '<span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
     + (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(sid,1))
     + '</div>'
-    + '<div class="round-team-row"><span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t2.name) + '<span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
     + (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(sid,2))
     + '</div></div>';
 }

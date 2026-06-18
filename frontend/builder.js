@@ -86,6 +86,12 @@ function selectFormat(id) {
   $('formatDesc').textContent = currentFormat.description || '';
   $('ifNecField').style.display = currentFormat.supportsIfNecessary ? '' : 'none';
   refresh();
+  updateShowSeedsVisibility();
+}
+
+function updateShowSeedsVisibility() {
+  var mode = $('seedMode').value;
+  $('showSeedsField').style.display = (mode === 'order' || mode === 'manual') ? '' : 'none';
 }
 
 function ifNecessaryOn() {
@@ -514,6 +520,8 @@ async function doGenerate() {
       body.startDate = $('simpleDate').value;
     }
     if (currentFormat.supportsIfNecessary) body.ifNecessary = $('ifNecChk').checked;
+    var mode = $('seedMode').value;
+    if (mode === 'order' || mode === 'manual') body.showSeeds = $('showSeedsChk').checked;
     var r = await fetch('/api/schedule/generate', {
       method: 'POST',
       credentials: 'same-origin',
@@ -538,7 +546,7 @@ async function doGenerate() {
 function wireEvents() {
   $('formatSel').addEventListener('change', function () { selectFormat(this.value); });
   $('teamsInput').addEventListener('input', refresh);
-  $('seedMode').addEventListener('change', refresh);
+  $('seedMode').addEventListener('change', function () { refresh(); updateShowSeedsVisibility(); });
   $('ifNecChk').addEventListener('change', refresh);
   $('advSchedChk').addEventListener('change', onAdvToggle);
   $('generateBtn').addEventListener('click', onGenerate);

@@ -1,5 +1,6 @@
 // admin.js — admin panel logic
 var results = {}, schedule = {}, settings = {}, buckets = {}, _offsets = { entries: [] }, _fieldColors = {}, _themeColors = {};
+var _teamsData = { showSeeds: false, teams: [] };  // loaded from /api/teams
 var currentRole = null;
 var currentTeamName = null;
 var _bucketTeams = [];
@@ -124,6 +125,7 @@ function showSettingsSection(section) {
   if (section === 'coaches') loadCoaches();
   if (section === 'users')   loadUsers();
   if (section === 'pageinfo') { renderThemeSection(); renderFieldsPanel(); }
+  if (section === 'teams')   renderTeamsEditor();
 }
 
 function openSettingsSidebar() {
@@ -162,7 +164,7 @@ function showToast(msg, err) {
 // ── Fetch ──────────────────────────────────────────────────────────────
 async function fetchAll() {
   try {
-    var [rr, sr, str, br, lr, or2, fc, tc] = await Promise.all([
+    var [rr, sr, str, br, lr, or2, fc, tc, tmr] = await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
@@ -171,6 +173,7 @@ async function fetchAll() {
       fetch('/api/offsets'),
       fetch('/api/field-colors'),
       fetch('/api/theme-colors'),
+      fetch('/api/teams'),
     ]);
     results  = await rr.json();
     schedule = await sr.json();
@@ -182,8 +185,9 @@ async function fetchAll() {
     if (!Array.isArray(_offsets.entries)) _offsets = { entries: [] };
     _fieldColors = fc.ok ? await fc.json() : {};
     _themeColors = tc.ok ? await tc.json() : {};
+    _teamsData = tmr.ok ? await tmr.json() : { showSeeds: false, teams: [] };
     if (typeof applySchedule === 'function') applySchedule(schedule);
-  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; _offsets = { entries: [] }; _fieldColors = {}; _themeColors = {}; }
+  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; _offsets = { entries: [] }; _fieldColors = {}; _themeColors = {}; _teamsData = { showSeeds: false, teams: [] }; }
   applySettingsToPage();
   renderAdmin();
   renderScheduleEditor();
@@ -2049,3 +2053,128 @@ checkSession();
   }
   applyStickyOffsets();
 }());
+
+// ── Teams editor ─────────────────────────────────────────────────────
+// A drag-and-drop ordered list of team names. The list order defines seeds.
+// When showSeeds is on, the seed number is shown left of each name.
+
+var _teamsDrag = null;   // { el, ghost, startY, idx, ys:[] }
+
+function renderTeamsEditor() {
+  var chk = document.getElementById('teams-showSeeds');
+  if (chk) chk.checked = !!_teamsData.showSeeds;
+
+  var list = document.getElementById('teamsEditorList');
+  if (!list) return;
+  var teams = (_teamsData.teams && _teamsData.teams.length) ? _teamsData.teams : [];
+  var showS = !!_teamsData.showSeeds;
+
+  list.innerHTML = teams.map(function(t, i) {
+    return '<div class="team-ed-row" draggable="true" data-idx="' + i + '">' +
+      '<span class="team-ed-handle" aria-hidden="true">&#8942;</span>' +
+      (showS ? '<span class="team-ed-seed">(' + (i + 1) + ')</span>' : '') +
+      '<input type="text" class="team-ed-name" data-idx="' + i + '" value="' + esc(t.name) + '" maxlength="100" aria-label="Team name">' +
+      '<button type="button" class="team-ed-up" data-idx="' + i + '" aria-label="Move up" ' + (i === 0 ? 'disabled' : '') + '">↑</button>' +
+      '<button type="button" class="team-ed-down" data-idx="' + i + '" aria-label="Move down" ' + (i === teams.length - 1 ? 'disabled' : '') + '">↓</button>' +
+    '</div>';
+  }).join('');
+
+  // Up/down buttons
+  list.querySelectorAll('.team-ed-up').forEach(function(b) {
+    b.addEventListener('click', function() { teamsMove(parseInt(b.dataset.idx, 10), -1); });
+  });
+  list.querySelectorAll('.team-ed-down').forEach(function(b) {
+    b.addEventListener('click', function() { teamsMove(parseInt(b.dataset.idx, 10), 1); });
+  });
+
+  // Inline name edit — commit on blur
+  list.querySelectorAll('.team-ed-name').forEach(function(inp) {
+    inp.addEventListener('change', function() {
+      var i = parseInt(inp.dataset.idx, 10);
+      var v = inp.value.trim();
+      if (!v) { inp.value = _teamsData.teams[i].name; return; }
+      _teamsData.teams[i] = { name: v };
+    });
+  });
+
+  // HTML5 drag-and-drop reorder
+  wireTeamsDragAndDrop(list);
+}
+
+function teamsMove(idx, dir) {
+  var teams = _teamsData.teams;
+  var other = idx + dir;
+  if (other < 0 || other >= teams.length) return;
+  var tmp = teams[idx]; teams[idx] = teams[other]; teams[other] = tmp;
+  renderTeamsEditor();
+}
+
+function wireTeamsDragAndDrop(list) {
+  var rows = Array.prototype.slice.call(list.querySelectorAll('.team-ed-row'));
+  var dragSrc = null;
+
+  rows.forEach(function(row) {
+    row.addEventListener('dragstart', function(e) {
+      dragSrc = row;
+      row.classList.add('team-ed-row--dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.dataset.idx);
+    });
+    row.addEventListener('dragend', function() {
+      row.classList.remove('team-ed-row--dragging');
+      list.querySelectorAll('.team-ed-row--over').forEach(function(r) { r.classList.remove('team-ed-row--over'); });
+      dragSrc = null;
+    });
+    row.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (row !== dragSrc) row.classList.add('team-ed-row--over');
+    });
+    row.addEventListener('dragleave', function() {
+      row.classList.remove('team-ed-row--over');
+    });
+    row.addEventListener('drop', function(e) {
+      e.preventDefault();
+      row.classList.remove('team-ed-row--over');
+      if (!dragSrc || dragSrc === row) return;
+      var fromIdx = parseInt(dragSrc.dataset.idx, 10);
+      var toIdx   = parseInt(row.dataset.idx, 10);
+      var teams = _teamsData.teams;
+      var moved = teams.splice(fromIdx, 1)[0];
+      teams.splice(toIdx, 0, moved);
+      renderTeamsEditor();
+    });
+  });
+}
+
+async function saveTeams() {
+  var btn = document.getElementById('teamsSaveBtn');
+  var status = document.getElementById('teamsSaveStatus');
+  var chk = document.getElementById('teams-showSeeds');
+  if (btn) btn.disabled = true;
+
+  // Commit any in-progress name edits
+  document.querySelectorAll('.team-ed-name').forEach(function(inp) {
+    var i = parseInt(inp.dataset.idx, 10);
+    var v = inp.value.trim();
+    if (v && _teamsData.teams[i]) _teamsData.teams[i] = { name: v };
+  });
+
+  _teamsData.showSeeds = chk ? chk.checked : false;
+
+  try {
+    var r = await apiFetch('/api/teams', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ showSeeds: _teamsData.showSeeds, teams: _teamsData.teams }),
+    });
+    if (!r || !r.ok) throw new Error();
+    showToast('Teams saved');
+    if (status) { status.textContent = '✓ Saved'; setTimeout(function() { status.textContent = ''; }, 3000); }
+    renderTeamsEditor();
+  } catch(e) {
+    showToast('Save failed', true);
+    if (status) status.textContent = '✗ Error';
+  }
+  if (btn) btn.disabled = false;
+}

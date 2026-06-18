@@ -438,7 +438,9 @@ function generateSchedule(formatId, opts) {
     }
   }
 
-  return fmt.generate({ startDate: opts.startDate, teams: clean, seedMode, byeTeams, playingDays, ifNecessary: opts.ifNecessary });
+  const seededTeams = resolveSeeding({ teams: clean, seedMode, byeTeams });
+  const schedule = fmt.generate({ startDate: opts.startDate, teams: clean, seedMode, byeTeams, playingDays, ifNecessary: opts.ifNecessary });
+  return { schedule, seededTeams };
 }
 
-module.exports = { FORMATS, generateSchedule, isoLocal, shuffle, nextPow2 };
+module.exports = { FORMATS, generateSchedule, resolveSeeding, isoLocal, shuffle, nextPow2 };

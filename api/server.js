@@ -11,6 +11,7 @@ const SESSIONS_FILE     = '/data/sessions.json';
 const RESULTS_FILE  = '/data/results.json';
 const SCHEDULE_FILE = '/data/schedule.json';
 const SETTINGS_FILE = '/data/settings.json';
+const TEAMS_FILE    = '/data/teams.json';
 const USERS_FILE    = '/data/users.json';
 const LINEUPS_FILE  = '/data/lineups.json';
 const BUCKETS_FILE  = '/data/buckets.json';
@@ -825,10 +826,10 @@ app.get('/api/schedule/formats', requireAdmin, (req, res) => {
 // Generate a full bracket schedule from a format + teams and REPLACE the
 // current schedule. Destructive — the UI confirms before calling this.
 app.post('/api/schedule/generate', requireAdmin, (req, res) => {
-  const { format, startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary } = req.body || {};
-  let schedule;
+  const { format, startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, showSeeds } = req.body || {};
+  let schedule, seededTeams;
   try {
-    schedule = generateSchedule(format, { startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary });
+    ({ schedule, seededTeams } = generateSchedule(format, { startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary }));
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
@@ -850,6 +851,16 @@ app.post('/api/schedule/generate', requireAdmin, (req, res) => {
     invalidateIndexCache();
   }
 
+  // If the TD opted into seeded display, record the seeded team order.
+  if (showSeeds && seededTeams && seededTeams.length) {
+    const existing = readJSON(TEAMS_FILE);
+    writeJSON(TEAMS_FILE, {
+      ...existing,
+      showSeeds: true,
+      teams: seededTeams.map(name => ({ name })),
+    });
+  }
+
   res.json({ ok: true, games: Object.keys(schedule).length });
 });
 
@@ -861,6 +872,43 @@ app.post('/api/settings', requireAdmin, (req, res) => {
   });
   writeJSON(SETTINGS_FILE, clean);
   invalidateIndexCache();
+  res.json({ ok: true });
+});
+
+// ── Teams / seeding endpoints ────────────────────────────────────────
+// teams.json holds { showSeeds: bool, teams: [{ name }] }.
+// When the file doesn't exist yet the list is auto-derived from the schedule's
+// fixed team names so the Teams tab is always populated.
+
+function teamsFromSchedule() {
+  const sched = readJSON(SCHEDULE_FILE);
+  const seen = new Set();
+  const out = [];
+  Object.values(sched).forEach(g => {
+    if (g && g.t1name && !seen.has(g.t1name)) { seen.add(g.t1name); out.push({ name: g.t1name }); }
+    if (g && g.t2name && !seen.has(g.t2name)) { seen.add(g.t2name); out.push({ name: g.t2name }); }
+  });
+  return out;
+}
+
+app.get('/api/teams', (req, res) => {
+  const data = readJSON(TEAMS_FILE);
+  const teams = data.teams && data.teams.length ? data.teams : teamsFromSchedule();
+  res.json({ showSeeds: !!data.showSeeds, teams });
+});
+
+app.post('/api/teams', requireAdmin, (req, res) => {
+  const { showSeeds, teams } = req.body || {};
+  if (!Array.isArray(teams)) return res.status(400).json({ error: 'teams must be an array' });
+  if (teams.length > 200) return res.status(400).json({ error: 'too many teams (max 200)' });
+  const clean = [];
+  for (const t of teams) {
+    const name = String((t && t.name) || '').trim().slice(0, 100);
+    if (!name) return res.status(400).json({ error: 'team name cannot be blank' });
+    clean.push({ name });
+  }
+  const prev = readJSON(TEAMS_FILE);
+  writeJSON(TEAMS_FILE, { ...prev, showSeeds: !!showSeeds, teams: clean });
   res.json({ ok: true });
 });
 

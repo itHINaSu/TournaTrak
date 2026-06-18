@@ -35,7 +35,7 @@ const startDate = startArg ? new Date(startArg + 'T00:00:00') : nextSaturday(new
 const startStr  = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, '0')}-${String(startDate.getDate()).padStart(2, '0')}`;
 
 // ── Generate + write ─────────────────────────────────────────────────────
-const schedule = generateSchedule('single-elim', { startDate: startStr, teams: TEAMS });
+const { schedule } = generateSchedule('single-elim', { startDate: startStr, teams: TEAMS });
 
 const outPath = path.join(__dirname, 'files', 'schedule.json');
 fs.mkdirSync(path.dirname(outPath), { recursive: true });

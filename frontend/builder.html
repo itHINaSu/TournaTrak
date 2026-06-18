@@ -69,6 +69,11 @@
         <option value="manual">Manual — I’ll pick which teams get byes</option>
       </select>
     </div>
+    <!-- Show seeds — visible when seedMode is order or manual -->
+    <label class="bld-check" id="showSeedsField" style="display:none">
+      <input type="checkbox" id="showSeedsChk">
+      Show seed numbers on the bracket <span class="bld-muted">(e.g. (1) Team Name)</span>
+    </label>
     <!-- Manual bye picker — shown only for manual mode when byes are needed -->
     <div id="byePicker" style="display:none">
       <label class="bld-field" style="display:block">Pick the teams that get a first-round bye
