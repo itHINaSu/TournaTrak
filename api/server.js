@@ -144,8 +144,13 @@ function ensureUsers() {
     role:               'admin',
     mustChangePassword: FORCE_PASSWORD_CHANGE,
   };
-  writeUsers([bootstrapUser]);
-  console.log(`Bootstrapped users.json with admin user "${ADMIN_USERNAME}"`);
+  try {
+    writeUsers([bootstrapUser]);
+    console.log(`Bootstrapped users.json with admin user "${ADMIN_USERNAME}"`);
+  } catch (e) {
+    // Demo mode: restoreDemoSeed() will copy users.json from the seed shortly.
+    console.warn(`Could not bootstrap users.json: ${e.message}`);
+  }
 }
 
 // ── Credentials — required at startup ────────────────────────────────
@@ -245,8 +250,15 @@ function ensureDataFiles() {
 
   Object.entries(defaults).forEach(([file, empty]) => {
     if (!fs.existsSync(file)) {
-      fs.writeFileSync(file, JSON.stringify(empty, null, 2));
-      console.log(`Created ${file}`);
+      try {
+        fs.writeFileSync(file, JSON.stringify(empty, null, 2));
+        console.log(`Created ${file}`);
+      } catch (e) {
+        // In demo mode restoreDemoSeed() will write these files moments later.
+        // In normal mode this is a real problem, but crashing here prevents the
+        // server from starting at all, which is worse than a degraded startup.
+        console.warn(`Could not create ${file}: ${e.message}`);
+      }
     }
   });
 }

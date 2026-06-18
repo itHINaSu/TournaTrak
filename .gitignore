@@ -12,7 +12,11 @@ files/users.json
 
 # Demo sandbox runtime data (recreated from demo-seed/ on every reset).
 # demo-seed/ itself IS tracked — it's the canonical demo snapshot.
-demo-files/
+# Track the directory placeholder so git clones create demo-files/ with
+# user-owned permissions; Docker bind mounts then re-use the existing dir
+# instead of creating a new root:root one that the node user can't write to.
+demo-files/*
+!demo-files/.gitkeep
 
 # Docker and system noise
 .env
