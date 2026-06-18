@@ -820,6 +820,20 @@ app.post('/api/schedule', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/api/schedule/swap', requireAdmin, (req, res) => {
+  const { slotA, slotB } = req.body || {};
+  if (!isValidSlotId(slotA) || !isValidSlotId(slotB))
+    return res.status(400).json({ error: 'invalid slot ID' });
+  if (slotA === slotB)
+    return res.status(400).json({ error: 'slots must differ' });
+  const sched = readJSON(SCHEDULE_FILE);
+  const tmp = sched[slotA];
+  if (sched[slotB] !== undefined) sched[slotA] = sched[slotB]; else delete sched[slotA];
+  if (tmp !== undefined) sched[slotB] = tmp; else delete sched[slotB];
+  writeJSON(SCHEDULE_FILE, sched);
+  res.json({ ok: true });
+});
+
 // ── Bracket Builder ───────────────────────────────────────────────────
 // List the available tournament formats so the builder UI can render choices.
 app.get('/api/schedule/formats', requireAdmin, (req, res) => {

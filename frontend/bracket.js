@@ -496,6 +496,16 @@ window.addEventListener('orientationchange', function() {
 // ══════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════
+function showToast(msg, err) {
+  var t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.className = 'toast' + (err ? ' error' : '');
+  t.classList.add('show');
+  clearTimeout(t._tt);
+  t._tt = setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+
 function gameLabel(sid){
   var g = GAMES[sid];
   return g && g.label ? g.label : sid;
@@ -580,7 +590,6 @@ function getDims(){
   var isDesktop = winW >= 1280;
 
   if(isDesktop){
-    var champVw=10;
     var nL=Math.max(buildSideColumns('L').length,1);
     var nR=Math.max(buildSideColumns('R').length,1);
     // 97vw = usable bracket width (nearly full window, small side margins).
@@ -590,7 +599,13 @@ function getDims(){
     // unit and the championship sits at the seam between the two brackets,
     // even when the sides have different round counts.
     var units=nL+nR+(Math.max(nL-1,0)+Math.max(nR-1,0))*0.15;
+    // Championship column has 1.6vw of fixed padding/margin, so its inner
+    // width = champVw - 1.6.  When there are few rounds, colVw grows large;
+    // in that case expand champVw so the championship card matches the rest.
+    // Solving colVw == champVw - 1.6 gives colVw = (97-1.6)/(units+1).
+    var champVw=10;
     var colVw=(97-champVw)/units;
+    if(colVw > champVw - 1.6){ colVw = 95.4/(units+1); champVw = colVw + 1.6; }
     var gapVw=colVw*0.15;
     var vwPx=window.innerWidth/100, vhPx=window.innerHeight/100;
     var cardVh=(colVw*vwPx/CARD_ASPECT)/vhPx;
@@ -1002,6 +1017,7 @@ function renderBracket(){
   applyCSSVars(dims);
   if(dims.isDesktop){
     renderDesktopBracket(root,dims);
+    if(_sessionRole==='admin') initBracketDrag(root);
   } else if(dims.isMobile){
     renderMobileBracket(root,dims);
   }
@@ -2690,6 +2706,101 @@ function holdHighlight(card){
 document.addEventListener('click',function(e){
   if(e.target.closest && e.target.closest('.view-tab')) clearHoldHighlight();
 });
+
+// ══════════════════════════════════════════════════════════
+// ADMIN DRAG-AND-DROP (desktop bracket only)
+// ══════════════════════════════════════════════════════════
+function initBracketDrag(root) {
+  var dragState = null;
+  var ghost     = null;
+  var overEl    = null;
+
+  root.querySelectorAll('.bc[data-gid]').forEach(function(card) {
+    card.style.cursor = 'grab';
+    card.addEventListener('pointerdown', onDown);
+  });
+
+  function onDown(e) {
+    if (e.button !== 0 || dragState) return;
+    var card = e.currentTarget;
+    var gid  = card.dataset.gid;
+    if (!gid) return;
+    e.preventDefault();
+
+    var rect = card.getBoundingClientRect();
+    dragState = { el: card, gid: gid, offX: e.clientX - rect.left, offY: e.clientY - rect.top };
+
+    ghost = card.cloneNode(true);
+    ghost.removeAttribute('data-gid');
+    ghost.className = 'bc bc-drag-ghost';
+    ghost.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;'
+      + 'width:' + rect.width + 'px;height:' + rect.height + 'px;'
+      + 'left:' + (e.clientX - dragState.offX) + 'px;top:' + (e.clientY - dragState.offY) + 'px;';
+    document.body.appendChild(ghost);
+    card.classList.add('bc-dragging');
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup',   onUp);
+    document.addEventListener('pointercancel', onCancel);
+  }
+
+  function onMove(e) {
+    if (!dragState) return;
+    ghost.style.left = (e.clientX - dragState.offX) + 'px';
+    ghost.style.top  = (e.clientY - dragState.offY) + 'px';
+
+    // Briefly hide ghost so elementsFromPoint can see what's underneath.
+    ghost.style.display = 'none';
+    var els = document.elementsFromPoint(e.clientX, e.clientY);
+    ghost.style.display = '';
+
+    var target = null;
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.dataset && el.dataset.gid && el !== dragState.el && el.classList.contains('bc')) {
+        target = el; break;
+      }
+    }
+    if (overEl && overEl !== target) overEl.classList.remove('bc-drop-target');
+    overEl = target;
+    if (overEl) overEl.classList.add('bc-drop-target');
+  }
+
+  function onUp() {
+    var src = dragState, tgt = overEl;
+    cleanup();
+    if (!tgt || !src) return;
+    var targetGid = tgt.dataset.gid;
+    if (!targetGid || targetGid === src.gid) return;
+
+    fetch('/api/schedule/swap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slotA: src.gid, slotB: targetGid })
+    }).then(function(r) {
+      return r.ok ? r.json() : r.json().then(function(d) { throw new Error(d.error || r.status); });
+    }).then(function() {
+      return fetch('/api/schedule').then(function(r) { return r.json(); });
+    }).then(function(sched) {
+      schedule = sched;
+      if (typeof applySchedule === 'function') applySchedule(schedule);
+      renderBracket();
+    }).catch(function(err) {
+      showToast('Swap failed: ' + (err.message || 'unknown error'), true);
+    });
+  }
+
+  function onCancel() { cleanup(); }
+
+  function cleanup() {
+    if (ghost)     { ghost.remove(); ghost = null; }
+    if (dragState) { dragState.el.classList.remove('bc-dragging'); dragState = null; }
+    if (overEl)    { overEl.classList.remove('bc-drop-target'); overEl = null; }
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup',   onUp);
+    document.removeEventListener('pointercancel', onCancel);
+  }
+}
 
 // ══════════════════════════════════════════════════════════
 // INIT
