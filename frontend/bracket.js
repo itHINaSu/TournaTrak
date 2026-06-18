@@ -1333,6 +1333,23 @@ function renderMobileBracket(root, dims) {
   //
   // divs: [{idx, label}] — dividers inserted above the game at that index.
   var cols = [];
+  // isWBGame: true when a game has no 'loser' type feeder and all advancing-slot
+  // feeders also trace back through WB games. Fixed-team games are WB by definition.
+  // Memoised per renderMobileBracket call.
+  var _wbCache = {};
+  function isWBGame(gid) {
+    if (_wbCache[gid] !== undefined) return _wbCache[gid];
+    var g = GAMES[gid];
+    if (!g) return (_wbCache[gid] = false);
+    var slots = [g.t1, g.t2].filter(function(s){ return s && s.type !== 'fixed'; });
+    // Any 'loser' slot means a WB team dropped down → LB game.
+    if (slots.some(function(s){ return s.type === 'loser'; })) return (_wbCache[gid] = false);
+    // All slots are 'winner' type — recurse to check their sources.
+    return (_wbCache[gid] = slots.every(function(s){
+      return !s.slot || isWBGame(s.slot);
+    }));
+  }
+
   rounds.forEach(function(round) {
     var gids = gidsFor(round);
     if (round === 'CHAMP' || round === 'CHAMP2') {
@@ -1340,12 +1357,13 @@ function renderMobileBracket(root, dims) {
       return;
     }
 
-    // Detect single-side rounds (all games on L or all on R, not both).
-    var hasSide = {};
-    gids.forEach(function(gid) { hasSide[GAMES[gid].side] = true; });
-    var singleSide = Object.keys(hasSide).length === 1;
+    // Absorb LB-only rounds into the previous column so WB games in adjacent
+    // columns remain visually adjacent. A round is LB-only when none of its games
+    // is a WB game (detected by tracing feeder slots: any 'loser' type feeder
+    // marks a game as LB, regardless of how many bracket sides it spans).
+    var hasWB = gids.some(function(gid){ return isWBGame(gid); });
 
-    if (singleSide && cols.length > 0) {
+    if (!hasWB && cols.length > 0) {
       // Absorb into the previous column under a "Loser's Bracket" divider.
       var prev = cols[cols.length - 1];
       prev.divs.push({ idx: prev.gids.length, label: roundLabel(round), type: 'absorbed' });
