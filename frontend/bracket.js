@@ -1067,7 +1067,7 @@ function renderDesktopBracket(root,dims){
   var champ2G=GAMES['CHAMP2.C.1'], cr2=results['CHAMP2.C.1']||{};
   var champHTML;
   if(!champG){
-    champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;margin-top:'+hdrVh+'vh">'
+    champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
       +'<div class="champ-inner" style="opacity:0.3">'
       +'<div class="champ-trophy">'+trophySVG()+'</div>'
       +'<div class="champ-title">Championship</div>'
@@ -1093,7 +1093,7 @@ function renderDesktopBracket(root,dims){
       }
     }
     var showChampWinner = cr.winner && champ2State() !== 'needed';
-    champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;margin-top:'+hdrVh+'vh">'
+    champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
       +'<div class="champ-inner" style="margin-top:'+(3.5*slotVh)+'vh">'
       +'<div class="champ-trophy">'+trophySVG()+'</div>'
       +'<div class="champ-title">Championship</div>'

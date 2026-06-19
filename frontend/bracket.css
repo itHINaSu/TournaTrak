@@ -568,10 +568,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   /* stretch (not center): .champ-bc must span the column like the
      original width:100% wrapper, or the card collapses to content width */
   align-items: stretch;
-  /* Fill the full height of the bracket row (the side brackets are taller than
-     the championship content) so the tinted column + its side borders reach
-     the bottom instead of stopping at the last card. */
-  align-self: stretch;
   justify-content: flex-start;
   padding: 0 0.5vw;
   /* Horizontal breathing room between the tinted column and the SF cards.
