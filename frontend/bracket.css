@@ -568,6 +568,10 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   /* stretch (not center): .champ-bc must span the column like the
      original width:100% wrapper, or the card collapses to content width */
   align-items: stretch;
+  /* Fill the full height of the bracket row (the side brackets are taller than
+     the championship content) so the tinted column + its side borders reach
+     the bottom instead of stopping at the last card. */
+  align-self: stretch;
   justify-content: flex-start;
   padding: 0 0.5vw;
   /* Horizontal breathing room between the tinted column and the SF cards.
@@ -1656,9 +1660,13 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
-  border: 1px solid var(--border);
-  border-radius: 0.6em;
-  padding: 0.1em 0.45em;
+  /* Soft tint keyed to the field color (currentColor = the color set by the
+     numbered palette class or the user-picked inline color). No border, slight
+     radius — reads as a highlight, not a tappable button. */
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  border: none;
+  border-radius: 0.3em;
+  padding: 0.12em 0.4em;
   margin-left: 0.4em;
   white-space: nowrap;
   flex-shrink: 0;
@@ -1675,6 +1683,15 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .game-field-tag--5 { color: var(--field-5); border-color: var(--field-5); }
 /* Field tag sits as first item inside the time block — no extra left margin needed */
 .round-game-day-time .game-field-tag { margin-left: 0; }
+
+/* Bracket card headers: keep the game label hard-left and push the field tag
+   + time block together to the right, so the field reads as part of the
+   when/where cluster rather than hugging the game name. */
+.bc-hdr .game-field-tag,
+.mbc-game-mid .game-field-tag { margin-left: auto; }
+/* When a game has no field tag, push the time block right on its own. */
+.bc-id + .bc-time,
+.mbc-game-lbl + .mbc-game-datetime { margin-left: auto; }
 
 /* ── Team path: tappable opponent chip ("who might I play?") ──────────── */
 /* Distinct pill inside the game card; tapping it jumps to the opponent's
