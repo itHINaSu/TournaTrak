@@ -841,9 +841,11 @@ app.get('/api/schedule/formats', requireAdmin, (req, res) => {
     id: f.id,
     label: f.label,
     description: f.description,
-    // A format declares either a fixed teamCount or a minTeams/maxTeams range.
+    // A format declares either a fixed teamCount, a minTeams/maxTeams range,
+    // or an explicit validCounts list (e.g. double-elim requires exact powers of 2).
     minTeams: f.minTeams != null ? f.minTeams : f.teamCount,
     maxTeams: f.maxTeams != null ? f.maxTeams : f.teamCount,
+    validCounts: f.validCounts || null,
     doubleElim: !!f.doubleElim,
     supportsIfNecessary: !!f.supportsIfNecessary,
   })));
