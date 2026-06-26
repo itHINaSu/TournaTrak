@@ -919,7 +919,7 @@ function connLines(conns,wVw,hVh,lc,mirror){
 // BUILD SIDE COLUMNS
 // ══════════════════════════════════════════════════════════
 function buildSideColumns(side){
-  var rounds=['R1','R2','QF','QF2','SF'];
+  var rounds=ROUND_ORDER.filter(function(r){ return r!=='CHAMP'&&r!=='CHAMP2'; });
   return rounds.map(function(round){
     var games=Object.keys(GAMES).filter(function(gid){
       return GAMES[gid].side===side&&GAMES[gid].round===round;
@@ -1373,7 +1373,7 @@ function renderMobileBracket(root, dims) {
   var colW  = Math.round(winW * 0.72);
   var padPx = 12;
 
-  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].filter(function(r){
+  var rounds = ROUND_ORDER.filter(function(r){
     return Object.keys(GAMES).some(function(gid){ return GAMES[gid].round===r; });
   });
 
