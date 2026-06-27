@@ -22,8 +22,7 @@ function posOptions(selected) {
 }
 
 var lineupRowCount  = 11;
-var isReorderMode   = false;
-var reorderSelected = -1; // index of the tapped row waiting for a swap target
+var isReorderMode = false;
 
 function buildRows(rows, readOnly) {
   var html  = '';
@@ -35,15 +34,13 @@ function buildRows(rows, readOnly) {
     var rowCls = 'lineup-row' + (isSub ? ' lineup-row--sub' : '');
     var orderCell;
     if (isReorderMode) {
-      var isSelected = (i === reorderSelected);
-      rowCls += ' lineup-row--reorder' + (isSelected ? ' lineup-row--selected' : '');
-      orderCell = '<td class="lineup-td-order lineup-td-order--reorder" onclick="tapRow(' + i + ')">'
-        + '<span class="lineup-order lineup-order--tap">' + (i + 1) + '</span>'
+      orderCell = '<td class="lineup-td-order lineup-td-order--reorder">'
+        + '<span class="lineup-drag-handle"></span>'
         + '</td>';
     } else {
       orderCell = '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>';
     }
-    html += '<tr class="' + rowCls + '"' + (isReorderMode ? ' onclick="tapRow(' + i + ')"' : '') + '>'
+    html += '<tr class="' + rowCls + '"' + (isReorderMode ? ' data-idx="' + i + '"' : '') + '>'
       + orderCell
       + '<td class="lineup-td-num"><input type="text" class="lineup-inp lineup-inp--num" id="lj-' + i + '" maxlength="4" value="' + esc(r.jersey || '') + '" placeholder="#" inputmode="numeric"' + dis + '></td>'
       + '<td class="lineup-td-name"><input type="text" class="lineup-inp lineup-inp--name" id="ln-' + i + '" maxlength="64" value="' + esc(r.name || '') + '" placeholder="Player name"' + dis + '></td>'
@@ -60,8 +57,7 @@ function buildRows(rows, readOnly) {
 
 // ── Reorder ────────────────────────────────────────────────────────────
 function toggleReorder() {
-  isReorderMode   = !isReorderMode;
-  reorderSelected = -1;
+  isReorderMode = !isReorderMode;
   var btn = document.getElementById('lineupReorderBtn');
   if (btn) {
     btn.textContent = isReorderMode ? 'Done' : 'Reorder';
@@ -70,38 +66,94 @@ function toggleReorder() {
   }
   var rows = getCurrentRows();
   document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+  if (isReorderMode) initLineupDrag();
 }
 
-function tapRow(idx) {
-  if (!isReorderMode) return;
-  if (reorderSelected === -1) {
-    // First tap: select this row
-    reorderSelected = idx;
-    var rows = getCurrentRows();
-    document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
-  } else if (reorderSelected === idx) {
-    // Tap same row: deselect
-    reorderSelected = -1;
-    var rows = getCurrentRows();
-    document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
-  } else {
-    var rows = getCurrentRows();
-    var a = reorderSelected, b = idx;
-    var bothRegular = (a < 11 && b < 11);
-    var tmpJersey    = rows[a].jersey;
-    var tmpName      = rows[a].name;
-    var tmpPosition  = rows[a].position;
-    rows[a].jersey   = rows[b].jersey;
-    rows[a].name     = rows[b].name;
-    rows[b].jersey   = tmpJersey;
-    rows[b].name     = tmpName;
-    if (bothRegular) {
-      rows[a].position = rows[b].position;
-      rows[b].position = tmpPosition;
+function initLineupDrag() {
+  document.querySelectorAll('#lineupBody .lineup-drag-handle').forEach(function(handle) {
+    handle.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      var row = handle.closest('tr');
+      if (row) lineupDragStart(row, e);
+    });
+  });
+}
+
+function lineupDragStart(srcRow, e) {
+  var tbody  = srcRow.parentElement;
+  var srcIdx = parseInt(srcRow.dataset.idx, 10);
+  var rowRect = srcRow.getBoundingClientRect();
+  var offsetY = e.clientY - rowRect.top;
+
+  var ghostTable = document.createElement('table');
+  ghostTable.className = 'lineup-table';
+  ghostTable.style.borderCollapse = 'collapse';
+  var ghostTbody = document.createElement('tbody');
+  ghostTbody.appendChild(srcRow.cloneNode(true));
+  ghostTable.appendChild(ghostTbody);
+  Object.assign(ghostTable.style, {
+    position: 'fixed', left: rowRect.left + 'px', top: rowRect.top + 'px',
+    width: rowRect.width + 'px', zIndex: '9999', pointerEvents: 'none',
+    opacity: '0.45', transform: 'rotate(1deg)',
+    boxShadow: '0 8px 28px rgba(0,0,0,0.5)', transition: 'none'
+  });
+  document.body.appendChild(ghostTable);
+  srcRow.style.opacity = '0.08';
+
+  var lastInsertBeforeIdx = null;
+
+  function onMove(e2) {
+    e2.preventDefault();
+    ghostTable.style.top = (e2.clientY - offsetY) + 'px';
+    tbody.querySelectorAll('tr.lineup-row').forEach(function(r) {
+      r.classList.remove('drop-before', 'drop-after');
+    });
+    var rows = Array.from(tbody.querySelectorAll('tr.lineup-row'));
+    if (!rows.length) return;
+    var insertBeforeRow = null;
+    for (var i = 0; i < rows.length; i++) {
+      var rect = rows[i].getBoundingClientRect();
+      if (e2.clientY < rect.top + rect.height / 2) { insertBeforeRow = rows[i]; break; }
     }
-    reorderSelected  = -1;
-    document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+    if (insertBeforeRow) {
+      insertBeforeRow.classList.add('drop-before');
+      lastInsertBeforeIdx = parseInt(insertBeforeRow.dataset.idx, 10);
+    } else {
+      rows[rows.length - 1].classList.add('drop-after');
+      lastInsertBeforeIdx = lineupRowCount;
+    }
   }
+
+  function cleanup() {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onCancel);
+    ghostTable.remove();
+    srcRow.style.opacity = '';
+    tbody.querySelectorAll('tr.lineup-row').forEach(function(r) {
+      r.classList.remove('drop-before', 'drop-after');
+    });
+  }
+
+  function onCancel() { cleanup(); }
+
+  function onUp() {
+    cleanup();
+    if (lastInsertBeforeIdx !== null && lastInsertBeforeIdx !== srcIdx && lastInsertBeforeIdx !== srcIdx + 1) {
+      var rows = getCurrentRows();
+      var moved = rows.splice(srcIdx, 1)[0];
+      var insertAt = lastInsertBeforeIdx;
+      if (srcIdx < insertAt) insertAt--;
+      rows.splice(insertAt, 0, moved);
+      document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+      initLineupDrag();
+    }
+  }
+
+  document.addEventListener('pointermove', onMove, { passive: false });
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onCancel);
 }
 
 // ── Import ─────────────────────────────────────────────────────────────
@@ -223,10 +275,9 @@ function updateSubButtons(readOnly) {
   if (tools) tools.style.display = ro ? 'none' : '';
   // Reset reorder mode when game changes
   if (ro && isReorderMode) {
-    isReorderMode   = false;
-    reorderSelected = -1;
+    isReorderMode = false;
     var rb = document.getElementById('lineupReorderBtn');
-    if (rb) rb.textContent = 'Reorder';
+    if (rb) { rb.textContent = 'Reorder'; rb.classList.replace('lineup-tool-btn--done', 'lineup-tool-btn--reorder'); }
   }
 }
 

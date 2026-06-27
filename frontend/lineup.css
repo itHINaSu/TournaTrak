@@ -74,32 +74,23 @@
 .lineup-tool-btn--cancel { color: var(--lose-color); border-color: var(--lose-color); }
 .lineup-tool-btn--cancel:hover { opacity: 0.8; }
 
-/* ── Reorder tap-to-swap ── */
-.lineup-td-order--reorder { cursor: pointer; }
-/* In reorder mode block direct input/select interaction so taps reach the row's onclick */
-.lineup-row--reorder { cursor: pointer; user-select: none; -webkit-user-select: none; }
-.lineup-row--reorder .lineup-inp,
-.lineup-row--reorder .lineup-sel { pointer-events: none; }
-.lineup-order--tap {
+/* ── Reorder drag-and-drop ── */
+.lineup-drag-handle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.6em;
-  height: 1.6em;
-  border-radius: 50%;
-  border: 0.1em solid var(--border);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  color: var(--text-mute);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+  min-width: 1.4em;
+  padding: 0 0.15em;
 }
-.lineup-row--reorder-hover .lineup-order--tap,
-.lineup-row:hover .lineup-order--tap { border-color: var(--blue-lt); color: var(--blue-lt); }
-.lineup-row--selected { background: color-mix(in srgb, var(--blue) 12%, transparent) !important; }
-.lineup-row--selected .lineup-order--tap {
-  background: var(--blue-lt);
-  border-color: var(--blue-lt);
-  color: #fff;
-}
+.lineup-drag-handle::before { content: '⠿'; font-size: 1.1rem; line-height: 1; }
+.lineup-drag-handle:hover { color: var(--text-dim); }
+.lineup-row.drop-before { box-shadow: 0 -3px 0 0 var(--blue-lt); }
+.lineup-row.drop-after  { box-shadow: 0  3px 0 0 var(--blue-lt); }
 
 /* ── Import modal ── */
 .lineup-modal-overlay {
