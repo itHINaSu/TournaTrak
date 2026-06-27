@@ -36,7 +36,7 @@ function buildRows(rows, readOnly) {
     var orderCell;
     if (isReorderMode) {
       var isSelected = (i === reorderSelected);
-      rowCls += isSelected ? ' lineup-row--selected' : '';
+      rowCls += ' lineup-row--reorder' + (isSelected ? ' lineup-row--selected' : '');
       orderCell = '<td class="lineup-td-order lineup-td-order--reorder" onclick="tapRow(' + i + ')">'
         + '<span class="lineup-order lineup-order--tap">' + (i + 1) + '</span>'
         + '</td>';

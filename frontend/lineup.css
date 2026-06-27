@@ -76,6 +76,10 @@
 
 /* ── Reorder tap-to-swap ── */
 .lineup-td-order--reorder { cursor: pointer; }
+/* In reorder mode block direct input/select interaction so taps reach the row's onclick */
+.lineup-row--reorder { cursor: pointer; user-select: none; -webkit-user-select: none; }
+.lineup-row--reorder .lineup-inp,
+.lineup-row--reorder .lineup-sel { pointer-events: none; }
 .lineup-order--tap {
   display: inline-flex;
   align-items: center;
