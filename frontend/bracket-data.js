@@ -7,20 +7,45 @@
 
 // IMPORTANT: Keep in sync with api/slot-defs.js (API container cannot import this file).
 const SLOT_DEFS = {
-  R1:    { L:[1,2,3,4,5,6,7,8], R:[1,2,3,4,5,6,7,8] },
-  R2:    { L:[1,2,3,4],         R:[1,2,3,4] },
-  QF:    { L:[1,2,3,4],         R:[1,2,3,4] },
-  QF2:   { L:[1,2],             R:[1,2] },
-  SF:    { L:[1,2,3],           R:[1,2,3] },
+  R0:   { L:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], R:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16] },
+  R1:   { L:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], R:[1,2,3,4,5,6,7,8] },
+  R2:   { L:[1,2,3,4,5,6,7,8],                        R:[1,2,3,4,5,6,7,8] },
+  QF:   { L:[1,2,3,4],                                 R:[1,2,3,4] },
+  QF2:  { L:[1,2],                                     R:[1,2,3,4] },
+  SF:   { L:[1,2,3],                                   R:[1,2,3,4] },
+  SF3:  {                                               R:[1,2] },
+  SF2:  { L:[1],                                       R:[1,2] },
   CHAMP:  { C:[1] },
   CHAMP2: { C:[1] }
 };
 
-const ROUND_ORDER  = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
+const ROUND_ORDER  = ['R0','R1','R2','QF','QF2','SF','SF3','SF2','CHAMP','CHAMP2'];
 const ROUND_LABELS = {
-  R1:'Round 1', R2:'Round 2', QF:'Round 3', QF2:'Round 4',
-  SF:'Round 5', CHAMP:'Championship', CHAMP2:'If Necessary'
+  R0:'Round 0', R1:'Round 1', R2:'Round 2', QF:'Round 3', QF2:'Round 4',
+  SF:'Round 5', SF3:'Round 6', SF2:'Round 7', CHAMP:'Championship', CHAMP2:'If Necessary'
 };
+
+// roundLabel — display name for a round, numbered by the populated rounds only.
+// The static ROUND_LABELS above assume the full bracket structure, so a bracket
+// smaller than the maximum (e.g. an 8-team single-elim using only QF/SF/CHAMP)
+// would otherwise show "Round 3" as its first column. This numbers the
+// populated pre-championship rounds sequentially instead, so any bracket reads
+// "Round 1, Round 2, …". For the full structure every round is populated, so
+// the result is identical to ROUND_LABELS (no change for existing brackets).
+// NOTE: intended for the public bracket, which renders only populated rounds.
+// The admin editor shows every defined round and keeps the static labels.
+function roundLabel(round) {
+  if (round === 'CHAMP')  return ROUND_LABELS.CHAMP;
+  if (round === 'CHAMP2') return ROUND_LABELS.CHAMP2;
+  let n = 0;
+  for (const r of ROUND_ORDER) {
+    if (r === 'CHAMP' || r === 'CHAMP2') continue;
+    const has = Object.keys(GAMES).some(g => GAMES[g].round === r);
+    if (has) n++;
+    if (r === round) return has ? 'Round ' + n : (ROUND_LABELS[round] || round);
+  }
+  return ROUND_LABELS[round] || round;
+}
 
 // GAMES starts empty — populated by applySchedule() on load
 const GAMES = {};
@@ -93,7 +118,14 @@ function occupiedSlots() {
 function resolveSlot(teamSlot, results) {
   if (!teamSlot) return null;
   if (teamSlot.type==='fixed')  return teamSlot.team || null;
-  if (teamSlot.type==='winner') return (results[teamSlot.slot]||{}).winner || null;
+  if (teamSlot.type==='winner') {
+    var w = (results[teamSlot.slot]||{}).winner;
+    if (w) return w;
+    // Bye game: no result is ever entered, but the lone team auto-advances.
+    var g = GAMES[teamSlot.slot];
+    if (g && g.bye) return resolveSlot(g.t1, results);
+    return null;
+  }
   if (teamSlot.type==='loser')  return (results[teamSlot.slot]||{}).loser  || null;
   return null;
 }
@@ -183,6 +215,7 @@ function applySchedule(schedule) {
       num:   ov.num != null ? parseInt(ov.num) : parsed.num,
       time:  ov.time || '',
       field: typeof ov.field === 'string' ? ov.field.trim() : '',
+      bye:   ov.bye === true,
       t1: ov.t1name
         ? { type:'fixed', team:ov.t1name }
         : { type:(ov.t1type||'winner'), slot:ov.t1slot },
@@ -207,7 +240,7 @@ function applySchedule(schedule) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    GAMES, SLOT_DEFS, ROUND_ORDER, ROUND_LABELS,
+    GAMES, SLOT_DEFS, ROUND_ORDER, ROUND_LABELS, roundLabel,
     allSlotIds, parseSlotId, occupiedSlots, slotsForRoundSide,
     resolveSlot, slotLabel, smartLabel, shortName,
     isEliminated, findNextSlot, applySchedule,

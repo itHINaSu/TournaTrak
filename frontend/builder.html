@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Bracket Builder</title>
+<meta name="theme-color" content="#0f1410" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f0f4f1" media="(prefers-color-scheme: light)">
+<link rel="apple-touch-icon" href="/icons/admin-180.png">
+<link rel="stylesheet" href="/fonts.css">
+<link rel="stylesheet" href="base.css">
+<link rel="stylesheet" href="builder.css">
+<script>document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');</script>
+</head>
+<body>
+
+<header class="bld-header">
+  <span class="bld-title">Bracket Builder</span>
+  <a class="bld-back" href="/admin">← Admin</a>
+</header>
+
+<!-- Auth gate — shown when the visitor isn't an admin -->
+<main class="bld-main" id="authGate" style="display:none">
+  <div class="bld-card bld-gate">
+    <div class="bld-gate-msg" id="authGateMsg">Sign in as an administrator to build a bracket.</div>
+    <a class="bld-btn bld-btn--primary" href="/admin">Go to Admin Login</a>
+  </div>
+</main>
+
+<!-- Loading state while the session check runs -->
+<main class="bld-main" id="loading">
+  <div class="bld-card"><div class="bld-muted">Loading…</div></div>
+</main>
+
+<!-- Builder — shown once an admin session is confirmed -->
+<main class="bld-main" id="builder" style="display:none">
+
+  <div class="bld-card">
+    <h2 class="bld-h2">1 · Format</h2>
+    <div class="bld-field">
+      <label for="formatSel">Tournament format</label>
+      <select class="bld-input" id="formatSel"></select>
+    </div>
+    <p class="bld-muted" id="formatDesc"></p>
+    <!-- Double-elim only: include the bracket-reset final -->
+    <label class="bld-check" id="ifNecField" style="display:none">
+      <input type="checkbox" id="ifNecChk" checked>
+      Include “if necessary” final (bracket reset — losers-bracket team must win twice)
+    </label>
+  </div>
+
+  <div class="bld-card">
+    <h2 class="bld-h2">2 · Teams <span class="bld-count" id="teamCount"></span></h2>
+    <!-- Quick-fill: drop in N randomly generated names for testing/demo -->
+    <div class="bld-gen-row">
+      <span>Randomly generate</span>
+      <select class="bld-input bld-gen-count" id="genCount" aria-label="Number of teams to generate"></select>
+      <span>team names</span>
+      <button type="button" class="bld-btn bld-btn--small" id="genBtn">Generate</button>
+    </div>
+    <div class="bld-field">
+      <label for="teamsInput">One team name per line</label>
+      <textarea class="bld-input bld-textarea" id="teamsInput" rows="10"
+        placeholder="Paste or type one team name per line…" spellcheck="false"></textarea>
+    </div>
+    <p class="bld-muted" id="byeNote"></p>
+  </div>
+
+  <div class="bld-card">
+    <h2 class="bld-h2">3 · Seeding &amp; byes</h2>
+    <div class="bld-field">
+      <label for="seedMode">How should teams be seeded?</label>
+      <select class="bld-input" id="seedMode">
+        <option value="random">Random — shuffle everything (byes to random teams)</option>
+        <option value="order">By list order — line 1 is the top seed (byes to top teams)</option>
+        <option value="manual">Manual — I’ll pick which teams get byes</option>
+      </select>
+    </div>
+    <!-- Show seeds — visible when seedMode is order or manual -->
+    <label class="bld-check" id="showSeedsField" style="display:none">
+      <input type="checkbox" id="showSeedsChk">
+      Show seed numbers on the bracket <span class="bld-muted">(e.g. (1) Team Name)</span>
+    </label>
+    <!-- Manual bye picker — shown only for manual mode when byes are needed -->
+    <div id="byePicker" style="display:none">
+      <label class="bld-field" style="display:block">Pick the teams that get a first-round bye
+        <span class="bld-count" id="byeCount"></span></label>
+      <div class="bld-bye-list" id="byeList"></div>
+    </div>
+  </div>
+
+  <div class="bld-card">
+    <h2 class="bld-h2">4 · Schedule</h2>
+    <div class="bld-field" id="simpleDateField">
+      <label for="simpleDate">Tournament start date</label>
+      <input type="date" class="bld-input" id="simpleDate">
+    </div>
+    <label class="bld-check">
+      <input type="checkbox" id="advSchedChk">
+      Set specific playing days (custom dates, times &amp; games per day)
+    </label>
+    <!-- Optional: calendar-driven multi-day schedule -->
+    <div id="advSched" style="display:none">
+      <p class="bld-muted">Tap the days games will be played, then set each day’s start time,
+        number of games, and minutes between games. Add a field to run games on more than one
+        surface — games then run in concurrent waves so the day finishes sooner, and each day
+        can be limited to the fields it actually uses (e.g. championship day on one field).
+        Games fill the days in bracket order — early rounds first.</p>
+      <div class="bld-cal" id="calendar"></div>
+      <div class="bld-fields-setup" id="fieldsSetup"></div>
+      <div class="bld-days" id="daysList"></div>
+      <p class="bld-muted" id="slotSummary"></p>
+    </div>
+    <p class="bld-muted">Game times can be fine-tuned afterward in the Admin schedule editor.</p>
+  </div>
+
+  <div class="bld-actions">
+    <div class="bld-error" id="builderError"></div>
+    <button class="bld-btn bld-btn--primary" id="generateBtn">Generate Bracket</button>
+  </div>
+</main>
+
+<!-- Confirm overlay (destructive replace) -->
+<div class="bld-overlay" id="confirmOverlay" style="display:none">
+  <div class="bld-modal">
+    <div class="bld-modal-title">Replace current schedule?</div>
+    <div class="bld-modal-body" id="confirmText"></div>
+    <div class="bld-modal-actions">
+      <button class="bld-btn" id="cancelBtn">Cancel</button>
+      <button class="bld-btn bld-btn--danger" id="confirmBtn">Replace &amp; Generate</button>
+    </div>
+  </div>
+</div>
+
+<!-- Success overlay -->
+<div class="bld-overlay" id="doneOverlay" style="display:none">
+  <div class="bld-modal">
+    <div class="bld-modal-title">Bracket created</div>
+    <div class="bld-modal-body" id="doneText"></div>
+    <div class="bld-modal-actions">
+      <a class="bld-btn" href="/">View public bracket</a>
+      <a class="bld-btn bld-btn--primary" href="/admin">Open schedule editor</a>
+    </div>
+  </div>
+</div>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/admin-sw.js').catch(function () {});
+  });
+}
+</script>
+<script src="builder.js"></script>
+</body>
+</html>

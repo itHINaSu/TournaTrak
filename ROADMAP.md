@@ -148,6 +148,88 @@ Planning-stage ideas discussed but not scoped in detail. Add specifics as they'r
 
 ---
 
+## Bracket Builder (branch: `feature/bracket-builder`)
+
+Admin tool at `/builder` that generates a full bracket schedule from a format +
+team list and writes `schedule.json`. Backed by `api/schedule-formats.js` (a
+shared FORMATS registry used by both the builder API and the CLI).
+
+### Done
+- **Single Elimination, 4–32 teams** with automatic byes for non-power-of-two
+  counts. Three seeding modes: random, list order, and manual bye selection.
+- Byes use a "mixed" game (one side a fixed team name, the other a winner-slot),
+  which the data model + `applySchedule()` already support.
+- **Dynamic round-header labels** (`roundLabel()` in `bracket-data.js`): the
+  public bracket numbers populated rounds sequentially, so a sub-32 bracket
+  reads "Round 1, 2, …" instead of borrowing tail names. The full structure is
+  unchanged. The admin editor keeps static labels (it shows every defined round).
+- **Bye games** render as a greyed "BYE" card; the team auto-advances and the
+  card is hidden from the schedule and team path.
+- **Calendar schedule editor** (optional): pick playing days, set per-day start
+  time / game count / fields in use / interval; games fill in bracket order. With
+  more than one field, games run in concurrent waves (auto-assigned "Field N"
+  labels) so a multi-field day finishes sooner. Build-time only.
+- **Standard 16-team double elimination** (`double-elim-16`): WB on L, LB on R,
+  cross-half loser drops, championship + optional "if necessary" bracket reset
+  (the `supportsIfNecessary` checkbox — on for all double-elim formats). Verified
+  structurally for all outcomes (every team can win; exactly 15 reach two losses).
+  ⚠️ Needs in-browser layout verification — the LB slot packing relies on the
+  renderer's LB-absorption / play-in handling and hasn't been seen rendered yet.
+- **Named fields + per-day chip selection**: venue fields defined once; each
+  playing day picks which fields it's using via chip toggles. Labels suppressed
+  only when the whole tournament uses one field (not just that day).
+- **Team seeding display**: TD can mark the tournament as seeded; seeds display
+  as small muted `(1)` chips before team names on all bracket cards. Teams tab
+  in admin Settings lets TD drag-reorder teams (order = seed), edit names inline,
+  and toggle seed display. Available in builder step 3 for order/manual modes.
+  `teams.json` stores `{ showSeeds, teams: [{name}] }`; public bracket and admin
+  both call `GET /api/teams` (auto-derived from schedule when file absent).
+- **Demo sandbox fixes**: `demo-files/.gitkeep` committed so git clones create
+  the directory with user-owned permissions; `ensureDataFiles()` and `ensureUsers()`
+  wrapped in try/catch so a permission error warns instead of crashing before
+  `app.listen()`.
+- **Configurable container user** (`PUID`/`PGID`): both compose files run the
+  API as `${PUID:-1000}:${PGID:-1000}` so bind-mounted data files are owned by
+  the host user, not root. Documented in `.env.example`.
+- **Random team-name generator** (builder step 2): "Randomly generate [N] team
+  names" row fills the textarea with distinct generated names; the count dropdown
+  tracks the selected format's valid range.
+- **Teams tab ⇄ schedule sync**: `GET /api/teams` now treats the schedule as the
+  source of truth for which teams exist (merging in saved order/seeds), so
+  brackets built via the schedule editor populate the Teams tab. Excludes the
+  "BYE" placeholder. The tab re-fetches on open so editor changes show without a
+  reload.
+
+### Follow-ups (next session, in progress)
+- **Admin nav link to `/builder`** still reachable only by direct URL; add to
+  admin sidebar or header.
+- **Sales site demo URL placeholders**: three `href="#"` spots in the sales site
+  need a real demo URL once the demo is publicly accessible.
+- **(Low priority) Sales-site nginx unprivileged**: `sales-site/docker-compose.yml`
+  intentionally doesn't set `user:` because nginx needs root to bind :80. If
+  desired, switch to `nginxinc/nginx-unprivileged` image (listens on 8080) and
+  add `user: "${PUID:-1000}:${PGID:-1000}"` to match the main stacks.
+
+### Deferred builder follow-ups
+- **Game-guarantee brackets (2- and 3-game).** Planned. `isEliminated()` in
+  `bracket-data.js` currently hardcodes the double-elim rule (`losses >= 2`),
+  which won't generalize. Repurpose it to a **structural** test — a team is alive
+  iff some undecided slot can still feed it — which is format-agnostic across
+  single-elim, double-elim, and N-game guarantees. Likely pairs with a
+  per-format elimination/guarantee descriptor in the FORMATS registry.
+- **64-team support.** Generator scales trivially, but requires prepending one
+  round name in `ROUND_BY_DEPTH` (schedule-formats.js) AND widening `SLOT_DEFS`
+  in both `api/slot-defs.js` and `frontend/bracket-data.js` (must stay in sync),
+  plus verifying the 6-round / 32-per-side bracket renders legibly on mobile.
+- **More double-elim sizes / variants.** 16-team standard is built; the
+  generator (`generateDoubleElim16`) is a template for other sizes and the
+  "twists" (non-standard loser drops, etc.). Build off the same feed-list
+  structure when those are specced.
+- **Game-guarantee brackets** (per the TD: a losers bracket for Y rounds, then
+  single-elim after). Builds on the double-elim loser-feed logic. Not yet built.
+
+---
+
 ## Notes for future sessions
 
 - The `feature/regional` branch is the authoritative Postgres prototype. Read it before designing the v3 schema.

@@ -11,12 +11,14 @@ const SESSIONS_FILE     = '/data/sessions.json';
 const RESULTS_FILE  = '/data/results.json';
 const SCHEDULE_FILE = '/data/schedule.json';
 const SETTINGS_FILE = '/data/settings.json';
+const TEAMS_FILE    = '/data/teams.json';
 const USERS_FILE    = '/data/users.json';
 const LINEUPS_FILE  = '/data/lineups.json';
 const BUCKETS_FILE  = '/data/buckets.json';
 const LIVE_FILE     = '/data/live.json';
 
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
+const { FORMATS, generateSchedule } = require('./schedule-formats');
 
 const SETTINGS_DEFAULTS = {
   tournamentName:   'Tournament Bracket',
@@ -142,8 +144,13 @@ function ensureUsers() {
     role:               'admin',
     mustChangePassword: FORCE_PASSWORD_CHANGE,
   };
-  writeUsers([bootstrapUser]);
-  console.log(`Bootstrapped users.json with admin user "${ADMIN_USERNAME}"`);
+  try {
+    writeUsers([bootstrapUser]);
+    console.log(`Bootstrapped users.json with admin user "${ADMIN_USERNAME}"`);
+  } catch (e) {
+    // Demo mode: restoreDemoSeed() will copy users.json from the seed shortly.
+    console.warn(`Could not bootstrap users.json: ${e.message}`);
+  }
 }
 
 // ── Credentials — required at startup ────────────────────────────────
@@ -243,8 +250,15 @@ function ensureDataFiles() {
 
   Object.entries(defaults).forEach(([file, empty]) => {
     if (!fs.existsSync(file)) {
-      fs.writeFileSync(file, JSON.stringify(empty, null, 2));
-      console.log(`Created ${file}`);
+      try {
+        fs.writeFileSync(file, JSON.stringify(empty, null, 2));
+        console.log(`Created ${file}`);
+      } catch (e) {
+        // In demo mode restoreDemoSeed() will write these files moments later.
+        // In normal mode this is a real problem, but crashing here prevents the
+        // server from starting at all, which is worse than a degraded startup.
+        console.warn(`Could not create ${file}: ${e.message}`);
+      }
     }
   });
 }
@@ -806,6 +820,78 @@ app.post('/api/schedule', requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/api/schedule/swap', requireAdmin, (req, res) => {
+  const { slotA, slotB } = req.body || {};
+  if (!isValidSlotId(slotA) || !isValidSlotId(slotB))
+    return res.status(400).json({ error: 'invalid slot ID' });
+  if (slotA === slotB)
+    return res.status(400).json({ error: 'slots must differ' });
+  const sched = readJSON(SCHEDULE_FILE);
+  const tmp = sched[slotA];
+  if (sched[slotB] !== undefined) sched[slotA] = sched[slotB]; else delete sched[slotA];
+  if (tmp !== undefined) sched[slotB] = tmp; else delete sched[slotB];
+  writeJSON(SCHEDULE_FILE, sched);
+  res.json({ ok: true });
+});
+
+// ── Bracket Builder ───────────────────────────────────────────────────
+// List the available tournament formats so the builder UI can render choices.
+app.get('/api/schedule/formats', requireAdmin, (req, res) => {
+  res.json(Object.values(FORMATS).map(f => ({
+    id: f.id,
+    label: f.label,
+    description: f.description,
+    // A format declares either a fixed teamCount, a minTeams/maxTeams range,
+    // or an explicit validCounts list (e.g. double-elim requires exact powers of 2).
+    minTeams: f.minTeams != null ? f.minTeams : f.teamCount,
+    maxTeams: f.maxTeams != null ? f.maxTeams : f.teamCount,
+    validCounts: f.validCounts || null,
+    doubleElim: !!f.doubleElim,
+    supportsIfNecessary: !!f.supportsIfNecessary,
+  })));
+});
+
+// Generate a full bracket schedule from a format + teams and REPLACE the
+// current schedule. Destructive — the UI confirms before calling this.
+app.post('/api/schedule/generate', requireAdmin, (req, res) => {
+  const { format, startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, showSeeds, gamePrefix } = req.body || {};
+  let schedule, seededTeams;
+  try {
+    ({ schedule, seededTeams } = generateSchedule(format, { startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, gamePrefix }));
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  // Defence in depth: the generator should always emit a valid schedule, but
+  // run it through the same validator the manual editor uses before saving.
+  const verr = validateSchedule(schedule);
+  if (verr) return res.status(500).json({ error: 'Generated schedule failed validation: ' + verr });
+  writeJSON(SCHEDULE_FILE, schedule);
+
+  // Double elimination has a true winners/losers split, so default the side
+  // labels to match. (Single-elim leaves the existing labels alone — its two
+  // sides are just bracket halves.)
+  const fmt = FORMATS[format];
+  if (fmt && fmt.doubleElim) {
+    const settings = readJSON(SETTINGS_FILE);
+    settings.leftLabel = 'Winners Bracket';
+    settings.rightLabel = 'Losers Bracket';
+    writeJSON(SETTINGS_FILE, settings);
+    invalidateIndexCache();
+  }
+
+  // If the TD opted into seeded display, record the seeded team order.
+  if (showSeeds && seededTeams && seededTeams.length) {
+    const existing = readJSON(TEAMS_FILE);
+    writeJSON(TEAMS_FILE, {
+      ...existing,
+      showSeeds: true,
+      teams: seededTeams.map(name => ({ name })),
+    });
+  }
+
+  res.json({ ok: true, games: Object.keys(schedule).length });
+});
+
 app.post('/api/settings', requireAdmin, (req, res) => {
   const incoming = req.body || {};
   const clean = {};
@@ -814,6 +900,74 @@ app.post('/api/settings', requireAdmin, (req, res) => {
   });
   writeJSON(SETTINGS_FILE, clean);
   invalidateIndexCache();
+  res.json({ ok: true });
+});
+
+// ── Teams / seeding endpoints ────────────────────────────────────────
+// teams.json holds { showSeeds: bool, teams: [{ name }] }.
+// When the file doesn't exist yet the list is auto-derived from the schedule's
+// fixed team names so the Teams tab is always populated.
+
+function teamsFromSchedule() {
+  const sched = readJSON(SCHEDULE_FILE);
+  const seen = new Set();
+  const out = [];
+  const add = name => {
+    // 'BYE' is a placeholder opponent in bye games, not a real team.
+    if (name && name !== 'BYE' && !seen.has(name)) { seen.add(name); out.push(name); }
+  };
+  Object.values(sched).forEach(g => {
+    if (g) { add(g.t1name); add(g.t2name); }
+  });
+  return out;
+}
+
+// Merge the saved team list with the teams currently in the schedule. The
+// schedule is the source of truth for WHICH teams exist (so brackets built or
+// edited via the schedule editor are always reflected); teams.json supplies the
+// ORDER (seeds) and the showSeeds flag. Saved teams still present keep their
+// order; new schedule teams are appended; teams no longer in the schedule drop.
+// When the schedule has no fixed team names yet, fall back to the saved list so
+// a manually-curated roster isn't wiped.
+app.get('/api/teams', (req, res) => {
+  const data = readJSON(TEAMS_FILE);
+  const saved = Array.isArray(data.teams) ? data.teams : [];
+  const fromSched = teamsFromSchedule();
+
+  let teams;
+  if (fromSched.length) {
+    const schedSet = new Set(fromSched);
+    const savedSet = new Set();
+    const kept = [];
+    saved.forEach(t => {
+      if (t && t.name && schedSet.has(t.name) && !savedSet.has(t.name)) {
+        savedSet.add(t.name);
+        kept.push({ name: t.name });
+      }
+    });
+    const appended = fromSched
+      .filter(name => !savedSet.has(name))
+      .map(name => ({ name }));
+    teams = kept.concat(appended);
+  } else {
+    teams = saved;
+  }
+
+  res.json({ showSeeds: !!data.showSeeds, teams });
+});
+
+app.post('/api/teams', requireAdmin, (req, res) => {
+  const { showSeeds, teams } = req.body || {};
+  if (!Array.isArray(teams)) return res.status(400).json({ error: 'teams must be an array' });
+  if (teams.length > 200) return res.status(400).json({ error: 'too many teams (max 200)' });
+  const clean = [];
+  for (const t of teams) {
+    const name = String((t && t.name) || '').trim().slice(0, 100);
+    if (!name) return res.status(400).json({ error: 'team name cannot be blank' });
+    clean.push({ name });
+  }
+  const prev = readJSON(TEAMS_FILE);
+  writeJSON(TEAMS_FILE, { ...prev, showSeeds: !!showSeeds, teams: clean });
   res.json({ ok: true });
 });
 
@@ -953,5 +1107,43 @@ app.use((err, req, res, _next) => {
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled promise rejection:', reason && reason.stack ? reason.stack : reason);
 });
+
+// ── Demo mode (opt-in) ────────────────────────────────────────────────
+// When DEMO_MODE=true, restore /data from a read-only seed snapshot at
+// startup and on a fixed interval, so a public sandbox can't drift — anything
+// a visitor changes is wiped back to the seed within DEMO_RESET_MINUTES.
+// Entirely gated behind env vars; production never sets DEMO_MODE so this is a
+// no-op there. The restore is synchronous (file copy + cache clear in a single
+// tick, no await), so it cannot interleave with a request's read-modify-write.
+// sessions.json is deliberately NOT seeded, so a reset doesn't log visitors out.
+const DEMO_MODE          = process.env.DEMO_MODE === 'true';
+const DEMO_SEED_DIR      = process.env.DEMO_SEED_DIR || '/seed';
+const DEMO_RESET_MINUTES = parseInt(process.env.DEMO_RESET_MINUTES, 10) || 30;
+
+function restoreDemoSeed() {
+  let files;
+  try {
+    files = fs.readdirSync(DEMO_SEED_DIR).filter(f => f.endsWith('.json'));
+  } catch (e) {
+    console.error('Demo seed dir unreadable (' + DEMO_SEED_DIR + '): ' + e.message);
+    return;
+  }
+  for (const f of files) {
+    try {
+      fs.copyFileSync(DEMO_SEED_DIR + '/' + f, '/data/' + f);
+    } catch (e) {
+      console.error('Demo restore failed for ' + f + ': ' + e.message);
+    }
+  }
+  jsonCache.clear();        // drop in-memory copies so reads reload from disk
+  invalidateIndexCache();   // seeded settings may have changed the index HTML
+  console.log('Demo data restored from seed (' + files.length + ' files)');
+}
+
+if (DEMO_MODE) {
+  restoreDemoSeed();        // pristine state on boot
+  setInterval(restoreDemoSeed, DEMO_RESET_MINUTES * 60 * 1000).unref();
+  console.log('DEMO_MODE on — resetting every ' + DEMO_RESET_MINUTES + ' min from ' + DEMO_SEED_DIR);
+}
 
 app.listen(3000, () => console.log('API listening on :3000'));

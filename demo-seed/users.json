@@ -1,0 +1,10 @@
+{
+  "users": [
+    {
+      "username": "demo",
+      "passwordHash": "$2a$12$o8TRdSgRMSRO5k1h2YACL.pyDMMr2IauD7wZ/vb4N/KkoZLN9OXua",
+      "role": "admin",
+      "mustChangePassword": false
+    }
+  ]
+}

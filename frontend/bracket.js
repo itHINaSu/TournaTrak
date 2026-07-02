@@ -3,8 +3,11 @@
 // STATE
 // ══════════════════════════════════════════════════════════
 var results={}, schedule={}, settings={}, buckets={}, liveScores={}, _offsets={entries:[]}, _fieldColors={}, _themeColors={};
+var _teamsData = { showSeeds: false, teams: [] };
+var _seedMap = {};   // { teamName: seedNumber (1-based) }
 var _sessionRole = null;
 var _bucketEditMode = false;
+var _bracketEditMode = false;
 var scheduleMode = null; // null = uninitialised; set from settings on first render
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
@@ -30,6 +33,11 @@ var SETTING_DEFAULTS = {
 function getSetting(key) {
   return (settings[key] !== undefined && settings[key] !== '')
     ? settings[key] : SETTING_DEFAULTS[key];
+}
+
+function seedChip(name) {
+  var n = _seedMap[name];
+  return n ? '<span class="tt-seed">(' + n + ')</span>' : '';
 }
 
 function _hexToHsl(hex) {
@@ -161,7 +169,7 @@ function renderBucketView() {
   var schedTeams = [];
   Object.values(GAMES).forEach(function(g) {
     if (g.t1 && g.t1.type === 'fixed' && g.t1.team) schedTeams.push(g.t1.team);
-    if (g.t2 && g.t2.type === 'fixed' && g.t2.team) schedTeams.push(g.t2.team);
+    if (!g.bye && g.t2 && g.t2.type === 'fixed' && g.t2.team) schedTeams.push(g.t2.team);
   });
   schedTeams = schedTeams.filter(function(t, i, a) { return a.indexOf(t) === i; });
   var allTeams = schedTeams.concat(extraTeams.filter(function(t) { return schedTeams.indexOf(t) === -1; }));
@@ -232,6 +240,18 @@ function renderBucketView() {
       + '</div>';
   } else {
     out.innerHTML = '';
+  }
+}
+
+function toggleBracketEdit() {
+  _bracketEditMode = !_bracketEditMode;
+  var btn = document.getElementById('bracketEditBtn');
+  if (btn) { btn.textContent = _bracketEditMode ? 'Done' : 'Edit'; btn.classList.toggle('admin-btn-active', _bracketEditMode); }
+  if (_bracketEditMode && activeView() !== 'bracket') {
+    var tab = document.querySelector('.view-tab[data-view="bracket"]');
+    if (tab) tab.click();
+  } else {
+    renderBracket();
   }
 }
 
@@ -349,6 +369,11 @@ document.querySelectorAll('.view-tab').forEach(function(tab){
     tab.classList.add('active');
     document.getElementById('view-'+tab.dataset.view).classList.add('active');
     setCookie('tt_tab', tab.dataset.view);
+    if (tab.dataset.view !== 'bracket' && _bracketEditMode) {
+      _bracketEditMode = false;
+      var editBtn = document.getElementById('bracketEditBtn');
+      if (editBtn) { editBtn.textContent = 'Edit'; editBtn.classList.remove('admin-btn-active'); }
+    }
     // Leaving the team path clears the shareable ?team= param so other tabs
     // aren't yanked back to team path by fetchAll re-reading the URL.
     if (tab.dataset.view !== 'teampath') {
@@ -377,7 +402,7 @@ var _fetchFingerprint = '';
 async function fetchAll(){
   var rawTexts;
   try{
-    var [rr,sr,str,br,lr,or2,fc,tc]=await Promise.all([
+    var [rr,sr,str,br,lr,or2,fc,tc,tmr]=await Promise.all([
       fetch('/api/results'),
       fetch('/api/schedule'),
       fetch('/api/settings'),
@@ -386,6 +411,7 @@ async function fetchAll(){
       fetch('/api/offsets'),
       fetch('/api/field-colors'),
       fetch('/api/theme-colors'),
+      fetch('/api/teams'),
     ]);
     rawTexts = await Promise.all([rr.text(), sr.text(), str.text(), br.ok ? br.text() : Promise.resolve(''), lr.ok ? lr.text() : Promise.resolve('{}'), or2.ok ? or2.text() : Promise.resolve('{"entries":[]}')]);
     results=JSON.parse(rawTexts[0]); schedule=JSON.parse(rawTexts[1]); settings=JSON.parse(rawTexts[2]);
@@ -393,9 +419,15 @@ async function fetchAll(){
     liveScores=JSON.parse(rawTexts[4]);
     var _offParsed=JSON.parse(rawTexts[5]); _offsets=(_offParsed&&Array.isArray(_offParsed.entries))?_offParsed:{entries:[]};
     _fieldColors=fc.ok ? await fc.json() : {};
+    _teamsData = tmr.ok ? await tmr.json() : { showSeeds: false, teams: [] };
+    _seedMap = {};
+    if (_teamsData.showSeeds && Array.isArray(_teamsData.teams)) {
+      _teamsData.teams.forEach(function(t, i) { if (t && t.name) _seedMap[t.name] = i + 1; });
+    }
     _themeColors=tc.ok ? await tc.json() : {};
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; _fieldColors={}; _themeColors={}; rawTexts=null; }
+    _rebuildFieldDefaultColors();
+  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; _fieldColors={}; _themeColors={}; _fieldDefaultColorMap={}; rawTexts=null; }
   applyThemeColors();
   applySettings();
   updateTimestamp();
@@ -484,6 +516,16 @@ window.addEventListener('orientationchange', function() {
 // ══════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════
+function showToast(msg, err) {
+  var t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.className = 'toast' + (err ? ' error' : '');
+  t.classList.add('show');
+  clearTimeout(t._tt);
+  t._tt = setTimeout(function(){ t.classList.remove('show'); }, 2500);
+}
+
 function gameLabel(sid){
   var g = GAMES[sid];
   return g && g.label ? g.label : sid;
@@ -491,17 +533,31 @@ function gameLabel(sid){
 
 // Small badge showing which field a game is played on (set via admin panel).
 // Returns '' when no field is assigned so cards render unchanged.
+// Mirrors FIELD_DEFAULT_COLORS in admin.js so the public bracket and admin panel
+// assign the same palette when no user-set colors exist.
+var FIELD_DEFAULT_COLORS = ['#0d9488','#ea580c','#7c3aed','#db2777','#4a90d9'];
+// Stable mapping from field name → default color, built once per fetchAll().
+var _fieldDefaultColorMap = {};
+function _rebuildFieldDefaultColors() {
+  _fieldDefaultColorMap = {};
+  var seen = [];
+  Object.keys(GAMES).forEach(function(sid) {
+    var f = GAMES[sid].field;
+    if (f && seen.indexOf(f) === -1) seen.push(f);
+  });
+  seen.sort();
+  seen.forEach(function(f, i) { _fieldDefaultColorMap[f] = FIELD_DEFAULT_COLORS[i % FIELD_DEFAULT_COLORS.length]; });
+}
+
 function fieldTagHTML(sid){
   var g = GAMES[sid];
   if (!g || !g.field) return '';
   var field = g.field;
-  var userColor = _fieldColors && _fieldColors[field];
-  if (userColor) {
-    return '<span class="game-field-tag" style="color:' + esc(userColor) + ';border-color:' + esc(userColor) + '">' + esc(field) + '</span>';
+  var color = (_fieldColors && _fieldColors[field]) || _fieldDefaultColorMap[field];
+  if (color) {
+    return '<span class="game-field-tag" style="color:' + esc(color) + ';border-color:' + esc(color) + '">' + esc(field) + '</span>';
   }
-  var num = parseInt(field.replace(/\D/g, ''), 10) || 0;
-  var cls = 'game-field-tag' + (num >= 1 && num <= 5 ? ' game-field-tag--' + num : '');
-  return '<span class="' + cls + '">' + esc(field) + '</span>';
+  return '<span class="game-field-tag">' + esc(field) + '</span>';
 }
 function gameDateHTML(dateStr) {
   var d = fmtDate(dateStr);
@@ -524,11 +580,32 @@ var CARD_RATIO=0.82, CARD_ASPECT=2.6;
 /// slotTopVh: positions a card within its round column.
 // n = max(actual game count, highest slot number used) so slots spread evenly
 // across the full column height regardless of how many SLOT_DEFS defines.
+// gridHeight: max games in any single column across the loaded bracket.
+// Drives the bracket's virtual row grid — replaces the former hardcoded 8.
+// Cached per gamesGeneration; minimum is 8 so small brackets look the same.
+var _gridHeightCache = { gen: -1, val: 8 };
+function gridHeight() {
+  var curGen = gamesGeneration;
+  if (_gridHeightCache.gen === curGen) return _gridHeightCache.val;
+  var counts = {};
+  Object.keys(GAMES).forEach(function(gid) {
+    var g = GAMES[gid];
+    if (g.round === 'CHAMP' || g.round === 'CHAMP2') return;
+    var k = g.round + '|' + g.side;
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  var max = 8;
+  Object.keys(counts).forEach(function(k) { if (counts[k] > max) max = counts[k]; });
+  _gridHeightCache = { gen: curGen, val: max };
+  return max;
+}
+
 // _slotNCache memoizes the computed n per (round|side) key, keyed by gamesGeneration
 // so it is automatically invalidated whenever applySchedule() rebuilds GAMES.
 var _slotNCache = { gen: -1, data: {} };
 function slotTopVh(round, slot, slotVh, side) {
-  if (round === 'CHAMP' || round === 'CHAMP2') return 3.5 * slotVh;
+  var gridH = gridHeight();
+  if (round === 'CHAMP' || round === 'CHAMP2') return (gridH / 2 - 0.5) * slotVh;
   var s = side || 'L';
   var cacheKey = round + '|' + s;
   var curGen = gamesGeneration;
@@ -545,9 +622,7 @@ function slotTopVh(round, slot, slotVh, side) {
     n = Math.max(gids.length, maxSlot) || 1;
     _slotNCache.data[cacheKey] = n;
   }
-  // 8 = max games per side per round (R1 has 8); used as the grid row count so
-  // all rounds occupy the same total column height regardless of game count.
-  var spacing = 8 / n;
+  var spacing = gridH / n;
   return ((slot - 1) * spacing + spacing / 2 - 0.5) * slotVh;
 }
 function cardMidVh(round, slot, slotVh, side) {
@@ -568,7 +643,6 @@ function getDims(){
   var isDesktop = winW >= 1280;
 
   if(isDesktop){
-    var champVw=10;
     var nL=Math.max(buildSideColumns('L').length,1);
     var nR=Math.max(buildSideColumns('R').length,1);
     // 97vw = usable bracket width (nearly full window, small side margins).
@@ -578,16 +652,23 @@ function getDims(){
     // unit and the championship sits at the seam between the two brackets,
     // even when the sides have different round counts.
     var units=nL+nR+(Math.max(nL-1,0)+Math.max(nR-1,0))*0.15;
+    // Championship column has 1.6vw of fixed padding/margin, so its inner
+    // width = champVw - 1.6.  When there are few rounds, colVw grows large;
+    // in that case expand champVw so the championship card matches the rest.
+    // Solving colVw == champVw - 1.6 gives colVw = (97-1.6)/(units+1).
+    var champVw=10;
     var colVw=(97-champVw)/units;
+    if(colVw > champVw - 1.6){ colVw = 95.4/(units+1); champVw = colVw + 1.6; }
     var gapVw=colVw*0.15;
     var vwPx=window.innerWidth/100, vhPx=window.innerHeight/100;
     var cardVh=(colVw*vwPx/CARD_ASPECT)/vhPx;
     var rowVh=cardVh/3;
     if(rowVh<2.4){ rowVh=2.4; cardVh=rowVh*3; }
-    var maxCardVh=(availVh/8)*CARD_RATIO;
+    var gridH = gridHeight();
+    var maxCardVh=(availVh/gridH)*CARD_RATIO;
     if(cardVh>maxCardVh){ cardVh=maxCardVh; rowVh=cardVh/3; }
     var slotVh=cardVh/CARD_RATIO;
-    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*8,isDesktop,isMobile};
+    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*gridH,isDesktop,isMobile};
   }
 
   if(isMobile){
@@ -781,19 +862,22 @@ function cardHTML(gid){
   var t1=disp(gid,g.t1), t2=disp(gid,g.t2), r=results[gid]||{};
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
+  if(g.bye){ c1=''; c2='bye'; }   // lone team advances; opponent is the BYE slot
   var isChampSlot = gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
   var offMin = getGameOffset(gid);
   var offHTML = (offMin !== null && offMin !== 0)
     ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
     : '';
-  return '<div class="bc-hdr"><span class="bc-id">'+esc(gameLabel(gid))+'</span>'
+  return '<div class="bc-hdr">'+(g.bye?'<span class="bc-id" style="visibility:hidden">x</span>':'<span class="bc-id">'+esc(gameLabel(gid))+'</span>')
     +fieldTagHTML(gid)
     +(gameIsLive(gid)
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
         : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'+offHTML))
     +'</div>'
-    +'<div class="bc-team '+c1+'"><span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
-    +'<div class="bc-team '+c2+'"><span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>';
+    +'<div class="bc-team '+c1+'">'+seedChip(t1.name)+'<span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
+    +(g.bye
+      ? '<div class="bc-team bye"><span class="bc-bye-label">— BYE —</span></div>'
+      : '<div class="bc-team '+c2+'">'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -835,7 +919,7 @@ function connLines(conns,wVw,hVh,lc,mirror){
 // BUILD SIDE COLUMNS
 // ══════════════════════════════════════════════════════════
 function buildSideColumns(side){
-  var rounds=['R1','R2','QF','QF2','SF'];
+  var rounds=ROUND_ORDER.filter(function(r){ return r!=='CHAMP'&&r!=='CHAMP2'; });
   return rounds.map(function(round){
     var games=Object.keys(GAMES).filter(function(gid){
       return GAMES[gid].side===side&&GAMES[gid].round===round;
@@ -869,7 +953,8 @@ function computeLBPositions(slotVh) {
   var posMap = {};
   var cols = buildSideColumns('R');
   if (!cols.length) return posMap;
-  var maxTop = 8 * slotVh - slotVh * CARD_RATIO; // keep cards inside the column
+  var gridH = gridHeight();
+  var maxTop = gridH * slotVh - slotVh * CARD_RATIO; // keep cards inside the column
 
   function clamp(v) { return Math.max(0, Math.min(v, maxTop)); }
 
@@ -900,7 +985,7 @@ function computeLBPositions(slotVh) {
   if (cols.length > 1) {
     var consumers = cols[1].games; // already sorted by slot in buildSideColumns
     var vGrid = 2 * consumers.length;
-    var vSpacing = 8 / vGrid;
+    var vSpacing = gridH / vGrid;
     consumers.forEach(function(entry, idx) {
       var cg = GAMES[entry.gid];
       if (!cg) return;
@@ -957,11 +1042,38 @@ function computeLBPositions(slotVh) {
     });
   });
 
+  // ── Align LB final with WB SF for a clean horizontal championship row ──
+  // Find which WB game feeds CHAMP (there should be exactly one) and compute
+  // its top position. Then find which LB game feeds CHAMP and pin it to the
+  // same position, so both CHAMP feeders are at the same height. Since CHAMP
+  // is already hardcoded at 3.5*slotVh and the WB SF (n=1) is also naturally
+  // at 3.5*slotVh, this produces the canonical paper-bracket look.
+  var champG = GAMES['CHAMP.C.1'];
+  if (champG) {
+    var wbSFTops = [];
+    [champG.t1, champG.t2].forEach(function(slotDef) {
+      if (!slotDef || slotDef.type !== 'winner') return;
+      var fg = GAMES[slotDef.slot];
+      if (!fg || fg.side !== 'L') return;
+      var parts = slotDef.slot.split('.');
+      wbSFTops.push(slotTopVh(parts[0], parseInt(parts[2], 10), slotVh, 'L'));
+    });
+    var wbSFMidTop = wbSFTops.length
+      ? wbSFTops.reduce(function(a, b) { return a + b; }, 0) / wbSFTops.length
+      : 3.5 * slotVh;
+    [champG.t1, champG.t2].forEach(function(slotDef) {
+      if (!slotDef || slotDef.type !== 'winner') return;
+      var fg = GAMES[slotDef.slot];
+      if (!fg || fg.side !== 'R') return;
+      posMap[slotDef.slot] = clamp(wbSFMidTop);
+    });
+  }
+
   return posMap;
 }
 
 function buildConnPcts(srcCol, dstCol, slotVh, posMap) {
-  var totalVh = slotVh * 8, conns = [];
+  var totalVh = slotVh * gridHeight(), conns = [];
   function getTop(col, entry) {
     return (posMap && posMap[entry.gid] !== undefined)
       ? posMap[entry.gid]
@@ -993,6 +1105,7 @@ function renderBracket(){
   applyCSSVars(dims);
   if(dims.isDesktop){
     renderDesktopBracket(root,dims);
+    if(_sessionRole==='admin' && _bracketEditMode) initBracketDrag(root);
   } else if(dims.isMobile){
     renderMobileBracket(root,dims);
   }
@@ -1044,8 +1157,19 @@ function renderDesktopBracket(root,dims){
           : slotTopVh(col.round,entry.slot,slotVh,col.side);
         cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" style="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
       });
+      if (_bracketEditMode) {
+        var usedSlots = {};
+        col.games.forEach(function(e) { usedSlots[e.slot] = true; });
+        var slotNums = (SLOT_DEFS[col.round] && SLOT_DEFS[col.round][col.side]) || [];
+        slotNums.forEach(function(sn) {
+          if (usedSlots[sn]) return;
+          var slotId = col.round + '.' + col.side + '.' + sn;
+          var topVh = slotTopVh(col.round, sn, slotVh, col.side);
+          cardsHTML += '<div class="bc bc-empty-slot" data-slot="'+esc(slotId)+'" style="top:'+topVh+'vh"></div>';
+        });
+      }
       html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
-        +'<div class="round-col-hdr">'+ROUND_LABELS[col.round]+'</div>'+cardsHTML+'</div>';
+        +'<div class="round-col-hdr">'+roundLabel(col.round)+'</div>'+cardsHTML+'</div>';
       if(ci<ordCols.length-1){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
@@ -1163,6 +1287,7 @@ function mobileRoundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
+  if (g.bye) { c1 = 'won'; c2 = 'bye'; }   // lone team advances; opponent is a greyed BYE
   var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
   if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
@@ -1182,11 +1307,11 @@ function mobileRoundCardHTML(gid) {
             + '</span>')
     + '</div>'
     + '<div class="mbc-game-team ' + c1 + '">'
-    +   '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
+    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
     +   (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     + '</div>'
     + '<div class="mbc-game-team ' + c2 + '">'
-    +   '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
+    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
     +   (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     + '</div>'
     + '</div>';
@@ -1201,6 +1326,7 @@ function roundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
+  if (g.bye) { c1 = 'won'; c2 = 'bye'; }   // lone team advances; opponent is a greyed BYE
   var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
   if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
@@ -1210,10 +1336,10 @@ function roundCardHTML(gid) {
     + gameDateHTML(dateStr)
     + timeOrLiveHTML(gid, dateStr, dowStr, timeStr)
     + '</div>'
-    + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t1.name) + '<span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
     + (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid, 1))
     + '</div>'
-    + '<div class="round-team-row"><span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t2.name) + '<span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
     + (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid, 2))
     + '</div>'
     + '</div>';
@@ -1247,7 +1373,7 @@ function renderMobileBracket(root, dims) {
   var colW  = Math.round(winW * 0.72);
   var padPx = 12;
 
-  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].filter(function(r){
+  var rounds = ROUND_ORDER.filter(function(r){
     return Object.keys(GAMES).some(function(gid){ return GAMES[gid].round===r; });
   });
 
@@ -1273,23 +1399,41 @@ function renderMobileBracket(root, dims) {
   //
   // divs: [{idx, label}] — dividers inserted above the game at that index.
   var cols = [];
+  // isWBGame: true when a game has no 'loser' type feeder and all advancing-slot
+  // feeders also trace back through WB games. Fixed-team games are WB by definition.
+  // Memoised per renderMobileBracket call.
+  var _wbCache = {};
+  function isWBGame(gid) {
+    if (_wbCache[gid] !== undefined) return _wbCache[gid];
+    var g = GAMES[gid];
+    if (!g) return (_wbCache[gid] = false);
+    var slots = [g.t1, g.t2].filter(function(s){ return s && s.type !== 'fixed'; });
+    // Any 'loser' slot means a WB team dropped down → LB game.
+    if (slots.some(function(s){ return s.type === 'loser'; })) return (_wbCache[gid] = false);
+    // All slots are 'winner' type — recurse to check their sources.
+    return (_wbCache[gid] = slots.every(function(s){
+      return !s.slot || isWBGame(s.slot);
+    }));
+  }
+
   rounds.forEach(function(round) {
     var gids = gidsFor(round);
     if (round === 'CHAMP' || round === 'CHAMP2') {
-      cols.push({ round: round, label: ROUND_LABELS[round], gids: gids, divs: [] });
+      cols.push({ round: round, label: roundLabel(round), gids: gids, divs: [] });
       return;
     }
 
-    // Detect single-side rounds (all games on L or all on R, not both).
-    var hasSide = {};
-    gids.forEach(function(gid) { hasSide[GAMES[gid].side] = true; });
-    var singleSide = Object.keys(hasSide).length === 1;
+    // Absorb LB-only rounds into the previous column so WB games in adjacent
+    // columns remain visually adjacent. A round is LB-only when none of its games
+    // is a WB game (detected by tracing feeder slots: any 'loser' type feeder
+    // marks a game as LB, regardless of how many bracket sides it spans).
+    var hasWB = gids.some(function(gid){ return isWBGame(gid); });
 
-    if (singleSide && cols.length > 0) {
+    if (!hasWB && cols.length > 0) {
       // Absorb into the previous column under a "Loser's Bracket" divider.
       var prev = cols[cols.length - 1];
-      prev.divs.push({ idx: prev.gids.length, label: ROUND_LABELS[round], type: 'absorbed' });
-      prev.label = prev.label + ' · ' + ROUND_LABELS[round];
+      prev.divs.push({ idx: prev.gids.length, label: roundLabel(round), type: 'absorbed' });
+      prev.label = prev.label + ' · ' + roundLabel(round);
       gids.forEach(function(gid) { prev.gids.push(gid); });
       return;
     }
@@ -1315,7 +1459,7 @@ function renderMobileBracket(root, dims) {
       if (wi) divs.push({ idx: flat.length, label: getSetting('playInLabel'), type: 'playin' });
       flat = flat.concat(wave);
     });
-    cols.push({ round: round, label: ROUND_LABELS[round], gids: flat, divs: divs });
+    cols.push({ round: round, label: roundLabel(round), gids: flat, divs: divs });
   });
 
   // ── Reorder each column so games feeding the same next-column game sit
@@ -2149,10 +2293,10 @@ function scheduleCardHTML(sid) {
     + timeOrLiveHTML(sid, dateStr, dowStr, timeStr)
     + '</div>'
     + champ2NoteHTML
-    + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t1.name) + '<span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
     + (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(sid,1))
     + '</div>'
-    + '<div class="round-team-row"><span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t2.name) + '<span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
     + (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(sid,2))
     + '</div></div>';
 }
@@ -2171,8 +2315,9 @@ function renderScheduleView() {
   var groupSel = document.getElementById('schedGroup');
   if (groupSel) groupSel.value = scheduleMode;
 
-  // All game IDs sorted by time (TBD games sort to end via parseTimeVal→Infinity)
-  var allSids = Object.keys(GAMES).sort(function(a, b) {
+  // All game IDs sorted by time (TBD games sort to end via parseTimeVal→Infinity).
+  // Bye games are excluded — they aren't played, so they never appear in the schedule.
+  var allSids = Object.keys(GAMES).filter(function(s) { return !GAMES[s].bye; }).sort(function(a, b) {
     return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time);
   });
 
@@ -2191,7 +2336,7 @@ function renderScheduleView() {
   } else if (scheduleMode === 'round') {
     ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].forEach(function(round) {
       var sids = allSids.filter(function(s) { return GAMES[s].round === round; });
-      if (sids.length) groups.push({ id: round, label: ROUND_LABELS[round], sids: sids });
+      if (sids.length) groups.push({ id: round, label: roundLabel(round), sids: sids });
     });
   } else { // field
     var byField = {}, fieldKeys = [];
@@ -2279,7 +2424,7 @@ function populateTeamSelect(){
   var teams={};
   Object.values(GAMES).forEach(function(g){
     if(g.t1&&g.t1.type==='fixed'&&g.t1.team) teams[g.t1.team]=1;
-    if(g.t2&&g.t2.type==='fixed'&&g.t2.team) teams[g.t2.team]=1;
+    if(!g.bye&&g.t2&&g.t2.type==='fixed'&&g.t2.team) teams[g.t2.team]=1;
   });
   Object.keys(teams).sort().forEach(function(name){
     var o=document.createElement('option');
@@ -2479,7 +2624,7 @@ function renderTeamView(){
     var teamNames = [];
     Object.values(GAMES).forEach(function(g){
       if(g.t1&&g.t1.type==='fixed'&&g.t1.team) teamNames.push(g.t1.team);
-      if(g.t2&&g.t2.type==='fixed'&&g.t2.team) teamNames.push(g.t2.team);
+      if(!g.bye&&g.t2&&g.t2.type==='fixed'&&g.t2.team) teamNames.push(g.t2.team);
     });
     teamNames = teamNames.filter(function(t,i,a){ return a.indexOf(t)===i; }).sort();
     if(!teamNames.length){ out.innerHTML=''; return; }
@@ -2509,6 +2654,7 @@ function renderTeamView(){
   var firstGid=null;
   occupiedSlots().forEach(function(sid){
     if(firstGid) return;
+    if(GAMES[sid].bye) return;   // a bye isn't a real game in the team's path
     if(resolveSlot(GAMES[sid].t1,results)===team||resolveSlot(GAMES[sid].t2,results)===team)
       firstGid=sid;
   });
@@ -2679,17 +2825,115 @@ document.addEventListener('click',function(e){
 });
 
 // ══════════════════════════════════════════════════════════
+// ADMIN DRAG-AND-DROP (desktop bracket only)
+// ══════════════════════════════════════════════════════════
+function initBracketDrag(root) {
+  var dragState = null;
+  var ghost     = null;
+  var overEl    = null;
+
+  root.querySelectorAll('.bc[data-gid]').forEach(function(card) {
+    card.style.cursor = 'grab';
+    card.addEventListener('pointerdown', onDown);
+  });
+
+  function onDown(e) {
+    if (e.button !== 0 || dragState) return;
+    var card = e.currentTarget;
+    var gid  = card.dataset.gid;
+    if (!gid) return;
+    e.preventDefault();
+
+    var rect = card.getBoundingClientRect();
+    dragState = { el: card, gid: gid, offX: e.clientX - rect.left, offY: e.clientY - rect.top };
+
+    ghost = card.cloneNode(true);
+    ghost.removeAttribute('data-gid');
+    ghost.className = 'bc bc-drag-ghost';
+    ghost.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;'
+      + 'width:' + rect.width + 'px;height:' + rect.height + 'px;'
+      + 'left:' + (e.clientX - dragState.offX) + 'px;top:' + (e.clientY - dragState.offY) + 'px;';
+    document.body.appendChild(ghost);
+    card.classList.add('bc-dragging');
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup',   onUp);
+    document.addEventListener('pointercancel', onCancel);
+  }
+
+  function onMove(e) {
+    if (!dragState) return;
+    ghost.style.left = (e.clientX - dragState.offX) + 'px';
+    ghost.style.top  = (e.clientY - dragState.offY) + 'px';
+
+    // Briefly hide ghost so elementsFromPoint can see what's underneath.
+    ghost.style.display = 'none';
+    var els = document.elementsFromPoint(e.clientX, e.clientY);
+    ghost.style.display = '';
+
+    var target = null;
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (!el.classList || !el.classList.contains('bc')) continue;
+      if (el.dataset.gid && el !== dragState.el) { target = el; break; }
+      if (el.dataset.slot) { target = el; break; }
+    }
+    if (overEl && overEl !== target) overEl.classList.remove('bc-drop-target');
+    overEl = target;
+    if (overEl) overEl.classList.add('bc-drop-target');
+  }
+
+  function onUp() {
+    var src = dragState, tgt = overEl;
+    cleanup();
+    if (!tgt || !src) return;
+    var targetId = tgt.dataset.gid || tgt.dataset.slot;
+    if (!targetId || targetId === src.gid) return;
+
+    fetch('/api/schedule/swap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slotA: src.gid, slotB: targetId })
+    }).then(function(r) {
+      return r.ok ? r.json() : r.json().then(function(d) { throw new Error(d.error || r.status); });
+    }).then(function() {
+      return fetch('/api/schedule', { cache: 'no-store' }).then(function(r) { return r.json(); });
+    }).then(function(sched) {
+      schedule = sched;
+      if (typeof applySchedule === 'function') applySchedule(schedule);
+      _rebuildFieldDefaultColors();
+      renderBracket();
+    }).catch(function(err) {
+      showToast('Swap failed: ' + (err.message || 'unknown error'), true);
+    });
+  }
+
+  function onCancel() { cleanup(); }
+
+  function cleanup() {
+    if (ghost)     { ghost.remove(); ghost = null; }
+    if (dragState) { dragState.el.classList.remove('bc-dragging'); dragState = null; }
+    if (overEl)    { overEl.classList.remove('bc-drop-target'); overEl = null; }
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup',   onUp);
+    document.removeEventListener('pointercancel', onCancel);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════
 fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(function(sess) {
   _sessionRole = sess.role || null;
   var isPwa    = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
-  var adminBtn  = document.getElementById('adminPortalBtn');
-  var lineupBtn = document.getElementById('lineupPortalBtn');
-  var editBtn   = document.getElementById('bucketEditBtn');
-  if (adminBtn)  adminBtn.style.display  = (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
-  if (lineupBtn) lineupBtn.style.display = (_sessionRole === 'team') ? '' : 'none';
-  if (editBtn)   editBtn.style.display   = (_sessionRole === 'buckets') ? '' : 'none';
+  var adminBtn       = document.getElementById('adminPortalBtn');
+  var lineupBtn      = document.getElementById('lineupPortalBtn');
+  var editBtn        = document.getElementById('bucketEditBtn');
+  var bracketEditBtn = document.getElementById('bracketEditBtn');
+  if (adminBtn)       adminBtn.style.display       = (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
+  if (lineupBtn)      lineupBtn.style.display      = (_sessionRole === 'team') ? '' : 'none';
+  if (editBtn)        editBtn.style.display        = (_sessionRole === 'buckets') ? '' : 'none';
+  if (bracketEditBtn) bracketEditBtn.style.display = (_sessionRole === 'admin') ? '' : 'none';
   // PWA home preference: redirect to admin if user prefers it and is in standalone mode
   if (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) {
     var pref; try { pref = localStorage.getItem('ttPwaHome'); } catch(e) {}
