@@ -1,13 +1,9 @@
-# Runtime data — never commit live results or secrets
-files/live.json
-files/results.json
-files/schedule.json
-files/buckets.json
-files/lineups.json
-files/settings.json
-files/users.json
-
-# Keep the example for reference
+# Runtime data — never commit live results or secrets.
+# Allowlist pattern: everything under files/ is ignored except the tracked
+# example. This covers newer runtime files (offsets.json, field-colors.json,
+# theme-colors.json, sessions.json, legacy admin.json) automatically instead
+# of relying on a hand-maintained per-file list.
+files/*
 !files/schedule.example.json
 
 # Demo sandbox runtime data (recreated from demo-seed/ on every reset).

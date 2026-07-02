@@ -6,7 +6,12 @@ freely; this is a working note, not documentation. See also `ROADMAP.md`
 (note: README is stale — predates auth, live scoring, lineups, buckets).
 
 ## What it is
-16-team **double-elimination** bracket web app (softball/baseball tournament).
+Tournament bracket web app (softball/baseball origin, multi-format). The
+flagship layout is a **32-team, two-sided single-elimination** bracket — two
+independent 16-team sides (L/R) feeding one championship game, winners-only
+advancement. The Bracket Builder additionally generates true single-elim
+(4–64 teams, byes) and double-elim (4/8/16/32) schedules; topology is defined
+per game in schedule.json, not hardcoded.
 Plain JS frontend (no framework, no build step), Node/Express API, JSON-file
 storage. PWA with a service worker. Role-based auth (bcrypt, rate-limited login):
 roles are `admin`, `results`, `team` (coach), `buckets`.
