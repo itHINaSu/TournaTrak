@@ -182,10 +182,16 @@ function findNextSlot(sid, type) {
 }
 
 function isEliminated(teamName, results) {
-  // Double elimination: a team is out after 2 losses. The previous round-specific
-  // check was wrong — losing QF on the winner's side gives 1 loss, not elimination.
+  // Format-agnostic: topology lives in the schedule, so elimination does too.
+  // A team is out when it loses a game whose loser advances nowhere (covers
+  // single-elim and the two-sided SE layout), or reaches 2 losses (covers
+  // double-elim, where early losses feed the losers bracket).
   let losses = 0;
-  for (const r of Object.values(results)) { if (r.loser === teamName) losses++; }
+  for (const [sid, r] of Object.entries(results)) {
+    if (!r || r.loser !== teamName) continue;
+    losses++;
+    if (!findNextSlot(sid, 'loser')) return true;
+  }
   return losses >= 2;
 }
 
