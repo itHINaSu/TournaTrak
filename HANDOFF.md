@@ -402,9 +402,21 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
       populate the cache, awkward to script quickly).
     - `admin.js`/`lineup.js` deliberately untouched — they stay on the
       legacy `/api` mount until Phase C.
-  - **Phase C (admin):** header tournament switcher (localStorage-persisted)
-    driving all admin fetches to `/api/t/:slug/...`; superadmin-only
-    Tournaments management panel; per-tournament user management UI.
+  - **Phase C (admin): ✅ DONE, verified (curl + Playwright vs live PG16).**
+    Header tournament switcher (`ttAdminTournament` in localStorage,
+    populated from `session.tournaments`, hidden when only one choice);
+    `adminApiBase()`/`scopedUrl()` in admin.js route all data + user
+    fetches through `/api/t/:slug` (auth stays on global `/api`);
+    superadmin-only Tournaments panel (create / rename incl. slug edit
+    with link-breakage warning / public toggle / delete). Decided
+    semantics (owner, 2026-07-02): tournament-admin delete REVOKES the
+    grant only, account auto-deleted when orphaned; superadmin delete is
+    global; only superadmins create/grant 'admin'; coach magic links
+    resolve the tournament from team grants → `/lineup?t=<slug>`
+    (lineup.js honors ?t=, follows the admin switcher when embedded);
+    slugs editable by superadmin with warning. New endpoints:
+    `POST /users/:username/grant`; `GET /users` gains `grantsElsewhere`.
+    store.js gained `grantRole`/`revokeRole`. SW at v2.60 (lineup.js).
 - Docker not available in this dev container for compose-level testing; the
   compose files validate (`docker compose config`) but a real
   `docker compose up` should be smoke-tested on the owner's box.
