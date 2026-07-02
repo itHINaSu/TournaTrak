@@ -3,7 +3,7 @@
 A primer for starting a fresh chat with full project context. Delete or update
 freely; this is a working note, not documentation. See also `ROADMAP.md`
 (v3/v4 plan), `SALES_SITE_BRIEF.md` (marketing-site brief), and `README.md`
-(note: README is stale — predates auth, live scoring, lineups, buckets).
+(refreshed 2026-07 for the Postgres port — keep it current).
 
 ## What it is
 Tournament bracket web app (softball/baseball origin, multi-format). The
@@ -334,7 +334,12 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
   PgSessionStore (store.js); FileSessionStore removed.
 
 ## Cost / workflow notes
-- Use the lowest-cost model that fits the task.
+- **Always use the lowest-cost model that fits the task** (owner directive).
+  Start sessions on a small model for mechanical work (doc updates, config
+  changes, mechanical refactors); reserve large models for design-heavy or
+  cross-cutting work. Within a session, prefer finishing inline over spawning
+  subagents (cold starts re-read context); delegate to a cheaper-model
+  subagent only when a task is big AND separable.
 - When usage is near a limit or the user asks to wrap up: pause, commit, push, regenerate this `HANDOFF.md`.
 
 ## Git
