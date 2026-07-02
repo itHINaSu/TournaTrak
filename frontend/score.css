@@ -1,0 +1,173 @@
+/* score.css — field-side scorekeeper mode. Phone-first: one column, huge
+   touch targets, minimal chrome. Uses base.css design tokens throughout. */
+
+.score-wrap {
+  max-width: 34em;
+  margin: 0 auto;
+  padding: 0.8em 0.8em 4em;
+}
+
+/* ── Auth gate ── */
+.score-gate {
+  display: flex;
+  justify-content: center;
+  padding: 3em 1em;
+}
+.score-gate-box {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.6em;
+  text-align: center;
+  max-width: 22em;
+}
+.score-gate-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.4em;
+}
+.score-gate-desc { color: var(--text-dim); margin-bottom: 1.2em; }
+
+/* ── Field filter chips ── */
+.score-field-bar {
+  display: flex;
+  gap: 0.5em;
+  flex-wrap: wrap;
+  padding: 0.4em 0 0.8em;
+}
+.score-chip {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.6em 1.1em;
+  min-height: 2.75rem;
+  border-radius: var(--radius-sm);
+  border: 0.07em solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.score-chip--sel { border-color: var(--blue); color: var(--blue-lt); background: var(--surface2); }
+
+/* ── Game cards ── */
+.score-list { display: flex; flex-direction: column; gap: 0.9em; }
+.score-card {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.9em;
+}
+.score-card--live { border-color: var(--live-color); }
+.score-card-hdr {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  margin-bottom: 0.7em;
+  font-family: 'Oswald', sans-serif;
+}
+.score-game-id { font-weight: 700; letter-spacing: 0.06em; }
+.score-field-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 0.6em;
+  padding: 0.05em 0.5em;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.score-time { margin-left: auto; color: var(--gold-lt); font-size: var(--text-sm); }
+.score-live-badge {
+  color: var(--live-color);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  animation: score-pulse 1.6s ease-in-out infinite;
+}
+@keyframes score-pulse { 50% { opacity: 0.35; } }
+
+/* ── Team rows + steppers ── */
+.score-team-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  padding: 0.45em 0;
+}
+.score-team-name {
+  flex: 1;
+  font-family: 'Barlow', sans-serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+.score-stepper { display: flex; align-items: center; gap: 0.55em; }
+.score-step-btn {
+  width: 3.5rem;
+  height: 3.5rem;
+  font-size: 1.6rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.score-step-btn:active { background: var(--border); }
+.score-step-btn--minus { color: var(--text-dim); }
+.score-step-btn--sm { width: 2.75rem; height: 2.75rem; font-size: 1.2rem; }
+.score-num {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.9rem;
+  font-weight: 700;
+  min-width: 1.6em;
+  text-align: center;
+  color: var(--blue-lt);
+}
+
+/* ── Controls ── */
+.score-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.7em;
+  margin-top: 0.6em;
+  padding-top: 0.7em;
+  border-top: 0.07em solid var(--border);
+}
+.score-period-ctl { display: flex; align-items: center; gap: 0.5em; }
+.score-period-lbl { font-family: 'Oswald', sans-serif; font-size: var(--text-sm); color: var(--gold-lt); }
+.score-period-lbl b { font-size: 1.15rem; }
+.score-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  min-height: 3rem;
+  padding: 0.5em 1.2em;
+  border-radius: var(--radius-sm);
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.score-btn--primary { border-color: var(--blue); color: var(--blue-lt); }
+.score-btn--final   { border-color: var(--win-color); color: var(--win-color); margin-left: auto; }
+
+.score-empty {
+  text-align: center;
+  color: var(--text-mute);
+  padding: 3em 1em;
+  font-style: italic;
+}
+
+.toast--error { background: var(--lose-color); }

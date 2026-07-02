@@ -1081,3 +1081,5 @@ input[type="time"]:focus {
 /* Checkbox-style settings field (tournaments panel Public toggle) */
 .settings-field--check label { display: flex; align-items: center; gap: 0.5em; font-weight: 500; }
 .settings-field--check input[type="checkbox"] { width: 1.1em; height: 1.1em; }
+/* Scorekeeper-mode link, shaped like a mode button */
+.results-mode-btn--link { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
