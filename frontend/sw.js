@@ -7,13 +7,14 @@
 // back into this cache, so the offline copy also self-heals on each online
 // visit — but a forgotten bump still leaves stale assets for fully-offline
 // clients, so bump it.
-var CACHE = 'tournatrak-v2.55';
+var CACHE = 'tournatrak-v2.56';
 var PRECACHE_URLS = [
   '/',
   '/index.html',
   '/fonts.css',
   '/base.css',
   '/bracket.css',
+  '/settings-defaults.js',
   '/tt-common.js',
   '/bracket-data.js',
   '/bracket.js',

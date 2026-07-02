@@ -20,24 +20,10 @@ const LIVE_FILE     = '/data/live.json';
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
 const { FORMATS, generateSchedule } = require('./schedule-formats');
 
-const SETTINGS_DEFAULTS = {
-  tournamentName:   'Tournament Bracket',
-  pageTitle:        'Tournament Bracket',
-  adminName:        'Tournament Admin',
-  subtitle:         '',
-  leftLabel:        'Left Bracket',
-  rightLabel:       'Right Bracket',
-  playInLabel:      'Play-In',
-  showSideDividers: 'true',
-  periodLabel:      'Inning',
-  showDate:         'true',
-  showDay:          'true',
-  dateFormat:       'short',
-  dayFormat:        'long',
-  defaultTab:           'bracket',
-  defaultTabScope:      'both',
-  defaultScheduleGroup: 'day',
-};
+// Single source of truth shared with the browser — served from the
+// read-only /frontend volume mount (same file the pages load).
+// Fails loudly at startup if the mount is missing.
+const { SETTINGS_DEFAULTS } = require('/frontend/settings-defaults.js');
 
 const VALID_ROLES = ['admin', 'results', 'team', 'buckets'];
 

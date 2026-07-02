@@ -10,29 +10,9 @@ var _bucketTeams = [];
 
 var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
 
-var SETTING_DEFAULTS = {
-  tournamentName:   'Tournament Bracket',
-  pageTitle:        'Tournament Bracket',
-  adminName:        'Tournament Admin',
-  subtitle:         '',
-  leftLabel:        'Left Bracket',
-  rightLabel:       'Right Bracket',
-  playInLabel:      'Play-In',
-  showSideDividers: 'true',
-  periodLabel:      'Inning',
-  showDate:         'true',
-  showDay:          'true',
-  dateFormat:       'short',
-  dayFormat:        'long',
-  defaultTab:           'bracket',
-  defaultTabScope:      'both',
-  defaultScheduleGroup: 'day',
-};
+// SETTINGS_DEFAULTS comes from settings-defaults.js; getSetting from tt-common.js
 
-function getSetting(key) {
-  return (settings[key] !== undefined && settings[key] !== '')
-    ? settings[key] : SETTING_DEFAULTS[key];
-}
+
 
 // Theme toggle is managed by tt-common.js.
 
@@ -203,7 +183,7 @@ function applySettingsToPage() {
 }
 
 function populateSettingsFields() {
-  Object.keys(SETTING_DEFAULTS).forEach(function(key) {
+  Object.keys(SETTINGS_DEFAULTS).forEach(function(key) {
     var el = document.getElementById('set-' + key);
     if (!el) return;
     if (el.type === 'checkbox') el.checked = getSetting(key) !== 'false';
@@ -223,7 +203,7 @@ function toggleSection(hdrEl) {
 async function saveSettings() {
   var status = document.getElementById('settingsStatus');
   var out = {};
-  Object.keys(SETTING_DEFAULTS).forEach(function(key) {
+  Object.keys(SETTINGS_DEFAULTS).forEach(function(key) {
     var el = document.getElementById('set-' + key);
     if (!el) return;
     out[key] = el.type === 'checkbox' ? String(el.checked) : el.value.trim();

@@ -11,29 +11,9 @@ var _bracketEditMode = false;
 var scheduleMode = null; // null = uninitialised; set from settings on first render
 // esc() comes from tt-common.js
 
-var SETTING_DEFAULTS = {
-  tournamentName: 'Tournament Bracket',
-  pageTitle:      'Tournament Bracket',
-  adminName:      'Tournament Admin',
-  subtitle:       '',
-  leftLabel:        'Left Bracket',
-  rightLabel:       'Right Bracket',
-  playInLabel:      'Play-In',
-  showSideDividers: 'true',
-  periodLabel:      'Inning',
-  showDate:         'true',
-  showDay:          'true',
-  dateFormat:       'short',
-  dayFormat:        'long',
-  defaultTab:          'bracket',
-  defaultTabScope:     'both',
-  defaultScheduleGroup: 'day',
-};
+// SETTINGS_DEFAULTS comes from settings-defaults.js; getSetting from tt-common.js
 
-function getSetting(key) {
-  return (settings[key] !== undefined && settings[key] !== '')
-    ? settings[key] : SETTING_DEFAULTS[key];
-}
+
 
 function seedChip(name) {
   var n = _seedMap[name];

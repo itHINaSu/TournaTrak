@@ -30,6 +30,16 @@ function getScheduleTeams() {
   return teams;
 }
 
+// Read a setting with fallback to the shared defaults. `settings` is the
+// page-global populated from /api/settings (which the server serves with
+// defaults already merged); the local fallback covers offline boots and
+// fetch failures. SETTINGS_DEFAULTS comes from settings-defaults.js,
+// loaded before this file.
+function getSetting(key) {
+  var s = (typeof settings !== 'undefined' && settings) ? settings : {};
+  return (s[key] !== undefined && s[key] !== '') ? s[key] : SETTINGS_DEFAULTS[key];
+}
+
 // ── Delegated actions ──────────────────────────────────────────────────
 // Replaces inline onclick="fn(...)" attributes, which are blocked once the
 // CSP drops script-src 'unsafe-inline'. Markup declares data-action="name"
