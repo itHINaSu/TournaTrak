@@ -57,8 +57,10 @@ if (!ADMIN_PASSWORD_HASH.startsWith('$2')) {
   console.error('       Generate one with: docker compose run --rm api node generate-hash.js <password>');
   process.exit(1);
 }
-if (!process.env.DATABASE_URL) {
-  console.error('Fatal: DATABASE_URL is required (e.g. postgres://user:pass@postgres:5432/tournatrak)');
+if (!process.env.DATABASE_URL && !process.env.PGHOST) {
+  console.error('Fatal: database connection is not configured');
+  console.error('       Set PGHOST/PGUSER/PGPASSWORD/PGDATABASE (preferred — any password works),');
+  console.error('       or DATABASE_URL (password must be URL-encoded).');
   process.exit(1);
 }
 

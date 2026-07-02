@@ -17,9 +17,15 @@ const crypto  = require('crypto');
 const session = require('express-session');
 const { Pool } = require('pg');
 
+// Connection config: discrete PG* env vars (PGHOST/PGPORT/PGUSER/PGPASSWORD/
+// PGDATABASE) are preferred — pg reads them natively when the Pool gets no
+// connectionString, so the password never passes through URL parsing and can
+// contain any characters. DATABASE_URL is still honored for anyone who set it
+// (its password must then be URL-encoded — '/', '+', '@', '=' etc. from a
+// base64 secret make the URL invalid otherwise).
 const DATABASE_URL = process.env.DATABASE_URL || '';
 
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = DATABASE_URL ? new Pool({ connectionString: DATABASE_URL }) : new Pool();
 // A pool error (e.g. backend restart killing an idle client) is not fatal;
 // without a handler it would crash the process.
 pool.on('error', err => console.error('pg pool error:', err.message));
@@ -448,6 +454,17 @@ class PgSessionStore extends session.Store {
 // ── Init ──────────────────────────────────────────────────────────────
 let defaultTid = null;
 
+// Errors worth retrying: the postgres container is still starting (connection
+// refused / DNS not resolving on the compose network yet / 57P03 "the
+// database system is starting up"). Anything else — malformed DATABASE_URL,
+// wrong password (28P01/28000), missing database (3D000) — is a config
+// problem that 30 more attempts won't fix, so fail immediately with the real
+// error instead of burning the retry window and masking it.
+function _isTransientDbError(err) {
+  const RETRY_CODES = ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ECONNRESET', '57P03'];
+  return RETRY_CODES.includes(err.code);
+}
+
 async function _waitForDb() {
   // The postgres container may still be starting when the API boots.
   for (let attempt = 1; ; attempt++) {
@@ -455,6 +472,9 @@ async function _waitForDb() {
       await pool.query('SELECT 1');
       return;
     } catch (err) {
+      if (!_isTransientDbError(err)) {
+        throw new Error('Database connection failed (not retrying — check DATABASE_URL / PG* env vars): ' + err.message);
+      }
       if (attempt >= 30) throw new Error('Database unreachable after 30s: ' + err.message);
       if (attempt === 1) console.log('Waiting for database…');
       await new Promise(r => setTimeout(r, 1000));

@@ -30,7 +30,14 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: "postgres://tournatrak:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/tournatrak"
+      # Discrete PG* vars instead of a DATABASE_URL: pg reads these natively,
+      # so the password never passes through URL parsing and may contain any
+      # characters (a base64 secret with '/', '+', '=' broke the URL form).
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: tournatrak
+      PGDATABASE: tournatrak
+      PGPASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
     # ── Environment ────────────────────────────────────────────────────────
     # Copy the example file and fill in real values before first run:
     #   mv .env.example .env

@@ -58,7 +58,12 @@ services:
       DEMO_SEED_DIR: "/seed"
       DEMO_RESET_MINUTES: "30"
       # Demo-only database credentials — internal to this compose network.
-      DATABASE_URL: "postgres://tournatrak:tournatrak-demo@postgres:5432/tournatrak"
+      # Discrete PG* vars (not DATABASE_URL) so the password needs no URL-encoding.
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: tournatrak
+      PGDATABASE: tournatrak
+      PGPASSWORD: "tournatrak-demo"
 
   postgres:
     image: postgres:16-alpine

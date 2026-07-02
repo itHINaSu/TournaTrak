@@ -248,18 +248,28 @@ async rejections to the error middleware; **never add a bare async handler**.
   default tournament (slug from `TOURNAMENT_SLUG`, default `main`), and — on a
   FRESH database only (no users, no config rows) — imports all legacy /data
   JSON files including active sessions, leaving the files untouched.
-- Env: `DATABASE_URL` (required, fatal if unset), `DATA_DIR` / `FRONTEND_DIR`
-  (default `/data` / `/frontend`; override for local dev outside Docker),
-  `TOURNAMENT_SLUG`.
+- Env: DB connection via **discrete `PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD`/
+  `PGDATABASE` (preferred — pg reads them natively, so the password never
+  passes through URL parsing and may contain ANY characters)** or
+  `DATABASE_URL` (still honored; its password must be URL-encoded — a
+  base64 secret with `/` `+` `=` `@` produced "Invalid URL" in production,
+  which is why compose switched to PG* vars). Fatal at startup if neither
+  `PGHOST` nor `DATABASE_URL` is set. `_waitForDb` retries only transient
+  errors (ECONNREFUSED/ENOTFOUND/EAI_AGAIN/ETIMEDOUT/ECONNRESET/57P03);
+  config errors — bad URL, wrong password (28P01), missing DB (3D000) —
+  fail immediately with the real message instead of burning the 30s window.
+  Also `DATA_DIR` / `FRONTEND_DIR` (default `/data` / `/frontend`; override
+  for local dev outside Docker), `TOURNAMENT_SLUG`.
 - Compose: internal-only `postgres` service (postgres:16-alpine, healthcheck,
-  named volume `pgdata`); `POSTGRES_PASSWORD` required in `.env`. The demo
-  stack has its own postgres + `demo-pgdata` with fixed public credentials.
+  named volume `pgdata`); `POSTGRES_PASSWORD` required in `.env` and passed
+  to the api container as `PGPASSWORD` (verbatim, no URL). The demo stack
+  has its own postgres + `demo-pgdata` with fixed public credentials.
 - Demo mode restores each seed file write-whole through the store (users via
   writeUsers); sessions deliberately not seeded.
 - Local verification (no Docker): Postgres 16 cluster in the dev container
   (`sudo pg_ctlcluster 16 main start`; role/db `tournatrak`/`tournatrak`,
-  password `tournatrak`), then run server.js with DATABASE_URL +
-  DATA_DIR/FRONTEND_DIR pointing into the repo.
+  password `tournatrak`), then run server.js with PG* vars (or DATABASE_URL)
+  + DATA_DIR/FRONTEND_DIR pointing into the repo.
 
 ## Lineup: softball-specific — needs v3 attention
 Lineup fields (`jersey`, `name`, `position`) are sport-specific. For v3 multi-sport,
