@@ -977,7 +977,9 @@ api.post('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, 
   const clean = rows.slice(0, 20).map(r => ({
     jersey:   String(r.jersey   || '').slice(0, 8),
     name:     String(r.name     || '').slice(0, 64),
-    position: String(r.position || '').slice(0, 8),
+    position: String(r.position || '').slice(0, 12),
+    // 4th column for custom lineup layouts; unused by the built-in presets.
+    extra:    String(r.extra    || '').slice(0, 32),
   }));
   const lineups = await store.get(req.tid, 'lineups');
   if (!lineups[slotId]) lineups[slotId] = {};

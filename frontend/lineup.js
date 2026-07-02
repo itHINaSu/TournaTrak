@@ -8,7 +8,62 @@ var currentSlotId   = null;
 var isReadOnly      = false;
 var lineupResults   = {};
 
-var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH'];
+// ── Sport presets (v4) ─────────────────────────────────────────────────
+// Column layout is chosen per tournament via the lineupPreset setting
+// ('custom' reads labels from lineupCustomCols). kinds: 'num' = narrow
+// numeric input, 'text' = name-style input, 'pos' = select from options.
+// Custom columns map positionally onto the stored row keys so old data
+// stays readable and the server's field clamps still apply.
+var LINEUP_PRESETS = {
+  softball: { rows: 11, subs: true, cols: [
+    { key: 'jersey',   label: '#',           kind: 'num'  },
+    { key: 'name',     label: 'Player Name', kind: 'text' },
+    { key: 'position', label: 'Position',    kind: 'pos', options: ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH'] },
+  ]},
+  volleyball: { rows: 6, subs: true, cols: [
+    { key: 'jersey',   label: '#',           kind: 'num'  },
+    { key: 'name',     label: 'Player Name', kind: 'text' },
+    { key: 'position', label: 'Position',    kind: 'pos', options: ['', 'S', 'OH', 'MB', 'OPP', 'L', 'DS'] },
+  ]},
+  basketball: { rows: 5, subs: true, cols: [
+    { key: 'jersey',   label: '#',           kind: 'num'  },
+    { key: 'name',     label: 'Player Name', kind: 'text' },
+    { key: 'position', label: 'Position',    kind: 'pos', options: ['', 'PG', 'SG', 'SF', 'PF', 'C'] },
+  ]},
+  generic: { rows: 10, subs: false, cols: [
+    { key: 'jersey', label: '#',           kind: 'num'  },
+    { key: 'name',   label: 'Player Name', kind: 'text' },
+  ]},
+};
+var LINEUP_CUSTOM_KEYS = ['jersey', 'name', 'position', 'extra'];
+
+function lineupConfig() {
+  var preset = getSetting('lineupPreset') || 'softball';
+  if (preset === 'custom') {
+    var labels = String(getSetting('lineupCustomCols') || '')
+      .split(',').map(function(x) { return x.trim(); }).filter(Boolean).slice(0, 4);
+    if (labels.length) {
+      return { rows: 10, subs: false, cols: labels.map(function(lbl, i) {
+        return { key: LINEUP_CUSTOM_KEYS[i], label: lbl,
+                 kind: (i === 0 && /(^#|#$|\bno\.?$)/i.test(lbl)) ? 'num' : 'text' };
+      }) };
+    }
+  }
+  return LINEUP_PRESETS[preset] || LINEUP_PRESETS.softball;
+}
+
+// Render the table header to match the active column config. Both the
+// standalone page and the admin-embedded panel carry a #lineupHead row.
+function renderLineupHead() {
+  var head = document.getElementById('lineupHead');
+  if (!head) return;
+  var cfg = lineupConfig();
+  head.innerHTML = '<th class="lineup-th lineup-th--order"></th>'
+    + cfg.cols.map(function(c) {
+        var cls = c.kind === 'num' ? 'lineup-th--num' : c.kind === 'pos' ? 'lineup-th--pos' : 'lineup-th--name';
+        return '<th class="lineup-th ' + cls + '">' + esc(c.label) + '</th>';
+      }).join('');
+}
 
 // esc() comes from tt-common.js
 
@@ -24,23 +79,24 @@ function lineupApiBase() {
   return _lineupSlug ? '/api/t/' + encodeURIComponent(_lineupSlug) : '/api';
 }
 
-function posOptions(selected) {
-  return POSITIONS.map(function(p) {
-    var sel = p === (selected || '') ? ' selected' : '';
+function posOptions(selected, options) {
+  return (options || []).map(function(p) {
+    var sel = (p === (selected || '')) ? ' selected' : '';
     return '<option value="' + p + '"' + sel + '>' + (p || '—') + '</option>';
   }).join('');
 }
 
-var lineupRowCount  = 11;
+var lineupRowCount  = 11;  // reset to lineupConfig().rows once settings load
 var isReorderMode = false;
 
 function buildRows(rows, readOnly) {
-  var html  = '';
-  var dis   = readOnly ? ' disabled' : '';
-  var count = lineupRowCount;
-  for (var i = 0; i < count; i++) {
+  var html = '';
+  var dis  = readOnly ? ' disabled' : '';
+  var cfg  = lineupConfig();
+  renderLineupHead();
+  for (var i = 0; i < lineupRowCount; i++) {
     var r     = (rows && rows[i]) ? rows[i] : {};
-    var isSub = i >= 11;
+    var isSub = cfg.subs && i >= cfg.rows;
     var rowCls = 'lineup-row' + (isSub ? ' lineup-row--sub' : '');
     var orderCell;
     if (isReorderMode) {
@@ -50,17 +106,21 @@ function buildRows(rows, readOnly) {
     } else {
       orderCell = '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>';
     }
-    html += '<tr class="' + rowCls + '"' + (isReorderMode ? ' data-idx="' + i + '"' : '') + '>'
-      + orderCell
-      + '<td class="lineup-td-num"><input type="text" class="lineup-inp lineup-inp--num" id="lj-' + i + '" maxlength="4" value="' + esc(r.jersey || '') + '" placeholder="#" inputmode="numeric"' + dis + '></td>'
-      + '<td class="lineup-td-name"><input type="text" class="lineup-inp lineup-inp--name" id="ln-' + i + '" maxlength="64" value="' + esc(r.name || '') + '" placeholder="Player name"' + dis + '></td>'
-      + '<td class="lineup-td-pos">';
-    if (isSub) {
-      html += '<span class="lineup-sub-tag">Sub</span>';
-    } else {
-      html += '<select class="lineup-sel" id="lp-' + i + '"' + dis + '>' + posOptions(r.position) + '</select>';
-    }
-    html += '</td></tr>';
+    html += '<tr class="' + rowCls + '"' + (isReorderMode ? ' data-idx="' + i + '"' : '') + '>' + orderCell;
+    cfg.cols.forEach(function(c, ci) {
+      var id = 'lc' + ci + '-' + i;
+      if (c.kind === 'pos') {
+        html += '<td class="lineup-td-pos">'
+          + (isSub ? '<span class="lineup-sub-tag">Sub</span>'
+                   : '<select class="lineup-sel" id="' + id + '"' + dis + '>' + posOptions(r[c.key], c.options) + '</select>')
+          + '</td>';
+      } else if (c.kind === 'num') {
+        html += '<td class="lineup-td-num"><input type="text" class="lineup-inp lineup-inp--num" id="' + id + '" maxlength="4" value="' + esc(r[c.key] || '') + '" placeholder="#" inputmode="numeric"' + dis + '></td>';
+      } else {
+        html += '<td class="lineup-td-name"><input type="text" class="lineup-inp lineup-inp--name" id="' + id + '" maxlength="64" value="' + esc(r[c.key] || '') + '" placeholder="' + esc(c.label) + '"' + dis + '></td>';
+      }
+    });
+    html += '</tr>';
   }
   return html;
 }
@@ -213,8 +273,11 @@ function closeImport(e) {
 }
 
 function hasCurrentData() {
+  var cfg = lineupConfig();
+  var nameIdx = cfg.cols.findIndex(function(c) { return c.kind === 'text'; });
+  if (nameIdx === -1) nameIdx = 0;
   for (var i = 0; i < lineupRowCount; i++) {
-    var n = document.getElementById('ln-' + i);
+    var n = document.getElementById('lc' + nameIdx + '-' + i);
     if (n && n.value.trim()) return true;
   }
   return false;
@@ -228,7 +291,7 @@ function confirmImport() {
 
   var doImport = function() {
     var rows = (_importData[sid].rows || []).slice();
-    lineupRowCount = Math.max(11, rows.length);
+    lineupRowCount = Math.max(lineupConfig().rows, rows.length);
     document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
     updateSubButtons();
     document.getElementById('lineupImportOverlay').style.display = 'none';
@@ -241,15 +304,15 @@ function confirmImport() {
 
 function getCurrentRows() {
   var rows = [];
+  var cfg  = lineupConfig();
   for (var i = 0; i < lineupRowCount; i++) {
-    var j = document.getElementById('lj-' + i);
-    var n = document.getElementById('ln-' + i);
-    var p = document.getElementById('lp-' + i);
-    rows.push({
-      jersey:   j ? j.value : '',
-      name:     n ? n.value : '',
-      position: i >= 11 ? 'Sub' : (p ? p.value : ''),
+    var row = {};
+    var isSub = cfg.subs && i >= cfg.rows;
+    cfg.cols.forEach(function(c, ci) {
+      var el = document.getElementById('lc' + ci + '-' + i);
+      row[c.key] = (c.kind === 'pos' && isSub) ? 'Sub' : (el ? el.value : '');
     });
+    rows.push(row);
   }
   return rows;
 }
@@ -257,13 +320,13 @@ function getCurrentRows() {
 function addSubRow() {
   var rows = getCurrentRows();
   lineupRowCount++;
-  rows.push({ jersey: '', name: '', position: 'Sub' });
+  rows.push({ jersey: '', name: '', position: 'Sub', extra: '' });
   document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
   updateSubButtons();
 }
 
 function deleteSubRow() {
-  if (lineupRowCount <= 11) return;
+  if (lineupRowCount <= lineupConfig().rows) return;
   var rows = getCurrentRows();
   lineupRowCount--;
   rows.pop();
@@ -273,12 +336,14 @@ function deleteSubRow() {
 
 function updateSubButtons(readOnly) {
   var ro     = (readOnly !== undefined) ? readOnly : isReadOnly;
+  var cfg    = lineupConfig();
+  var hideSubs = ro || !cfg.subs;
   var addBtn = document.getElementById('lineupAddSubBtn');
   var delBtn = document.getElementById('lineupDelSubBtn');
-  if (addBtn) addBtn.style.display = ro ? 'none' : '';
+  if (addBtn) addBtn.style.display = hideSubs ? 'none' : '';
   if (delBtn) {
-    delBtn.style.display = ro ? 'none' : '';
-    delBtn.disabled      = lineupRowCount <= 11;
+    delBtn.style.display = hideSubs ? 'none' : '';
+    delBtn.disabled      = lineupRowCount <= cfg.rows;
   }
   // Tool buttons (Import / Reorder) only shown when editable
   var tools = document.getElementById('lineupTools');
@@ -394,10 +459,10 @@ async function loadLineupForGame(slotId, teamName, readOnly, readOnlyReason) {
     var r    = await fetch(lineupApiBase() + '/lineups/game/' + encodeURIComponent(slotId) + '/' + encodeURIComponent(teamName));
     var data = r.ok ? await r.json() : { rows: [] };
     var rows = data.rows || [];
-    lineupRowCount = Math.max(11, rows.length);
+    lineupRowCount = Math.max(lineupConfig().rows, rows.length);
     document.getElementById('lineupBody').innerHTML = buildRows(rows, readOnly);
   } catch(e) {
-    lineupRowCount = 11;
+    lineupRowCount = lineupConfig().rows;
     document.getElementById('lineupBody').innerHTML = buildRows([], readOnly);
   }
   updateSubButtons(readOnly);
@@ -561,6 +626,10 @@ async function lineupInit() {
     lineupResults    = rr.ok       ? await rr.json()       : {};
     var sched        = schedR.ok   ? await schedR.json()   : {};
     var settingsData = settingsR.ok ? await settingsR.json() : {};
+    // Publish for getSetting()/lineupConfig() — the standalone page has no
+    // other owner of the settings global (admin.js owns it when embedded).
+    window.settings = settingsData;
+    lineupRowCount = lineupConfig().rows;
 
     if (typeof applySchedule === 'function') applySchedule(sched);
 

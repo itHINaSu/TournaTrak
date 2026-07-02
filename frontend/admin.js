@@ -219,6 +219,14 @@ function populateSettingsFields() {
     else if (el.tagName === 'SELECT') el.value = getSetting(key);
     else el.value = settings[key] || '';
   });
+  onLineupPresetChange();
+}
+
+// Show the custom-columns field only when the Custom preset is selected.
+function onLineupPresetChange() {
+  var sel   = document.getElementById('set-lineupPreset');
+  var field = document.getElementById('lineupCustomColsField');
+  if (sel && field) field.style.display = sel.value === 'custom' ? '' : 'none';
 }
 
 function toggleSection(hdrEl) {
@@ -2540,6 +2548,7 @@ Object.assign(TT_ACTIONS, {
   toggleChipSel:       function(arg, el) { el.classList.toggle('delay-chip--sel'); },
   // settings
   showSettingsSection: function(arg) { showSettingsSection(arg); },
+  onLineupPresetChange: function() { onLineupPresetChange(); },
   toggleSection:       function(arg, el) { toggleSection(el); },
   saveSettings:        function() { saveSettings(); },
   resetTheme:          function() { resetTheme(); },

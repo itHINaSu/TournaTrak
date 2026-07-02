@@ -346,7 +346,7 @@
       <div class="lineup-form-wrap">
         <table class="lineup-table">
           <thead>
-            <tr>
+            <tr id="lineupHead">
               <th class="lineup-th lineup-th--order"></th>
               <th class="lineup-th lineup-th--num">#</th>
               <th class="lineup-th lineup-th--name">Player Name</th>
@@ -531,6 +531,33 @@
               </div>
               <div class="settings-save-row">
                 <button class="sched-save-btn" data-action="saveSettings">Save</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Section: Lineup ── -->
+          <div class="settings-section">
+            <div class="settings-section-hdr collapsible-hdr" data-action="toggleSection">Lineup</div>
+            <div class="collapsible-body">
+              <div class="settings-field">
+                <label>Sport Preset <span class="field-label-hint">(lineup columns)</span></label>
+                <select id="set-lineupPreset" class="styled" data-action-change="onLineupPresetChange">
+                  <option value="softball">Softball / Baseball — #, Player, Position</option>
+                  <option value="volleyball">Volleyball — #, Player, Position</option>
+                  <option value="basketball">Basketball — #, Player, Position</option>
+                  <option value="generic">Generic — #, Player</option>
+                  <option value="custom">Custom columns…</option>
+                </select>
+                <div class="field-hint">Controls the columns coaches see on the lineup page and the default roster size.</div>
+              </div>
+              <div class="settings-field" id="lineupCustomColsField" style="display:none">
+                <label>Custom Columns <span class="field-label-hint">(comma-separated, up to 4)</span></label>
+                <input type="text" id="set-lineupCustomCols" placeholder="e.g. #, Player, Belt Rank">
+                <div class="field-hint">A first column named "#" or "No." renders as a narrow number field. Values are stored in the same fields as the standard layout, so switching presets never loses data.</div>
+              </div>
+              <div class="settings-save-row">
+                <button class="sched-save-btn" data-action="saveSettings">Save</button>
+                <span class="sched-status" id="lineupSaveStatus"></span>
               </div>
             </div>
           </div>

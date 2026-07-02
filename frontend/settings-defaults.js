@@ -21,6 +21,8 @@ const SETTINGS_DEFAULTS = {
   showDay:          'true',
   dateFormat:       'short',
   dayFormat:        'long',
+  lineupPreset:     'softball',
+  lineupCustomCols: '',
   defaultTab:           'bracket',
   defaultTabScope:      'both',
   defaultScheduleGroup: 'day',
