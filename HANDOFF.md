@@ -310,10 +310,31 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
   across restart, results/live/lineups/buckets/offsets/settings round-trips,
   ETag 304s, live-cleared-on-final, team access token, setup flows,
   index-title cache invalidation, DEMO_MODE seed restore.
-- ⬜ NEXT: `/t/:slug` multi-tournament routing (public views + admin scoping,
-  super-admin tournament management), path-based tab routing (`/bracket`,
-  `/schedule`, …) per ROADMAP v3 goals. Frontend is untouched so far — the
-  API contract is byte-identical to v2.
+- ⬜ NEXT: multi-tournament. Design DECIDED by owner 2026-07-02 (see ROADMAP
+  v3 Goals): public `/t/:slug` + default tournament at `/`; single `/admin`
+  with a tournament switcher; global `superadmin` + per-tournament
+  admin/results/team/buckets grants (`user_roles`); path-based tabs built
+  together with the routing. Implementation plan (phases, each its own
+  commit, server first so the frontend keeps working throughout):
+  - **Phase A (server, back-compat):** schema adds `superadmin` to the users
+    role check + `user_roles(user_id, tournament_id, role)`; migrate grants
+    existing non-team users their role on the default tournament; env
+    bootstrap admin becomes superadmin. Slug→tid param middleware; every
+    /api route ALSO mounted at `/api/t/:slug/...` (legacy `/api/...` =
+    default tournament, so current frontend keeps working unchanged).
+    requireRole resolves per-request: superadmin passes everywhere, others
+    need a user_roles row for req.tid. `/api/session` returns effective role
+    for the request's tournament (superadmin reported as role 'admin' +
+    `superadmin: true` flag for UI back-compat) plus the user's tournament
+    list. Tournament CRUD: GET /api/tournaments (public list), superadmin
+    POST/PATCH/DELETE.
+  - **Phase B (public frontend):** serve index HTML for `/t/:slug` +
+    `/(bracket|schedule|teampath|buckets)` in both scoped and bare forms
+    (SPA fallback); bracket.js derives slug+tab from pathname, fetches
+    scoped API, pushState on tab switch; sw.js navigation fallback checked.
+  - **Phase C (admin):** header tournament switcher (localStorage-persisted)
+    driving all admin fetches to `/api/t/:slug/...`; superadmin-only
+    Tournaments management panel; per-tournament user management UI.
 - Docker not available in this dev container for compose-level testing; the
   compose files validate (`docker compose config`) but a real
   `docker compose up` should be smoke-tested on the owner's box.

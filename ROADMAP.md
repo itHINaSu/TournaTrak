@@ -104,16 +104,24 @@ See HANDOFF.md "Persistence (v3)" for the layer's contract.
 - Do not push to `feature/regional` from normal v2 sessions; it is touched
   only when v3 work formally begins.
 
-### Goals
-- Replace JSON-file persistence with **PostgreSQL**
+### Goals — DECIDED 2026-07-02 (owner picked all four)
+- Replace JSON-file persistence with **PostgreSQL** — ✅ DONE (buildout branch)
 - Support **multiple simultaneous tournaments** under one deployment
-- Each tournament has its own bracket, schedule, results, settings, and users
-- URL structure something like `/t/:tournamentSlug/` for public views, `/admin?t=slug` or sub-routes for admin
-- Super-admin role to create/manage tournaments; existing roles (results, coach, team) scope to a tournament
-- **Path-based tab routing** (`/bracket`, `/schedule`, `/teampath`, `/buckets`)
-  with server-side SPA fallback — the clean-URL version of deep-linking.
-  Deferred from v2 (which kept cookie-based tabs + the configurable default
-  landing tab); fits naturally alongside the multi-tournament URL redesign.
+- **Public URLs:** `/t/:slug/...` per tournament; the bare `/` serves a
+  configurable default tournament so single-tournament deployments and all
+  existing links/QR codes keep working unchanged.
+- **Admin scoping:** ONE `/admin` page with a tournament switcher in the
+  header (picker sets which tournament all tabs operate on). No per-tournament
+  admin URLs.
+- **Roles:** new global `superadmin` role creates/manages tournaments and
+  users everywhere; `admin`/`results`/`team`/`buckets` become per-tournament
+  grants (`user_roles` table — a user can be admin of A and results on B).
+  Existing users migrate to grants on the default tournament; the bootstrap
+  admin becomes superadmin.
+- **Path-based tab routing** (`/bracket`, `/schedule`, `/teampath`,
+  `/buckets`, and the same under `/t/:slug/`) with server-side SPA fallback —
+  built TOGETHER with the multi-tournament routing so the URL layer is touched
+  once.
 
 ### What's already built (feature/regional)
 - Postgres schema and migration scripts exist on that branch
