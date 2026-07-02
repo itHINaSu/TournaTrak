@@ -40,6 +40,43 @@ function getSetting(key) {
   return (s[key] !== undefined && s[key] !== '') ? s[key] : SETTINGS_DEFAULTS[key];
 }
 
+// ── Multi-tournament path routing (public bracket page) ────────────────
+// URL scheme:
+//   /                                   → default tournament, saved/default tab
+//   /bracket|schedule|teampath|buckets  → default tournament, explicit tab
+//   /t/:slug                            → tournament, saved/default tab
+//   /t/:slug/bracket|schedule|teampath|buckets → tournament, explicit tab
+// TT_SLUG is null for the default tournament (legacy /api mount, unscoped
+// URLs) so existing bookmarks/links/QR codes keep working unchanged.
+var TT_TAB_PATHS = ['bracket', 'schedule', 'teampath', 'buckets'];
+
+function parseTtPath(pathname) {
+  var parts = (pathname || window.location.pathname).replace(/^\/|\/$/g, '').split('/').filter(Boolean);
+  var slug = null, tab = null;
+  if (parts[0] === 't' && parts[1]) {
+    slug = parts[1];
+    if (parts[2] && TT_TAB_PATHS.indexOf(parts[2]) !== -1) tab = parts[2];
+  } else if (parts[0] && TT_TAB_PATHS.indexOf(parts[0]) !== -1) {
+    tab = parts[0];
+  }
+  return { slug: slug, tab: tab };
+}
+
+var TT_ROUTE = parseTtPath();
+var TT_SLUG  = TT_ROUTE.slug;
+
+// Prefix for all /api calls on the public page — scoped to TT_SLUG when set,
+// otherwise the legacy default-tournament mount.
+function apiBase() {
+  return TT_SLUG ? '/api/t/' + encodeURIComponent(TT_SLUG) : '/api';
+}
+
+// Path for switching to `tab` while staying in the current tournament scope.
+function ttTabPath(tab) {
+  var prefix = TT_SLUG ? '/t/' + encodeURIComponent(TT_SLUG) : '';
+  return prefix + '/' + (tab || 'bracket');
+}
+
 // ── Delegated actions ──────────────────────────────────────────────────
 // Replaces inline onclick="fn(...)" attributes, which are blocked once the
 // CSP drops script-src 'unsafe-inline'. Markup declares data-action="name"

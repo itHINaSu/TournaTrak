@@ -339,10 +339,62 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
     restart durability).
     Phase C note: DELETE /users is still a GLOBAL account delete — add
     "revoke grant only" for users with grants elsewhere.
-  - **Phase B (public frontend):** serve index HTML for `/t/:slug` +
-    `/(bracket|schedule|teampath|buckets)` in both scoped and bare forms
-    (SPA fallback); bracket.js derives slug+tab from pathname, fetches
-    scoped API, pushState on tab switch; sw.js navigation fallback checked.
+  - **Phase B (public frontend): IN PROGRESS, not yet server-wired or
+    tested.** URL scheme decided and partially implemented:
+    `/`, `/bracket|schedule|teampath|buckets` (default tournament),
+    `/t/:slug`, `/t/:slug/bracket|schedule|teampath|buckets` (scoped).
+    Done so far (`frontend/tt-common.js`, `frontend/bracket.js`):
+    - `tt-common.js`: `parseTtPath()`, module-level `TT_ROUTE`/`TT_SLUG`,
+      `apiBase()` (`/api/t/:slug` or legacy `/api`), `ttTabPath(tab)`.
+    - `bracket.js`: tab click handler now `pushState`s to `ttTabPath()`
+      (was `replaceState`, and only to strip `?team=`) — **this means tab
+      switches now add browser-history entries; back/forward moves between
+      tabs.** New `popstate` listener mirrors that for back/forward.
+      `fetchAll()`'s tab-restore logic now prioritizes `TT_ROUTE.tab` on
+      the *first* call only (`_routeTabApplied` flag prevents it from
+      re-firing after a user's own tab click) — ahead of `?view=` and the
+      `tt_tab` cookie. Also added a `!rr.ok || !sr.ok || !str.ok` guard so
+      a 404 (unknown slug) hits the existing offline-banner catch path
+      instead of `JSON.parse`-ing an `{"error":...}` blob as if it were
+      bracket data (message is generic "offline", not "tournament not
+      found" — acceptable for v1, follow-up if it's confusing in practice).
+    - Most `/api/...` fetches in `bracket.js` converted to
+      `apiBase() + '/...'`: `fetchAll()`'s 9 calls, bucket-count save.
+      **NOT YET converted** (still hit the legacy default-tournament
+      mount unconditionally — grep `fetch('/api` in bracket.js to find
+      them): the initial `/api/session` call (~line 2911), `pollLive()`'s
+      `/api/live` + `/api/results` (~line 2950), and the drag-to-swap
+      `/api/schedule/swap` + `/api/schedule` refetch (~line 2878/2885).
+      On a scoped `/t/:slug` page these currently silently operate on the
+      DEFAULT tournament instead — session role would be wrong, live
+      polling would show the wrong tournament's scores, and an admin
+      drag-swap would corrupt the wrong schedule. Fix is mechanical
+      (same `apiBase() + '/...'` substitution) but MUST land before Phase B
+      is safe to deploy for scoped tournaments.
+    - **Not started:** server-side routes to serve the index HTML shell
+      for `/t/:slug` and the four tab paths (currently only `/` and
+      `/index.html` are handled in `server.js`, and only for the default
+      tournament — nginx's SPA fallback (`location /`) will still serve
+      the STATIC `index.html` file for these new paths, so the page loads
+      and the client-side JS above works, but the server-injected
+      per-tournament `<title>`/OG tags won't apply there yet). Needs:
+      `getIndexHtml(tid)` keyed by tid (replace the single
+      `_indexHtmlCache` var with a `Map`), `invalidateIndexCache(tid)`
+      taking a tid (all three call sites currently call it with no arg),
+      new Express routes for `/t/:slug[/tab]` and bare `/tab` paths, and
+      matching nginx `location` blocks proxying those paths to the API
+      (mirroring the existing `location = /` block) instead of falling
+      through to the static SPA fallback.
+    - **Not started:** `sw.js` CACHE bump (bracket.js content changed —
+      required before shipping) and a navigation-mode fallback to the
+      cached `/` shell for offline visits to unprecached paths like
+      `/t/:slug` or `/schedule`.
+    - **Not started:** any testing. None of this has been run against a
+      live server yet this session — verify the whole flow (scoped fetch,
+      tab pushState/popstate, unknown-slug handling) before considering
+      Phase B done.
+    - `admin.js`/`lineup.js` deliberately untouched — they stay on the
+      legacy `/api` mount until Phase C.
   - **Phase C (admin):** header tournament switcher (localStorage-persisted)
     driving all admin fetches to `/api/t/:slug/...`; superadmin-only
     Tournaments management panel; per-tournament user management UI.

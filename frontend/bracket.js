@@ -275,7 +275,7 @@ function saveBucketEdit() {
   var statusEl = document.getElementById('bucketEditStatus');
   if (statusEl) statusEl.textContent = 'Saving…';
 
-  fetch('/api/buckets/counts', {
+  fetch(apiBase() + '/buckets/counts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ counts: counts, hidden: hidden })
@@ -322,11 +322,9 @@ document.querySelectorAll('.view-tab').forEach(function(tab){
       var editBtn = document.getElementById('bracketEditBtn');
       if (editBtn) { editBtn.textContent = 'Edit'; editBtn.classList.remove('admin-btn-active'); }
     }
-    // Leaving the team path clears the shareable ?team= param so other tabs
-    // aren't yanked back to team path by fetchAll re-reading the URL.
-    if (tab.dataset.view !== 'teampath') {
-      history.replaceState(null, '', window.location.pathname);
-    }
+    // Push the tab's canonical path (also drops the teampath ?team= param —
+    // pushState with no search string clears it).
+    history.pushState(null, '', ttTabPath(tab.dataset.view));
     renderActive();
     fetchAll(); // refresh data on every tab tap (PWA-friendly)
   });
@@ -339,6 +337,21 @@ function renderActive(){
   if(v==='teampath')  renderTeamView();
   if(v==='buckets') renderBucketView();
 }
+// Back/forward navigation between tabs pushed via ttTabPath (see the tab
+// click handler above). Slug changes never reach here — those come from a
+// fresh document load, not a popstate on this one.
+window.addEventListener('popstate', function() {
+  var tab = parseTtPath().tab || 'bracket';
+  var targetTab   = document.querySelector('.view-tab[data-view="' + tab + '"]');
+  var targetPanel = document.getElementById('view-' + tab);
+  if (!targetTab || !targetPanel) return;
+  document.querySelectorAll('.view-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.view-panel').forEach(function(p){ p.classList.remove('active'); });
+  targetTab.classList.add('active');
+  targetPanel.classList.add('active');
+  setCookie('tt_tab', tab);
+  renderActive();
+});
 
 // ══════════════════════════════════════════════════════════
 // FETCH
@@ -346,21 +359,30 @@ function renderActive(){
 // Fingerprint of the last successfully fetched data blobs.
 // Empty string means "never fetched" so the first fetch always renders.
 var _fetchFingerprint = '';
+// True once the URL-path tab (TT_ROUTE.tab, from tt-common.js) has been
+// applied on the first fetchAll(). Later calls (from our own tab clicks)
+// must not re-force the page's original path — the cookie already reflects
+// the current tab by then.
+var _routeTabApplied = false;
 
 async function fetchAll(){
   var rawTexts;
   try{
     var [rr,sr,str,br,lr,or2,fc,tc,tmr]=await Promise.all([
-      fetch('/api/results'),
-      fetch('/api/schedule'),
-      fetch('/api/settings'),
-      fetch('/api/buckets'),
-      fetch('/api/live'),
-      fetch('/api/offsets'),
-      fetch('/api/field-colors'),
-      fetch('/api/theme-colors'),
-      fetch('/api/teams'),
+      fetch(apiBase() + '/results'),
+      fetch(apiBase() + '/schedule'),
+      fetch(apiBase() + '/settings'),
+      fetch(apiBase() + '/buckets'),
+      fetch(apiBase() + '/live'),
+      fetch(apiBase() + '/offsets'),
+      fetch(apiBase() + '/field-colors'),
+      fetch(apiBase() + '/theme-colors'),
+      fetch(apiBase() + '/teams'),
     ]);
+    // A 404 here means an unknown tournament slug — surface it the same way
+    // as a connectivity failure (offline banner) rather than rendering a
+    // page-shaped error blob as if it were bracket data.
+    if (!rr.ok || !sr.ok || !str.ok) throw new Error('fetch failed: ' + rr.status + '/' + sr.status + '/' + str.status);
     rawTexts = await Promise.all([rr.text(), sr.text(), str.text(), br.ok ? br.text() : Promise.resolve(''), lr.ok ? lr.text() : Promise.resolve('{}'), or2.ok ? or2.text() : Promise.resolve('{"entries":[]}')]);
     results=JSON.parse(rawTexts[0]); schedule=JSON.parse(rawTexts[1]); settings=JSON.parse(rawTexts[2]);
     buckets=br.ok ? JSON.parse(rawTexts[3]) : {};
@@ -394,11 +416,18 @@ async function fetchAll(){
   // so subsequent fetchAll() calls (from tab clicks) don't re-override the tab
   var qView = new URLSearchParams(window.location.search).get('view');
   if (qView) history.replaceState(null, '', window.location.pathname);
-  // Restore saved tab. With no saved preference, fall back to the admin-
-  // configured default tab. Its scope decides reach: 'both' applies the
-  // default everywhere; 'mobile' applies it only below the desktop breakpoint
-  // (desktop then keeps the HTML default, Bracket).
+  // Restore saved tab. Priority: an explicit /bracket|schedule|teampath|buckets
+  // path segment (only on the FIRST fetchAll — later calls come from our own
+  // tab clicks, which already set the cookie and pushed the new path) beats
+  // ?view=, which beats the saved cookie. With no saved preference, fall back
+  // to the admin-configured default tab. Its scope decides reach: 'both'
+  // applies the default everywhere; 'mobile' applies it only below the
+  // desktop breakpoint (desktop then keeps the HTML default, Bracket).
   var savedTab = qView || getCookie('tt_tab');
+  if (!_routeTabApplied) {
+    _routeTabApplied = true;
+    if (TT_ROUTE.tab) { savedTab = TT_ROUTE.tab; setCookie('tt_tab', savedTab); }
+  }
   if (!savedTab) {
     if (getSetting('defaultTabScope') === 'both' || window.innerWidth < 1280) {
       savedTab = getSetting('defaultTab');
