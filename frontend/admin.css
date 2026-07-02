@@ -867,8 +867,11 @@ input[type="time"]:focus {
 
 /* ── Touch target sizing (coarse pointer = touchscreen) ── */
 @media (pointer: coarse) {
-  .admin-clear-btn { min-height: 2.75rem; }
-  .sched-save-btn  { min-height: 2.75rem; }
+  .admin-clear-btn   { min-height: 2.75rem; }
+  .sched-save-btn    { min-height: 2.75rem; }
+  .results-mode-btn  { min-height: 2.75rem; }
+  .bucket-hide-btn   { min-height: 2.75rem; }
+  .delay-chip        { min-height: 2.75rem; }
 }
 .sched-game-hdr-field { font-size: 0.68rem; font-weight: 600; color: var(--text-dim); border: 1px solid var(--border); border-radius: 0.6em; padding: 0.05em 0.45em; white-space: nowrap; }
 

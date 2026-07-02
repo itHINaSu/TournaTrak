@@ -417,3 +417,13 @@
     font-size: var(--text-lg);
   }
 }
+
+/* ── Touch target sizing (coarse pointer = touchscreen) ── */
+@media (pointer: coarse) {
+  .lineup-tool-btn    { min-height: 2.75rem; }
+  .lineup-submit-btn  { min-height: 2.75rem; }
+  .lineup-sub-add-btn { min-height: 2.75rem; }
+  .lineup-sub-del-btn { min-height: 2.75rem; }
+  /* reorder drag handle cell — widen the grab area */
+  .lineup-td-order--reorder { min-width: 2.75rem; }
+}

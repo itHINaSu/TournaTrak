@@ -1064,6 +1064,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
    Snap-scroll carousel: one round visible at a time.
    ════════════════════════════════════════════════════════════ */
 
+/* Breakpoint contract: public bracket goes mobile under 1280px (desktop bracket needs the width); admin/lineup switch at 1023px. Intentional two-tier split. */
 @media (max-width: 1279px) {
   .update-bar, .delay-notice { flex-shrink: 0; position: static; }
 
@@ -1767,3 +1768,10 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
 
 /* Persistent jump highlight: stays until scrolled off screen or tab change */
 .tp-target-hold { box-shadow: 0 0 0 0.25em var(--gold); }
+
+/* ── Touch target sizing (coarse pointer = touchscreen) ── */
+@media (pointer: coarse) {
+  .tp-opp-chip        { min-height: 2.75rem; }
+  .team-chip          { min-height: 2.75rem; }
+  .bucket-edit-save-btn, .bucket-edit-cancel-btn { min-height: 2.75rem; }
+}
