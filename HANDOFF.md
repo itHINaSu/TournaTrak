@@ -421,6 +421,28 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
   compose files validate (`docker compose config`) but a real
   `docker compose up` should be smoke-tested on the owner's box.
 
+## v4 wave (after Phase C) — ✅ DONE, all verified vs live PG16
+- **Gap pass:** all 27 relative asset refs in admin/builder/lineup HTML made
+  absolute; scoped teampath share links + SW offline shell fallback verified.
+- **v4a lineup multi-sport:** settings `lineupPreset` (softball default /
+  volleyball / basketball / generic / custom) + `lineupCustomCols` (<=4
+  comma-separated labels; map positionally to jersey/name/position/extra so
+  data survives preset switches). lineup.js is fully column-driven
+  (lineupConfig()); standalone page now publishes the settings global.
+  Server row sanitizer gained `extra` (32) / position widened to 12.
+  Admin: Settings → Lineup section. SW v2.62.
+- **v4b scorekeeper:** /score (score.html/js/css) for results/admin — field
+  chips, 3.5rem steppers, debounced live auto-push, Final computes
+  winner/loser (tie blocked), 15s sync poll. No new server surface; nginx
+  `location = /score`; '⚡ Score' links in admin Results bars. Not precached.
+- **v4c white-label:** per-tournament logo as validated data URI inside the
+  theme-colors config (png/jpeg/webp only, magic-byte checked, <=48KB; SVG
+  rejected; 64KB body cap on that route only; 413 on oversize). Public
+  header `#siteLogo` set via img.src; admin picker in Application Colors;
+  Reset Defaults keeps the logo. SW v2.63.
+- Remaining v4 candidates (owner-deferred): stats layer (separate
+  integrating layer), registration, notifications, archive flag.
+
 ## Security items
 - **script-src 'unsafe-inline'**: ✅ REMOVED (CSP now script-src 'self').
   style-src 'unsafe-inline' remains — tracked follow-up.

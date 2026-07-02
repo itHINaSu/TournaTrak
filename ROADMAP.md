@@ -150,16 +150,19 @@ When starting v3:
 Planning-stage ideas discussed but not scoped in detail. Add specifics as they're decided.
 
 ### Candidate features
-- **Lineup multi-sport support** — lineup fields (`jersey`, `name`, `position`) are currently softball/baseball-specific. For other sports: configurable field labels per tournament or a generic "player slot" UI (e.g., "Player 1 / Player 2" for volleyball). The periodLabel setting already handles sport labeling; lineup is the remaining softball-specific piece.
+- ✅ **Lineup multi-sport support** (buildout branch: presets softball/volleyball/basketball/generic + custom columns per tournament)
+  — was: **Lineup multi-sport support** — lineup fields (`jersey`, `name`, `position`) are currently softball/baseball-specific. For other sports: configurable field labels per tournament or a generic "player slot" UI (e.g., "Player 1 / Player 2" for volleyball). The periodLabel setting already handles sport labeling; lineup is the remaining softball-specific piece.
 - **Multiple bracket formats** — single elimination, pools + bracket, round robin
 - **Variable team counts** — not locked to 16 teams; bracket structure derived from registration
 - **Public registration / team management** — teams sign up, admin approves
 - **Notifications** — push or SMS when a team's next game is posted or goes live
-- **Embedded scorekeeper view** — field-side UI optimized for score entry, minimal UI, big buttons
+- ✅ **Embedded scorekeeper view** (buildout branch: /score — field filter, live auto-push, finalize)
+  — was: **Embedded scorekeeper view** — field-side UI optimized for score entry, minimal UI, big buttons
 - **Historical tournament archive** — past tournaments browsable by year/event
 - **Stats layer** — runs, hits, errors per game; season standings across tournaments
 - **Multi-sport** — period label is already configurable; extend for quarters, sets, periods
-- **White-label / theming** — per-tournament color scheme and logo
+- ✅ **White-label / theming** (buildout branch: per-tournament theme colors + validated logo upload)
+  — was: **White-label / theming** — per-tournament color scheme and logo
 
 ---
 
