@@ -316,18 +316,29 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
   admin/results/team/buckets grants (`user_roles`); path-based tabs built
   together with the routing. Implementation plan (phases, each its own
   commit, server first so the frontend keeps working throughout):
-  - **Phase A (server, back-compat):** schema adds `superadmin` to the users
-    role check + `user_roles(user_id, tournament_id, role)`; migrate grants
-    existing non-team users their role on the default tournament; env
-    bootstrap admin becomes superadmin. Slug→tid param middleware; every
-    /api route ALSO mounted at `/api/t/:slug/...` (legacy `/api/...` =
-    default tournament, so current frontend keeps working unchanged).
-    requireRole resolves per-request: superadmin passes everywhere, others
-    need a user_roles row for req.tid. `/api/session` returns effective role
-    for the request's tournament (superadmin reported as role 'admin' +
-    `superadmin: true` flag for UI back-compat) plus the user's tournament
-    list. Tournament CRUD: GET /api/tournaments (public list), superadmin
-    POST/PATCH/DELETE.
+  - **Phase A (server, back-compat): ✅ DONE.** Schema: `superadmin` in the
+    users role check (constraint refreshed every boot for older DBs) +
+    `user_roles(user_id, tournament_id, role)`. All /api routes live on ONE
+    router mounted at `/api/t/:slug` (slug→tid middleware, 404 on unknown)
+    AND `/api` (default tournament) — current frontend works unchanged.
+    Sessions now store ONLY the username; role/teams/mustChangePassword are
+    resolved live per request (`store.effectiveRole(user, tid)` — superadmin
+    passes every check; others need a user_roles grant for req.tid).
+    Users facade: write-whole replaced by targeted ops (`createUser`,
+    `updateUser`, `deleteUser`, `setUserTeams`; `replaceUsers` remains ONLY
+    for legacy import + demo restore). `/api/session` reports superadmin as
+    role 'admin' + `superadmin: true` flag, plus `tournaments: [{slug,name,
+    role}]` for the Phase C switcher. Tournament CRUD: GET /api/tournaments
+    (public sees is_public only), superadmin POST/PATCH/DELETE (default
+    tournament undeletable; delete cascades all domain data). Guards: admins
+    only see/act on users with a grant in their tournament; only superadmins
+    may act on superadmin accounts. Upgrade semantics: legacy-import
+    promotes v2 'admin' users to superadmin (they were global); env
+    bootstrap user is created as superadmin. Verified end-to-end (isolation
+    between tournaments, per-tournament 403s, setup/team-token flows,
+    restart durability).
+    Phase C note: DELETE /users is still a GLOBAL account delete — add
+    "revoke grant only" for users with grants elsewhere.
   - **Phase B (public frontend):** serve index HTML for `/t/:slug` +
     `/(bracket|schedule|teampath|buckets)` in both scoped and bare forms
     (SPA fallback); bracket.js derives slug+tab from pathname, fetches

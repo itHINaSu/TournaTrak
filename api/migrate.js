@@ -73,7 +73,13 @@ async function importLegacyJson(pool, tid) {
 
   const usersRaw = readLegacy('users.json');
   if (usersRaw && Array.isArray(usersRaw.users) && usersRaw.users.length) {
-    await store.writeUsers(usersRaw.users, tid);
+    // v2 admins were global (there was only one tournament), so they become
+    // superadmins — otherwise an upgraded deployment would have no account
+    // able to create tournaments. Everyone else keeps their role as a grant
+    // on the default tournament (replaceUsers handles the user_roles rows).
+    const users = usersRaw.users.map(u =>
+      u.role === 'admin' ? { ...u, role: 'superadmin' } : u);
+    await store.replaceUsers(users, tid);
     imported++;
   }
 

@@ -19,17 +19,35 @@ CREATE TABLE IF NOT EXISTS tournaments (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Users are deployment-global; team assignments scope per tournament.
+-- Users are deployment-global; role grants and team assignments scope per
+-- tournament (user_roles / user_teams). users.role is the account's BASE
+-- role: 'superadmin' acts everywhere; for everyone else it records the
+-- account type (v2 compat) while the effective per-tournament role comes
+-- from user_roles.
 CREATE TABLE IF NOT EXISTS users (
   id                   SERIAL      PRIMARY KEY,
   username             TEXT        NOT NULL UNIQUE,
   password_hash        TEXT,
-  role                 TEXT        NOT NULL CHECK (role IN ('admin','results','team','buckets')),
+  role                 TEXT        NOT NULL CHECK (role IN ('superadmin','admin','results','team','buckets')),
   must_change_password BOOLEAN     NOT NULL DEFAULT FALSE,
   setup_token          TEXT,
   access_token         TEXT,
   team_name            TEXT,        -- primary team (v2 compat)
   created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Refresh the role check on databases created before 'superadmin' existed.
+-- Cheap (tiny table) and idempotent-in-effect, so it runs every boot.
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE users ADD CONSTRAINT users_role_check
+  CHECK (role IN ('superadmin','admin','results','team','buckets'));
+
+-- Per-tournament role grants. Superadmins need no rows here.
+CREATE TABLE IF NOT EXISTS user_roles (
+  user_id       INTEGER NOT NULL REFERENCES users(id)       ON DELETE CASCADE,
+  tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
+  role          TEXT    NOT NULL CHECK (role IN ('admin','results','team','buckets')),
+  PRIMARY KEY (user_id, tournament_id)
 );
 
 CREATE TABLE IF NOT EXISTS user_teams (

@@ -180,43 +180,144 @@ async function put(tid, domain, data) {
 }
 
 // ── Users ─────────────────────────────────────────────────────────────
-// Users are deployment-global; team assignments scope per tournament. The v2
-// routes operate on the whole array, so read/write-whole is preserved here.
-// NOTE: writeUsers replaces the global users table — fine while there is one
-// tournament; revisit when multi-tournament user management lands.
+// Users are deployment-global. Role grants (user_roles) and team assignments
+// (user_teams) scope per tournament. Each record carries the full grant map:
+//   { id, username, passwordHash?, role, mustChangePassword, setupToken?,
+//     accessToken?, teamName?, roles: {tid: role}, teamsByTid: {tid: [names]} }
+// `role` is the account's base role; the per-tournament effective role comes
+// from effectiveRole(user, tid): 'superadmin' everywhere, else roles[tid].
+// The whole set is cached globally; every mutation invalidates the cache.
 
-async function readUsers(tid = defaultTid) {
-  if (!cache.has('users')) {
-    const ur = await pool.query('SELECT * FROM users ORDER BY id');
-    const tr = await pool.query(
-      'SELECT user_id, team_name FROM user_teams WHERE tournament_id = $1 ORDER BY user_id, ord', [tid]);
-    const teamsByUser = {};
-    tr.rows.forEach(row => {
-      (teamsByUser[row.user_id] = teamsByUser[row.user_id] || []).push(row.team_name);
-    });
-    const users = ur.rows.map(row => {
-      const u = { username: row.username, role: row.role, mustChangePassword: row.must_change_password };
-      if (row.password_hash !== null) u.passwordHash = row.password_hash;
-      if (row.setup_token   !== null) u.setupToken   = row.setup_token;
-      if (row.access_token  !== null) u.accessToken  = row.access_token;
-      if (row.team_name     !== null) u.teamName     = row.team_name;
-      if (teamsByUser[row.id])        u.teams        = teamsByUser[row.id];
-      return u;
-    });
-    _setCache('users', users);
-  }
+async function _loadUsers() {
+  const ur = await pool.query('SELECT * FROM users ORDER BY id');
+  const rr = await pool.query('SELECT user_id, tournament_id, role FROM user_roles');
+  const tr = await pool.query('SELECT user_id, tournament_id, team_name FROM user_teams ORDER BY user_id, tournament_id, ord');
+  const rolesByUser = {}, teamsByUser = {};
+  rr.rows.forEach(r => {
+    (rolesByUser[r.user_id] = rolesByUser[r.user_id] || {})[r.tournament_id] = r.role;
+  });
+  tr.rows.forEach(r => {
+    const byTid = (teamsByUser[r.user_id] = teamsByUser[r.user_id] || {});
+    (byTid[r.tournament_id] = byTid[r.tournament_id] || []).push(r.team_name);
+  });
+  return ur.rows.map(row => {
+    const u = {
+      id: row.id, username: row.username, role: row.role,
+      mustChangePassword: row.must_change_password,
+      roles: rolesByUser[row.id] || {},
+      teamsByTid: teamsByUser[row.id] || {},
+    };
+    if (row.password_hash !== null) u.passwordHash = row.password_hash;
+    if (row.setup_token   !== null) u.setupToken   = row.setup_token;
+    if (row.access_token  !== null) u.accessToken  = row.access_token;
+    if (row.team_name     !== null) u.teamName     = row.team_name;
+    return u;
+  });
+}
+
+async function allUsers() {
+  if (!cache.has('users')) _setCache('users', await _loadUsers());
   return structuredClone(cache.get('users').data);
 }
 
-async function writeUsers(users, tid = defaultTid) {
+async function findUser(username) {
+  return (await allUsers()).find(u => u.username === username) || null;
+}
+
+function effectiveRole(user, tid) {
+  if (!user) return null;
+  if (user.role === 'superadmin') return 'superadmin';
+  return user.roles[tid] || null;
+}
+
+function teamsFor(user, tid) {
+  if (!user) return [];
+  return user.teamsByTid[tid] || [];
+}
+
+function _invalidateUsers() { cache.delete('users'); }
+
+// Create a user; non-superadmins get a role grant (and any teams) on `tid`.
+async function createUser(u, tid) {
   await _withTransaction(async client => {
-    await client.query('DELETE FROM users');   // cascades user_teams
+    const r = await client.query(
+      `INSERT INTO users (username, password_hash, role, must_change_password, setup_token, access_token, team_name)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [u.username, u.passwordHash ?? null, u.role, !!u.mustChangePassword,
+       u.setupToken ?? null, u.accessToken ?? null, u.teamName ?? null]);
+    if (u.role !== 'superadmin') {
+      await client.query(
+        'INSERT INTO user_roles (user_id, tournament_id, role) VALUES ($1, $2, $3)',
+        [r.rows[0].id, tid, u.role]);
+    }
+    const teams = u.teams || (u.teamName ? [u.teamName] : []);
+    for (let i = 0; i < teams.length; i++) {
+      await client.query(
+        'INSERT INTO user_teams (user_id, tournament_id, team_name, ord) VALUES ($1, $2, $3, $4)',
+        [r.rows[0].id, tid, teams[i], i]);
+    }
+  });
+  _invalidateUsers();
+}
+
+async function deleteUser(username) {
+  await pool.query('DELETE FROM users WHERE username = $1', [username]);  // cascades grants + teams
+  _invalidateUsers();
+}
+
+// Targeted field updates. Allowed keys: username, passwordHash,
+// mustChangePassword, setupToken, accessToken, teamName (null clears).
+const USER_COLS = {
+  username: 'username', passwordHash: 'password_hash',
+  mustChangePassword: 'must_change_password', setupToken: 'setup_token',
+  accessToken: 'access_token', teamName: 'team_name',
+};
+async function updateUser(username, fields) {
+  const sets = [], vals = [username];
+  for (const [k, col] of Object.entries(USER_COLS)) {
+    if (k in fields) { vals.push(fields[k] ?? null); sets.push(`${col} = $${vals.length}`); }
+  }
+  if (!sets.length) return false;
+  const r = await pool.query(
+    `UPDATE users SET ${sets.join(', ')} WHERE username = $1`, vals);
+  _invalidateUsers();
+  return r.rowCount > 0;
+}
+
+// Replace a user's team list for one tournament (order = array order).
+async function setUserTeams(username, tid, teams) {
+  await _withTransaction(async client => {
+    const r = await client.query('SELECT id FROM users WHERE username = $1', [username]);
+    if (!r.rows[0]) throw new Error('User not found: ' + username);
+    const uid = r.rows[0].id;
+    await client.query('DELETE FROM user_teams WHERE user_id = $1 AND tournament_id = $2', [uid, tid]);
+    for (let i = 0; i < teams.length; i++) {
+      await client.query(
+        'INSERT INTO user_teams (user_id, tournament_id, team_name, ord) VALUES ($1, $2, $3, $4)',
+        [uid, tid, teams[i], i]);
+    }
+    await client.query('UPDATE users SET team_name = $2 WHERE id = $1', [uid, teams[0] ?? null]);
+  });
+  _invalidateUsers();
+}
+
+// Write-whole replacement of ALL users, granting each non-superadmin their
+// base role (and teams) on `tid`. Used only by the one-time legacy import and
+// the demo-mode seed restore — both single-tournament by construction.
+async function replaceUsers(users, tid = defaultTid) {
+  await _withTransaction(async client => {
+    await client.query('DELETE FROM users');   // cascades user_roles + user_teams
     for (const u of users) {
       const r = await client.query(
         `INSERT INTO users (username, password_hash, role, must_change_password, setup_token, access_token, team_name)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
         [u.username, u.passwordHash ?? null, u.role, !!u.mustChangePassword,
          u.setupToken ?? null, u.accessToken ?? null, u.teamName ?? null]);
+      if (u.role !== 'superadmin') {
+        await client.query(
+          'INSERT INTO user_roles (user_id, tournament_id, role) VALUES ($1, $2, $3)',
+          [r.rows[0].id, tid, u.role]);
+      }
       const teams = u.teams || (u.teamName ? [u.teamName] : []);
       for (let i = 0; i < teams.length; i++) {
         await client.query(
@@ -225,7 +326,52 @@ async function writeUsers(users, tid = defaultTid) {
       }
     }
   });
-  _setCache('users', structuredClone(users));
+  _invalidateUsers();
+}
+
+// ── Tournaments ───────────────────────────────────────────────────────
+// Cached list: [{ id, slug, name, isPublic }]. Invalidated on any CRUD.
+
+async function listTournaments() {
+  if (!cache.has('tournaments')) {
+    const r = await pool.query('SELECT id, slug, name, is_public FROM tournaments ORDER BY id');
+    _setCache('tournaments', r.rows.map(t => ({
+      id: t.id, slug: t.slug, name: t.name, isPublic: t.is_public,
+    })));
+  }
+  return structuredClone(cache.get('tournaments').data);
+}
+
+async function tournamentBySlug(slug) {
+  return (await listTournaments()).find(t => t.slug === slug) || null;
+}
+
+function _invalidateTournaments() { cache.delete('tournaments'); }
+
+async function createTournament({ slug, name, isPublic = true }) {
+  await pool.query(
+    'INSERT INTO tournaments (slug, name, is_public) VALUES ($1, $2, $3)',
+    [slug, name, !!isPublic]);
+  _invalidateTournaments();
+}
+
+async function updateTournament(slug, fields) {
+  const sets = [], vals = [slug];
+  if ('name' in fields)     { vals.push(fields.name);      sets.push(`name = $${vals.length}`); }
+  if ('isPublic' in fields) { vals.push(!!fields.isPublic); sets.push(`is_public = $${vals.length}`); }
+  if (!sets.length) return false;
+  const r = await pool.query(`UPDATE tournaments SET ${sets.join(', ')} WHERE slug = $1`, vals);
+  _invalidateTournaments();
+  return r.rowCount > 0;
+}
+
+// Cascades wipe every domain row for the tournament.
+async function deleteTournament(slug) {
+  const r = await pool.query('DELETE FROM tournaments WHERE slug = $1', [slug]);
+  _invalidateTournaments();
+  // Domain caches for the deleted tid are now stale garbage; drop everything.
+  clearCache();
+  return r.rowCount > 0;
 }
 
 // ── Sessions — express-session store backed by the sessions table ─────
@@ -293,7 +439,10 @@ async function init() {
 }
 
 module.exports = {
-  pool, init, get, put, etag, readUsers, writeUsers, clearCache,
+  pool, init, get, put, etag, clearCache,
+  allUsers, findUser, effectiveRole, teamsFor,
+  createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
+  listTournaments, tournamentBySlug, createTournament, updateTournament, deleteTournament,
   SessionStore: PgSessionStore,
   _saveDomain, _withTransaction,
 };
