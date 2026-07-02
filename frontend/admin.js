@@ -1,4 +1,7 @@
 // admin.js — admin panel logic
+
+// Loaded before builder.js on the admin page — tells it it's embedded, not standalone.
+window.__builderEmbedded = true;
 var results = {}, schedule = {}, settings = {}, buckets = {}, _offsets = { entries: [] }, _fieldColors = {}, _themeColors = {};
 var _teamsData = { showSeeds: false, teams: [] };  // loaded from /api/teams
 var currentRole = null;
@@ -261,19 +264,6 @@ function gameLabel(sid) {
 }
 // esc() comes from tt-common.js
 
-// Escape a value for safe embedding inside a single-quoted JS string literal
-// that itself sits inside an inline event handler attribute (e.g. onclick="fn('VALUE')").
-// We backslash-escape JS-significant chars first, then HTML-escape the result so the
-// attribute parser cannot reconstruct a quote that breaks out of the JS string.
-function jsStr(s) {
-  return esc(String(s)
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029'));
-}
 
 // Split stored ISO string into date and time parts for the two inputs
 function splitTime(iso) {
@@ -363,7 +353,7 @@ function renderAdmin() {
       return '<div class="admin-res-card">' + hdr
         + '<div class="admin-res-team-row"><span class="admin-res-team ' + c1 + '">' + esc(t1) + '</span>' + sc1 + '</div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team ' + c2 + '">' + esc(t2) + '</span>' + sc2 + '</div>'
-        + '<div class="admin-res-footer"><button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button></div>'
+        + '<div class="admin-res-footer"><button class="admin-clear-btn" data-action="clearResult" data-arg="' + esc(sid) + '">Clear</button></div>'
         + '</div>';
     }
 
@@ -375,28 +365,28 @@ function renderAdmin() {
         + '<div class="admin-res-team-row">'
         + '<span class="admin-live-badge">● LIVE</span>'
         + '<span class="admin-live-period-lbl">' + esc(periodLbl) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-period-inp" id="per-' + sid + '" value="' + esc(String(ls.period)) + '" placeholder="#" onfocus="this.select()">'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-period-inp" id="per-' + sid + '" value="' + esc(String(ls.period)) + '" placeholder="#" data-selectall>'
         + '</div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" value="' + esc(String(s1)) + '" placeholder="Score" onfocus="this.select()"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" value="' + esc(String(s1)) + '" placeholder="Score" data-selectall></div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" value="' + esc(String(s2)) + '" placeholder="Score" onfocus="this.select()"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" value="' + esc(String(s2)) + '" placeholder="Score" data-selectall></div>'
         + '<div class="admin-res-footer">'
-        + '<button class="admin-clear-btn" onclick="endLive(\'' + sid + '\')">Clear</button>'
-        + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
-        + '<button class="admin-live-update-btn" onclick="updateLive(\'' + sid + '\')">Update</button>'
+        + '<button class="admin-clear-btn" data-action="endLive" data-arg="' + esc(sid) + '">Clear</button>'
+        + '<button class="admin-save-btn" data-action="saveResult" data-arg="' + esc(sid) + '">Final</button>'
+        + '<button class="admin-live-update-btn" data-action="updateLive" data-arg="' + esc(sid) + '">Update</button>'
         + '</div></div>';
     }
 
     if (both) {
       return '<div class="admin-res-card upcoming">' + hdr
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" placeholder="Score" onfocus="this.select()"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" placeholder="Score" data-selectall></div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" placeholder="Score" onfocus="this.select()"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" placeholder="Score" data-selectall></div>'
         + '<div class="admin-res-footer">'
-        + '<button class="admin-live-start-btn" onclick="startLive(\'' + sid + '\')">Live</button>'
-        + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
+        + '<button class="admin-live-start-btn" data-action="startLive" data-arg="' + esc(sid) + '">Live</button>'
+        + '<button class="admin-save-btn" data-action="saveResult" data-arg="' + esc(sid) + '">Final</button>'
         + '</div></div>';
     }
 
@@ -542,7 +532,7 @@ function occupiedCard(sid) {
 
   var field = over.field || g.field || '';
   var h = '<div class="sched-game-card" data-sid="' + sid + '">';
-  h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
+  h += '<div class="sched-game-hdr" data-action="toggleSched" data-arg="' + esc(sid) + '">'
     + '<span class="sched-game-hdr-id">' + esc(lbl) + '</span>'
     + (field ? '<span class="sched-game-hdr-field">' + esc(field) + '</span>' : '')
     + '<span class="sched-game-hdr-sid">' + esc(sid) + '</span>'
@@ -572,9 +562,9 @@ function occupiedCard(sid) {
   h += '</div>';
 
   h += '<div class="sched-game-footer">'
-    + '<button class="admin-clear-btn" onclick="clearSlot(\'' + sid + '\')">Clear Slot</button>'
+    + '<button class="admin-clear-btn" data-action="clearSlot" data-arg="' + esc(sid) + '">Clear Slot</button>'
     + '<span class="sched-footer-note">Removes this game entirely — slot returns to empty</span>'
-    + '<button class="sched-save-btn sched-game-save-btn" onclick="saveOneGame(\'' + sid + '\')">Save</button>'
+    + '<button class="sched-save-btn sched-game-save-btn" data-action="saveOneGame" data-arg="' + esc(sid) + '">Save</button>'
     + '<span class="sched-status" id="sgstatus-' + sid + '"></span>'
     + '</div>';
 
@@ -585,7 +575,7 @@ function occupiedCard(sid) {
 function emptyCard(sid) {
   var over = schedule[sid] || {};
   var h = '<div class="empty-slot-card" data-sid="' + sid + '">';
-  h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
+  h += '<div class="sched-game-hdr" data-action="toggleSched" data-arg="' + esc(sid) + '">'
     + '<span class="sched-game-hdr-sid">' + sid + '</span>'
     + '<span class="sched-game-hdr-teams empty">— empty slot —</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
@@ -1079,17 +1069,17 @@ function renderUsersList(users) {
 
     var actions = '';
     if (u.role === 'team' && u.accessToken) {
-      actions += '<button class="sched-save-btn" onclick="copyMagicLink(\'' + jsStr(u.accessToken) + '\')">Copy Link</button>';
-      actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + jsStr(u.username) + '\')">Regenerate</button>';
+      actions += '<button class="sched-save-btn" data-action="copyMagicLink" data-arg="' + esc(u.accessToken) + '">Copy Link</button>';
+      actions += '<button class="admin-clear-btn user-regen-btn" data-action="regenerateToken" data-arg="' + esc(u.username) + '">Regenerate</button>';
     } else if (u.setupToken) {
-      actions += '<button class="sched-save-btn" onclick="copySetupLink(\'' + jsStr(u.setupToken) + '\')">Copy Setup Link</button>';
+      actions += '<button class="sched-save-btn" data-action="copySetupLink" data-arg="' + esc(u.setupToken) + '">Copy Setup Link</button>';
     } else if (!isSelf && u.role !== 'team') {
-      actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateSetupLink(\'' + jsStr(u.username) + '\')">Regenerate Link</button>';
+      actions += '<button class="admin-clear-btn user-regen-btn" data-action="regenerateSetupLink" data-arg="' + esc(u.username) + '">Regenerate Link</button>';
     } else if (!isSelf) {
-      actions += '<button class="admin-clear-btn" onclick="openResetPwModal(\'' + jsStr(u.username) + '\')">Reset PW</button>';
+      actions += '<button class="admin-clear-btn" data-action="openResetPwModal" data-arg="' + esc(u.username) + '">Reset PW</button>';
     }
     if (!isSelf) {
-      actions += '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + jsStr(u.username) + '\')">Delete</button>';
+      actions += '<button class="admin-clear-btn user-delete-btn" data-action="deleteUser" data-arg="' + esc(u.username) + '">Delete</button>';
     } else {
       actions += '<span class="user-self-label">(you)</span>';
     }
@@ -1288,7 +1278,7 @@ function renderThemeSection() {
       + '<div class="field-color-input-row">'
       + '<input type="color" class="field-color-picker theme-color-picker" id="themeColor-' + key + '" data-key="' + key + '" data-default="' + esc(def) + '" value="' + esc(cur) + '">'
       + '<span class="theme-color-swatch" style="background:' + esc(cur) + '"></span>'
-      + '<button class="admin-clear-btn" onclick="resetOneThemeColor(this)">Reset</button>'
+      + '<button class="admin-clear-btn" data-action="resetOneThemeColor">Reset</button>'
       + '</div>'
       + '</div>';
   });
@@ -1331,7 +1321,7 @@ function renderFieldsPanel() {
       + '<div class="field-color-input-row">'
       + '<input type="color" class="field-color-picker" data-field="' + esc(f) + '" data-default="' + esc(defColor) + '" value="' + esc(curColor) + '">'
       + '<span class="field-color-preview" style="color:' + esc(curColor) + ';border-color:' + esc(curColor) + '">' + esc(f) + '</span>'
-      + '<button class="admin-clear-btn" onclick="resetOneFieldColor(this)">Reset</button>'
+      + '<button class="admin-clear-btn" data-action="resetOneFieldColor">Reset</button>'
       + '</div>'
       + '</div>';
   });
@@ -1518,7 +1508,7 @@ function renderDelaysAdmin() {
       fieldChips.innerHTML = '<span class="delay-chip delay-chip--auto">' + esc(fields[0]) + '</span>';
     } else {
       fieldChips.innerHTML = fields.map(function(f) {
-        return '<button class="delay-chip" data-value="' + esc(f) + '" onclick="this.classList.toggle(\'delay-chip--sel\')">' + esc(f) + '</button>';
+        return '<button class="delay-chip" data-value="' + esc(f) + '" data-action="toggleChipSel">' + esc(f) + '</button>';
       }).join('');
     }
   }
@@ -1529,7 +1519,7 @@ function renderDelaysAdmin() {
   if (dayWrap)  dayWrap.style.display = days.length > 1 ? '' : 'none';
   if (dayChips && days.length > 1) {
     dayChips.innerHTML = days.map(function(d) {
-      return '<button class="delay-chip" data-value="' + esc(d) + '" onclick="this.classList.toggle(\'delay-chip--sel\')">' + esc(fmtDayLabel(d)) + '</button>';
+      return '<button class="delay-chip" data-value="' + esc(d) + '" data-action="toggleChipSel">' + esc(fmtDayLabel(d)) + '</button>';
     }).join('');
   }
 
@@ -1554,7 +1544,7 @@ function renderDelaysAdmin() {
     html += '<div class="delay-offset-row">'
       + '<span class="delay-offset-val" style="color:' + color + '">' + sign + mins + ' min</span>'
       + '<span class="delay-offset-desc">' + esc(fieldStr) + ' · ' + esc(dayStrs) + '</span>'
-      + '<button class="admin-clear-btn delay-offset-del" onclick="deleteOffset(' + idx + ')">✕</button>'
+      + '<button class="admin-clear-btn delay-offset-del" data-action="deleteOffset" data-arg="' + idx + '">✕</button>'
       + '</div>';
   });
   list.innerHTML = html;
@@ -1703,8 +1693,8 @@ function renderBucketAdmin() {
       + '<span class="bucket-drag-handle" title="Drag to reorder"></span>'
       + '<span class="bucket-admin-name">' + esc(team.name) + '</span>'
       + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="bucket-admin-inp" id="bci-' + i + '" value="' + val + '">'
-      + '<button class="' + hideBtnCls + '" onclick="toggleBucketHidden(' + i + ')">' + hideLbl + '</button>'
-      + (team.extra ? '<button class="admin-clear-btn" onclick="deleteBucketTeam(' + i + ')">Remove</button>' : '')
+      + '<button class="' + hideBtnCls + '" data-action="toggleBucketHidden" data-arg="' + i + '">' + hideLbl + '</button>'
+      + (team.extra ? '<button class="admin-clear-btn" data-action="deleteBucketTeam" data-arg="' + i + '">Remove</button>' : '')
       + '</div>';
   });
   html += '</div>';
@@ -1946,25 +1936,25 @@ function renderCoachesList(coaches) {
     var teamTags = teams.map(function(t) {
       var canRemove = teams.length > 1;
       return '<span class="coach-team-tag">' + esc(t)
-        + (canRemove ? '<button class="coach-team-remove" onclick="removeCoachTeam(\'' + jsStr(u.username) + '\',\'' + jsStr(t) + '\')" title="Remove team">✕</button>' : '')
+        + (canRemove ? '<button class="coach-team-remove" data-action="removeCoachTeam" data-arg="' + esc(u.username) + '" data-arg2="' + esc(t) + '" title="Remove team">✕</button>' : '')
         + '</span>';
     }).join('');
     return '<div class="coach-card">'
       + '<span class="coach-card-name">' + esc(u.username) + '</span>'
       + '<div class="coach-teams-wrap">'
       +   teamTags
-      +   '<button class="coach-add-team-btn" onclick="showAddCoachTeam(\'' + jsStr(u.username) + '\')">+ Team</button>'
+      +   '<button class="coach-add-team-btn" data-action="showAddCoachTeam" data-arg="' + esc(u.username) + '">+ Team</button>'
       + '</div>'
       + '<div class="coach-add-team-row" id="cat-' + esc(u.username) + '" style="display:none">'
       +   '<select class="styled" id="cat-sel-' + esc(u.username) + '"></select>'
-      +   '<button class="admin-save-btn" onclick="addCoachTeam(\'' + jsStr(u.username) + '\')">Add</button>'
-      +   '<button class="admin-clear-btn" onclick="hideAddCoachTeam(\'' + jsStr(u.username) + '\')">Cancel</button>'
+      +   '<button class="admin-save-btn" data-action="addCoachTeam" data-arg="' + esc(u.username) + '">Add</button>'
+      +   '<button class="admin-clear-btn" data-action="hideAddCoachTeam" data-arg="' + esc(u.username) + '">Cancel</button>'
       + '</div>'
       + '<div class="coach-actions">'
       +   (link ? '<input type="text" class="coach-link-hidden" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly tabindex="-1" aria-hidden="true">' : '')
-      +   (link ? '<button class="admin-save-btn" onclick="copyCoachLink(\'' + jsStr(u.username) + '\')">Copy Link</button>' : '')
-      +   (u.accessToken ? '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + jsStr(u.username) + '\')">Regenerate</button>' : '')
-      +   '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + jsStr(u.username) + '\')">Delete</button>'
+      +   (link ? '<button class="admin-save-btn" data-action="copyCoachLink" data-arg="' + esc(u.username) + '">Copy Link</button>' : '')
+      +   (u.accessToken ? '<button class="admin-clear-btn user-regen-btn" data-action="regenerateToken" data-arg="' + esc(u.username) + '">Regenerate</button>' : '')
+      +   '<button class="admin-clear-btn user-delete-btn" data-action="deleteUser" data-arg="' + esc(u.username) + '">Delete</button>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -2319,3 +2309,81 @@ async function saveTeams() {
   }
   if (btn) btn.disabled = false;
 }
+
+// ── Delegated actions + form bindings (see tt-common.js) ──────────────
+// Explicit allowlist replacing the old inline onclick/onchange/onsubmit
+// attributes, so the CSP can drop script-src 'unsafe-inline'.
+Object.assign(TT_ACTIONS, {
+  // header / account
+  doLogout:            function() { doLogout(); },
+  saveUsername:        function() { saveUsername(); },
+  savePassword:        function() { savePassword(); },
+  savePwaHome:         function(v) { savePwaHome(v); },
+  closeSettingsSidebar:function() { closeSettingsSidebar(); },
+  // results tab
+  setResultsMode:      function(arg) { setResultsMode(arg); },
+  clearResult:         function(arg) { clearResult(arg); },
+  saveResult:          function(arg) { saveResult(arg); },
+  startLive:           function(arg) { startLive(arg); },
+  updateLive:          function(arg) { updateLive(arg); },
+  endLive:             function(arg) { endLive(arg); },
+  // schedule tab
+  setSchedMode:        function(arg) { setSchedMode(arg); },
+  toggleSched:         function(arg) { toggleSched(arg); },
+  clearSlot:           function(arg) { clearSlot(arg); },
+  saveOneGame:         function(arg) { saveOneGame(arg); },
+  saveTeams:           function() { saveTeams(); },
+  namesReplaceAll:     function() { namesReplaceAll(); },
+  saveGameNames:       function() { saveGameNames(); },
+  // buckets
+  saveBucketCounts:    function() { saveBucketCounts(); },
+  addBucketTeam:       function() { addBucketTeam(); },
+  toggleBucketHidden:  function(arg) { toggleBucketHidden(Number(arg)); },
+  deleteBucketTeam:    function(arg) { deleteBucketTeam(Number(arg)); },
+  // delays
+  applyOffset:         function() { applyOffset(); },
+  saveDelayBanner:     function() { saveDelayBanner(); },
+  clearDelayBanner:    function() { clearDelayBanner(); },
+  clearAllOffsets:     function() { clearAllOffsets(); },
+  deleteOffset:        function(arg) { deleteOffset(Number(arg)); },
+  toggleChipSel:       function(arg, el) { el.classList.toggle('delay-chip--sel'); },
+  // settings
+  showSettingsSection: function(arg) { showSettingsSection(arg); },
+  toggleSection:       function(arg, el) { toggleSection(el); },
+  saveSettings:        function() { saveSettings(); },
+  resetTheme:          function() { resetTheme(); },
+  resetOneThemeColor:  function(arg, el) { resetOneThemeColor(el); },
+  resetOneFieldColor:  function(arg, el) { resetOneFieldColor(el); },
+  // users
+  addUser:             function() { addUser(); },
+  onNewUserRoleChange: function() { onNewUserRoleChange(); },
+  deleteUser:          function(arg) { deleteUser(arg); },
+  openResetPwModal:    function(arg) { openResetPwModal(arg); },
+  closeResetPwModal:   function() { closeResetPwModal(); },
+  copyMagicLink:       function(arg) { copyMagicLink(arg); },
+  copySetupLink:       function(arg) { copySetupLink(arg); },
+  regenerateToken:     function(arg) { regenerateToken(arg); },
+  regenerateSetupLink: function(arg) { regenerateSetupLink(arg); },
+  // coaches
+  addCoach:            function() { addCoach(); },
+  removeCoachTeam:     function(arg, el) { removeCoachTeam(arg, el.dataset.arg2); },
+  showAddCoachTeam:    function(arg) { showAddCoachTeam(arg); },
+  addCoachTeam:        function(arg) { addCoachTeam(arg); },
+  hideAddCoachTeam:    function(arg) { hideAddCoachTeam(arg); },
+  copyCoachLink:       function(arg) { copyCoachLink(arg); },
+});
+
+(function bindAdminForms() {
+  var lf = document.getElementById('loginForm');
+  if (lf) lf.addEventListener('submit', doLogin);
+  var ff = document.getElementById('firstLoginForm');
+  if (ff) ff.addEventListener('submit', doFirstLoginPasswordChange);
+  var rf = document.getElementById('resetPwForm');
+  if (rf) rf.addEventListener('submit', submitResetPassword);
+  var tat = document.getElementById('themeAdvancedToggle');
+  if (tat) tat.addEventListener('change', function() {
+    var panel = document.getElementById('themeAdvancedPanel');
+    if (panel) panel.style.display = this.checked ? '' : 'none';
+    if (this.checked) renderThemeSection();
+  });
+})();

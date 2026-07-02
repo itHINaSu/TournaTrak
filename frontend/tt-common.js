@@ -30,6 +30,31 @@ function getScheduleTeams() {
   return teams;
 }
 
+// ── Delegated actions ──────────────────────────────────────────────────
+// Replaces inline onclick="fn(...)" attributes, which are blocked once the
+// CSP drops script-src 'unsafe-inline'. Markup declares data-action="name"
+// (plus optional data-arg / data-arg2) and page scripts register handlers
+// in TT_ACTIONS — an explicit allowlist, never eval. Handlers receive
+// (arg, el, event). data-action-change is the same idea for change events;
+// inputs marked data-selectall select their content on focus (replaces
+// inline onfocus="this.select()").
+var TT_ACTIONS = {};
+document.addEventListener('click', function(e) {
+  var el = e.target.closest ? e.target.closest('[data-action]') : null;
+  if (!el) return;
+  var fn = TT_ACTIONS[el.dataset.action];
+  if (fn) fn(el.dataset.arg, el, e);
+});
+document.addEventListener('change', function(e) {
+  var el = e.target;
+  if (!el || !el.dataset || !el.dataset.actionChange) return;
+  var fn = TT_ACTIONS[el.dataset.actionChange];
+  if (fn) fn(el.value, el, e);
+});
+document.addEventListener('focusin', function(e) {
+  if (e.target && e.target.matches && e.target.matches('input[data-selectall]')) e.target.select();
+});
+
 // ── Theme ──────────────────────────────────────────────────────────────
 // Saved preference in localStorage wins over OS; persists across pages.
 // localStorage may throw in Safari private/restricted mode — calls wrapped.

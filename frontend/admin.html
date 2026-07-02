@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="admin.css">
 <link rel="stylesheet" href="lineup.css">
 <link rel="stylesheet" href="builder.css">
-<script>document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');</script>
+<script src="app-h.js"></script>
 </head>
 <body>
 
@@ -24,10 +24,10 @@
     <!-- Coach-blocked state -->
     <div id="coachBlockMsg" style="display:none">
       <div class="login-desc" id="coachBlockText"></div>
-      <button class="sched-save-btn login-btn" style="margin-top:1em" onclick="doLogout()">Sign Out</button>
+      <button class="sched-save-btn login-btn" style="margin-top:1em" data-action="doLogout">Sign Out</button>
     </div>
     <!-- Normal login form -->
-    <form id="loginForm" onsubmit="doLogin(event)">
+    <form id="loginForm">
       <div class="sched-field">
         <label>Username</label>
         <input type="text" id="loginUser" autocomplete="off" placeholder="Username">
@@ -47,7 +47,7 @@
   <div class="login-box">
     <div class="login-title">Set a New Password</div>
     <div class="login-desc">Choose a permanent password before continuing. Must be at least 8 characters.</div>
-    <form onsubmit="doFirstLoginPasswordChange(event)">
+    <form id="firstLoginForm">
       <div class="sched-field">
         <label>New Password</label>
         <input type="password" id="cpNewPass1" autocomplete="new-password" placeholder="At least 8 characters">
@@ -67,7 +67,7 @@
   <div class="login-box">
     <div class="login-title" id="resetPwTitle">Reset Password</div>
     <div class="login-desc" id="resetPwDesc"></div>
-    <form onsubmit="submitResetPassword(event)">
+    <form id="resetPwForm">
       <div class="sched-field">
         <label>New Password</label>
         <input type="password" id="resetPwInput" autocomplete="new-password" placeholder="At least 8 characters">
@@ -75,7 +75,7 @@
       <div class="login-error" id="resetPwError"></div>
       <div style="display:flex;gap:0.6em;margin-top:0.5em">
         <button type="submit" class="sched-save-btn">Reset Password</button>
-        <button type="button" class="admin-clear-btn" onclick="closeResetPwModal()">Cancel</button>
+        <button type="button" class="admin-clear-btn" data-action="closeResetPwModal">Cancel</button>
       </div>
     </form>
   </div>
@@ -129,18 +129,18 @@
 
   <!-- ── Quick bar: mobile only, sits just above the tab bar ── -->
   <div class="admin-quick-bar" id="adminQuickBar">
-    <button class="results-mode-btn active" id="qModeGamesBtn" onclick="setResultsMode('games')">Games</button>
-    <button class="results-mode-btn" id="qModeBucketsBtn" onclick="setResultsMode('buckets')">Bucket Challenge</button>
-    <button class="results-mode-btn" id="qModeDelaysBtn" onclick="setResultsMode('delays')">Delays</button>
+    <button class="results-mode-btn active" id="qModeGamesBtn" data-action="setResultsMode" data-arg="games">Games</button>
+    <button class="results-mode-btn" id="qModeBucketsBtn" data-action="setResultsMode" data-arg="buckets">Bucket Challenge</button>
+    <button class="results-mode-btn" id="qModeDelaysBtn" data-action="setResultsMode" data-arg="delays">Delays</button>
   </div>
 
   <!-- ── RESULTS TAB ── -->
   <div class="admin-tab-panel active" id="tab-results">
     <div class="results-mode-bar">
-      <button class="results-mode-btn active" id="modeGamesBtn" onclick="setResultsMode('games')">Games</button>
-      <button class="results-mode-btn" id="modeBucketsBtn" onclick="setResultsMode('buckets')">Bucket Challenge</button>
-      <button class="results-mode-btn" id="modeDelaysBtn" onclick="setResultsMode('delays')">Delays</button>
-      <button class="sched-save-btn" id="bucketModeSaveBtn" style="display:none;margin-left:auto" onclick="saveBucketCounts()">Save</button>
+      <button class="results-mode-btn active" id="modeGamesBtn" data-action="setResultsMode" data-arg="games">Games</button>
+      <button class="results-mode-btn" id="modeBucketsBtn" data-action="setResultsMode" data-arg="buckets">Bucket Challenge</button>
+      <button class="results-mode-btn" id="modeDelaysBtn" data-action="setResultsMode" data-arg="delays">Delays</button>
+      <button class="sched-save-btn" id="bucketModeSaveBtn" style="display:none;margin-left:auto" data-action="saveBucketCounts">Save</button>
       <span class="sched-status" id="bucketModeSaveStatus" style="display:none"></span>
     </div>
     <div id="resultsGamesPanel">
@@ -151,7 +151,7 @@
       <div class="admin-subtitle">Enter bucket counts for all teams. Save all writes every count at once.</div>
       <div id="bucketAdminWrap"></div>
       <div class="sched-action-row sched-action-row--top" style="margin-top:1em">
-        <button class="sched-save-btn" onclick="saveBucketCounts()">Save All</button>
+        <button class="sched-save-btn" data-action="saveBucketCounts">Save All</button>
         <span class="sched-status" id="bucketSaveStatus"></span>
       </div>
       <div class="settings-section" style="margin-top:1.5em">
@@ -161,7 +161,7 @@
           <input type="text" id="newBucketTeam" autocomplete="off" placeholder="e.g. The Wildcards">
         </div>
         <div class="settings-save-row">
-          <button class="sched-save-btn" onclick="addBucketTeam()">Add Team</button>
+          <button class="sched-save-btn" data-action="addBucketTeam">Add Team</button>
           <span class="sched-status" id="addBucketTeamStatus"></span>
         </div>
       </div>
@@ -173,11 +173,11 @@
   <!-- ── SCHEDULE TAB ── -->
   <div class="admin-tab-panel" id="tab-schedule">
     <div class="results-mode-bar">
-      <button class="results-mode-btn active" id="modeScheduleBtn" onclick="setSchedMode('editor')">Schedule</button>
-      <button class="results-mode-btn" id="modeBuilderBtn" onclick="setSchedMode('builder')">Builder</button>
-      <button class="results-mode-btn" id="modeSchedDelaysBtn" onclick="setSchedMode('delays')">Delays</button>
-      <button class="results-mode-btn" id="modeSchedTeamsBtn" onclick="setSchedMode('teams')">Teams</button>
-      <button class="results-mode-btn" id="modeNamesBtn" onclick="setSchedMode('names')">Names</button>
+      <button class="results-mode-btn active" id="modeScheduleBtn" data-action="setSchedMode" data-arg="editor">Schedule</button>
+      <button class="results-mode-btn" id="modeBuilderBtn" data-action="setSchedMode" data-arg="builder">Builder</button>
+      <button class="results-mode-btn" id="modeSchedDelaysBtn" data-action="setSchedMode" data-arg="delays">Delays</button>
+      <button class="results-mode-btn" id="modeSchedTeamsBtn" data-action="setSchedMode" data-arg="teams">Teams</button>
+      <button class="results-mode-btn" id="modeNamesBtn" data-action="setSchedMode" data-arg="names">Names</button>
     </div>
     <div id="schedEditorPanel">
       <div class="admin-subtitle">Edit game labels, times, team names, slot positions, and team sources.
@@ -293,7 +293,7 @@
         <div id="teamsEditorList" class="teams-editor-list"></div>
       </div>
       <div class="settings-save-row">
-        <button class="sched-save-btn" id="teamsSaveBtn" onclick="saveTeams()">Save</button>
+        <button class="sched-save-btn" id="teamsSaveBtn" data-action="saveTeams">Save</button>
         <span class="sched-status" id="teamsSaveStatus"></span>
       </div>
     </div>
@@ -302,11 +302,11 @@
       <div class="sched-names-toolbar">
         <input type="text" class="sched-names-find" id="namesFindInput" placeholder="Find…">
         <input type="text" class="sched-names-replace" id="namesReplaceInput" placeholder="Replace with…">
-        <button class="sched-save-btn" onclick="namesReplaceAll()">Replace All</button>
+        <button class="sched-save-btn" data-action="namesReplaceAll">Replace All</button>
       </div>
       <div id="namesEditorList" class="names-editor-list"></div>
       <div class="settings-save-row">
-        <button class="sched-save-btn" id="namesSaveBtn" onclick="saveGameNames()">Save</button>
+        <button class="sched-save-btn" id="namesSaveBtn" data-action="saveGameNames">Save</button>
         <span class="sched-status" id="namesSaveStatus"></span>
       </div>
     </div>
@@ -355,7 +355,7 @@
           <tbody id="lineupBody"></tbody>
         </table>
         <div class="lineup-actions">
-          <button class="lineup-submit-btn" id="lineupSubmitBtn" onclick="submitLineup()">Save Lineup</button>
+          <button class="lineup-submit-btn" id="lineupSubmitBtn" data-action="submitLineup">Save Lineup</button>
           <span class="lineup-status" id="lineupStatus"></span>
         </div>
       </div>
@@ -368,10 +368,10 @@
 
       <!-- Left sidebar navigation (desktop: always visible; mobile: drawer) -->
       <nav class="settings-sidebar" id="settingsSidebar">
-        <div class="settings-nav-item active" data-section="pageinfo" onclick="showSettingsSection('pageinfo')">Site Settings</div>
-        <div class="settings-nav-item" data-section="account" onclick="showSettingsSection('account')">Account</div>
-        <div class="settings-nav-item" data-section="users" onclick="showSettingsSection('users')">Users</div>
-        <div class="settings-nav-item" data-section="coaches" onclick="showSettingsSection('coaches')">Coaches</div>
+        <div class="settings-nav-item active" data-section="pageinfo" data-action="showSettingsSection" data-arg="pageinfo">Site Settings</div>
+        <div class="settings-nav-item" data-section="account" data-action="showSettingsSection" data-arg="account">Account</div>
+        <div class="settings-nav-item" data-section="users" data-action="showSettingsSection" data-arg="users">Users</div>
+        <div class="settings-nav-item" data-section="coaches" data-action="showSettingsSection" data-arg="coaches">Coaches</div>
       </nav>
 
       <div class="settings-content">
@@ -379,7 +379,7 @@
         <div class="settings-panel active" id="sp-pageinfo">
           <div class="admin-subtitle">Configure tournament identity and display labels. Changes take effect on the public page after reload.</div>
           <div class="settings-section">
-            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Page Info</div>
+            <div class="settings-section-hdr collapsible-hdr" data-action="toggleSection">Page Info</div>
             <div class="collapsible-body">
               <div class="settings-field">
                 <label>Tournament Name <span class="field-label-hint">(public page header)</span></label>
@@ -426,16 +426,16 @@
                 <div class="field-hint">How the Schedule tab groups games for first-time visitors.</div>
               </div>
               <div class="settings-save-row">
-                <button class="sched-save-btn" onclick="saveSettings()">Save</button>
+                <button class="sched-save-btn" data-action="saveSettings">Save</button>
                 <span class="sched-status" id="settingsStatus"></span>
               </div>
             </div>
           </div>
           <div class="settings-section">
-            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Application Colors</div>
+            <div class="settings-section-hdr collapsible-hdr" data-action="toggleSection">Application Colors</div>
             <div class="collapsible-body">
               <label class="adv-toggle-label">
-                <input type="checkbox" id="themeAdvancedToggle" onchange="document.getElementById('themeAdvancedPanel').style.display=this.checked?'':'none'; if(this.checked) renderThemeSection();">
+                <input type="checkbox" id="themeAdvancedToggle">
                 Advanced — Application Theme
               </label>
               <div id="themeAdvancedPanel" style="display:none">
@@ -443,7 +443,7 @@
                 <div class="field-hint" style="margin-bottom:0.6em">Override accent and result colors used across the app. Light mode variants are auto-derived.</div>
                 <div id="themeColorsList"></div>
                 <div class="settings-save-row" style="margin-top:0.5em">
-                  <button class="admin-clear-btn" onclick="resetTheme()">Reset Defaults</button>
+                  <button class="admin-clear-btn" data-action="resetTheme">Reset Defaults</button>
                   <span class="sched-status" id="themeResetStatus"></span>
                 </div>
               </div>
@@ -453,12 +453,12 @@
                 <div id="fieldsColorList"></div>
               </div>
               <div class="settings-save-row" style="margin-top:1em">
-                <button class="sched-save-btn" onclick="saveSettings()">Save</button>
+                <button class="sched-save-btn" data-action="saveSettings">Save</button>
               </div>
             </div>
           </div>
           <div class="settings-section">
-            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Bracket</div>
+            <div class="settings-section-hdr collapsible-hdr" data-action="toggleSection">Bracket</div>
             <div class="collapsible-body">
               <div class="settings-field">
                 <label>Left Bracket Label</label>
@@ -481,12 +481,12 @@
                 <div class="field-hint">Displays a subtle label between winner and loser bracket games in each mobile swipe column.</div>
               </div>
               <div class="settings-save-row">
-                <button class="sched-save-btn" onclick="saveSettings()">Save</button>
+                <button class="sched-save-btn" data-action="saveSettings">Save</button>
               </div>
             </div>
           </div>
           <div class="settings-section">
-            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Date &amp; Time Display</div>
+            <div class="settings-section-hdr collapsible-hdr" data-action="toggleSection">Date &amp; Time Display</div>
             <div class="collapsible-body">
               <div class="settings-field-pair">
                 <div class="settings-field settings-field--toggle">
@@ -515,12 +515,12 @@
                 </div>
               </div>
               <div class="settings-save-row">
-                <button class="sched-save-btn" onclick="saveSettings()">Save</button>
+                <button class="sched-save-btn" data-action="saveSettings">Save</button>
               </div>
             </div>
           </div>
           <div class="settings-section">
-            <div class="settings-section-hdr collapsible-hdr" onclick="toggleSection(this)">Live Scoring</div>
+            <div class="settings-section-hdr collapsible-hdr" data-action="toggleSection">Live Scoring</div>
             <div class="collapsible-body">
               <div class="settings-field">
                 <label>Period Label <span class="field-label-hint">(shown on live game card)</span></label>
@@ -528,7 +528,7 @@
                 <div class="field-hint">Label for the scoring period displayed during live updates (e.g. "Inning", "Quarter", "Half", "Period").</div>
               </div>
               <div class="settings-save-row">
-                <button class="sched-save-btn" onclick="saveSettings()">Save</button>
+                <button class="sched-save-btn" data-action="saveSettings">Save</button>
               </div>
             </div>
           </div>
@@ -545,14 +545,14 @@
             </div>
             <div class="settings-field">
               <label>PWA opens to <span class="field-label-hint">(home screen launch)</span></label>
-              <select class="styled" id="set-pwaHome" onchange="savePwaHome(this.value)">
+              <select class="styled" id="set-pwaHome" data-action-change="savePwaHome">
                 <option value="admin">Admin panel</option>
                 <option value="public">Public page</option>
               </select>
               <div class="field-hint">When you tap the app icon to launch it fresh, which page opens. Only applies for admin and results roles in standalone mode.</div>
             </div>
             <div class="settings-save-row">
-              <button class="admin-clear-btn" onclick="doLogout()">Sign Out</button>
+              <button class="admin-clear-btn" data-action="doLogout">Sign Out</button>
             </div>
           </div>
           <div class="settings-section">
@@ -562,7 +562,7 @@
               <input type="text" id="setNewUsername" autocomplete="off" placeholder="2–32 characters">
             </div>
             <div class="settings-save-row">
-              <button class="sched-save-btn" onclick="saveUsername()">Change Username</button>
+              <button class="sched-save-btn" data-action="saveUsername">Change Username</button>
               <span class="sched-status" id="usernameStatus"></span>
             </div>
           </div>
@@ -577,7 +577,7 @@
               <input type="password" id="setNewPass2" autocomplete="new-password" placeholder="Confirm password">
             </div>
             <div class="settings-save-row">
-              <button class="sched-save-btn" onclick="savePassword()">Change Password</button>
+              <button class="sched-save-btn" data-action="savePassword">Change Password</button>
               <span class="sched-status" id="passwordStatus"></span>
             </div>
           </div>
@@ -598,7 +598,7 @@
             </div>
             <div class="settings-field">
               <label>Role</label>
-              <select id="newUserRole" class="styled" onchange="onNewUserRoleChange()">
+              <select id="newUserRole" class="styled" data-action-change="onNewUserRoleChange">
                 <option value="results">Results — enter results only</option>
                 <option value="admin">Admin — full access</option>
                 <option value="team">Team — lineup submission</option>
@@ -609,7 +609,7 @@
               <input type="text" id="newTeamName" autocomplete="off" placeholder="e.g. Eagles">
             </div>
             <div class="settings-save-row">
-              <button class="sched-save-btn" onclick="addUser()">Add User</button>
+              <button class="sched-save-btn" data-action="addUser">Add User</button>
               <span class="sched-status" id="addUserStatus"></span>
             </div>
           </div>
@@ -635,7 +635,7 @@
               </select>
             </div>
             <div class="settings-save-row">
-              <button class="sched-save-btn" onclick="addCoach()">Add Coach</button>
+              <button class="sched-save-btn" data-action="addCoach">Add Coach</button>
               <span class="sched-status" id="addCoachStatus"></span>
             </div>
           </div>
@@ -648,7 +648,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
-<div class="settings-backdrop" id="settingsBackdrop" onclick="closeSettingsSidebar()"></div>
+<div class="settings-backdrop" id="settingsBackdrop" data-action="closeSettingsSidebar"></div>
 
 <!-- Shared delays panel — moved between tab slots by DOM manipulation -->
 <div id="resultsDelaysPanel" style="display:none">
@@ -668,7 +668,7 @@
       <div class="delay-chip-row" id="delayDayChips"></div>
     </div>
     <div class="settings-save-row">
-      <button class="sched-save-btn" onclick="applyOffset()">Apply Offset</button>
+      <button class="sched-save-btn" data-action="applyOffset">Apply Offset</button>
       <span class="sched-status" id="delayApplyStatus"></span>
     </div>
   </div>
@@ -679,8 +679,8 @@
       <input type="text" id="delayBannerInput" placeholder="e.g. Rain delay — games resume at 2:00 PM" maxlength="300">
     </div>
     <div class="settings-save-row">
-      <button class="sched-save-btn" onclick="saveDelayBanner()">Set Notice</button>
-      <button class="admin-clear-btn" onclick="clearDelayBanner()">Clear</button>
+      <button class="sched-save-btn" data-action="saveDelayBanner">Set Notice</button>
+      <button class="admin-clear-btn" data-action="clearDelayBanner">Clear</button>
       <span class="sched-status" id="delayBannerStatus"></span>
     </div>
   </div>
@@ -688,7 +688,7 @@
     <div class="settings-section-hdr">Active Offsets</div>
     <div id="activeOffsetsList"></div>
     <div class="settings-save-row" style="margin-top:0.6em">
-      <button class="admin-clear-btn" onclick="clearAllOffsets()">Clear All Offsets</button>
+      <button class="admin-clear-btn" data-action="clearAllOffsets">Clear All Offsets</button>
       <span class="sched-status" id="delayClearStatus"></span>
     </div>
   </div>
@@ -722,14 +722,7 @@
 <script src="bracket-data.js"></script>
 <script src="admin.js"></script>
 <script src="lineup.js"></script>
-<script>window.__builderEmbedded = true;</script>
 <script src="builder.js"></script>
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/admin-sw.js').catch(function() {});
-  });
-}
-</script>
+<script src="sw-register.js" data-sw="/admin-sw.js"></script>
 </body>
 </html>

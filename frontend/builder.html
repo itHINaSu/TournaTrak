@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="/fonts.css">
 <link rel="stylesheet" href="base.css">
 <link rel="stylesheet" href="builder.css">
-<script>document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');</script>
+<script src="app-h.js"></script>
 </head>
 <body>
 
@@ -144,13 +144,7 @@
   </div>
 </div>
 
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function () {
-    navigator.serviceWorker.register('/admin-sw.js').catch(function () {});
-  });
-}
-</script>
+<script src="sw-register.js" data-sw="/admin-sw.js"></script>
 <script src="tt-common.js"></script>
 <script src="builder.js"></script>
 </body>

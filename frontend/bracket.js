@@ -192,8 +192,8 @@ function renderBucketView() {
     });
     editHTML += '</div>'
       + '<div class="bucket-edit-actions">'
-      + '<button class="bucket-edit-save-btn" onclick="saveBucketEdit()">Save</button>'
-      + '<button class="bucket-edit-cancel-btn" onclick="exitBucketEdit()">Cancel</button>'
+      + '<button class="bucket-edit-save-btn" data-action="saveBucketEdit">Save</button>'
+      + '<button class="bucket-edit-cancel-btn" data-action="exitBucketEdit">Cancel</button>'
       + '<span class="bucket-edit-status" id="bucketEditStatus"></span>'
       + '</div>';
     out.innerHTML = editHTML;
@@ -2901,3 +2901,11 @@ fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(fun
   }
 }).catch(function(){});
 fetchAll();
+
+// ── Delegated actions (see tt-common.js) ──────────────────────────────
+Object.assign(TT_ACTIONS, {
+  toggleBracketEdit: function() { toggleBracketEdit(); },
+  enterBucketEdit:   function() { enterBucketEdit(); },
+  saveBucketEdit:    function() { saveBucketEdit(); },
+  exitBucketEdit:    function() { exitBucketEdit(); },
+});

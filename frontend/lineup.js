@@ -611,3 +611,14 @@ async function lineupInit() {
 }
 
 if (!document.getElementById('adminWrap')) lineupInit();
+
+// ── Delegated actions (see tt-common.js) ──────────────────────────────
+Object.assign(TT_ACTIONS, {
+  openImport:    function() { openImport(); },
+  closeImport:   function(arg, el, e) { closeImport(e); },
+  confirmImport: function() { confirmImport(); },
+  toggleReorder: function() { toggleReorder(); },
+  submitLineup:  function() { submitLineup(); },
+  addSubRow:     function() { addSubRow(); },
+  deleteSubRow:  function() { deleteSubRow(); },
+});
