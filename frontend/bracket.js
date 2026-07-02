@@ -2875,14 +2875,14 @@ function initBracketDrag(root) {
     var targetId = tgt.dataset.gid || tgt.dataset.slot;
     if (!targetId || targetId === src.gid) return;
 
-    fetch('/api/schedule/swap', {
+    fetch(apiBase() + '/schedule/swap', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ slotA: src.gid, slotB: targetId })
     }).then(function(r) {
       return r.ok ? r.json() : r.json().then(function(d) { throw new Error(d.error || r.status); });
     }).then(function() {
-      return fetch('/api/schedule', { cache: 'no-store' }).then(function(r) { return r.json(); });
+      return fetch(apiBase() + '/schedule', { cache: 'no-store' }).then(function(r) { return r.json(); });
     }).then(function(sched) {
       schedule = sched;
       if (typeof applySchedule === 'function') applySchedule(schedule);
@@ -2908,7 +2908,7 @@ function initBracketDrag(root) {
 // ══════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════
-fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(function(sess) {
+fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).then(function(sess) {
   _sessionRole = sess.role || null;
   var isPwa    = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
   var adminBtn       = document.getElementById('adminPortalBtn');
@@ -2947,7 +2947,7 @@ function renderActiveNoScroll() {
 async function pollLive() {
   if (document.visibilityState !== 'visible') return;
   try {
-    var [lr, rr] = await Promise.all([fetch('/api/live'), fetch('/api/results')]);
+    var [lr, rr] = await Promise.all([fetch(apiBase() + '/live'), fetch(apiBase() + '/results')]);
     if (!lr.ok || !rr.ok) return;
     var lt = await lr.text(), rt = await rr.text();
     var changed = (lt !== _lastLiveJson) || (rt !== _lastResultsJson);

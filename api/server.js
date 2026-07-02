@@ -24,6 +24,9 @@ const VALID_ROLES = ['admin', 'results', 'team', 'buckets'];
 
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
+// Public bracket page tab paths — must match TT_TAB_PATHS in tt-common.js.
+const TAB_PATHS = ['bracket', 'schedule', 'teampath', 'buckets'];
+
 // Persistence lives in ./store.js (Postgres). Every domain keeps the v2
 // read-whole/write-whole semantics: store.get returns the full domain object
 // (shaped exactly like the old /data JSON file), store.put replaces it.
@@ -91,16 +94,18 @@ function escHtml(s) {
 }
 
 // ── Cached index HTML ─────────────────────────────────────────────────
-// Invalidated whenever settings are written (via invalidateIndexCache).
-// Single default-tournament page for now; Phase B makes this per-tournament.
-let _indexHtmlCache = null;   // null means stale/not-yet-built
+// Keyed by tournament id. Invalidated per-tid whenever that tournament's
+// settings are written (via invalidateIndexCache(tid)), or entirely on
+// demo-mode restore (invalidateIndexCache() with no argument).
+const _indexHtmlCache = new Map();   // tid -> html string
 
-function invalidateIndexCache() {
-  _indexHtmlCache = null;
+function invalidateIndexCache(tid) {
+  if (tid === undefined) _indexHtmlCache.clear();
+  else _indexHtmlCache.delete(tid);
 }
 
-async function buildIndexHtml() {
-  const s       = Object.assign({}, SETTINGS_DEFAULTS, await store.get(store.tid, 'settings'));
+async function buildIndexHtml(tid) {
+  const s       = Object.assign({}, SETTINGS_DEFAULTS, await store.get(tid, 'settings'));
   const title   = escHtml(s.pageTitle      || SETTINGS_DEFAULTS.pageTitle);
   const ogTitle = escHtml(s.tournamentName || SETTINGS_DEFAULTS.tournamentName);
   const desc    = escHtml(s.subtitle       || '');
@@ -114,6 +119,13 @@ async function buildIndexHtml() {
   ].filter(Boolean).join('\n');
   html = html.replace('</head>', `${meta}\n</head>`);
   return html;
+}
+
+async function getIndexHtml(tid) {
+  if (!_indexHtmlCache.has(tid)) {
+    _indexHtmlCache.set(tid, await buildIndexHtml(tid));
+  }
+  return _indexHtmlCache.get(tid);
 }
 
 // ── App ───────────────────────────────────────────────────────────────
@@ -770,7 +782,7 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
     settings.leftLabel = 'Winners Bracket';
     settings.rightLabel = 'Losers Bracket';
     await store.put(req.tid, 'settings', settings);
-    invalidateIndexCache();
+    invalidateIndexCache(req.tid);
   }
 
   // If the TD opted into seeded display, record the seeded team order.
@@ -793,7 +805,7 @@ api.post('/settings', requireAdmin, ah(async (req, res) => {
     if (incoming[k] !== undefined) clean[k] = String(incoming[k]).slice(0, 500);
   });
   await store.put(req.tid, 'settings', clean);
-  invalidateIndexCache();
+  invalidateIndexCache(req.tid);
   res.json({ ok: true });
 }));
 
@@ -1005,13 +1017,27 @@ app.use('/api', (req, res, next) => { req.tid = store.tid; next(); }, api);
 // ── Root HTML — inject dynamic title + Open Graph tags ───────────────
 // Social platforms scrape raw HTML and don't run JS, so <title> and og:title
 // must be present in the server response rather than set by client-side JS.
-app.get(['/', '/index.html'], ah(async (req, res) => {
+// Covers both the default tournament (/, /index.html, and the four bare tab
+// paths) and any /t/:slug tournament (plus its four tab paths) — same shell,
+// client-side JS (tt-common.js's parseTtPath) reads the URL to scope itself.
+const TAB_PATH_ROUTES = TAB_PATHS.map(t => '/' + t);
+
+app.get(['/', '/index.html', ...TAB_PATH_ROUTES], ah(async (req, res) => {
   try {
-    if (!_indexHtmlCache) {
-      _indexHtmlCache = await buildIndexHtml();
-    }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    res.send(_indexHtmlCache);
+    res.send(await getIndexHtml(store.tid));
+  } catch (err) {
+    console.error('Error serving index:', err);
+    res.status(500).send('Server error');
+  }
+}));
+
+app.get(['/t/:slug', ...TAB_PATHS.map(t => `/t/:slug/${t}`)], ah(async (req, res) => {
+  const t = await store.tournamentBySlug(req.params.slug);
+  if (!t) return res.status(404).send('Tournament not found');
+  try {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(await getIndexHtml(t.id));
   } catch (err) {
     console.error('Error serving index:', err);
     res.status(500).send('Server error');

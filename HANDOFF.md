@@ -339,60 +339,67 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
     restart durability).
     Phase C note: DELETE /users is still a GLOBAL account delete — add
     "revoke grant only" for users with grants elsewhere.
-  - **Phase B (public frontend): IN PROGRESS, not yet server-wired or
-    tested.** URL scheme decided and partially implemented:
-    `/`, `/bracket|schedule|teampath|buckets` (default tournament),
-    `/t/:slug`, `/t/:slug/bracket|schedule|teampath|buckets` (scoped).
-    Done so far (`frontend/tt-common.js`, `frontend/bracket.js`):
+  - **Phase B (public frontend): ✅ DONE, verified with Playwright.**
+    URL scheme: `/`, `/bracket|schedule|teampath|buckets` (default
+    tournament), `/t/:slug`, `/t/:slug/bracket|schedule|teampath|buckets`
+    (scoped).
     - `tt-common.js`: `parseTtPath()`, module-level `TT_ROUTE`/`TT_SLUG`,
       `apiBase()` (`/api/t/:slug` or legacy `/api`), `ttTabPath(tab)`.
-    - `bracket.js`: tab click handler now `pushState`s to `ttTabPath()`
-      (was `replaceState`, and only to strip `?team=`) — **this means tab
-      switches now add browser-history entries; back/forward moves between
-      tabs.** New `popstate` listener mirrors that for back/forward.
-      `fetchAll()`'s tab-restore logic now prioritizes `TT_ROUTE.tab` on
-      the *first* call only (`_routeTabApplied` flag prevents it from
-      re-firing after a user's own tab click) — ahead of `?view=` and the
-      `tt_tab` cookie. Also added a `!rr.ok || !sr.ok || !str.ok` guard so
-      a 404 (unknown slug) hits the existing offline-banner catch path
-      instead of `JSON.parse`-ing an `{"error":...}` blob as if it were
-      bracket data (message is generic "offline", not "tournament not
-      found" — acceptable for v1, follow-up if it's confusing in practice).
-    - Most `/api/...` fetches in `bracket.js` converted to
-      `apiBase() + '/...'`: `fetchAll()`'s 9 calls, bucket-count save.
-      **NOT YET converted** (still hit the legacy default-tournament
-      mount unconditionally — grep `fetch('/api` in bracket.js to find
-      them): the initial `/api/session` call (~line 2911), `pollLive()`'s
-      `/api/live` + `/api/results` (~line 2950), and the drag-to-swap
-      `/api/schedule/swap` + `/api/schedule` refetch (~line 2878/2885).
-      On a scoped `/t/:slug` page these currently silently operate on the
-      DEFAULT tournament instead — session role would be wrong, live
-      polling would show the wrong tournament's scores, and an admin
-      drag-swap would corrupt the wrong schedule. Fix is mechanical
-      (same `apiBase() + '/...'` substitution) but MUST land before Phase B
-      is safe to deploy for scoped tournaments.
-    - **Not started:** server-side routes to serve the index HTML shell
-      for `/t/:slug` and the four tab paths (currently only `/` and
-      `/index.html` are handled in `server.js`, and only for the default
-      tournament — nginx's SPA fallback (`location /`) will still serve
-      the STATIC `index.html` file for these new paths, so the page loads
-      and the client-side JS above works, but the server-injected
-      per-tournament `<title>`/OG tags won't apply there yet). Needs:
-      `getIndexHtml(tid)` keyed by tid (replace the single
-      `_indexHtmlCache` var with a `Map`), `invalidateIndexCache(tid)`
-      taking a tid (all three call sites currently call it with no arg),
-      new Express routes for `/t/:slug[/tab]` and bare `/tab` paths, and
-      matching nginx `location` blocks proxying those paths to the API
-      (mirroring the existing `location = /` block) instead of falling
-      through to the static SPA fallback.
-    - **Not started:** `sw.js` CACHE bump (bracket.js content changed —
-      required before shipping) and a navigation-mode fallback to the
-      cached `/` shell for offline visits to unprecached paths like
-      `/t/:slug` or `/schedule`.
-    - **Not started:** any testing. None of this has been run against a
-      live server yet this session — verify the whole flow (scoped fetch,
-      tab pushState/popstate, unknown-slug handling) before considering
-      Phase B done.
+    - `bracket.js`: tab click handler `pushState`s to `ttTabPath()`
+      (previously `replaceState`, only to strip `?team=`) — tab switches
+      are now real back/forward-navigable history entries; a `popstate`
+      listener restores the tab on back/forward. `fetchAll()`'s
+      tab-restore logic prioritizes `TT_ROUTE.tab` on the first call only
+      (`_routeTabApplied` flag), ahead of `?view=` and the `tt_tab`
+      cookie. A `!rr.ok || !sr.ok || !str.ok` guard routes a 404 (unknown
+      slug) through the existing offline-banner path instead of
+      `JSON.parse`-ing an `{"error":...}` blob as bracket data (message
+      is generic "offline", not "tournament not found" — acceptable for
+      v1). ALL `/api/...` fetches converted to `apiBase() + '/...'`
+      (fetchAll's 9 calls, bucket-count save, session, pollLive's
+      live+results, drag-to-swap's two calls) — `grep "fetch('/api"
+      frontend/bracket.js` is empty.
+    - `server.js`: `_indexHtmlCache` is now a `Map` keyed by tid
+      (`getIndexHtml(tid)` / `buildIndexHtml(tid)`); `invalidateIndexCache(tid)`
+      takes an optional tid (all 3 call sites updated — 2 pass `req.tid`,
+      the demo-restore one clears the whole map). New routes:
+      `/bracket|schedule|teampath|buckets` (default tournament) and
+      `/t/:slug[/bracket|schedule|teampath|buckets]` (404 on unknown slug)
+      both serve `getIndexHtml`, so per-tournament `<title>`/OG tags work
+      on every path, not just `/`.
+    - `nginx/nginx.conf`: two new regex `location` blocks proxy the tab
+      paths and `/t/:slug[...]` to the API (same treatment as `location = /`)
+      — must come before the generic SPA fallback so these don't just
+      serve the static `index.html` and skip the OG injection.
+    - `sw.js`: CACHE bumped to `tournatrak-v2.59`; fetch handler's offline
+      catch now falls back to the cached `/` shell for navigation-mode
+      requests to unprecached paths (`/t/:slug`, `/schedule`, etc.).
+    - **Bug found + fixed during verification:** `index.html`'s asset
+      `<link>`/`<script>` tags used relative paths (`base.css`,
+      `bracket.js`, no leading `/`). Those resolved fine at `/` or
+      `/schedule` (single path segment) but broke under `/t/:slug/bracket`
+      (multi-segment path) — the browser resolved them as
+      `/t/:slug/base.css` etc., all 404s, so the whole scoped page loaded
+      with no CSS/JS. Fixed by making all six references absolute
+      (`/base.css`, `/bracket.css`, `/app-h.js`, `/settings-defaults.js`,
+      `/tt-common.js`, `/bracket-data.js`, `/bracket.js`,
+      `/sw-register.js`). `admin.html`/`builder.html`/`lineup.html` were
+      NOT audited for the same pattern — they don't currently serve under
+      multi-segment paths, so it's latent, not live; check them before any
+      future change nests those pages under a longer path.
+    - **Verified with Playwright** (chromium, via a scratch dev-proxy that
+      mirrors nginx's routing since this container has no nginx binary —
+      see `/root/.ccr` note or recreate from `nginx/nginx.conf` if
+      retesting): default-tournament tab clicks push/restore correctly,
+      back/forward moves between tabs, direct nav to a bare tab path
+      activates that tab, a scoped `/t/:slug/bracket` page shows the
+      correct per-tournament title, all its fetches hit
+      `/api/t/:slug/...` (none leak to the legacy `/api/...` mount), and
+      an unknown slug 404s cleanly. NOT covered by this pass: the
+      teampath `?team=` share-link flow under a scoped URL, and the
+      offline/service-worker fallback path (added but untested — SW
+      testing needs a real HTTPS or localhost origin + repeated visits to
+      populate the cache, awkward to script quickly).
     - `admin.js`/`lineup.js` deliberately untouched — they stay on the
       legacy `/api` mount until Phase C.
   - **Phase C (admin):** header tournament switcher (localStorage-persisted)
