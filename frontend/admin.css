@@ -1083,3 +1083,7 @@ input[type="time"]:focus {
 .settings-field--check input[type="checkbox"] { width: 1.1em; height: 1.1em; }
 /* Scorekeeper-mode link, shaped like a mode button */
 .results-mode-btn--link { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+
+/* Logo picker (Application Colors) */
+.logo-picker-row { display: flex; align-items: center; gap: 0.8em; flex-wrap: wrap; }
+.logo-picker-row .site-logo { background: var(--surface2); border: 0.07em solid var(--border); padding: 0.2em; }

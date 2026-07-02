@@ -220,6 +220,8 @@ function populateSettingsFields() {
     else el.value = settings[key] || '';
   });
   onLineupPresetChange();
+  _logoDataUri = (_themeColors && _themeColors.logo) || null;
+  syncLogoUI();
 }
 
 // Show the custom-columns field only when the Custom preset is selected.
@@ -250,6 +252,7 @@ async function saveSettings() {
     var inp = document.getElementById('themeColor-' + key);
     if (inp) themeColors[key] = inp.value;
   });
+  if (_logoDataUri) themeColors.logo = _logoDataUri;
   var fieldColors = {};
   document.querySelectorAll('.field-color-picker:not(.theme-color-picker)').forEach(function(inp) {
     if (inp.dataset.field) fieldColors[inp.dataset.field] = inp.value;
@@ -1410,6 +1413,50 @@ function savePwaHome(val) {
   try { localStorage.setItem('ttPwaHome', val); } catch(e) {}
 }
 
+// ── Tournament logo (white-label) ──────────────────────────────────────
+// Held as a data URI; rides the theme-colors POST in saveSettings(). The
+// server re-validates format, size, and magic bytes.
+var _logoDataUri = null;
+var LOGO_MAX_FILE = 36 * 1024;
+
+function syncLogoUI() {
+  var img = document.getElementById('logoPreview');
+  var rm  = document.getElementById('logoRemoveBtn');
+  if (!img || !rm) return;
+  if (_logoDataUri) { img.src = _logoDataUri; img.style.display = ''; rm.style.display = ''; }
+  else { img.removeAttribute('src'); img.style.display = 'none'; rm.style.display = 'none'; }
+}
+
+function pickLogo(val, el) {
+  var f = el.files && el.files[0];
+  if (!f) return;
+  if (['image/png', 'image/jpeg', 'image/webp'].indexOf(f.type) === -1) {
+    showToast('Logo must be PNG, JPEG, or WebP', true);
+    el.value = '';
+    return;
+  }
+  if (f.size > LOGO_MAX_FILE) {
+    showToast('Logo too large — max 36 KB (resize/crop it first)', true);
+    el.value = '';
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function() {
+    _logoDataUri = reader.result;
+    syncLogoUI();
+    showToast('Logo ready — press Save to apply');
+  };
+  reader.readAsDataURL(f);
+}
+
+function removeLogo() {
+  _logoDataUri = null;
+  var inp = document.getElementById('logoFileInput');
+  if (inp) inp.value = '';
+  syncLogoUI();
+  showToast('Logo will be removed on Save');
+}
+
 // ── Theme & field color management ─────────────────────────────────────
 var FIELD_DEFAULT_COLORS = ['#0d9488', '#ea580c', '#7c3aed', '#db2777', '#4a90d9'];
 
@@ -1541,11 +1588,12 @@ async function resetTheme() {
   var statusEl = document.getElementById('themeResetStatus');
   try {
     var [r1, r2] = await Promise.all([
-      apiFetch('/api/theme-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }),
+      // Reset colors but keep the tournament logo — branding isn't a color default.
+      apiFetch('/api/theme-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(_logoDataUri ? { logo: _logoDataUri } : {}) }),
       apiFetch('/api/field-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }),
     ]);
     if (!r1 || !r1.ok || !r2 || !r2.ok) throw new Error();
-    _themeColors = {};
+    _themeColors = _logoDataUri ? { logo: _logoDataUri } : {};
     _fieldColors = {};
     applyThemeColors();
     renderThemeSection();
@@ -2553,6 +2601,8 @@ Object.assign(TT_ACTIONS, {
   saveSettings:        function() { saveSettings(); },
   resetTheme:          function() { resetTheme(); },
   resetOneThemeColor:  function(arg, el) { resetOneThemeColor(el); },
+  pickLogo:            function(arg, el) { pickLogo(arg, el); },
+  removeLogo:          function() { removeLogo(); },
   resetOneFieldColor:  function(arg, el) { resetOneFieldColor(el); },
   // users
   addUser:             function() { addUser(); },

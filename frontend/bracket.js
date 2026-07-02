@@ -41,6 +41,18 @@ function _lightModeColor(hex) {
 function applyThemeColors() {
   var root = document.documentElement;
   var tc = _themeColors;
+  // Per-tournament logo — assigned via the src property (never innerHTML);
+  // the server only stores validated png/jpeg/webp data URIs.
+  var logoEl = document.getElementById('siteLogo');
+  if (logoEl) {
+    if (tc.logo && /^data:image\/(png|jpeg|webp);base64,/.test(tc.logo)) {
+      logoEl.src = tc.logo;
+      logoEl.style.display = '';
+    } else {
+      logoEl.removeAttribute('src');
+      logoEl.style.display = 'none';
+    }
+  }
   var darkMap = { accent: ['--gold','--gold-lt'], interactive: ['--blue','--blue-lt'], winColor: ['--win-color'], loseColor: ['--lose-color'] };
   var lightRules = [];
   Object.keys(darkMap).forEach(function(key) {

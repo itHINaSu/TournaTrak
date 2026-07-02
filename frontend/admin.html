@@ -438,6 +438,15 @@
           <div class="settings-section">
             <div class="settings-section-hdr collapsible-hdr" data-action="toggleSection">Application Colors</div>
             <div class="collapsible-body">
+              <div class="settings-field">
+                <label>Tournament Logo <span class="field-label-hint">(PNG/JPEG/WebP, max 36 KB — shown in the public header)</span></label>
+                <div class="logo-picker-row">
+                  <img id="logoPreview" class="site-logo" alt="" style="display:none">
+                  <input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp" data-action-change="pickLogo">
+                  <button class="admin-clear-btn" id="logoRemoveBtn" data-action="removeLogo" style="display:none">Remove</button>
+                </div>
+                <div class="field-hint">Saved with this section's Save button. SVG is not accepted.</div>
+              </div>
               <label class="adv-toggle-label">
                 <input type="checkbox" id="themeAdvancedToggle">
                 Advanced — Application Theme

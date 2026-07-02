@@ -140,6 +140,10 @@ app.set('trust proxy', 1);
 app.set('etag', false);
 
 // Body parsing — 10 kb is generous for every payload this app sends.
+// Theme-colors is the one route that may carry a small logo data URI, so it
+// gets a larger (still tight) body cap. Runs before the global 10kb parser;
+// once parsed here the global one skips the request.
+app.use(['/api/theme-colors', '/api/t/:slug/theme-colors'], express.json({ limit: '64kb' }));
 app.use(express.json({ limit: '10kb' }));
 
 // In-memory login rate limiter: max 10 failures per IP per 15 minutes.
@@ -756,6 +760,22 @@ api.post('/field-colors', requireAdmin, ah(async (req, res) => {
 
 const THEME_COLOR_KEYS = ['accent', 'interactive', 'winColor', 'loseColor'];
 
+// Per-tournament logo: strictly a small raster data URI. SVG is rejected
+// (script vector). Base64 payload must decode and carry the right magic
+// bytes so a mislabeled file can't sneak through.
+const LOGO_DATAURI_RE = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
+const LOGO_MAGIC = { png: [0x89, 0x50, 0x4e, 0x47], jpeg: [0xff, 0xd8, 0xff], webp: [0x52, 0x49, 0x46, 0x46] };
+const LOGO_MAX_CHARS = 48 * 1024;
+function validLogoDataUri(v) {
+  if (typeof v !== 'string' || !v || v.length > LOGO_MAX_CHARS) return false;
+  const m = LOGO_DATAURI_RE.exec(v);
+  if (!m) return false;
+  let buf;
+  try { buf = Buffer.from(m[2], 'base64'); } catch (e) { return false; }
+  const magic = LOGO_MAGIC[m[1]];
+  return !!buf && buf.length > 8 && magic.every((b, i) => buf[i] === b);
+}
+
 api.get('/theme-colors', ah(async (req, res) => {
   res.set('Cache-Control', 'public, max-age=60');
   res.json(await store.get(req.tid, 'theme_colors') || {});
@@ -768,6 +788,7 @@ api.post('/theme-colors', requireAdmin, ah(async (req, res) => {
     const val = incoming[key];
     if (typeof val === 'string' && /^#[0-9a-f]{6}$/i.test(val)) clean[key] = val;
   });
+  if (validLogoDataUri(incoming.logo)) clean.logo = incoming.logo;
   await store.put(req.tid, 'theme_colors', clean);
   res.json({ ok: true });
 }));
@@ -1109,6 +1130,9 @@ app.get(['/lineup', '/lineup.html'], (req, res) => {
 
 // Generic error handler — catches any unhandled throw in a route
 app.use((err, req, res, _next) => {
+  if (err && err.type === 'entity.too.large') {
+    return res.status(413).json({ error: 'Payload too large' });
+  }
   console.error(err.stack);
   res.status(500).json({ error: 'Internal server error' });
 });
