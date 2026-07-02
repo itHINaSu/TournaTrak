@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS user_teams (
   user_id       INTEGER NOT NULL REFERENCES users(id)       ON DELETE CASCADE,
   tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
   team_name     TEXT    NOT NULL,
+  ord           INTEGER NOT NULL DEFAULT 0,  -- array order (teams[0] is the primary team)
   PRIMARY KEY (user_id, tournament_id, team_name)
 );
 

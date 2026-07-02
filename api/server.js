@@ -4,121 +4,55 @@ const bcrypt  = require('bcryptjs');
 const fs      = require('fs');
 const crypto  = require('crypto');
 
-const OFFSETS_FILE       = '/data/offsets.json';
-const FIELD_COLORS_FILE  = '/data/field-colors.json';
-const THEME_COLORS_FILE  = '/data/theme-colors.json';
-const SESSIONS_FILE     = '/data/sessions.json';
-const RESULTS_FILE  = '/data/results.json';
-const SCHEDULE_FILE = '/data/schedule.json';
-const SETTINGS_FILE = '/data/settings.json';
-const TEAMS_FILE    = '/data/teams.json';
-const USERS_FILE    = '/data/users.json';
-const LINEUPS_FILE  = '/data/lineups.json';
-const BUCKETS_FILE  = '/data/buckets.json';
-const LIVE_FILE     = '/data/live.json';
-
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
 const { FORMATS, generateSchedule } = require('./schedule-formats');
+const store = require('./store');
+
+// FRONTEND_DIR/DATA_DIR default to the container mount points; overridable so
+// the server can run outside Docker (local dev, tests).
+const FRONTEND_DIR = process.env.FRONTEND_DIR || '/frontend';
+const DATA_DIR     = process.env.DATA_DIR     || '/data';
 
 // Single source of truth shared with the browser — served from the
 // read-only /frontend volume mount (same file the pages load).
 // Fails loudly at startup if the mount is missing.
-const { SETTINGS_DEFAULTS } = require('/frontend/settings-defaults.js');
+const { SETTINGS_DEFAULTS } = require(FRONTEND_DIR + '/settings-defaults.js');
 
 const VALID_ROLES = ['admin', 'results', 'team', 'buckets'];
 
-// ── In-memory JSON cache ──────────────────────────────────────────────
-// Keyed by absolute file path; each entry holds { data, etag }.
-// Mutation safety: readJSON returns a structuredClone so callers that
-// mutate the returned object before deciding to save cannot corrupt the
-// cached copy.  writeJSON updates the cache and etag before writing to
-// disk so the cache is always coherent.
-const jsonCache = new Map();
+// Persistence lives in ./store.js (Postgres). Every domain keeps the v2
+// read-whole/write-whole semantics: store.get returns the full domain object
+// (shaped exactly like the old /data JSON file), store.put replaces it.
+// TID = the default tournament until /t/:slug routing lands.
+const TID = () => store.tid;
 
-function _computeEtag(jsonStr) {
-  return '"' + crypto.createHash('sha1').update(jsonStr).digest('hex') + '"';
-}
-
-// Write a file atomically: write to a temp sibling, then rename over the
-// target. rename(2) is atomic on the same filesystem, so a crash or full disk
-// mid-write leaves the original file intact instead of truncated/corrupt.
-function writeFileAtomic(file, str) {
-  const tmp = file + '.tmp';
-  fs.writeFileSync(tmp, str);
-  fs.renameSync(tmp, file);
-}
-
-function readJSON(file) {
-  if (jsonCache.has(file)) {
-    return structuredClone(jsonCache.get(file).data);
-  }
-  let raw;
-  try {
-    raw = fs.readFileSync(file, 'utf8');
-  } catch (err) {
-    if (err.code === 'ENOENT') return {};   // not created yet — expected
-    throw err;                               // permission/IO error — surface it
-  }
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch (err) {
-    // File exists but holds invalid JSON. Do NOT silently treat it as empty —
-    // that would let the next write overwrite a recoverable file. Fail loudly
-    // so the request 500s and the corrupt file is preserved for inspection.
-    console.error('Corrupt JSON in ' + file + ': ' + err.message);
-    throw new Error('Corrupt data file: ' + file);
-  }
-  const str = JSON.stringify(data, null, 2);
-  jsonCache.set(file, { data, etag: _computeEtag(str) });
-  return structuredClone(data);
-}
-
-function writeJSON(file, data) {
-  const str = JSON.stringify(data, null, 2);
-  jsonCache.set(file, { data, etag: _computeEtag(str) });
-  writeFileAtomic(file, str);
-}
-
-// Return the cached ETag for a file (null if not yet loaded).
-function etagForFile(file) {
-  const entry = jsonCache.get(file);
-  return entry ? entry.etag : null;
-}
+// Express 4 does not forward async-handler rejections to the error
+// middleware; every async route goes through this wrapper.
+const ah = fn => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 // ── User storage helpers ──────────────────────────────────────────────
-// USERS_FILE stores { users: [...] }; these helpers expose just the array.
-function readUsers() {
-  const raw = readJSON(USERS_FILE);
-  return Array.isArray(raw.users) ? raw.users : [];
+async function findUser(username) {
+  return (await store.readUsers()).find(u => u.username === username) || null;
 }
 
-function writeUsers(users) {
-  writeJSON(USERS_FILE, { users });
-}
-
-function findUser(username) {
-  return readUsers().find(u => u.username === username) || null;
-}
-
-function updateUser(username, updates) {
-  const users = readUsers();
+async function updateUser(username, updates) {
+  const users = await store.readUsers();
   const idx = users.findIndex(u => u.username === username);
   if (idx === -1) return false;
   users[idx] = Object.assign({}, users[idx], updates);
-  writeUsers(users);
+  await store.writeUsers(users);
   return true;
 }
 
-// On first startup (no users.json), auto-bootstrap from env vars +
+// On first startup (empty users table), auto-bootstrap from env vars +
 // any legacy /data/admin.json override hash if present.
-function ensureUsers() {
-  if (fs.existsSync(USERS_FILE)) return;
+async function ensureUsers() {
+  if ((await store.readUsers()).length > 0) return;
 
   // Absorb legacy admin.json hash if it exists
   let hash = ADMIN_PASSWORD_HASH;
   try {
-    const legacy = JSON.parse(fs.readFileSync('/data/admin.json', 'utf8'));
+    const legacy = JSON.parse(fs.readFileSync(DATA_DIR + '/admin.json', 'utf8'));
     if (typeof legacy.passwordHash === 'string' && legacy.passwordHash.startsWith('$2')) {
       hash = legacy.passwordHash;
     }
@@ -130,13 +64,8 @@ function ensureUsers() {
     role:               'admin',
     mustChangePassword: FORCE_PASSWORD_CHANGE,
   };
-  try {
-    writeUsers([bootstrapUser]);
-    console.log(`Bootstrapped users.json with admin user "${ADMIN_USERNAME}"`);
-  } catch (e) {
-    // Demo mode: restoreDemoSeed() will copy users.json from the seed shortly.
-    console.warn(`Could not bootstrap users.json: ${e.message}`);
-  }
+  await store.writeUsers([bootstrapUser]);
+  console.log(`Bootstrapped admin user "${ADMIN_USERNAME}"`);
 }
 
 // ── Credentials — required at startup ────────────────────────────────
@@ -159,102 +88,12 @@ if (!ADMIN_PASSWORD_HASH.startsWith('$2')) {
   console.error('       Generate one with: docker compose run --rm api node generate-hash.js <password>');
   process.exit(1);
 }
-
-// ── Persistent file-based session store ──────────────────────────────
-// Stores sessions in /data/sessions.json so they survive Docker restarts.
-// Implements the minimal express-session Store interface.
-const Store = session.Store;
-function FileSessionStore() {
-  Store.call(this);
-  this._sessions = {};
-  try {
-    var raw = fs.readFileSync(SESSIONS_FILE, 'utf8');
-    this._sessions = JSON.parse(raw) || {};
-  } catch (e) { /* first run — file doesn't exist yet */ }
-  this._prune();
-  var self = this;
-  setInterval(function() { self._prune(); self._persist(); }, 60 * 1000);
-}
-require('util').inherits(FileSessionStore, Store);
-FileSessionStore.prototype._persist = function() {
-  try { writeFileAtomic(SESSIONS_FILE, JSON.stringify(this._sessions)); } catch (e) {}
-};
-FileSessionStore.prototype._prune = function() {
-  var now = Date.now();
-  var changed = false;
-  var self = this;
-  Object.keys(this._sessions).forEach(function(sid) {
-    var s = self._sessions[sid];
-    if (s && s.cookie && s.cookie.expires && new Date(s.cookie.expires).getTime() < now) {
-      delete self._sessions[sid];
-      changed = true;
-    }
-  });
-  if (changed) this._persist();
-};
-FileSessionStore.prototype.get = function(sid, fn) {
-  var s = this._sessions[sid];
-  if (!s) return fn(null, null);
-  if (s.cookie && s.cookie.expires && new Date(s.cookie.expires).getTime() < Date.now()) {
-    delete this._sessions[sid];
-    return fn(null, null);
-  }
-  fn(null, s);
-};
-FileSessionStore.prototype.set = function(sid, session, fn) {
-  this._sessions[sid] = session;
-  this._persist();
-  if (fn) fn(null);
-};
-FileSessionStore.prototype.destroy = function(sid, fn) {
-  delete this._sessions[sid];
-  this._persist();
-  if (fn) fn(null);
-};
-
-// Ensure /data directory and all required JSON files exist at startup.
-// readJSON already handles missing files gracefully (returns {}), but
-// writeJSON will throw if /data itself is absent, and buckets.json needs
-// a structured default rather than a bare {}.
-function ensureDataFiles() {
-  const DATA_DIR = '/data';
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-    console.log('Created /data directory');
-  }
-
-  const defaults = {
-    [RESULTS_FILE]:  {},
-    [SCHEDULE_FILE]: {},
-    [SETTINGS_FILE]: {},
-    [LINEUPS_FILE]:  {},
-    [BUCKETS_FILE]:  { counts: {}, bucketOnlyTeams: [] },
-    [LIVE_FILE]:     {},
-    [OFFSETS_FILE]:       { entries: [], banner: '' },
-    [FIELD_COLORS_FILE]:  {},
-  };
-
-  Object.entries(defaults).forEach(([file, empty]) => {
-    if (!fs.existsSync(file)) {
-      try {
-        fs.writeFileSync(file, JSON.stringify(empty, null, 2));
-        console.log(`Created ${file}`);
-      } catch (e) {
-        // In demo mode restoreDemoSeed() will write these files moments later.
-        // In normal mode this is a real problem, but crashing here prevents the
-        // server from starting at all, which is worse than a degraded startup.
-        console.warn(`Could not create ${file}: ${e.message}`);
-      }
-    }
-  });
+if (!process.env.DATABASE_URL) {
+  console.error('Fatal: DATABASE_URL is required (e.g. postgres://user:pass@postgres:5432/tournatrak)');
+  process.exit(1);
 }
 
-ensureDataFiles();
-
-// Bootstrap users.json from env vars on first startup
-ensureUsers();
-
-const FRONTEND_INDEX = '/frontend/index.html';
+const FRONTEND_INDEX = FRONTEND_DIR + '/index.html';
 
 // Escape for safe injection into HTML text and attribute values
 function escHtml(s) {
@@ -262,15 +101,15 @@ function escHtml(s) {
 }
 
 // ── Cached index HTML ─────────────────────────────────────────────────
-// Invalidated whenever SETTINGS_FILE is written (via invalidateIndexCache).
+// Invalidated whenever settings are written (via invalidateIndexCache).
 let _indexHtmlCache = null;   // null means stale/not-yet-built
 
 function invalidateIndexCache() {
   _indexHtmlCache = null;
 }
 
-function buildIndexHtml() {
-  const s       = Object.assign({}, SETTINGS_DEFAULTS, readJSON(SETTINGS_FILE));
+async function buildIndexHtml() {
+  const s       = Object.assign({}, SETTINGS_DEFAULTS, await store.get(TID(), 'settings'));
   const title   = escHtml(s.pageTitle      || SETTINGS_DEFAULTS.pageTitle);
   const ogTitle = escHtml(s.tournamentName || SETTINGS_DEFAULTS.tournamentName);
   const desc    = escHtml(s.subtitle       || '');
@@ -332,13 +171,14 @@ function loginRateLimit(req, res, next) {
   next();
 }
 
-// Sessions — backed by FileSessionStore so they persist across Docker restarts
+// Sessions — stored in the Postgres sessions table so they persist across
+// container restarts (replaces the old /data/sessions.json file store).
 app.use(session({
   secret:            SESSION_SECRET,
   resave:            false,
   saveUninitialized: false,
   rolling:           true,  // extend cookie expiry on each request
-  store:             new FileSessionStore(),
+  store:             new store.SessionStore(),
   cookie: {
     httpOnly: true,
     // Set COOKIE_SECURE=true in .env only when serving over HTTPS.
@@ -398,12 +238,12 @@ app.get('/api/session', (req, res) => {
 // Sentinel hash used when user not found, to prevent timing attacks.
 const SENTINEL_HASH = '$2b$12$invalidhashsentinelXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
 
-app.post('/api/login', loginRateLimit, async (req, res) => {
+app.post('/api/login', loginRateLimit, ah(async (req, res) => {
   const { username, password } = req.body || {};
   if (typeof username !== 'string' || typeof password !== 'string') {
     return res.status(400).json({ error: 'username and password required' });
   }
-  const user = findUser(username);
+  const user = await findUser(username);
   // Always run bcrypt so response time does not reveal valid usernames.
   const hashToCompare = user ? user.passwordHash : SENTINEL_HASH;
   const passwordOk = await bcrypt.compare(password, hashToCompare);
@@ -424,7 +264,7 @@ app.post('/api/login', loginRateLimit, async (req, res) => {
       role:               user.role,
     });
   });
-});
+}));
 
 app.post('/api/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
@@ -432,7 +272,7 @@ app.post('/api/logout', (req, res) => {
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{2,32}$/;
 
-app.post('/api/change-password', async (req, res) => {
+app.post('/api/change-password', ah(async (req, res) => {
   if (!req.session.username) {
     return res.status(401).json({ error: 'Authentication required' });
   }
@@ -446,22 +286,22 @@ app.post('/api/change-password', async (req, res) => {
   }
   try {
     const hash = await bcrypt.hash(password, 12);
-    const users = readUsers();
+    const users = await store.readUsers();
     const idx = users.findIndex(u => u.username === req.session.username);
     if (idx === -1) return res.status(404).json({ error: 'User not found' });
     users[idx].passwordHash = hash;
     users[idx].mustChangePassword = false;
     delete users[idx].setupToken;
-    writeUsers(users);
+    await store.writeUsers(users);
     req.session.mustChangePassword = false;
     res.json({ ok: true });
   } catch (err) {
     console.error('change-password error:', err);
     res.status(500).json({ error: 'Failed to save password' });
   }
-});
+}));
 
-app.post('/api/change-username', (req, res) => {
+app.post('/api/change-username', ah(async (req, res) => {
   if (!req.session.username) return res.status(401).json({ error: 'Authentication required' });
   if (req.session.role === 'team') return res.status(403).json({ error: 'Team users cannot change username' });
   const { username } = req.body || {};
@@ -469,16 +309,16 @@ app.post('/api/change-username', (req, res) => {
     return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
   }
   if (username === req.session.username) return res.json({ ok: true });
-  if (findUser(username)) return res.status(409).json({ error: 'Username already taken' });
-  const updated = updateUser(req.session.username, { username });
+  if (await findUser(username)) return res.status(409).json({ error: 'Username already taken' });
+  const updated = await updateUser(req.session.username, { username });
   if (!updated) return res.status(404).json({ error: 'User not found' });
   req.session.username = username;
   res.json({ ok: true });
-});
+}));
 
 // ── User management (admin only) ──────────────────────────────────────
-app.get('/api/users', requireAdmin, (req, res) => {
-  const users = readUsers().map(u => {
+app.get('/api/users', requireAdmin, ah(async (req, res) => {
+  const users = (await store.readUsers()).map(u => {
     const out = { username: u.username, role: u.role, mustChangePassword: !!u.mustChangePassword };
     if (u.role === 'team') {
       out.teamName  = u.teamName;
@@ -490,9 +330,9 @@ app.get('/api/users', requireAdmin, (req, res) => {
     return out;
   });
   res.json(users);
-});
+}));
 
-app.post('/api/users', requireAdmin, async (req, res) => {
+app.post('/api/users', requireAdmin, ah(async (req, res) => {
   const { username, role, teamName } = req.body || {};
   if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
     return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
@@ -500,11 +340,11 @@ app.post('/api/users', requireAdmin, async (req, res) => {
   if (!VALID_ROLES.includes(role)) {
     return res.status(400).json({ error: 'Invalid role. Must be one of: ' + VALID_ROLES.join(', ') });
   }
-  if (findUser(username)) {
+  if (await findUser(username)) {
     return res.status(409).json({ error: 'Username already exists' });
   }
   try {
-    const users = readUsers();
+    const users = await store.readUsers();
     if (role === 'team') {
       if (!teamName || typeof teamName !== 'string' || !teamName.trim()) {
         return res.status(400).json({ error: 'Team name is required for team users' });
@@ -512,34 +352,34 @@ app.post('/api/users', requireAdmin, async (req, res) => {
       const accessToken = crypto.randomBytes(32).toString('hex');
       const trimmed = teamName.trim();
       users.push({ username, role: 'team', teamName: trimmed, teams: [trimmed], accessToken, mustChangePassword: false });
-      writeUsers(users);
+      await store.writeUsers(users);
       return res.json({ ok: true, accessToken });
     } else {
       const setupToken = crypto.randomBytes(32).toString('hex');
       users.push({ username, role, mustChangePassword: true, setupToken });
-      writeUsers(users);
+      await store.writeUsers(users);
       return res.json({ ok: true, setupToken });
     }
   } catch (err) {
     console.error('add-user error:', err);
     res.status(500).json({ error: 'Failed to create user' });
   }
-});
+}));
 
-app.delete('/api/users/:username', requireAdmin, (req, res) => {
+app.delete('/api/users/:username', requireAdmin, ah(async (req, res) => {
   const { username } = req.params;
   if (username === req.session.username) {
     return res.status(400).json({ error: 'Cannot delete your own account' });
   }
-  if (!findUser(username)) {
+  if (!(await findUser(username))) {
     return res.status(404).json({ error: 'User not found' });
   }
-  const users = readUsers().filter(u => u.username !== username);
-  writeUsers(users);
+  const users = (await store.readUsers()).filter(u => u.username !== username);
+  await store.writeUsers(users);
   res.json({ ok: true });
-});
+}));
 
-app.post('/api/users/:username/reset-password', requireAdmin, async (req, res) => {
+app.post('/api/users/:username/reset-password', requireAdmin, ah(async (req, res) => {
   const { username } = req.params;
   const { password } = req.body || {};
   if (typeof password !== 'string' || password.length < 8) {
@@ -548,71 +388,71 @@ app.post('/api/users/:username/reset-password', requireAdmin, async (req, res) =
   if (Buffer.byteLength(password, 'utf8') > 72) {
     return res.status(400).json({ error: 'Password too long (max 72 characters)' });
   }
-  if (!findUser(username)) {
+  if (!(await findUser(username))) {
     return res.status(404).json({ error: 'User not found' });
   }
   try {
     const passwordHash = await bcrypt.hash(password, 12);
-    updateUser(username, { passwordHash, mustChangePassword: true });
+    await updateUser(username, { passwordHash, mustChangePassword: true });
     res.json({ ok: true });
   } catch (err) {
     console.error('reset-password error:', err);
     res.status(500).json({ error: 'Failed to reset password' });
   }
-});
+}));
 
-app.post('/api/users/:username/setup-link', requireAdmin, (req, res) => {
+app.post('/api/users/:username/setup-link', requireAdmin, ah(async (req, res) => {
   const { username } = req.params;
-  const user = findUser(username);
+  const user = await findUser(username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (user.role === 'team') return res.status(400).json({ error: 'Team users use access tokens' });
   const setupToken = crypto.randomBytes(32).toString('hex');
-  updateUser(username, { setupToken, mustChangePassword: true });
+  await updateUser(username, { setupToken, mustChangePassword: true });
   res.json({ ok: true, setupToken });
-});
+}));
 
-app.post('/api/users/:username/regenerate-token', requireAdmin, (req, res) => {
+app.post('/api/users/:username/regenerate-token', requireAdmin, ah(async (req, res) => {
   const { username } = req.params;
-  const user = findUser(username);
+  const user = await findUser(username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (user.role !== 'team') return res.status(400).json({ error: 'Only team users have access tokens' });
   const accessToken = crypto.randomBytes(32).toString('hex');
-  updateUser(username, { accessToken });
+  await updateUser(username, { accessToken });
   res.json({ ok: true, accessToken });
-});
+}));
 
-app.post('/api/users/:username/teams', requireAdmin, (req, res) => {
+app.post('/api/users/:username/teams', requireAdmin, ah(async (req, res) => {
   const { username } = req.params;
   const { teamName } = req.body || {};
   if (!teamName || typeof teamName !== 'string' || !teamName.trim()) {
     return res.status(400).json({ error: 'teamName is required' });
   }
-  const user = findUser(username);
+  const user = await findUser(username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (user.role !== 'team') return res.status(400).json({ error: 'Only team users have teams' });
   const name = teamName.trim();
   const teams = user.teams || (user.teamName ? [user.teamName] : []);
   if (teams.includes(name)) return res.status(409).json({ error: 'Team already assigned' });
   teams.push(name);
-  updateUser(username, { teams });
+  await updateUser(username, { teams });
   res.json({ ok: true });
-});
+}));
 
-app.delete('/api/users/:username/teams/:teamName', requireAdmin, (req, res) => {
+app.delete('/api/users/:username/teams/:teamName', requireAdmin, ah(async (req, res) => {
   const { username, teamName } = req.params;
-  const user = findUser(username);
+  const user = await findUser(username);
   if (!user) return res.status(404).json({ error: 'User not found' });
   if (user.role !== 'team') return res.status(400).json({ error: 'Only team users have teams' });
   const teams = (user.teams || (user.teamName ? [user.teamName] : [])).filter(t => t !== teamName);
   if (teams.length === 0) return res.status(400).json({ error: 'Cannot remove the only team' });
-  updateUser(username, { teams, teamName: teams[0] });
+  await updateUser(username, { teams, teamName: teams[0] });
   res.json({ ok: true });
-});
+}));
 
-app.get('/api/setup-password/:token', (req, res) => {
+app.get('/api/setup-password/:token', ah(async (req, res) => {
   const { token } = req.params;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return res.redirect('/admin?setup=invalid');
-  const user = readUsers().find(u => u.setupToken === token && u.mustChangePassword);
+  const user = (await store.readUsers()).find(u => u.setupToken === token && u.mustChangePassword);
   if (!user) return res.redirect('/admin?setup=invalid');
   req.session.regenerate(err => {
     if (err) return res.redirect('/admin?setup=invalid');
@@ -621,14 +461,14 @@ app.get('/api/setup-password/:token', (req, res) => {
     req.session.mustChangePassword = true;
     res.redirect('/admin?setup=1');
   });
-});
+}));
 
-app.get('/api/team-access/:token', (req, res) => {
+app.get('/api/team-access/:token', ah(async (req, res) => {
   const { token } = req.params;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) {
     return res.redirect('/lineup?invalid=1');
   }
-  const user = readUsers().find(u => u.role === 'team' && u.accessToken === token);
+  const user = (await store.readUsers()).find(u => u.role === 'team' && u.accessToken === token);
   if (!user) {
     return res.redirect('/lineup?invalid=1');
   }
@@ -640,15 +480,15 @@ app.get('/api/team-access/:token', (req, res) => {
     req.session.teams    = user.teams || (user.teamName ? [user.teamName] : []);
     res.redirect('/lineup');
   });
-});
+}));
 
 // ── Root HTML — inject dynamic title + Open Graph tags ───────────────
 // Social platforms scrape raw HTML and don't run JS, so <title> and og:title
 // must be present in the server response rather than set by client-side JS.
-app.get(['/', '/index.html'], (req, res) => {
+app.get(['/', '/index.html'], ah(async (req, res) => {
   try {
     if (!_indexHtmlCache) {
-      _indexHtmlCache = buildIndexHtml();
+      _indexHtmlCache = await buildIndexHtml();
     }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.send(_indexHtmlCache);
@@ -656,21 +496,21 @@ app.get(['/', '/index.html'], (req, res) => {
     console.error('Error serving index:', err);
     res.status(500).send('Server error');
   }
-});
+}));
 
 app.get(['/lineup', '/lineup.html'], (req, res) => {
   try {
-    res.sendFile('/frontend/lineup.html');
+    res.sendFile(FRONTEND_DIR + '/lineup.html');
   } catch (err) {
     res.status(500).send('Server error');
   }
 });
 
 // ── Public GET routes ─────────────────────────────────────────────────
-app.get('/api/results', (req, res) => {
+app.get('/api/results', ah(async (req, res) => {
   // Ensure data (and its etag) are in the cache.
-  const data = readJSON(RESULTS_FILE);
-  const etag = etagForFile(RESULTS_FILE);
+  const data = await store.get(TID(), 'results');
+  const etag = store.etag(TID(), 'results');
   res.setHeader('Cache-Control', 'no-cache');
   if (etag) {
     res.setHeader('ETag', etag);
@@ -679,97 +519,97 @@ app.get('/api/results', (req, res) => {
     }
   }
   res.json(data);
-});
+}));
 
-app.get('/api/schedule', (req, res) => {
+app.get('/api/schedule', ah(async (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=60');
-  res.json(readJSON(SCHEDULE_FILE));
-});
+  res.json(await store.get(TID(), 'schedule'));
+}));
 
-app.get('/api/offsets', (req, res) => {
+app.get('/api/offsets', ah(async (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=15');
-  const data = readJSON(OFFSETS_FILE) || {};
+  const data = await store.get(TID(), 'offsets') || {};
   res.json({ entries: Array.isArray(data.entries) ? data.entries : [] });
-});
+}));
 
-app.get('/api/settings', (req, res) => {
+app.get('/api/settings', ah(async (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=300');
-  res.json(Object.assign({}, SETTINGS_DEFAULTS, readJSON(SETTINGS_FILE)));
-});
+  res.json(Object.assign({}, SETTINGS_DEFAULTS, await store.get(TID(), 'settings')));
+}));
 
 // ── Protected mutation routes ─────────────────────────────────────────
-app.post('/api/results', requireResults, (req, res) => {
+app.post('/api/results', requireResults, ah(async (req, res) => {
   const err = validateResult(req.body);
   if (err) return res.status(400).json({ error: err });
   const { game, winner, loser, t1score, t2score } = req.body;
-  const data = readJSON(RESULTS_FILE);
+  const data = await store.get(TID(), 'results');
   const entry = { winner: winner.trim(), loser: loser.trim(), savedAt: new Date().toISOString() };
   if (t1score !== undefined && t1score !== null && t1score !== '') entry.t1score = parseInt(t1score, 10);
   if (t2score !== undefined && t2score !== null && t2score !== '') entry.t2score = parseInt(t2score, 10);
   data[game] = entry;
-  writeJSON(RESULTS_FILE, data);
+  await store.put(TID(), 'results', data);
   // Clear live state for this game now that a final result exists
-  const liveData = readJSON(LIVE_FILE);
-  if (liveData[game]) { delete liveData[game]; writeJSON(LIVE_FILE, liveData); }
+  const liveData = await store.get(TID(), 'live');
+  if (liveData[game]) { delete liveData[game]; await store.put(TID(), 'live', liveData); }
   res.json({ ok: true });
-});
+}));
 
 // Express decodes the param automatically; slot IDs contain only [A-Z0-9.]
 // so no additional URI decoding is needed.
-app.delete('/api/results/:slot', requireResults, (req, res) => {
+app.delete('/api/results/:slot', requireResults, ah(async (req, res) => {
   const game = req.params.slot;
   if (!isValidSlotId(game)) {
     return res.status(400).json({ error: 'invalid slot ID' });
   }
-  const data = readJSON(RESULTS_FILE);
+  const data = await store.get(TID(), 'results');
   if (data[game] === undefined) {
     return res.status(404).json({ error: 'game not found' });
   }
   data[game] = { winner: null, loser: null };
-  writeJSON(RESULTS_FILE, data);
+  await store.put(TID(), 'results', data);
   res.json({ ok: true });
-});
+}));
 
 // ── Live game scores ──────────────────────────────────────────────────
-app.get('/api/live', (req, res) => {
+app.get('/api/live', ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json(readJSON(LIVE_FILE));
-});
+  res.json(await store.get(TID(), 'live'));
+}));
 
-app.post('/api/live', requireResults, (req, res) => {
+app.post('/api/live', requireResults, ah(async (req, res) => {
   const { game, period, t1score, t2score } = req.body || {};
   if (!game || !isValidSlotId(game)) return res.status(400).json({ error: 'invalid slot ID' });
-  const data = readJSON(LIVE_FILE);
+  const data = await store.get(TID(), 'live');
   data[game] = { period: period || '', t1score: t1score ?? '', t2score: t2score ?? '' };
-  writeJSON(LIVE_FILE, data);
+  await store.put(TID(), 'live', data);
   res.json({ ok: true });
-});
+}));
 
-app.delete('/api/live/:slot', requireResults, (req, res) => {
+app.delete('/api/live/:slot', requireResults, ah(async (req, res) => {
   const game = req.params.slot;
   if (!isValidSlotId(game)) return res.status(400).json({ error: 'invalid slot ID' });
-  const data = readJSON(LIVE_FILE);
+  const data = await store.get(TID(), 'live');
   delete data[game];
-  writeJSON(LIVE_FILE, data);
+  await store.put(TID(), 'live', data);
   res.json({ ok: true });
-});
+}));
 
-app.post('/api/offsets', requireAdmin, (req, res) => {
+app.post('/api/offsets', requireAdmin, ah(async (req, res) => {
   const { entries, banner } = req.body || {};
   if (!Array.isArray(entries)) return res.status(400).json({ error: 'entries must be an array' });
   for (const e of entries) {
     if (typeof e.minutes !== 'number') return res.status(400).json({ error: 'each entry needs a numeric minutes field' });
   }
-  writeJSON(OFFSETS_FILE, { entries, banner: typeof banner === 'string' ? banner.slice(0, 300) : '' });
+  await store.put(TID(), 'offsets', { entries, banner: typeof banner === 'string' ? banner.slice(0, 300) : '' });
   res.json({ ok: true });
-});
+}));
 
-app.get('/api/field-colors', (req, res) => {
+app.get('/api/field-colors', ah(async (req, res) => {
   res.set('Cache-Control', 'public, max-age=60');
-  res.json(readJSON(FIELD_COLORS_FILE) || {});
-});
+  res.json(await store.get(TID(), 'field_colors') || {});
+}));
 
-app.post('/api/field-colors', requireAdmin, (req, res) => {
+app.post('/api/field-colors', requireAdmin, ah(async (req, res) => {
   const incoming = req.body || {};
   const clean = {};
   Object.entries(incoming).forEach(([field, color]) => {
@@ -777,48 +617,48 @@ app.post('/api/field-colors', requireAdmin, (req, res) => {
       clean[field.slice(0, 100)] = color;
     }
   });
-  writeJSON(FIELD_COLORS_FILE, clean);
+  await store.put(TID(), 'field_colors', clean);
   res.json({ ok: true });
-});
+}));
 
 const THEME_COLOR_KEYS = ['accent', 'interactive', 'winColor', 'loseColor'];
 
-app.get('/api/theme-colors', (req, res) => {
+app.get('/api/theme-colors', ah(async (req, res) => {
   res.set('Cache-Control', 'public, max-age=60');
-  res.json(readJSON(THEME_COLORS_FILE) || {});
-});
+  res.json(await store.get(TID(), 'theme_colors') || {});
+}));
 
-app.post('/api/theme-colors', requireAdmin, (req, res) => {
+app.post('/api/theme-colors', requireAdmin, ah(async (req, res) => {
   const incoming = req.body || {};
   const clean = {};
   THEME_COLOR_KEYS.forEach(key => {
     const val = incoming[key];
     if (typeof val === 'string' && /^#[0-9a-f]{6}$/i.test(val)) clean[key] = val;
   });
-  writeJSON(THEME_COLORS_FILE, clean);
+  await store.put(TID(), 'theme_colors', clean);
   res.json({ ok: true });
-});
+}));
 
-app.post('/api/schedule', requireAdmin, (req, res) => {
+app.post('/api/schedule', requireAdmin, ah(async (req, res) => {
   const err = validateSchedule(req.body);
   if (err) return res.status(400).json({ error: err });
-  writeJSON(SCHEDULE_FILE, req.body);
+  await store.put(TID(), 'schedule', req.body);
   res.json({ ok: true });
-});
+}));
 
-app.post('/api/schedule/swap', requireAdmin, (req, res) => {
+app.post('/api/schedule/swap', requireAdmin, ah(async (req, res) => {
   const { slotA, slotB } = req.body || {};
   if (!isValidSlotId(slotA) || !isValidSlotId(slotB))
     return res.status(400).json({ error: 'invalid slot ID' });
   if (slotA === slotB)
     return res.status(400).json({ error: 'slots must differ' });
-  const sched = readJSON(SCHEDULE_FILE);
+  const sched = await store.get(TID(), 'schedule');
   const tmp = sched[slotA];
   if (sched[slotB] !== undefined) sched[slotA] = sched[slotB]; else delete sched[slotA];
   if (tmp !== undefined) sched[slotB] = tmp; else delete sched[slotB];
-  writeJSON(SCHEDULE_FILE, sched);
+  await store.put(TID(), 'schedule', sched);
   res.json({ ok: true });
-});
+}));
 
 // ── Bracket Builder ───────────────────────────────────────────────────
 // List the available tournament formats so the builder UI can render choices.
@@ -839,7 +679,7 @@ app.get('/api/schedule/formats', requireAdmin, (req, res) => {
 
 // Generate a full bracket schedule from a format + teams and REPLACE the
 // current schedule. Destructive — the UI confirms before calling this.
-app.post('/api/schedule/generate', requireAdmin, (req, res) => {
+app.post('/api/schedule/generate', requireAdmin, ah(async (req, res) => {
   const { format, startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, showSeeds, gamePrefix } = req.body || {};
   let schedule, seededTeams;
   try {
@@ -851,24 +691,24 @@ app.post('/api/schedule/generate', requireAdmin, (req, res) => {
   // run it through the same validator the manual editor uses before saving.
   const verr = validateSchedule(schedule);
   if (verr) return res.status(500).json({ error: 'Generated schedule failed validation: ' + verr });
-  writeJSON(SCHEDULE_FILE, schedule);
+  await store.put(TID(), 'schedule', schedule);
 
   // Double elimination has a true winners/losers split, so default the side
   // labels to match. (Single-elim leaves the existing labels alone — its two
   // sides are just bracket halves.)
   const fmt = FORMATS[format];
   if (fmt && fmt.doubleElim) {
-    const settings = readJSON(SETTINGS_FILE);
+    const settings = await store.get(TID(), 'settings');
     settings.leftLabel = 'Winners Bracket';
     settings.rightLabel = 'Losers Bracket';
-    writeJSON(SETTINGS_FILE, settings);
+    await store.put(TID(), 'settings', settings);
     invalidateIndexCache();
   }
 
   // If the TD opted into seeded display, record the seeded team order.
   if (showSeeds && seededTeams && seededTeams.length) {
-    const existing = readJSON(TEAMS_FILE);
-    writeJSON(TEAMS_FILE, {
+    const existing = await store.get(TID(), 'teams');
+    await store.put(TID(), 'teams', {
       ...existing,
       showSeeds: true,
       teams: seededTeams.map(name => ({ name })),
@@ -876,26 +716,26 @@ app.post('/api/schedule/generate', requireAdmin, (req, res) => {
   }
 
   res.json({ ok: true, games: Object.keys(schedule).length });
-});
+}));
 
-app.post('/api/settings', requireAdmin, (req, res) => {
+app.post('/api/settings', requireAdmin, ah(async (req, res) => {
   const incoming = req.body || {};
   const clean = {};
   Object.keys(SETTINGS_DEFAULTS).forEach(k => {
     if (incoming[k] !== undefined) clean[k] = String(incoming[k]).slice(0, 500);
   });
-  writeJSON(SETTINGS_FILE, clean);
+  await store.put(TID(), 'settings', clean);
   invalidateIndexCache();
   res.json({ ok: true });
-});
+}));
 
 // ── Teams / seeding endpoints ────────────────────────────────────────
-// teams.json holds { showSeeds: bool, teams: [{ name }] }.
-// When the file doesn't exist yet the list is auto-derived from the schedule's
+// The teams domain holds { showSeeds: bool, teams: [{ name }] }.
+// When nothing is saved yet the list is auto-derived from the schedule's
 // fixed team names so the Teams tab is always populated.
 
-function teamsFromSchedule() {
-  const sched = readJSON(SCHEDULE_FILE);
+async function teamsFromSchedule() {
+  const sched = await store.get(TID(), 'schedule');
   const seen = new Set();
   const out = [];
   const add = name => {
@@ -910,15 +750,15 @@ function teamsFromSchedule() {
 
 // Merge the saved team list with the teams currently in the schedule. The
 // schedule is the source of truth for WHICH teams exist (so brackets built or
-// edited via the schedule editor are always reflected); teams.json supplies the
-// ORDER (seeds) and the showSeeds flag. Saved teams still present keep their
-// order; new schedule teams are appended; teams no longer in the schedule drop.
-// When the schedule has no fixed team names yet, fall back to the saved list so
-// a manually-curated roster isn't wiped.
-app.get('/api/teams', (req, res) => {
-  const data = readJSON(TEAMS_FILE);
+// edited via the schedule editor are always reflected); the saved teams list
+// supplies the ORDER (seeds) and the showSeeds flag. Saved teams still present
+// keep their order; new schedule teams are appended; teams no longer in the
+// schedule drop. When the schedule has no fixed team names yet, fall back to
+// the saved list so a manually-curated roster isn't wiped.
+app.get('/api/teams', ah(async (req, res) => {
+  const data = await store.get(TID(), 'teams');
   const saved = Array.isArray(data.teams) ? data.teams : [];
-  const fromSched = teamsFromSchedule();
+  const fromSched = await teamsFromSchedule();
 
   let teams;
   if (fromSched.length) {
@@ -940,9 +780,9 @@ app.get('/api/teams', (req, res) => {
   }
 
   res.json({ showSeeds: !!data.showSeeds, teams });
-});
+}));
 
-app.post('/api/teams', requireAdmin, (req, res) => {
+app.post('/api/teams', requireAdmin, ah(async (req, res) => {
   const { showSeeds, teams } = req.body || {};
   if (!Array.isArray(teams)) return res.status(400).json({ error: 'teams must be an array' });
   if (teams.length > 200) return res.status(400).json({ error: 'too many teams (max 200)' });
@@ -952,48 +792,48 @@ app.post('/api/teams', requireAdmin, (req, res) => {
     if (!name) return res.status(400).json({ error: 'team name cannot be blank' });
     clean.push({ name });
   }
-  const prev = readJSON(TEAMS_FILE);
-  writeJSON(TEAMS_FILE, { ...prev, showSeeds: !!showSeeds, teams: clean });
+  const prev = await store.get(TID(), 'teams');
+  await store.put(TID(), 'teams', { ...prev, showSeeds: !!showSeeds, teams: clean });
   res.json({ ok: true });
-});
+}));
 
 // ── Lineup endpoints ──────────────────────────────────────────────────
 
 // All lineups for a team across all games (used by coach page for selector)
-app.get('/api/lineups/by-team/:teamName', requireLineupAccess, (req, res) => {
+app.get('/api/lineups/by-team/:teamName', requireLineupAccess, ah(async (req, res) => {
   const { teamName } = req.params;
-  const lineups = readJSON(LINEUPS_FILE);
+  const lineups = await store.get(TID(), 'lineups');
   const out = {};
   Object.entries(lineups).forEach(([slotId, byTeam]) => {
     if (byTeam && byTeam[teamName]) out[slotId] = byTeam[teamName];
   });
   res.json(out);
-});
+}));
 
 // All lineups for a game slot (admin/results only)
-app.get('/api/lineups/game/:slotId', requireResults, (req, res) => {
+app.get('/api/lineups/game/:slotId', requireResults, ah(async (req, res) => {
   const { slotId } = req.params;
   if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
-  const lineups = readJSON(LINEUPS_FILE);
+  const lineups = await store.get(TID(), 'lineups');
   res.json(lineups[slotId] || {});
-});
+}));
 
 // Lineup for a specific team in a specific game — team users can view any team (read-only from their POV)
-app.get('/api/lineups/game/:slotId/:teamName', requireLineupRead, (req, res) => {
+app.get('/api/lineups/game/:slotId/:teamName', requireLineupRead, ah(async (req, res) => {
   const { slotId, teamName } = req.params;
   if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
-  const lineups = readJSON(LINEUPS_FILE);
+  const lineups = await store.get(TID(), 'lineups');
   res.json((lineups[slotId] || {})[teamName] || { rows: [] });
-});
+}));
 
 // Save lineup for a team in a specific game
 // Team-role users are locked out once the game has a result; admins can always edit.
-app.post('/api/lineups/game/:slotId/:teamName', requireLineupAccess, (req, res) => {
+app.post('/api/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, res) => {
   const { slotId, teamName } = req.params;
   if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
   if (teamName.length > 100) return res.status(400).json({ error: 'teamName too long' });
   if (req.session.role === 'team') {
-    const results = readJSON(RESULTS_FILE);
+    const results = await store.get(TID(), 'results');
     if (results[slotId] && results[slotId].winner) {
       return res.status(403).json({ error: 'Game is complete — lineup is locked' });
     }
@@ -1006,18 +846,18 @@ app.post('/api/lineups/game/:slotId/:teamName', requireLineupAccess, (req, res) 
     name:     String(r.name     || '').slice(0, 64),
     position: String(r.position || '').slice(0, 8),
   }));
-  const lineups = readJSON(LINEUPS_FILE);
+  const lineups = await store.get(TID(), 'lineups');
   if (!lineups[slotId]) lineups[slotId] = {};
   lineups[slotId][teamName] = { rows: clean, updatedAt: new Date().toISOString() };
-  writeJSON(LINEUPS_FILE, lineups);
+  await store.put(TID(), 'lineups', lineups);
   res.json({ ok: true });
-});
+}));
 
 // ── Bucket challenge endpoints ────────────────────────────────────────
 
-app.get('/api/buckets', (req, res) => {
-  const data = readJSON(BUCKETS_FILE);
-  const etag = etagForFile(BUCKETS_FILE);
+app.get('/api/buckets', ah(async (req, res) => {
+  const data = await store.get(TID(), 'buckets');
+  const etag = store.etag(TID(), 'buckets');
   res.setHeader('Cache-Control', 'no-cache');
   if (etag) {
     res.setHeader('ETag', etag);
@@ -1026,9 +866,9 @@ app.get('/api/buckets', (req, res) => {
     }
   }
   res.json(data);
-});
+}));
 
-app.post('/api/buckets/counts', requireBucketsEdit, (req, res) => {
+app.post('/api/buckets/counts', requireBucketsEdit, ah(async (req, res) => {
   const { counts, order, hidden } = req.body || {};
   if (!counts || typeof counts !== 'object' || Array.isArray(counts)) {
     return res.status(400).json({ error: 'counts must be an object' });
@@ -1040,35 +880,35 @@ app.post('/api/buckets/counts', requireBucketsEdit, (req, res) => {
       clean[k.trim()] = isNaN(n) ? 0 : Math.min(9999, Math.max(0, n));
     }
   });
-  const data = readJSON(BUCKETS_FILE);
+  const data = await store.get(TID(), 'buckets');
   data.counts = clean;
   if (Array.isArray(order))  data.order  = order.map(String).filter(s => s.trim());
   if (Array.isArray(hidden)) data.hidden = hidden.map(String).filter(s => s.trim());
   data.updatedAt = new Date().toISOString();
-  writeJSON(BUCKETS_FILE, data);
+  await store.put(TID(), 'buckets', data);
   res.json({ ok: true });
-});
+}));
 
-app.post('/api/buckets/teams', requireAdmin, (req, res) => {
+app.post('/api/buckets/teams', requireAdmin, ah(async (req, res) => {
   const { teamName } = req.body || {};
   if (!teamName || typeof teamName !== 'string' || !teamName.trim()) {
     return res.status(400).json({ error: 'teamName is required' });
   }
   const name = teamName.trim().slice(0, 64);
-  const data = readJSON(BUCKETS_FILE);
+  const data = await store.get(TID(), 'buckets');
   if (!Array.isArray(data.bucketOnlyTeams)) data.bucketOnlyTeams = [];
   if (data.bucketOnlyTeams.includes(name)) {
     return res.status(409).json({ error: 'Team already exists' });
   }
   data.bucketOnlyTeams.push(name);
   data.updatedAt = new Date().toISOString();
-  writeJSON(BUCKETS_FILE, data);
+  await store.put(TID(), 'buckets', data);
   res.json({ ok: true });
-});
+}));
 
-app.delete('/api/buckets/teams/:teamName', requireAdmin, (req, res) => {
+app.delete('/api/buckets/teams/:teamName', requireAdmin, ah(async (req, res) => {
   const name = req.params.teamName;
-  const data = readJSON(BUCKETS_FILE);
+  const data = await store.get(TID(), 'buckets');
   if (!Array.isArray(data.bucketOnlyTeams)) {
     return res.status(404).json({ error: 'Team not found' });
   }
@@ -1077,9 +917,9 @@ app.delete('/api/buckets/teams/:teamName', requireAdmin, (req, res) => {
   data.bucketOnlyTeams.splice(idx, 1);
   if (data.counts) delete data.counts[name];
   data.updatedAt = new Date().toISOString();
-  writeJSON(BUCKETS_FILE, data);
+  await store.put(TID(), 'buckets', data);
   res.json({ ok: true });
-});
+}));
 
 // Generic error handler — catches any unhandled throw in a route
 app.use((err, req, res, _next) => {
@@ -1087,26 +927,39 @@ app.use((err, req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Keep the server alive if an async route handler rejects (e.g. readJSON
-// throwing on a corrupt data file). The offending request fails to respond,
-// but the process — and everyone else's live session — stays up.
+// Keep the server alive if an async task outside a request rejects. Route
+// handler rejections are routed to the error middleware by ah().
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled promise rejection:', reason && reason.stack ? reason.stack : reason);
 });
 
 // ── Demo mode (opt-in) ────────────────────────────────────────────────
-// When DEMO_MODE=true, restore /data from a read-only seed snapshot at
+// When DEMO_MODE=true, restore the database from a read-only seed snapshot at
 // startup and on a fixed interval, so a public sandbox can't drift — anything
 // a visitor changes is wiped back to the seed within DEMO_RESET_MINUTES.
 // Entirely gated behind env vars; production never sets DEMO_MODE so this is a
-// no-op there. The restore is synchronous (file copy + cache clear in a single
-// tick, no await), so it cannot interleave with a request's read-modify-write.
-// sessions.json is deliberately NOT seeded, so a reset doesn't log visitors out.
+// no-op there. Each domain is restored write-whole in its own transaction, the
+// same atomicity every admin edit gets. Sessions are deliberately NOT seeded,
+// so a reset doesn't log visitors out.
 const DEMO_MODE          = process.env.DEMO_MODE === 'true';
 const DEMO_SEED_DIR      = process.env.DEMO_SEED_DIR || '/seed';
 const DEMO_RESET_MINUTES = parseInt(process.env.DEMO_RESET_MINUTES, 10) || 30;
 
-function restoreDemoSeed() {
+// Seed file → store domain (users.json is handled separately).
+const SEED_DOMAINS = {
+  'settings.json':     'settings',
+  'offsets.json':      'offsets',
+  'field-colors.json': 'field_colors',
+  'theme-colors.json': 'theme_colors',
+  'buckets.json':      'buckets',
+  'teams.json':        'teams',
+  'schedule.json':     'schedule',
+  'results.json':      'results',
+  'live.json':         'live',
+  'lineups.json':      'lineups',
+};
+
+async function restoreDemoSeed() {
   let files;
   try {
     files = fs.readdirSync(DEMO_SEED_DIR).filter(f => f.endsWith('.json'));
@@ -1114,22 +967,44 @@ function restoreDemoSeed() {
     console.error('Demo seed dir unreadable (' + DEMO_SEED_DIR + '): ' + e.message);
     return;
   }
+  let restored = 0;
   for (const f of files) {
+    let data;
     try {
-      fs.copyFileSync(DEMO_SEED_DIR + '/' + f, '/data/' + f);
+      data = JSON.parse(fs.readFileSync(DEMO_SEED_DIR + '/' + f, 'utf8'));
+    } catch (e) {
+      console.error('Demo seed unreadable for ' + f + ': ' + e.message);
+      continue;
+    }
+    try {
+      if (f === 'users.json') {
+        await store.writeUsers(Array.isArray(data.users) ? data.users : []);
+      } else if (SEED_DOMAINS[f]) {
+        await store.put(TID(), SEED_DOMAINS[f], data);
+      } else {
+        continue;   // unknown seed file (e.g. sessions.json) — skip
+      }
+      restored++;
     } catch (e) {
       console.error('Demo restore failed for ' + f + ': ' + e.message);
     }
   }
-  jsonCache.clear();        // drop in-memory copies so reads reload from disk
   invalidateIndexCache();   // seeded settings may have changed the index HTML
-  console.log('Demo data restored from seed (' + files.length + ' files)');
+  console.log('Demo data restored from seed (' + restored + ' files)');
 }
 
-if (DEMO_MODE) {
-  restoreDemoSeed();        // pristine state on boot
-  setInterval(restoreDemoSeed, DEMO_RESET_MINUTES * 60 * 1000).unref();
-  console.log('DEMO_MODE on — resetting every ' + DEMO_RESET_MINUTES + ' min from ' + DEMO_SEED_DIR);
-}
-
-app.listen(3000, () => console.log('API listening on :3000'));
+// ── Startup ───────────────────────────────────────────────────────────
+(async () => {
+  await store.init();       // connect + migrate + one-time legacy import
+  await ensureUsers();      // bootstrap admin from env on an empty users table
+  if (DEMO_MODE) {
+    await restoreDemoSeed();  // pristine state on boot
+    setInterval(() => restoreDemoSeed().catch(e => console.error('Demo restore error:', e)),
+                DEMO_RESET_MINUTES * 60 * 1000).unref();
+    console.log('DEMO_MODE on — resetting every ' + DEMO_RESET_MINUTES + ' min from ' + DEMO_SEED_DIR);
+  }
+  app.listen(3000, () => console.log('API listening on :3000'));
+})().catch(err => {
+  console.error('Fatal startup error:', err);
+  process.exit(1);
+});

@@ -19,13 +19,39 @@ services:
     # PUID/PGID in your shell or .env, e.g. `PUID=1001 PGID=1001`.
     user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
-      - ./files:/data
+      # /data is only read now (one-time legacy JSON import on first boot
+      # against an empty database); persistence lives in Postgres.
+      - ./files:/data:ro
       - ./frontend:/frontend:ro
     restart: unless-stopped
     expose:
       - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgres://tournatrak:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/tournatrak"
     # ── Environment ────────────────────────────────────────────────────────
     # Copy the example file and fill in real values before first run:
     #   mv .env.example .env
     # Then edit .env with your SESSION_SECRET, password hash, etc.
     env_file: ./.env
+
+  postgres:
+    image: postgres:16-alpine
+    # No ports/expose to the host — reachable only on the compose network.
+    environment:
+      POSTGRES_USER: tournatrak
+      POSTGRES_DB: tournatrak
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tournatrak -d tournatrak"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:

@@ -12,9 +12,10 @@ independent 16-team sides (L/R) feeding one championship game, winners-only
 advancement. The Bracket Builder additionally generates true single-elim
 (4–64 teams, byes) and double-elim (4/8/16/32) schedules; topology is defined
 per game in schedule.json, not hardcoded.
-Plain JS frontend (no framework, no build step), Node/Express API, JSON-file
-storage. PWA with a service worker. Role-based auth (bcrypt, rate-limited login):
-roles are `admin`, `results`, `team` (coach), `buckets`.
+Plain JS frontend (no framework, no build step), Node/Express API. Storage is
+**PostgreSQL as of the buildout branch** (v2 on `main` still uses JSON files);
+see "Persistence (v3)". PWA with a service worker. Role-based auth (bcrypt,
+rate-limited login): roles are `admin`, `results`, `team` (coach), `buckets`.
 
 ## START OF SESSION PROMPT (always do this first)
 At the start of every new session (or when told to "get up to speed"), ask:
@@ -42,8 +43,12 @@ open PRs unless asked.
   - `base.css` — CSS variables (design tokens), reset, shared header/body/toast
   - `bracket-data.js` — bracket model + helpers; `GAMES` is built from `schedule.json` via `applySchedule()`
   - `sw.js` — service worker (network-first); bump `CACHE` version on any precached asset change
-- `api/server.js` — Express server, REST endpoints, JSON persistence in `/data`
-- `files/` — runtime data. ALL of files/* is gitignored (allowlist);
+- `api/server.js` — Express server, REST endpoints (persistence via store.js)
+- `api/store.js` — Postgres facade (see "Persistence (v3)")
+- `api/migrate.js` — idempotent schema apply + one-time legacy JSON import
+- `api/schema.sql` — v3 schema (all CREATE IF NOT EXISTS)
+- `files/` — legacy v2 runtime data, now only the one-time import source
+  (mounted read-only at /data). ALL of files/* is gitignored (allowlist);
   only `schedule.example.json` is tracked, documenting the format.
 
 ## Design tokens (base.css)
@@ -135,11 +140,11 @@ Admin Results tab → Delays panel (also reachable via "→ Delays" button in th
   and POSTs, so the TD doesn't have to scroll to Save All.
 
 ## Auth / sessions
-- `express-session` with a **`FileSessionStore`** (custom, in `server.js`) writing to
-  `/data/sessions.json`. Survives `docker compose restart`. Cookie `maxAge` = 30 days,
-  `rolling: true` (refreshed on each request). Prunes expired sessions every 60 s.
-- No new npm packages; uses built-in `fs` + `util.inherits`. The `Store` base class
-  comes from `express-session`.
+- `express-session` with **`PgSessionStore`** (in `store.js`) backed by the
+  `sessions` table. Survives restarts; implements `touch()` so `rolling: true`
+  only rewrites the expiry, not the payload. Prunes expired rows every 60 s.
+  Cookie `maxAge` = 30 days. (Replaced the v2 FileSessionStore; active
+  sessions are carried over by the one-time migration import.)
 - Login: POST `/api/login` → bcrypt verify → `req.session.regenerate()`.
 - `/api/session` GET: returns `{ authenticated, username, role, teamName, teams, mustChangePassword }`.
 - Rate limiter is still **in-memory** (resets on restart) — see security items below.
@@ -202,7 +207,7 @@ fields use `class="styled"` (the `admin-winner-sel` inline-style inconsistency i
 - Theme toggle: admin.js claims it via `window.__ttThemeManaged = true`.
 - Mobile inputs: `inputmode="numeric" pattern="[0-9]*"` + `onfocus="this.select()"`.
 - `.admin-res-footer button` uses fixed `height` for even boxes.
-- **Bump `sw.js` `CACHE` whenever a precached asset changes.** Currently `tournatrak-v2.27`.
+- **Bump `sw.js` `CACHE` whenever a precached asset changes.** Currently `tournatrak-v2.58`.
   Precached: `/`, `index.html`, `fonts.css`, `base.css`, `bracket.css`, `bracket-data.js`,
   `bracket.js`, `/lineup`, `lineup.html`, `lineup.css`, `lineup.js`.
   `admin.*` / `admin-sw.js` are NOT in `sw.js` precache (they have their own `admin-sw.js`).
@@ -210,19 +215,51 @@ fields use `class="styled"` (the `admin-winner-sel` inline-style inconsistency i
   long-press delay) and `user-select: none` (prevents text selection during drag).
   `.bucket-admin-row` also has `user-select: none`.
 
-## Data files (all in `/data/`)
-| File | Default | Notes |
-|------|---------|-------|
-| `results.json` | `{}` | Game results keyed by slot ID |
-| `schedule.json` | `{}` | Game schedule keyed by slot ID |
-| `settings.json` | see SETTINGS_DEFAULTS | Tournament config |
-| `users.json` | bootstrapped from env | Auth users |
-| `lineups.json` | `{}` | Team lineups |
-| `buckets.json` | `{ counts:{}, bucketOnlyTeams:[] }` | Bucket challenge |
-| `live.json` | `{}` | In-progress live scores |
-| `offsets.json` | `{ entries:[], banner:"" }` | Time delay offsets |
-| `field-colors.json` | `{}` | Per-field hex color overrides |
-| `sessions.json` | `{}` | Persistent session store |
+## Persistence (v3 — Postgres via `api/store.js`)
+`store.js` is the ONLY persistence layer. It preserves the v2
+read-whole/write-whole semantics: `await store.get(tid, domain)` returns the
+full domain object shaped **exactly like the old /data JSON file**, and
+`await store.put(tid, domain, data)` replaces it (write-whole, one
+transaction). Route logic is unchanged from v2 apart from `await` + the
+tournament id (`store.tid`, the single default tournament until /t/:slug).
+Every async route is wrapped in `ah()` (server.js) — Express 4 doesn't route
+async rejections to the error middleware; **never add a bare async handler**.
+
+| Domain | Backing | v2 file it mirrors | Default |
+|--------|---------|--------------------|---------|
+| `results` | rows in `results` | results.json | `{}` |
+| `schedule` | rows in `schedule` (entry JSONB) | schedule.json | `{}` |
+| `live` | rows in `live` | live.json | `{}` |
+| `lineups` | rows in `lineups` | lineups.json | `{}` |
+| `settings` | `config` JSONB row | settings.json | `{}` |
+| `offsets` | `config` JSONB row | offsets.json | `{ entries:[], banner:"" }` |
+| `field_colors` | `config` JSONB row | field-colors.json | `{}` |
+| `theme_colors` | `config` JSONB row | theme-colors.json | `{}` |
+| `buckets` | `config` JSONB row | buckets.json | `{ counts:{}, bucketOnlyTeams:[] }` |
+| `teams` | `config` JSONB row | teams.json | `{}` |
+
+- Users: `store.readUsers()` / `store.writeUsers(users)` — global `users`
+  table + per-tournament `user_teams` (ord column preserves array order).
+  writeUsers replaces the whole table; revisit for multi-tournament.
+- In-memory cache per (tid, domain) keeps reads fast and carries the ETags
+  for /api/results and /api/buckets. Writes go DB-first, then cache.
+  Single-process assumption — same as v2.
+- `migrate.js` runs on every startup (schema is idempotent), creates the
+  default tournament (slug from `TOURNAMENT_SLUG`, default `main`), and — on a
+  FRESH database only (no users, no config rows) — imports all legacy /data
+  JSON files including active sessions, leaving the files untouched.
+- Env: `DATABASE_URL` (required, fatal if unset), `DATA_DIR` / `FRONTEND_DIR`
+  (default `/data` / `/frontend`; override for local dev outside Docker),
+  `TOURNAMENT_SLUG`.
+- Compose: internal-only `postgres` service (postgres:16-alpine, healthcheck,
+  named volume `pgdata`); `POSTGRES_PASSWORD` required in `.env`. The demo
+  stack has its own postgres + `demo-pgdata` with fixed public credentials.
+- Demo mode restores each seed file write-whole through the store (users via
+  writeUsers); sessions deliberately not seeded.
+- Local verification (no Docker): Postgres 16 cluster in the dev container
+  (`sudo pg_ctlcluster 16 main start`; role/db `tournatrak`/`tournatrak`,
+  password `tournatrak`), then run server.js with DATABASE_URL +
+  DATA_DIR/FRONTEND_DIR pointing into the repo.
 
 ## Lineup: softball-specific — needs v3 attention
 Lineup fields (`jersey`, `name`, `position`) are sport-specific. For v3 multi-sport,
@@ -256,18 +293,30 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
   #offlineNotice banner; pollLive() refreshes /api/live + /api/results every
   20s while visible; visibilitychange triggers full fetchAll catch-up.
 
-**In progress (Phase 2 — v3 Postgres port):**
-- `api/schema.sql` written (reconciled from feature/regional: tournaments
-  w/ slug, global users + user_teams, relational schedule/results/live/
-  lineups, JSONB `config` table for settings/offsets/colors/buckets/teams,
-  pg-backed sessions table). `pg` added to api/package.json.
-- Plan: async `store.js` facade preserving current read-whole/write-whole
-  route semantics (routes keep identical logic, gain `await` + tid);
-  `migrate.js` idempotent schema + one-time JSON import from /data;
-  compose gains internal-only postgres service; then /t/:slug routing.
-- Local verification: Postgres 16 available in the dev container
-  (user/db `tournatrak`); Playwright test harness in scratchpad
-  (devproxy.js + uitest*.js) drives all pages against a strict CSP.
+**Phase 2 — v3 Postgres port (storage layer DONE, routing pending):**
+- ✅ `api/schema.sql` (reconciled from feature/regional; user_teams gained an
+  `ord` column for team array order).
+- ✅ `api/store.js` — async Postgres facade, read-whole/write-whole per domain,
+  in-memory cache + ETags, PgSessionStore. See "Persistence (v3)" above.
+- ✅ `api/migrate.js` — idempotent schema apply + default tournament + one-time
+  legacy JSON import (incl. sessions) against a fresh DB.
+- ✅ `server.js` fully converted: no fs JSON persistence left; all async routes
+  wrapped in `ah()`; startup is `store.init()` → `ensureUsers()` → demo
+  restore → listen. Demo restore goes through the store.
+- ✅ compose.yml / compose.demo.yml: internal-only postgres:16-alpine services,
+  healthchecked `depends_on`, /data mounts now `:ro`; `.env.example` gained
+  POSTGRES_PASSWORD; Dockerfile copies store.js/migrate.js/schema.sql.
+- ✅ Verified locally against Postgres 16: migration + import, login/session
+  across restart, results/live/lineups/buckets/offsets/settings round-trips,
+  ETag 304s, live-cleared-on-final, team access token, setup flows,
+  index-title cache invalidation, DEMO_MODE seed restore.
+- ⬜ NEXT: `/t/:slug` multi-tournament routing (public views + admin scoping,
+  super-admin tournament management), path-based tab routing (`/bracket`,
+  `/schedule`, …) per ROADMAP v3 goals. Frontend is untouched so far — the
+  API contract is byte-identical to v2.
+- Docker not available in this dev container for compose-level testing; the
+  compose files validate (`docker compose config`) but a real
+  `docker compose up` should be smoke-tested on the owner's box.
 
 ## Security items
 - **script-src 'unsafe-inline'**: ✅ REMOVED (CSP now script-src 'self').
@@ -281,8 +330,8 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
   username enumeration by timing. Fix: precomputed real cost-12 hash.
   NOT yet fixed (security work de-scoped this session by owner).
 - **Rate limiter** in-memory (resets on restart; bounded). Accepted for now.
-- **Session persistence**: FileSessionStore → moving to Postgres sessions
-  table in Phase 2.
+- **Session persistence**: ✅ DONE — Postgres `sessions` table via
+  PgSessionStore (store.js); FileSessionStore removed.
 
 ## Cost / workflow notes
 - Use the lowest-cost model that fits the task.

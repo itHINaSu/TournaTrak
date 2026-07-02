@@ -88,6 +88,13 @@ reliability-critical; address before going fully public or starting v3.
 
 ## v3 — Multi-tournament + Postgres
 
+**Status (buildout branch, 2026-07):** the Postgres storage layer is DONE —
+`api/schema.sql` + `api/store.js` (read-whole/write-whole facade, pg-backed
+sessions) + `api/migrate.js` (idempotent schema, one-time /data JSON import),
+compose gained an internal-only postgres service. Remaining: `/t/:slug`
+multi-tournament routing, admin scoping, super-admin role, path-based tabs.
+See HANDOFF.md "Persistence (v3)" for the layer's contract.
+
 **Branch:** `feature/regional` (parked Postgres / multi-tournament prototype)
 - Branched from old `dev` **before** the entire v2 feature wave, so it lacks
   all recent `main` work.

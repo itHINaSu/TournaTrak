@@ -34,12 +34,15 @@ services:
     # PUID/PGID in your shell or .env, e.g. `PUID=1001 PGID=1001`.
     user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
-      - ./demo-files:/data          # isolated runtime data (gitignored)
+      - ./demo-files:/data:ro       # legacy JSON import source only (usually empty)
       - ./demo-seed:/seed:ro        # canonical demo state, restored on reset
       - ./frontend:/frontend:ro
     restart: unless-stopped
     expose:
       - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       COOKIE_SECURE: "false"
@@ -54,3 +57,24 @@ services:
       DEMO_MODE: "true"
       DEMO_SEED_DIR: "/seed"
       DEMO_RESET_MINUTES: "30"
+      # Demo-only database credentials — internal to this compose network.
+      DATABASE_URL: "postgres://tournatrak:tournatrak-demo@postgres:5432/tournatrak"
+
+  postgres:
+    image: postgres:16-alpine
+    # No ports/expose to the host — reachable only on the compose network.
+    environment:
+      POSTGRES_USER: tournatrak
+      POSTGRES_DB: tournatrak
+      POSTGRES_PASSWORD: "tournatrak-demo"
+    volumes:
+      - demo-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tournatrak -d tournatrak"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  demo-pgdata:
