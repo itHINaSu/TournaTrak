@@ -15,6 +15,16 @@ var calYear, calMonth;   // month currently shown in the schedule calendar (0-ba
 // Smallest power of two >= n (mirrors the server helper).
 function nextPow2(n) { var b = 1; while (b < n) b <<= 1; return b; }
 
+// Tournament scope: embedded in /admin, follow the header switcher
+// (adminApiBase from admin.js); standalone, follow the same persisted
+// choice from localStorage so both entry points act on the same tournament.
+function builderApiBase() {
+  if (typeof adminApiBase === 'function') return adminApiBase();
+  var slug = null;
+  try { slug = localStorage.getItem('ttAdminTournament'); } catch (e) {}
+  return slug ? '/api/t/' + encodeURIComponent(slug) : '/api';
+}
+
 // ── Date helpers ──────────────────────────────────────────────────────
 function pad2(n) { return String(n).padStart(2, '0'); }
 function ymd(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
@@ -49,7 +59,7 @@ async function init(skipAuth) {
 
   // Admin confirmed — load formats and reveal the builder.
   try {
-    var fr = await fetch('/api/schedule/formats', { credentials: 'same-origin' });
+    var fr = await fetch(builderApiBase() + '/schedule/formats', { credentials: 'same-origin' });
     FORMATS = fr.ok ? await fr.json() : [];
   } catch (e) { FORMATS = []; }
 
@@ -615,7 +625,7 @@ async function doGenerate() {
     if (mode === 'order' || mode === 'manual') body.showSeeds = $('showSeedsChk').checked;
     var prefixEl = $('gamePrefixInput');
     if (prefixEl && prefixEl.value.trim()) body.gamePrefix = prefixEl.value.trim();
-    var r = await fetch('/api/schedule/generate', {
+    var r = await fetch(builderApiBase() + '/schedule/generate', {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },

@@ -87,7 +87,8 @@
     <div id="adminSiteSubtitle" class="site-subtitle" style="visibility:hidden">&#8203;</div>
   </div>
   <div class="header-controls">
-    <a href="/" class="admin-public-btn">← Bracket</a>
+    <select class="styled admin-tournament-switcher" id="tournamentSwitcher" data-action-change="switchTournament" style="display:none" title="Active tournament"></select>
+    <a href="/" class="admin-public-btn" id="viewPublicLink">← Bracket</a>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
   </div>
 </header>
@@ -372,6 +373,7 @@
         <div class="settings-nav-item" data-section="account" data-action="showSettingsSection" data-arg="account">Account</div>
         <div class="settings-nav-item" data-section="users" data-action="showSettingsSection" data-arg="users">Users</div>
         <div class="settings-nav-item" data-section="coaches" data-action="showSettingsSection" data-arg="coaches">Coaches</div>
+        <div class="settings-nav-item" data-section="tournaments" data-action="showSettingsSection" data-arg="tournaments" id="navTournaments" style="display:none">Tournaments</div>
       </nav>
 
       <div class="settings-content">
@@ -637,6 +639,33 @@
             <div class="settings-save-row">
               <button class="sched-save-btn" data-action="addCoach">Add Coach</button>
               <span class="sched-status" id="addCoachStatus"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── Tournaments panel (superadmin only) ── -->
+        <div class="settings-panel" id="sp-tournaments">
+          <div class="admin-subtitle">Create and manage tournaments. Each has its own bracket, schedule, results, settings, and users. Public tournaments appear at <code>/t/&lt;slug&gt;</code>.</div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Tournaments</div>
+            <div id="tournamentsList" class="users-list"></div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr">Create Tournament</div>
+            <div class="settings-field">
+              <label>Name</label>
+              <input type="text" id="newTournamentName" autocomplete="off" placeholder="e.g. Spring Classic 2026">
+            </div>
+            <div class="settings-field">
+              <label>Slug <span class="field-label-hint">(URL: /t/&lt;slug&gt; — lowercase letters, digits, hyphens)</span></label>
+              <input type="text" id="newTournamentSlug" autocomplete="off" placeholder="e.g. spring-classic-2026">
+            </div>
+            <div class="settings-field settings-field--check">
+              <label><input type="checkbox" id="newTournamentPublic" checked> Public <span class="field-label-hint">(listed and reachable without login)</span></label>
+            </div>
+            <div class="settings-save-row">
+              <button class="sched-save-btn" data-action="createTournament">Create</button>
+              <span class="sched-status" id="createTournamentStatus"></span>
             </div>
           </div>
         </div>

@@ -8,6 +8,34 @@ var currentRole = null;
 var currentTeamName = null;
 var _bucketTeams = [];
 
+// ── Multi-tournament scoping ───────────────────────────────────────────
+// The admin acts on ONE tournament at a time, chosen in the header switcher
+// and remembered per-device. All data/user fetches go through the scoped
+// mount (/api/t/:slug); auth (login/logout/session) stays on the global /api.
+// null slug = the default tournament (legacy /api mount).
+var _adminTournaments = [];   // [{ slug, name, role }] from /api/session
+var _isSuperadmin = false;
+function getAdminSlug() {
+  try { return localStorage.getItem('ttAdminTournament') || null; } catch (e) { return null; }
+}
+function setAdminSlug(slug) {
+  try { if (slug) localStorage.setItem('ttAdminTournament', slug); else localStorage.removeItem('ttAdminTournament'); } catch (e) {}
+}
+// Base for tournament-scoped API calls. Falls back to the default mount when
+// no slug is selected or the selected slug isn't among the user's grants.
+function adminApiBase() {
+  var slug = getAdminSlug();
+  if (slug && _adminTournaments.some(function(t) { return t.slug === slug; })) {
+    return '/api/t/' + encodeURIComponent(slug);
+  }
+  return '/api';
+}
+// Rewrite a leading '/api' to the scoped base. Auth endpoints are global and
+// must NOT be rewritten — callers use fetch() directly for those.
+function scopedUrl(url) {
+  return url.indexOf('/api') === 0 ? adminApiBase() + url.slice(4) : url;
+}
+
 var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
 
 // SETTINGS_DEFAULTS comes from settings-defaults.js; getSetting from tt-common.js
@@ -79,6 +107,7 @@ function showSettingsSection(section) {
   closeSettingsSidebar();
   if (section === 'coaches') loadCoaches();
   if (section === 'users')   loadUsers();
+  if (section === 'tournaments') loadTournaments();
   if (section === 'pageinfo') { renderThemeSection(); renderFieldsPanel(); }
 }
 
@@ -88,7 +117,7 @@ function showSettingsSection(section) {
 async function loadTeams() {
   renderTeamsEditor();   // paint immediately with whatever we have
   try {
-    var r = await fetch('/api/teams');
+    var r = await fetch(scopedUrl('/api/teams'));
     if (r.ok) { _teamsData = await r.json(); renderTeamsEditor(); }
   } catch (e) { /* keep the current snapshot on network error */ }
 }
@@ -130,15 +159,15 @@ function showToast(msg, err) {
 async function fetchAll() {
   try {
     var [rr, sr, str, br, lr, or2, fc, tc, tmr] = await Promise.all([
-      fetch('/api/results'),
-      fetch('/api/schedule'),
-      fetch('/api/settings'),
-      fetch('/api/buckets'),
-      fetch('/api/live'),
-      fetch('/api/offsets'),
-      fetch('/api/field-colors'),
-      fetch('/api/theme-colors'),
-      fetch('/api/teams'),
+      fetch(scopedUrl('/api/results')),
+      fetch(scopedUrl('/api/schedule')),
+      fetch(scopedUrl('/api/settings')),
+      fetch(scopedUrl('/api/buckets')),
+      fetch(scopedUrl('/api/live')),
+      fetch(scopedUrl('/api/offsets')),
+      fetch(scopedUrl('/api/field-colors')),
+      fetch(scopedUrl('/api/theme-colors')),
+      fetch(scopedUrl('/api/teams')),
     ]);
     results  = await rr.json();
     schedule = await sr.json();
@@ -756,7 +785,7 @@ async function saveOneGame(sid) {
 // ── Auth ───────────────────────────────────────────────────────────────
 // Wrapper for mutation fetches: shows login overlay on 401 (session expired).
 async function apiFetch(url, opts) {
-  var r = await fetch(url, opts);
+  var r = await fetch(scopedUrl(url), opts);
   if (r.status === 401) { showLogin(); return null; }
   return r;
 }
@@ -831,8 +860,63 @@ function showAdmin(username, role, teamName) {
     roleEl.addEventListener('change', onNewUserRoleChange);
     onNewUserRoleChange();
   }
+  loadTournamentContext().then(function() {
+    if (currentRole === 'admin') loadUsers();
+    fetchAll();
+  });
+}
+
+// Load the user's tournaments + superadmin flag from the session, populate the
+// header switcher, and reconcile the saved slug against current grants.
+async function loadTournamentContext() {
+  try {
+    var r = await fetch('/api/session');
+    var data = await r.json();
+    _adminTournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
+    _isSuperadmin = !!data.superadmin;
+  } catch (e) { _adminTournaments = []; _isSuperadmin = false; }
+
+  // Drop a saved slug the user no longer has access to.
+  var saved = getAdminSlug();
+  if (saved && !_adminTournaments.some(function(t) { return t.slug === saved; })) setAdminSlug(null);
+
+  var navT = document.getElementById('navTournaments');
+  if (navT) navT.style.display = _isSuperadmin ? '' : 'none';
+  renderTournamentSwitcher();
+}
+
+// Header <select> of the user's tournaments. Hidden when there's only one
+// choice (the default) and the user isn't a superadmin — nothing to switch.
+function renderTournamentSwitcher() {
+  var sel = document.getElementById('tournamentSwitcher');
+  if (!sel) return;
+  var opts = _adminTournaments.slice();
+  sel.innerHTML = opts.map(function(t) {
+    return '<option value="' + esc(t.slug) + '">' + esc(t.name) + '</option>';
+  }).join('');
+  var cur = getAdminSlug();
+  if (cur && opts.some(function(t) { return t.slug === cur; })) sel.value = cur;
+  else if (opts.length) { sel.value = opts[0].slug; setAdminSlug(opts[0].slug); }
+  // Show the switcher only when there's a real choice.
+  sel.style.display = opts.length > 1 ? '' : 'none';
+  updateViewPublicLink();
+}
+
+// Point the "← Bracket" link at the active tournament's public page.
+function updateViewPublicLink() {
+  var link = document.getElementById('viewPublicLink');
+  if (!link) return;
+  var slug = getAdminSlug();
+  link.href = slug ? '/t/' + encodeURIComponent(slug) : '/';
+}
+
+// Switcher change handler: remember the choice and reload all scoped data.
+function switchTournament(slug) {
+  setAdminSlug(slug || null);
+  updateViewPublicLink();
   if (currentRole === 'admin') loadUsers();
   fetchAll();
+  showToast('Switched tournament');
 }
 
 function showLogin() {
@@ -1059,7 +1143,12 @@ function renderUsersList(users) {
       actions += '<button class="admin-clear-btn" data-action="openResetPwModal" data-arg="' + esc(u.username) + '">Reset PW</button>';
     }
     if (!isSelf) {
-      actions += '<button class="admin-clear-btn user-delete-btn" data-action="deleteUser" data-arg="' + esc(u.username) + '">Delete</button>';
+      // For a non-superadmin acting on a user who also has grants elsewhere,
+      // Delete only removes this tournament's access (revoke). Superadmins,
+      // and users with no other grants, get a full account delete.
+      var revokeOnly = u.grantsElsewhere && !_isSuperadmin;
+      var delLabel = revokeOnly ? 'Remove' : 'Delete';
+      actions += '<button class="admin-clear-btn user-delete-btn" data-action="deleteUser" data-arg="' + esc(u.username) + '"' + (revokeOnly ? ' data-revoke="1"' : '') + '>' + delLabel + '</button>';
     } else {
       actions += '<span class="user-self-label">(you)</span>';
     }
@@ -1179,8 +1268,12 @@ function onNewUserRoleChange() {
   if (teamField) teamField.style.display = role === 'team' ? '' : 'none';
 }
 
-async function deleteUser(username) {
-  if (!confirm('Delete user "' + username + '"? This cannot be undone.')) return;
+async function deleteUser(username, el) {
+  var revokeOnly = el && el.dataset && el.dataset.revoke === '1';
+  var prompt = revokeOnly
+    ? 'Remove "' + username + '" from this tournament? Their account and access to other tournaments are kept.'
+    : 'Delete user "' + username + '"? This cannot be undone.';
+  if (!confirm(prompt)) return;
   var r = await apiFetch('/api/users/' + encodeURIComponent(username), { method: 'DELETE' });
   if (!r) return;
   if (!r.ok) {
@@ -1188,8 +1281,120 @@ async function deleteUser(username) {
     showToast(data.error || 'Delete failed', true);
     return;
   }
-  showToast('User ' + username + ' deleted');
+  var res = await r.json().catch(function(){ return {}; });
+  showToast(res.deleted === false ? 'User ' + username + ' removed from this tournament' : 'User ' + username + ' deleted');
   loadUsers();
+}
+
+// ── Tournament management (superadmin) ─────────────────────────────────
+// These call the UNSCOPED /api mount — tournament CRUD is a deployment-global
+// superadmin operation, not scoped to the currently-selected tournament.
+async function loadTournaments() {
+  var el = document.getElementById('tournamentsList');
+  if (!el) return;
+  try {
+    var r = await fetch('/api/tournaments');
+    if (!r.ok) { el.innerHTML = '<div class="admin-subtitle">Could not load tournaments.</div>'; return; }
+    var list = await r.json();
+    renderTournamentsList(list);
+  } catch (e) { el.innerHTML = '<div class="admin-subtitle">Could not load tournaments.</div>'; }
+}
+
+function renderTournamentsList(list) {
+  var el = document.getElementById('tournamentsList');
+  if (!el) return;
+  if (!list.length) { el.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No tournaments.</div>'; return; }
+  var activeSlug = getAdminSlug();
+  el.innerHTML = list.map(function(t) {
+    var pub = t.isPublic !== false;
+    var isActive = t.slug === activeSlug;
+    return '<div class="user-row">'
+      + '<div class="user-info">'
+      +   '<span class="user-name">' + esc(t.name) + (isActive ? ' <span class="user-self-label">(active)</span>' : '') + '</span>'
+      +   '<span class="user-team-name">/t/' + esc(t.slug) + '</span>'
+      + '</div>'
+      + '<span class="user-role user-role--' + (pub ? 'results' : 'admin') + '">' + (pub ? 'Public' : 'Private') + '</span>'
+      + '<div class="user-actions">'
+      +   '<button class="admin-clear-btn" data-action="renameTournament" data-arg="' + esc(t.slug) + '">Rename</button>'
+      +   '<button class="admin-clear-btn" data-action="toggleTournamentPublic" data-arg="' + esc(t.slug) + '" data-public="' + (pub ? '1' : '0') + '">' + (pub ? 'Make Private' : 'Make Public') + '</button>'
+      +   '<button class="admin-clear-btn user-delete-btn" data-action="deleteTournament" data-arg="' + esc(t.slug) + '">Delete</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+async function createTournament() {
+  var nameEl = document.getElementById('newTournamentName');
+  var slugEl = document.getElementById('newTournamentSlug');
+  var pubEl  = document.getElementById('newTournamentPublic');
+  var statusEl = document.getElementById('createTournamentStatus');
+  var name = (nameEl.value || '').trim();
+  var slug = (slugEl.value || '').trim().toLowerCase();
+  if (!name) { statusEl.textContent = 'Name required'; return; }
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug)) { statusEl.textContent = 'Invalid slug'; return; }
+  var r = await apiFetch('/api/tournaments', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, slug: slug, isPublic: pubEl.checked }),
+  });
+  if (!r) return;
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { statusEl.textContent = d.error || 'Create failed'; return; }
+  nameEl.value = ''; slugEl.value = ''; pubEl.checked = true;
+  statusEl.textContent = '✓ Created';
+  setTimeout(function(){ statusEl.textContent = ''; }, 3000);
+  await loadTournamentContext();   // refresh the switcher with the new tournament
+  loadTournaments();
+}
+
+async function renameTournament(slug) {
+  var newName = prompt('New name for this tournament:');
+  if (newName === null) return;
+  newName = newName.trim();
+  if (!newName) return;
+  var newSlug = prompt('New slug (leave unchanged to keep URLs). WARNING: changing the slug breaks existing links and QR codes.', slug);
+  if (newSlug === null) return;
+  newSlug = newSlug.trim().toLowerCase();
+  var body = { name: newName };
+  if (newSlug && newSlug !== slug) {
+    if (!confirm('Change the slug from "' + slug + '" to "' + newSlug + '"? Existing /t/' + slug + ' links and QR codes will stop working.')) return;
+    body.slug = newSlug;
+  }
+  var r = await apiFetch('/api/tournaments/' + encodeURIComponent(slug), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  if (!r) return;
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { showToast(d.error || 'Rename failed', true); return; }
+  // If we renamed the active tournament's slug, follow it.
+  if (body.slug && getAdminSlug() === slug) setAdminSlug(body.slug);
+  showToast('Tournament updated');
+  await loadTournamentContext();
+  loadTournaments();
+}
+
+async function toggleTournamentPublic(slug, el) {
+  var makePublic = el.dataset.public !== '1';
+  var r = await apiFetch('/api/tournaments/' + encodeURIComponent(slug), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isPublic: makePublic }),
+  });
+  if (!r) return;
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { showToast(d.error || 'Update failed', true); return; }
+  showToast(makePublic ? 'Tournament is now public' : 'Tournament is now private');
+  loadTournaments();
+}
+
+async function deleteTournamentUI(slug) {
+  if (!confirm('Delete tournament "' + slug + '"? This permanently removes its bracket, schedule, results, lineups, and all data. This cannot be undone.')) return;
+  var r = await apiFetch('/api/tournaments/' + encodeURIComponent(slug), { method: 'DELETE' });
+  if (!r) return;
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { showToast(d.error || 'Delete failed', true); return; }
+  if (getAdminSlug() === slug) setAdminSlug(null);
+  showToast('Tournament deleted');
+  await loadTournamentContext();
+  loadTournaments();
+  fetchAll();
 }
 
 // ── PWA home preference ────────────────────────────────────────────────
@@ -2300,6 +2505,12 @@ Object.assign(TT_ACTIONS, {
   savePassword:        function() { savePassword(); },
   savePwaHome:         function(v) { savePwaHome(v); },
   closeSettingsSidebar:function() { closeSettingsSidebar(); },
+  switchTournament:    function(v) { switchTournament(v); },
+  // tournaments (superadmin)
+  createTournament:    function() { createTournament(); },
+  renameTournament:    function(arg) { renameTournament(arg); },
+  toggleTournamentPublic: function(arg, el) { toggleTournamentPublic(arg, el); },
+  deleteTournament:    function(arg) { deleteTournamentUI(arg); },
   // results tab
   setResultsMode:      function(arg) { setResultsMode(arg); },
   clearResult:         function(arg) { clearResult(arg); },
@@ -2337,7 +2548,7 @@ Object.assign(TT_ACTIONS, {
   // users
   addUser:             function() { addUser(); },
   onNewUserRoleChange: function() { onNewUserRoleChange(); },
-  deleteUser:          function(arg) { deleteUser(arg); },
+  deleteUser:          function(arg, el) { deleteUser(arg, el); },
   openResetPwModal:    function(arg) { openResetPwModal(arg); },
   closeResetPwModal:   function() { closeResetPwModal(); },
   copyMagicLink:       function(arg) { copyMagicLink(arg); },

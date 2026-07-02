@@ -284,6 +284,37 @@ async function updateUser(username, fields) {
   return r.rowCount > 0;
 }
 
+// Grant (or change) a user's role in one tournament.
+async function grantRole(username, tid, role) {
+  await _withTransaction(async client => {
+    const r = await client.query('SELECT id FROM users WHERE username = $1', [username]);
+    if (!r.rows[0]) throw new Error('User not found: ' + username);
+    await client.query(
+      `INSERT INTO user_roles (user_id, tournament_id, role) VALUES ($1, $2, $3)
+       ON CONFLICT (user_id, tournament_id) DO UPDATE SET role = EXCLUDED.role`,
+      [r.rows[0].id, tid, role]);
+  });
+  _invalidateUsers();
+}
+
+// Revoke a user's grant (and team assignments) in one tournament.
+// Returns the number of grants the user still holds elsewhere so the caller
+// can decide whether the account is now orphaned.
+async function revokeRole(username, tid) {
+  let remaining = 0;
+  await _withTransaction(async client => {
+    const r = await client.query('SELECT id FROM users WHERE username = $1', [username]);
+    if (!r.rows[0]) throw new Error('User not found: ' + username);
+    const uid = r.rows[0].id;
+    await client.query('DELETE FROM user_roles WHERE user_id = $1 AND tournament_id = $2', [uid, tid]);
+    await client.query('DELETE FROM user_teams WHERE user_id = $1 AND tournament_id = $2', [uid, tid]);
+    const c = await client.query('SELECT COUNT(*)::int AS n FROM user_roles WHERE user_id = $1', [uid]);
+    remaining = c.rows[0].n;
+  });
+  _invalidateUsers();
+  return remaining;
+}
+
 // Replace a user's team list for one tournament (order = array order).
 async function setUserTeams(username, tid, teams) {
   await _withTransaction(async client => {
@@ -359,6 +390,7 @@ async function updateTournament(slug, fields) {
   const sets = [], vals = [slug];
   if ('name' in fields)     { vals.push(fields.name);      sets.push(`name = $${vals.length}`); }
   if ('isPublic' in fields) { vals.push(!!fields.isPublic); sets.push(`is_public = $${vals.length}`); }
+  if ('slug' in fields)     { vals.push(fields.slug);       sets.push(`slug = $${vals.length}`); }
   if (!sets.length) return false;
   const r = await pool.query(`UPDATE tournaments SET ${sets.join(', ')} WHERE slug = $1`, vals);
   _invalidateTournaments();
@@ -442,6 +474,7 @@ module.exports = {
   pool, init, get, put, etag, clearCache,
   allUsers, findUser, effectiveRole, teamsFor,
   createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
+  grantRole, revokeRole,
   listTournaments, tournamentBySlug, createTournament, updateTournament, deleteTournament,
   SessionStore: PgSessionStore,
   _saveDomain, _withTransaction,

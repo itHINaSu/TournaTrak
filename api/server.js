@@ -374,6 +374,8 @@ api.get('/users', requireAdmin, ah(async (req, res) => {
       const role = eff === 'superadmin' ? 'admin' : eff;   // UI back-compat
       const out = { username: u.username, role, mustChangePassword: !!u.mustChangePassword };
       if (u.role === 'superadmin') out.superadmin = true;
+      // Grants in other tournaments — delete here only revokes this grant.
+      out.grantsElsewhere = Object.keys(u.roles).some(t => Number(t) !== req.tid);
       if (role === 'team') {
         const teams = store.teamsFor(u, req.tid);
         out.teamName    = teams[0] || u.teamName;
@@ -394,6 +396,9 @@ api.post('/users', requireAdmin, ah(async (req, res) => {
   }
   if (!VALID_ROLES.includes(role)) {
     return res.status(400).json({ error: 'Invalid role. Must be one of: ' + VALID_ROLES.join(', ') });
+  }
+  if (role === 'admin' && req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Only a superadmin can create admin users' });
   }
   if (await store.findUser(username)) {
     return res.status(409).json({ error: 'Username already exists' });
@@ -430,9 +435,37 @@ api.delete('/users/:username', requireAdmin, ah(async (req, res) => {
   if (!target || !userActionAllowed(req, target)) {
     return res.status(404).json({ error: 'User not found' });
   }
-  // NOTE: deletes the account globally (v2 semantics). Phase C should offer
-  // revoking just this tournament's grant for users with grants elsewhere.
-  await store.deleteUser(username);
+  // Superadmin delete removes the account everywhere. A tournament admin's
+  // delete only revokes the grant in this tournament; the account is removed
+  // once no grants remain anywhere (orphan cleanup).
+  if (req.user.role === 'superadmin') {
+    await store.deleteUser(username);
+    return res.json({ ok: true, deleted: true });
+  }
+  const remaining = await store.revokeRole(username, req.tid);
+  if (remaining === 0) {
+    await store.deleteUser(username);
+    return res.json({ ok: true, deleted: true });
+  }
+  res.json({ ok: true, deleted: false, revoked: true });
+}));
+
+// Grant an existing account a role in this tournament (add user to
+// tournament). Same role rules as creation: only superadmins grant 'admin';
+// superadmin accounts need no grants and cannot be granted.
+api.post('/users/:username/grant', requireAdmin, ah(async (req, res) => {
+  const { username } = req.params;
+  const { role } = req.body || {};
+  if (!VALID_ROLES.includes(role)) {
+    return res.status(400).json({ error: 'Invalid role. Must be one of: ' + VALID_ROLES.join(', ') });
+  }
+  if (role === 'admin' && req.user.role !== 'superadmin') {
+    return res.status(403).json({ error: 'Only a superadmin can grant the admin role' });
+  }
+  const target = await store.findUser(username);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (target.role === 'superadmin') return res.status(400).json({ error: 'Superadmins already have access everywhere' });
+  await store.grantRole(username, req.tid, role);
   res.json({ ok: true });
 }));
 
@@ -527,10 +560,20 @@ api.get('/team-access/:token', ah(async (req, res) => {
   if (!user) {
     return res.redirect('/lineup?invalid=1');
   }
+  // Land the coach in the tournament where they hold a team grant. Prefer
+  // the current mount's tournament if granted there; otherwise their first
+  // grant. Default tournament needs no ?t= (legacy links keep working).
+  const grantTids = Object.keys(user.roles).filter(t => user.roles[t] === 'team').map(Number);
+  let destTid = grantTids.includes(req.tid) ? req.tid : (grantTids[0] ?? store.tid);
+  let dest = '/lineup';
+  if (destTid !== store.tid) {
+    const t = (await store.listTournaments()).find(x => x.id === destTid);
+    if (t) dest = '/lineup?t=' + encodeURIComponent(t.slug);
+  }
   req.session.regenerate(err => {
     if (err) return res.redirect('/lineup?invalid=1');
     req.session.username = user.username;
-    res.redirect('/lineup');
+    res.redirect(dest);
   });
 }));
 
@@ -562,7 +605,7 @@ api.post('/tournaments', requireSuperadmin, ah(async (req, res) => {
 
 api.patch('/tournaments/:slug', requireSuperadmin, ah(async (req, res) => {
   const { slug } = req.params;
-  const { name, isPublic } = req.body || {};
+  const { name, isPublic, slug: newSlug } = req.body || {};
   const fields = {};
   if (name !== undefined) {
     if (typeof name !== 'string' || !name.trim() || name.length > 100) {
@@ -571,6 +614,16 @@ api.patch('/tournaments/:slug', requireSuperadmin, ah(async (req, res) => {
     fields.name = name.trim();
   }
   if (isPublic !== undefined) fields.isPublic = !!isPublic;
+  if (newSlug !== undefined && newSlug !== slug) {
+    // Slug renames break existing links/QR codes — the UI warns before this.
+    if (typeof newSlug !== 'string' || !SLUG_RE.test(newSlug)) {
+      return res.status(400).json({ error: 'Slug must be 1–63 lowercase letters, digits, or hyphens (starting with a letter or digit)' });
+    }
+    if (await store.tournamentBySlug(newSlug)) {
+      return res.status(409).json({ error: 'Slug already exists' });
+    }
+    fields.slug = newSlug;
+  }
   if (!Object.keys(fields).length) return res.status(400).json({ error: 'Nothing to update' });
   const updated = await store.updateTournament(slug, fields);
   if (!updated) return res.status(404).json({ error: 'Tournament not found' });

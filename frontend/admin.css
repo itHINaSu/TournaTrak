@@ -1066,3 +1066,18 @@ input[type="time"]:focus {
   color: var(--text);
 }
 .names-label-inp:focus { border-color: var(--blue); outline: none; }
+
+/* ── Multi-tournament (Phase C) ── */
+/* Header tournament switcher — compact so it fits beside ← Bracket on phones */
+.admin-tournament-switcher {
+  max-width: 11em;
+  font-size: var(--text-sm);
+  padding: 0.35em 0.5em;
+  border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+}
+/* Checkbox-style settings field (tournaments panel Public toggle) */
+.settings-field--check label { display: flex; align-items: center; gap: 0.5em; font-weight: 500; }
+.settings-field--check input[type="checkbox"] { width: 1.1em; height: 1.1em; }

@@ -12,6 +12,18 @@ var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R',
 
 // esc() comes from tt-common.js
 
+// ── Tournament scoping ─────────────────────────────────────────────────
+// The coach magic link lands here with ?t=<slug> when their team belongs to
+// a non-default tournament (see /api/team-access). All data fetches then go
+// through the scoped mount. The /lineup nav link preserves the parameter so
+// the scope survives internal navigation.
+var _lineupSlug = new URLSearchParams(window.location.search).get('t') || null;
+function lineupApiBase() {
+  // Embedded in /admin: follow the header tournament switcher instead.
+  if (typeof adminApiBase === 'function') return adminApiBase();
+  return _lineupSlug ? '/api/t/' + encodeURIComponent(_lineupSlug) : '/api';
+}
+
 function posOptions(selected) {
   return POSITIONS.map(function(p) {
     var sel = p === (selected || '') ? ' selected' : '';
@@ -166,7 +178,7 @@ async function openImport() {
   overlay.style.display = 'flex';
 
   try {
-    var r    = await fetch('/api/lineups/by-team/' + encodeURIComponent(viewedTeamName));
+    var r    = await fetch(lineupApiBase() + '/lineups/by-team/' + encodeURIComponent(viewedTeamName));
     var data = r.ok ? await r.json() : {};
     _importData = data;
 
@@ -379,7 +391,7 @@ async function loadLineupForGame(slotId, teamName, readOnly, readOnlyReason) {
   if (statusEl) statusEl.textContent = '';
 
   try {
-    var r    = await fetch('/api/lineups/game/' + encodeURIComponent(slotId) + '/' + encodeURIComponent(teamName));
+    var r    = await fetch(lineupApiBase() + '/lineups/game/' + encodeURIComponent(slotId) + '/' + encodeURIComponent(teamName));
     var data = r.ok ? await r.json() : { rows: [] };
     var rows = data.rows || [];
     lineupRowCount = Math.max(11, rows.length);
@@ -399,7 +411,7 @@ async function submitLineup() {
   var rows = getCurrentRows();
   try {
     var r = await fetch(
-      '/api/lineups/game/' + encodeURIComponent(currentSlotId) + '/' + encodeURIComponent(viewedTeamName),
+      lineupApiBase() + '/lineups/game/' + encodeURIComponent(currentSlotId) + '/' + encodeURIComponent(viewedTeamName),
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: rows }) }
     );
     if (r.ok) {
@@ -448,7 +460,7 @@ function buildNavBar(role) {
 
     var tabs = [
       { label: 'Results',  icon: 'results',  href: '/admin?tab=results'  },
-      { label: 'Lineups',  icon: 'lineups',  href: '/lineup', active: true },
+      { label: 'Lineups',  icon: 'lineups',  href: _lineupSlug ? '/lineup?t=' + encodeURIComponent(_lineupSlug) : '/lineup', active: true },
     ];
     if (role === 'admin') {
       tabs.push({ label: 'Schedule', icon: 'schedule', href: '/admin?tab=schedule' });
@@ -515,7 +527,7 @@ document.addEventListener('DOMContentLoaded', function() {
 async function lineupInit() {
   setAppHeight();
   try {
-    var sr      = await fetch('/api/session');
+    var sr      = await fetch(lineupApiBase() + '/session');  // scoped: role/teams are per-tournament
     var session = await sr.json();
     document.getElementById('lineupLoading').style.display = 'none';
 
@@ -542,9 +554,9 @@ async function lineupInit() {
     document.getElementById('lineupContent').style.display = '';
 
     var [rr, schedR, settingsR] = await Promise.all([
-      fetch('/api/results'),
-      fetch('/api/schedule'),
-      fetch('/api/settings'),
+      fetch(lineupApiBase() + '/results'),
+      fetch(lineupApiBase() + '/schedule'),
+      fetch(lineupApiBase() + '/settings'),
     ]);
     lineupResults    = rr.ok       ? await rr.json()       : {};
     var sched        = schedR.ok   ? await schedR.json()   : {};
