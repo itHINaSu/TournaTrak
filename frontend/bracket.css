@@ -16,6 +16,19 @@
   flex-shrink: 0;
 }
 
+/* ── Offline notice banner (fetch failed; last-good data shown) ── */
+.offline-notice {
+  background: color-mix(in srgb, var(--lose-color) 14%, transparent);
+  border-bottom: 0.08em solid color-mix(in srgb, var(--lose-color) 45%, transparent);
+  color: var(--lose-color);
+  text-align: center;
+  padding: 0.55em 1em;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
 /* ── Weather / delay notice banner ── */
 .delay-notice {
   background: rgba(196,154,26,0.14);

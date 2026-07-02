@@ -69,6 +69,14 @@ function applySettings() {
   else { subEl.innerHTML = '&#8203;'; subEl.style.display = 'block'; subEl.style.visibility = 'hidden'; }
 }
 
+// ── Offline banner ────────────────────────────────────────────────────
+// Shown when a data refresh fails; the page keeps rendering the last
+// successfully fetched state instead of blanking (field-side Wi-Fi drops).
+function setOffline(on) {
+  var el = document.getElementById('offlineNotice');
+  if (el) el.style.display = on ? '' : 'none';
+}
+
 // ── Results notification bar ──────────────────────────────────────────
 function updateDelayNotice() {
   var el   = document.getElementById('delayNotice');
@@ -367,7 +375,15 @@ async function fetchAll(){
     _themeColors=tc.ok ? await tc.json() : {};
     if(typeof applySchedule==='function') applySchedule(schedule);
     _rebuildFieldDefaultColors();
-  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; _fieldColors={}; _themeColors={}; _fieldDefaultColorMap={}; rawTexts=null; }
+    _lastResultsJson = rawTexts[0];
+    _lastLiveJson    = rawTexts[4];
+    setOffline(false);
+  }catch(e){
+    // Keep the last-good state and show the offline banner instead of
+    // wiping everything to an empty page.
+    setOffline(true);
+    rawTexts = null;
+  }
   applyThemeColors();
   applySettings();
   updateTimestamp();
@@ -2881,6 +2897,43 @@ fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(fun
   }
 }).catch(function(){});
 fetchAll();
+
+// ── Live refresh ──────────────────────────────────────────────────────
+// Poll only the fast-changing endpoints (live scores + results) while the
+// tab is visible; a full fetchAll() catches everything else up whenever the
+// tab becomes visible again (phone unlock, app switch). Renders only when
+// the payload actually changed, and never auto-scrolls.
+var LIVE_POLL_MS = 20000;
+var _lastLiveJson = null, _lastResultsJson = null;
+
+function renderActiveNoScroll() {
+  var v = activeView();
+  updateTimestamp();
+  if (v === 'bracket')  renderBracket();
+  if (v === 'schedule') renderScheduleView();
+  if (v === 'teampath') renderTeamView();
+  if (v === 'buckets')  renderBucketView();
+}
+
+async function pollLive() {
+  if (document.visibilityState !== 'visible') return;
+  try {
+    var [lr, rr] = await Promise.all([fetch('/api/live'), fetch('/api/results')]);
+    if (!lr.ok || !rr.ok) return;
+    var lt = await lr.text(), rt = await rr.text();
+    var changed = (lt !== _lastLiveJson) || (rt !== _lastResultsJson);
+    _lastLiveJson = lt; _lastResultsJson = rt;
+    setOffline(false);
+    if (!changed) return;
+    liveScores = JSON.parse(lt);
+    results    = JSON.parse(rt);
+    renderActiveNoScroll();
+  } catch (e) { setOffline(true); }
+}
+setInterval(pollLive, LIVE_POLL_MS);
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') fetchAll();
+});
 
 // ── Delegated actions (see tt-common.js) ──────────────────────────────
 Object.assign(TT_ACTIONS, {
