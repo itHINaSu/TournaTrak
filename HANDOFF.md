@@ -19,18 +19,20 @@ roles are `admin`, `results`, `team` (coach), `buckets`.
 ## START OF SESSION PROMPT (always do this first)
 At the start of every new session (or when told to "get up to speed"), ask:
 
-> "Which branch should I work on this session? (default: `main`)"
+> "Which branch should I work on this session? (default: `claude/tournatrak-eval-buildout-sa3mvv`)"
 
 Then `git checkout <branch>` before touching anything. Do not assume `main`.
 
 ## Branch rule
-**Work only on `main` unless the user specifies another branch.** Commit and
-push when a change is complete. Do not open PRs unless asked.
-- `main` — production-ready. All completed features land here.
-- `feature/bracket-builder` — bracket generator / teams / seeding / drag-and-drop swap. Active development branch.
-- `feature/regional` — parked Postgres / multi-tournament migration ("v3").
-  Branched off old work; lacks the entire v2 feature wave. **Do not touch** in
-  normal sessions. See `ROADMAP.md` for the reconciliation plan.
+**Active development branch: `claude/tournatrak-eval-buildout-sa3mvv`** (the
+v2-cleanup → v3 build-out). Commit and push when a change is complete. Do not
+open PRs unless asked.
+- `main` — production-ready v2. All pre-buildout features land here.
+- `feature/bracket-builder` — MERGED into the buildout branch (formats engine,
+  /builder UI, teams/seeding, drag-and-drop, theme colors). Do not develop here.
+- `feature/regional` — parked Postgres prototype; UNRELATED git history (no
+  common ancestor with main). Reference-only for the v3 schema. Its committed
+  files/users.json contains real leaked secrets — see Security items.
 
 ## Layout
 - `frontend/` — static assets served by the API
@@ -41,9 +43,8 @@ push when a change is complete. Do not open PRs unless asked.
   - `bracket-data.js` — bracket model + helpers; `GAMES` is built from `schedule.json` via `applySchedule()`
   - `sw.js` — service worker (network-first); bump `CACHE` version on any precached asset change
 - `api/server.js` — Express server, REST endpoints, JSON persistence in `/data`
-- `files/` — runtime data (deployment side; not in this container). `schedule.json`
-  + `results.json` are currently **un-ignored** in `.gitignore` for dev inspection.
-  `schedule.example.json` documents the format.
+- `files/` — runtime data. ALL of files/* is gitignored (allowlist);
+  only `schedule.example.json` is tracked, documenting the format.
 
 ## Design tokens (base.css)
 All colors/sizes are CSS custom properties with dark (`:root`) + light
@@ -62,7 +63,8 @@ Key tokens: `--bg --surface --surface2 --border --blue --blue-lt --gold
 - `theme-color` `<meta>` tags use literal hex (CSS vars invalid in meta) — keep in sync with `--bg`.
 
 ## Bracket model
-- Two sides: WB (winners, left) and LB (losers, right).
+- Two sides: L (left) and R (right) — independent single-elim sides in the
+  flagship layout; WB/LB only under builder-generated double-elim formats.
 - `ROUND_ORDER`: R1, R2, QF, QF2, SF, CHAMP, CHAMP2. `ROUND_LABELS` maps these to
   "Round 1/2/3/4/5, Championship, If Necessary".
 - Slot ID format: `ROUND.SIDE.NUM` (e.g. `SF.R.1`, `CHAMP.C.1`). SIDE = L|R|C.
@@ -164,10 +166,11 @@ Admin Results tab → Delays panel (also reachable via "→ Delays" button in th
   `FIELD_DEFAULT_COLORS = ['#0d9488', '#ea580c', '#7c3aed', '#db2777', '#4a90d9']` (teal/orange/purple/pink/blue).
 
 ## Settings system
-Three layers must stay in sync: `api/server.js` `SETTINGS_DEFAULTS`,
-`frontend/admin.js` `SETTING_DEFAULTS`, `frontend/bracket.js` `SETTING_DEFAULTS`.
-The server's allowlist controls what POST `/api/settings` persists — a key missing
-there is silently dropped. **Field colors are NOT in settings** — they use
+✅ SINGLE-SOURCED as of the buildout branch: `frontend/settings-defaults.js`
+is the ONE copy (loaded by all pages before tt-common.js; require()d by
+server.js from the read-only /frontend mount). Its keys ARE the POST
+/api/settings allowlist — a key missing there is silently dropped. Adding a
+setting is a one-file change (plus the admin form field). **Field colors are NOT in settings** — they use
 `/api/field-colors`. Current settings keys: `tournamentName, pageTitle, adminName,
 subtitle, leftLabel, rightLabel, playInLabel, showSideDividers, periodLabel,
 showDate, showDay, dateFormat, dayFormat, defaultTab, defaultTabScope, defaultScheduleGroup`.
@@ -230,23 +233,56 @@ Static HTML/CSS/JS marketing site — separate nginx:alpine container, port 8081
 See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `index.html`.
 
 ## Current state
-`main` clean and pushed. **SW cache at `tournatrak-v2.27`.**
+Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
+`tournatrak-v2.58`.** Phase 0 evaluation is in `EVALUATION.md` (repo root).
 
-**Recent work (this session wave):**
-- Auth persistence: `FileSessionStore` → `/data/sessions.json`; 30-day cookie; `rolling: true`
-- Game card layout: date moved next to game ID, field tag moved into time block; `gameDateHTML` helper added
-- Field tag colors: per-field palette (teal/orange/purple/pink/blue by default), user-overridable via Settings → Fields panel; stored in `/data/field-colors.json`
-- Time delay offsets: Delays panel in admin Results tab; field+day chip selectors; inline colored offset in schedule, team path, and bracket cards; weather notice banner
-- Admin mobile: quick bar above tab bar (Games / Bucket Challenge / Delays), replaces confusing Results/Bucket tab swap
-- Admin schedule: per-game save button; "→ Delays" nav button replacing redundant "Public Page" link
-- Account settings: "PWA opens to" preference (admin/public) stored in `localStorage`; auto-redirects on standalone launch
-- Admin settings UX: 5 sections (merged from 7), more prominent section headers, consistent select styling
-- Bucket drag: `touch-action: none` + `user-select: none` for snappy mobile drag without text selection
+**Completed this buildout (Phase 1, each its own commit):**
+- Merged `feature/bracket-builder` (conflicts resolved by hand in sw.js /
+  bracket.css / bracket.js).
+- Docs corrected: app is two-sided single-elim + championship (32 teams) at
+  its flagship layout, NOT double-elim; topology is schedule-driven.
+  `isEliminated()` made format-agnostic (loss with no loser-feed = out).
+- `.gitignore`: files/* allowlist (only schedule.example.json tracked).
+- `tt-common.js`: shared esc()/cookies/getScheduleTeams/getSetting + theme
+  manager (dispatches `tt:themechange`; `__ttThemeManaged` hack removed).
+- ALL inline JS removed (app-h.js, sw-register.js, data-action delegation
+  via the TT_ACTIONS allowlist in tt-common.js; jsStr() deleted).
+  **CSP script-src is now 'self' — never reintroduce inline handlers.**
+  style-src still has 'unsafe-inline' (follow-up).
+- `settings-defaults.js`: single source for SETTINGS_DEFAULTS (see below).
+- Mobile: 44px coarse-pointer touch targets; breakpoint contract documented
+  (public bracket mobile <1280px, admin/lineup <1024px — intentional).
+- Offline resilience: fetchAll() failure keeps last-good data + shows
+  #offlineNotice banner; pollLive() refreshes /api/live + /api/results every
+  20s while visible; visibilitychange triggers full fetchAll catch-up.
+
+**In progress (Phase 2 — v3 Postgres port):**
+- `api/schema.sql` written (reconciled from feature/regional: tournaments
+  w/ slug, global users + user_teams, relational schedule/results/live/
+  lineups, JSONB `config` table for settings/offsets/colors/buckets/teams,
+  pg-backed sessions table). `pg` added to api/package.json.
+- Plan: async `store.js` facade preserving current read-whole/write-whole
+  route semantics (routes keep identical logic, gain `await` + tid);
+  `migrate.js` idempotent schema + one-time JSON import from /data;
+  compose gains internal-only postgres service; then /t/:slug routing.
+- Local verification: Postgres 16 available in the dev container
+  (user/db `tournatrak`); Playwright test harness in scratchpad
+  (devproxy.js + uitest*.js) drives all pages against a strict CSP.
 
 ## Security items
-- **`unsafe-inline` in main app CSP** — deferred; requires moving inline `<script>`/`<style>` to external files.
-- **Rate limiter** still in-memory (resets on container restart). Low risk for single-instance but noted for v3.
-- **Session persistence:** ✅ DONE — `FileSessionStore` writing to `/data/sessions.json`.
+- **script-src 'unsafe-inline'**: ✅ REMOVED (CSP now script-src 'self').
+  style-src 'unsafe-inline' remains — tracked follow-up.
+- **Leaked secrets in git history**: files/users.json was committed once
+  (commit 9960403, still reachable on origin/dev and origin/feature/regional)
+  with a real bcrypt hash + plaintext team accessToken. Owner should rotate
+  that token and decide on branch cleanup. NOT yet remediated.
+- **SENTINEL_HASH timing defense is broken** (server.js): sentinel is 61
+  chars (invalid bcrypt) so compares return in ~0.4ms vs ~334ms real —
+  username enumeration by timing. Fix: precomputed real cost-12 hash.
+  NOT yet fixed (security work de-scoped this session by owner).
+- **Rate limiter** in-memory (resets on restart; bounded). Accepted for now.
+- **Session persistence**: FileSessionStore → moving to Postgres sessions
+  table in Phase 2.
 
 ## Cost / workflow notes
 - Use the lowest-cost model that fits the task.
@@ -255,7 +291,7 @@ See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `inde
 ## Git
 - Commit messages end with the Claude Code session URL line (harness convention).
 - Do NOT put model IDs in commits/PRs/code.
-- Push: `git push -u origin main`. Do not open PRs unless asked.
+- Push: `git push -u origin claude/tournatrak-eval-buildout-sa3mvv`. Do not open PRs unless asked.
 
 ## TODO / parked: mobile double-elim round combining (NOT done)
 Discussed but never implemented. Capturing the problem so it can be picked up.
