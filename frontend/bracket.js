@@ -9,7 +9,7 @@ var _sessionRole = null;
 var _bucketEditMode = false;
 var _bracketEditMode = false;
 var scheduleMode = null; // null = uninitialised; set from settings on first render
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+// esc() comes from tt-common.js
 
 var SETTING_DEFAULTS = {
   tournamentName: 'Tournament Bracket',
@@ -307,53 +307,13 @@ function saveBucketEdit() {
 }
 
 // ══════════════════════════════════════════════════════════
-// COOKIES
+// THEME — managed by tt-common.js; re-render bracket so connector
+// line colors pick up the new theme.
 // ══════════════════════════════════════════════════════════
-function setCookie(name, val) {
-  document.cookie = name + '=' + encodeURIComponent(val) + ';max-age=31536000;path=/';
-}
-function getCookie(name) {
-  var m = document.cookie.match('(?:^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-  return m ? decodeURIComponent(m[1]) : '';
-}
+document.addEventListener('tt:themechange', function() {
+  if (typeof activeView === 'function' && activeView() === 'bracket') renderBracket();
+});
 
-// ══════════════════════════════════════════════════════════
-// THEME
-// ══════════════════════════════════════════════════════════
-var themeBtn=document.getElementById('themeToggle');
-
-// Theme: saved preference in localStorage wins over OS; persists across pages.
-// localStorage may throw in Safari private/restricted mode — all calls are wrapped.
-(function(){
-  var mq = window.matchMedia('(prefers-color-scheme: light)');
-  var PREF_KEY = 'tt_theme';
-  function storageGet(k)    { try { return localStorage.getItem(k); } catch(e) {} try { return sessionStorage.getItem(k); } catch(e2) { return null; } }
-  function storageSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} try { sessionStorage.setItem(k, v); } catch(e2) {} }
-  function applyLight(light) {
-    document.body.classList.toggle('light', light);
-    if (themeBtn) themeBtn.textContent = light ? '🌙 Dark' : '☀ Light';
-  }
-  var saved = storageGet(PREF_KEY);
-  var _userPicked = saved !== null;
-  applyLight(_userPicked ? saved === 'light' : mq.matches);
-  mq.addEventListener('change', function(e) {
-    if (!_userPicked) applyLight(e.matches);
-  });
-  if (themeBtn) {
-    function toggleTheme() {
-      _userPicked = true;
-      var nowLight = !document.body.classList.contains('light');
-      applyLight(nowLight);
-      storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
-      if(activeView()==='bracket') renderBracket();
-    }
-    themeBtn.addEventListener('click', toggleTheme);
-    themeBtn.addEventListener('touchend', function(e) {
-      e.preventDefault();
-      toggleTheme();
-    });
-  }
-})();
 
 // ══════════════════════════════════════════════════════════
 // TABS

@@ -2,9 +2,7 @@
 // Generates a full tournament schedule from a format + team list via
 // POST /api/schedule/generate, then hands off to the existing admin editor.
 
-function esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
+// esc() comes from tt-common.js
 function $(id) { return document.getElementById(id); }
 
 var FORMATS = [];        // [{ id, label, description, minTeams, maxTeams }]

@@ -10,9 +10,7 @@ var lineupResults   = {};
 
 var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH'];
 
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
+// esc() comes from tt-common.js
 
 function posOptions(selected) {
   return POSITIONS.map(function(p) {
@@ -310,17 +308,7 @@ function findTeamGames(teamName) {
   return games;
 }
 
-function getScheduleTeams() {
-  var teams = [];
-  if (typeof GAMES !== 'undefined') {
-    Object.values(GAMES).forEach(function(g) {
-      if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams.push(g.t1.team);
-      if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams.push(g.t2.team);
-    });
-    teams = teams.filter(function(t, i, a) { return a.indexOf(t) === i; }).sort();
-  }
-  return teams;
-}
+// getScheduleTeams() comes from tt-common.js
 
 function gameOptionLabel(slotId, teamName) {
   var g = GAMES[slotId];
@@ -494,34 +482,7 @@ function buildNavBar(role) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  // Theme: only manage it on the standalone lineup page. On the admin page
-  // admin.js already owns the toggle (sets __ttThemeManaged); binding a second
-  // click handler here would double-toggle and cancel admin's out.
-  if (!window.__ttThemeManaged) {
-    var themeBtn = document.getElementById('themeToggle');
-    var mq = window.matchMedia('(prefers-color-scheme: light)');
-    var PREF_KEY = 'tt_theme';
-    function storageGet(k)    { try { return localStorage.getItem(k); } catch(e) {} try { return sessionStorage.getItem(k); } catch(e2) { return null; } }
-    function storageSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} try { sessionStorage.setItem(k, v); } catch(e2) {} }
-    function applyLight(light) {
-      document.body.classList.toggle('light', light);
-      if (themeBtn) themeBtn.textContent = light ? '🌙 Dark' : '☀ Light';
-    }
-    var saved = storageGet(PREF_KEY);
-    var _userPicked = saved !== null;
-    applyLight(_userPicked ? saved === 'light' : mq.matches);
-    mq.addEventListener('change', function(e) { if (!_userPicked) applyLight(e.matches); });
-    if (themeBtn) {
-      var toggleTheme = function() {
-        _userPicked = true;
-        var nowLight = !document.body.classList.contains('light');
-        applyLight(nowLight);
-        storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
-      };
-      themeBtn.addEventListener('click', toggleTheme);
-      themeBtn.addEventListener('touchend', function(e) { e.preventDefault(); toggleTheme(); });
-    }
-  }
+  // Theme toggle is managed by tt-common.js.
 
   var teamSel = document.getElementById('lineupTeamSel');
   if (teamSel) {

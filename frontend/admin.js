@@ -31,40 +31,7 @@ function getSetting(key) {
     ? settings[key] : SETTING_DEFAULTS[key];
 }
 
-// ── Theme ──────────────────────────────────────────────────────────────
-(function(){
-  // Claim theme management so lineup.js (also loaded on this page) doesn't
-  // bind a second click handler that double-toggles and cancels this one out.
-  window.__ttThemeManaged = true;
-  var btn = document.getElementById('themeToggle');
-  var mq  = window.matchMedia('(prefers-color-scheme: light)');
-  var PREF_KEY = 'tt_theme';
-  function storageGet(k)    { try { return localStorage.getItem(k); } catch(e) {} try { return sessionStorage.getItem(k); } catch(e2) { return null; } }
-  function storageSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} try { sessionStorage.setItem(k, v); } catch(e2) {} }
-  function applyLight(light) {
-    document.body.classList.toggle('light', light);
-    if (btn) btn.textContent = light ? '🌙 Dark' : '☀ Light';
-  }
-  var saved = storageGet(PREF_KEY);
-  var _userPicked = saved !== null;
-  applyLight(_userPicked ? saved === 'light' : mq.matches);
-  mq.addEventListener('change', function(e) {
-    if (!_userPicked) applyLight(e.matches);
-  });
-  if (btn) {
-    function toggleTheme() {
-      _userPicked = true;
-      var nowLight = !document.body.classList.contains('light');
-      applyLight(nowLight);
-      storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
-    }
-    btn.addEventListener('click', toggleTheme);
-    btn.addEventListener('touchend', function(e) {
-      e.preventDefault();
-      toggleTheme();
-    });
-  }
-})();
+// Theme toggle is managed by tt-common.js.
 
 // ── Tabs ───────────────────────────────────────────────────────────────
 document.querySelectorAll('.admin-tab').forEach(function(tab){
@@ -292,9 +259,7 @@ async function saveSettings() {
 function gameLabel(sid) {
   return (GAMES[sid] && GAMES[sid].label) ? GAMES[sid].label : sid;
 }
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
+// esc() comes from tt-common.js
 
 // Escape a value for safe embedding inside a single-quoted JS string literal
 // that itself sits inside an inline event handler attribute (e.g. onclick="fn('VALUE')").
@@ -1696,17 +1661,7 @@ async function clearDelayBanner() {
   } catch(e) { showToast('Clear failed', true); }
 }
 
-function getScheduleTeams() {
-  var teams = [];
-  if (typeof GAMES !== 'undefined') {
-    Object.values(GAMES).forEach(function(g) {
-      if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams.push(g.t1.team);
-      if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams.push(g.t2.team);
-    });
-    teams = teams.filter(function(t, i, a) { return a.indexOf(t) === i; }).sort();
-  }
-  return teams;
-}
+// getScheduleTeams() comes from tt-common.js
 
 function renderBucketAdmin() {
   var wrap = document.getElementById('bucketAdminWrap');
