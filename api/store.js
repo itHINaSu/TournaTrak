@@ -473,7 +473,14 @@ async function _waitForDb() {
       return;
     } catch (err) {
       if (!_isTransientDbError(err)) {
-        throw new Error('Database connection failed (not retrying — check DATABASE_URL / PG* env vars): ' + err.message);
+        // 28P01/28000 = rejected credentials. The usual cause after a working
+        // first boot: POSTGRES_PASSWORD changed in .env, but Postgres bakes
+        // the password into the pgdata volume when the volume is FIRST
+        // initialized — the container ignores the env var afterwards.
+        const hint = (err.code === '28P01' || err.code === '28000')
+          ? ' Hint: if POSTGRES_PASSWORD changed after the first start, restore the old value, or wipe the volume (docker compose down -v — DESTROYS all data) on a fresh install.'
+          : '';
+        throw new Error('Database connection failed (not retrying — check DATABASE_URL / PG* env vars): ' + err.message + hint);
       }
       if (attempt >= 30) throw new Error('Database unreachable after 30s: ' + err.message);
       if (attempt === 1) console.log('Waiting for database…');
