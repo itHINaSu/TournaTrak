@@ -837,27 +837,42 @@ api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
 // ── Bracket Builder ───────────────────────────────────────────────────
 // List the available tournament formats so the builder UI can render choices.
 api.get('/schedule/formats', requireAdmin, (req, res) => {
-  res.json(Object.values(FORMATS).map(f => ({
-    id: f.id,
-    label: f.label,
-    description: f.description,
-    // A format declares either a fixed teamCount, a minTeams/maxTeams range,
-    // or an explicit validCounts list (e.g. double-elim requires exact powers of 2).
-    minTeams: f.minTeams != null ? f.minTeams : f.teamCount,
-    maxTeams: f.maxTeams != null ? f.maxTeams : f.teamCount,
-    validCounts: f.validCounts || null,
-    doubleElim: !!f.doubleElim,
-    supportsIfNecessary: !!f.supportsIfNecessary,
-  })));
+  res.json(Object.values(FORMATS).map(f => {
+    const min = f.minTeams != null ? f.minTeams : f.teamCount;
+    const max = f.maxTeams != null ? f.maxTeams : f.teamCount;
+    // Base real-game count per team count (options like the 3rd-place or
+    // "if necessary" game each add one on top; the client applies those) —
+    // keeps the builder's playing-day sizing free of format math.
+    const counts = f.validCounts || Array.from({ length: max - min + 1 }, (_, i) => min + i);
+    const gamesByCount = {};
+    if (f.estimateGames) {
+      counts.forEach(n => { gamesByCount[n] = f.estimateGames(n, { ifNecessary: false, thirdPlace: false }); });
+    }
+    return {
+      id: f.id,
+      label: f.label,
+      description: f.description,
+      // A format declares either a fixed teamCount, a minTeams/maxTeams range,
+      // or an explicit validCounts list (e.g. double-elim requires exact powers of 2).
+      minTeams: min,
+      maxTeams: max,
+      validCounts: f.validCounts || null,
+      doubleElim: !!f.doubleElim,
+      supportsIfNecessary: !!f.supportsIfNecessary,
+      supportsThirdPlace: !!f.supportsThirdPlace,
+      noByes: !!f.noByes,
+      gamesByCount,
+    };
+  }));
 });
 
 // Generate a full bracket schedule from a format + teams and REPLACE the
 // current schedule. Destructive — the UI confirms before calling this.
 api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
-  const { format, startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, showSeeds, gamePrefix } = req.body || {};
+  const { format, startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, thirdPlace, showSeeds, gamePrefix } = req.body || {};
   let schedule, seededTeams;
   try {
-    ({ schedule, seededTeams } = generateSchedule(format, { startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, gamePrefix }));
+    ({ schedule, seededTeams } = generateSchedule(format, { startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, thirdPlace, gamePrefix }));
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
@@ -867,14 +882,22 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
   if (verr) return res.status(500).json({ error: 'Generated schedule failed validation: ' + verr });
   await store.put(req.tid, 'schedule', schedule);
 
-  // Double elimination has a true winners/losers split, so default the side
-  // labels to match. (Single-elim leaves the existing labels alone — its two
-  // sides are just bracket halves.)
+  // Format-driven settings defaults: formats with a true two-bracket split
+  // name the sides (WB/LB, championship/consolation); schedule-first formats
+  // (round robin, pools) land the public page on the Schedule tab, where a
+  // topology-free schedule actually reads. Single-elim leaves labels alone —
+  // its two sides are just bracket halves.
   const fmt = FORMATS[format];
-  if (fmt && fmt.doubleElim) {
+  if (fmt && (fmt.sideLabels || fmt.scheduleFirst)) {
     const settings = await store.get(req.tid, 'settings');
-    settings.leftLabel = 'Winners Bracket';
-    settings.rightLabel = 'Losers Bracket';
+    if (fmt.sideLabels) {
+      settings.leftLabel = fmt.sideLabels[0];
+      settings.rightLabel = fmt.sideLabels[1];
+    }
+    if (fmt.scheduleFirst) {
+      settings.defaultTab = 'schedule';
+      settings.defaultTabScope = 'both';
+    }
     await store.put(req.tid, 'settings', settings);
     invalidateIndexCache(req.tid);
   }

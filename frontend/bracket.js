@@ -1108,14 +1108,24 @@ function renderBracket(){
   }
 }
 
-// ── champ2State: returns 'pending' | 'needed' | 'not-needed' ─────────
-// 'pending'    — CHAMP not yet decided; CHAMP2 may or may not be needed
-// 'needed'     — LB finalist won CHAMP; CHAMP2 must be played
-// 'not-needed' — WB finalist won CHAMP; CHAMP2 is cancelled
+// True when CHAMP2 holds a single-elim 3rd-place game (fed by semifinal
+// LOSERS) rather than a double-elim bracket reset (fed by CHAMP itself).
+function isThirdPlaceGame() {
+  var g = GAMES['CHAMP2.C.1'];
+  return !!(g && g.t1 && g.t1.type === 'loser' && g.t1.slot !== 'CHAMP.C.1');
+}
+
+// ── champ2State: 'pending' | 'needed' | 'not-needed' | 'third-place' ──
+// 'pending'     — CHAMP not yet decided; CHAMP2 may or may not be needed
+// 'needed'      — LB finalist won CHAMP; CHAMP2 must be played
+// 'not-needed'  — WB finalist won CHAMP; CHAMP2 is cancelled
+// 'third-place' — CHAMP2 is a 3rd-place game: always played, never gates
+//                 the champion banner, none of the reset UI applies
 function champ2State() {
   // No CHAMP2 game scheduled (e.g. single elimination): a bracket reset can
   // never be needed, so the champion banner must not be suppressed.
   if (!GAMES['CHAMP2.C.1']) return 'not-needed';
+  if (isThirdPlaceGame()) return 'third-place';
   var champG = GAMES['CHAMP.C.1'];
   if (!champG) return 'pending';
   var cr = results['CHAMP.C.1'] || {};
@@ -1205,7 +1215,7 @@ function renderDesktopBracket(root,dims){
           ? '<div class="champ-ifnec-note">Played only if the Loser\'s Bracket finalist wins the Championship</div>'
           : '';
         ifNecHTML='<div class="champ-center--ifnec' + c2DimCls + '">'
-          +'<div class="champ-ifnec-label">If Necessary</div>'
+          +'<div class="champ-ifnec-label">' + (c2s === 'third-place' ? '3rd Place' : 'If Necessary') + '</div>'
           + c2Note
           +(champ2G.time?'<div class="champ-gametime">'+esc(formatTime(champ2G.time))+'</div>':'')
           +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" data-gid="CHAMP2.C.1" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP2.C.1')+'</div></div>'

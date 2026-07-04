@@ -275,6 +275,60 @@ async rejections to the error middleware; **never add a bare async handler**.
   password `tournatrak`), then run server.js with PG* vars (or DATABASE_URL)
   + DATA_DIR/FRONTEND_DIR pointing into the repo.
 
+## Bracket format repository (schedule-formats.js)
+Six formats, all registry-driven — the builder UI reads
+`GET /api/schedule/formats` (id/label/description/ranges/flags/gamesByCount),
+so a new FORMATS entry appears in the builder with ZERO client changes
+unless it needs a new option checkbox. Formats (grounded in what Challonge/
+BracketHQ/youth-TD sheets offer):
+- **single-elim** (4–64, byes) — now with optional **3rd-place game**
+  (`supportsThirdPlace` → builder checkbox → `thirdPlace` opt). The game
+  lives in CHAMP2.C.1 fed by semifinal LOSERS; `roundLabel()` +
+  `champ2State()` (new `'third-place'` state) + `isThirdPlaceGame()` in the
+  frontend distinguish it from a double-elim reset by its feeds, so none of
+  the "If Necessary"/"Not Needed" reset UI applies and it never gates the
+  champion banner.
+- **double-elim** (4/8/16/32) — unchanged engine; side-label defaulting now
+  comes from a generic `fmt.sideLabels` (WB/LB).
+- **consolation** (4–32) — 2-game guarantee: main single-elim confined to L
+  (chain R1.L→R2.L→QF.L→QF2.L→CHAMP.C, tail-sliced by depth), first-round
+  losers feed a consolation bracket on R (R2.R→QF.R→QF2.R→SF.R). Byes enter
+  in round 2 and skip consolation (standard rule). Sets side labels
+  Championship/Consolation. isEliminated already handles it (loss with a
+  loser-feed ≠ out).
+- **round-robin** (3–14) / **round-robin-double** (3–10) — circle-method
+  pairings (alternating home/away; leg 2 swaps), games laid into the slot
+  grid purely for storage (RR_SLOTS flat list, 98 capacity).
+- **pools** (6–16) — 2–4 snake-seeded pools of 3–4 (ceil(N/4) pools; pools
+  of 5 would overflow an 8-slot column — that's why 17–20 teams is a
+  FOLLOW-UP, needs a second column per pool), round robin within pool
+  (labels suffixed "· Pool A"), then top-2 cross-seed into a placeholder
+  playoff ("Pool A #1" fixed names the TD overwrites in the schedule editor
+  after pools — the paper-bracket workflow). Pools of 4 = 3-game guarantee.
+- Shared machinery: `buildFeedBracket(entrants, chain, byeCards)` (generic
+  tail-of-chain single elim with null passthrough; bye CARDS only for leaf
+  fixed-name pairs), `emitSpecs` (numbering/timing), `roundRobinPairs`.
+- `fmt.noByes` (RR/pools): builder hides bye math; server skips manual-bye
+  validation. `fmt.scheduleFirst` (RR/pools): generate route flips settings
+  defaultTab→schedule/both (bracket tree meaningless there).
+  `fmt.estimateGames(n, opts)` → formats API `gamesByCount` map → builder's
+  `realGamesNeeded()` has no client-side format math (falls back for old
+  servers).
+- **Verified**: 1300 structural checks (scratchpad formatstest.js — every
+  format × every count × option variants: validateSchedule, slot validity,
+  feed integrity, ≤200 entries, estimate==real, full play-through
+  simulation, per-format guarantees) + 16 Playwright rendering checks
+  (3rd-place labels/champion banner, consolation side labels + 22 cards +
+  loser team-path continuation, RR schedule-first landing, pools labels +
+  placeholders). NOT visually reviewed by a human: consolation bracket
+  GEOMETRY on desktop/mobile (cards render and feeds connect, but line
+  aesthetics for the L-confined main bracket + R consolation weren't
+  eyeballed) — worth a look on a real screen.
+- Swiss deliberately skipped: pairings depend on live standings each round,
+  which a static schedule topology can't express. Round-robin STANDINGS
+  table (public view) is a natural follow-up; results are per-game today.
+- SW bumped to v2.65 (bracket.js + bracket-data.js precached).
+
 ## Coach passwords (optional, alongside magic links)
 Coaches auth primarily by magic link, but may OPTIONALLY set a password:
 - `/api/session` exposes `hasPassword` (all authenticated users).

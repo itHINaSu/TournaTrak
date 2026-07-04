@@ -29,13 +29,16 @@ function builderApiBase() {
 function pad2(n) { return String(n).padStart(2, '0'); }
 function ymd(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
 
-// Real games the current bracket needs a time slot for. Single-elim: N - 1.
-// Double-elim: 2N - 2, plus one for the "if necessary" reset when enabled.
+// Real games the current bracket needs a time slot for. The base count per
+// team count comes from the formats API (gamesByCount — no format math here);
+// the optional "if necessary" reset and 3rd-place game each add one.
 function realGamesNeeded() {
   var n = parsedTeams().length;
   if (n < 2 || !currentFormat) return 0;
-  if (currentFormat.doubleElim) return (2 * n - 2) + (ifNecessaryOn() ? 1 : 0);
-  return n - 1;
+  var base = (currentFormat.gamesByCount && currentFormat.gamesByCount[n] != null)
+    ? currentFormat.gamesByCount[n]
+    : (currentFormat.doubleElim ? 2 * n - 2 : n - 1);   // fallback for old servers
+  return base + (ifNecessaryOn() ? 1 : 0) + (thirdPlaceOn() ? 1 : 0);
 }
 
 // ── Auth gate ─────────────────────────────────────────────────────────
@@ -95,6 +98,7 @@ function selectFormat(id) {
   currentFormat = FORMATS.filter(function (f) { return f.id === id; })[0] || FORMATS[0];
   $('formatDesc').textContent = currentFormat.description || '';
   $('ifNecField').style.display = currentFormat.supportsIfNecessary ? '' : 'none';
+  $('thirdPlaceField').style.display = currentFormat.supportsThirdPlace ? '' : 'none';
   updateGenCountOptions();
   refresh();
   updateShowSeedsVisibility();
@@ -107,6 +111,10 @@ function updateShowSeedsVisibility() {
 
 function ifNecessaryOn() {
   return currentFormat && currentFormat.supportsIfNecessary && $('ifNecChk').checked;
+}
+
+function thirdPlaceOn() {
+  return currentFormat && currentFormat.supportsThirdPlace && $('thirdPlaceChk').checked;
 }
 
 // ── Teams ─────────────────────────────────────────────────────────────
@@ -198,6 +206,7 @@ function genRandomTeams() {
 function byesNeeded() {
   var n = parsedTeams().length;
   if (!currentFormat) return 0;
+  if (currentFormat.noByes) return 0;   // round robin / pools — no byes exist
   if (currentFormat.validCounts) return 0;
   if (n < currentFormat.minTeams) return 0;
   return nextPow2(n) - n;
@@ -221,11 +230,14 @@ function refresh() {
   countEl.textContent = n + ' team' + (n === 1 ? '' : 's') + ' (' + range + ')';
   countEl.className = 'bld-count' + (inRange ? ' bld-count--ok' : '');
 
-  // Bye note
+  // Bye note (formats without byes get a game-count summary instead)
   var byes = byesNeeded();
   var noteEl = $('byeNote');
   if (!inRange) {
     noteEl.textContent = '';
+  } else if (currentFormat.noByes) {
+    var g = realGamesNeeded();
+    noteEl.textContent = g ? (g + ' games for ' + n + ' teams.') : '';
   } else if (byes === 0) {
     noteEl.textContent = 'A clean bracket of ' + n + ' — no byes needed.';
   } else {
@@ -621,6 +633,7 @@ async function doGenerate() {
       body.startDate = $('simpleDate').value;
     }
     if (currentFormat.supportsIfNecessary) body.ifNecessary = $('ifNecChk').checked;
+    if (currentFormat.supportsThirdPlace) body.thirdPlace = $('thirdPlaceChk').checked;
     var mode = $('seedMode').value;
     if (mode === 'order' || mode === 'manual') body.showSeeds = $('showSeedsChk').checked;
     var prefixEl = $('gamePrefixInput');
@@ -652,6 +665,7 @@ function wireEvents() {
   $('genBtn').addEventListener('click', genRandomTeams);
   $('seedMode').addEventListener('change', function () { refresh(); updateShowSeedsVisibility(); });
   $('ifNecChk').addEventListener('change', refresh);
+  $('thirdPlaceChk').addEventListener('change', refresh);
   $('advSchedChk').addEventListener('change', onAdvToggle);
   $('generateBtn').addEventListener('click', onGenerate);
   $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').style.display = 'none'; });

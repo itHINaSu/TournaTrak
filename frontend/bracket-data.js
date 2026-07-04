@@ -36,7 +36,13 @@ const ROUND_LABELS = {
 // The admin editor shows every defined round and keeps the static labels.
 function roundLabel(round) {
   if (round === 'CHAMP')  return ROUND_LABELS.CHAMP;
-  if (round === 'CHAMP2') return ROUND_LABELS.CHAMP2;
+  if (round === 'CHAMP2') {
+    // CHAMP2 is the double-elim "if necessary" reset, EXCEPT when its feeds
+    // are semifinal losers — then it's a single-elim 3rd-place game.
+    const g = GAMES['CHAMP2.C.1'];
+    if (g && g.t1 && g.t1.type === 'loser' && g.t1.slot !== 'CHAMP.C.1') return '3rd Place';
+    return ROUND_LABELS.CHAMP2;
+  }
   let n = 0;
   for (const r of ROUND_ORDER) {
     if (r === 'CHAMP' || r === 'CHAMP2') continue;

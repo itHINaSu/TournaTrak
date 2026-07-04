@@ -153,7 +153,13 @@ Planning-stage ideas discussed but not scoped in detail. Add specifics as they'r
 ### Candidate features
 - ✅ **Lineup multi-sport support** (buildout branch: presets softball/volleyball/basketball/generic + custom columns per tournament)
   — was: **Lineup multi-sport support** — lineup fields (`jersey`, `name`, `position`) are currently softball/baseball-specific. For other sports: configurable field labels per tournament or a generic "player slot" UI (e.g., "Player 1 / Player 2" for volleyball). The periodLabel setting already handles sport labeling; lineup is the remaining softball-specific piece.
-- **Multiple bracket formats** — single elimination, pools + bracket, round robin
+- ✅ **Multiple bracket formats** (buildout branch, 2026-07-04): six formats in
+  the builder — single elim (now with optional 3rd-place game), double elim,
+  consolation bracket (2-game guarantee), round robin, double round robin,
+  and pool play → playoffs (3-game guarantee with pools of 4). See HANDOFF
+  "Bracket format repository". Remaining format ideas: Swiss (needs dynamic
+  per-round pairing — doesn't fit the static schedule topology), 17–20 team
+  pools (pool of 5 needs a second slot column), RR standings table.
 - **Variable team counts** — not locked to 16 teams; bracket structure derived from registration
 - **Public registration / team management** — teams sign up, admin approves
 - **Notifications** — push or SMS when a team's next game is posted or goes live
@@ -230,12 +236,12 @@ shared FORMATS registry used by both the builder API and the CLI).
   add `user: "${PUID:-1000}:${PGID:-1000}"` to match the main stacks.
 
 ### Deferred builder follow-ups
-- **Game-guarantee brackets (2- and 3-game).** Planned. `isEliminated()` in
-  `bracket-data.js` currently hardcodes the double-elim rule (`losses >= 2`),
-  which won't generalize. Repurpose it to a **structural** test — a team is alive
-  iff some undecided slot can still feed it — which is format-agnostic across
-  single-elim, double-elim, and N-game guarantees. Likely pairs with a
-  per-format elimination/guarantee descriptor in the FORMATS registry.
+- ✅ **Game-guarantee brackets (2- and 3-game)** (2026-07-04): the
+  `consolation` format covers the 2-game guarantee (first-round losers get a
+  consolation bracket) and `pools` covers the 3-game guarantee (pools of 4 →
+  playoffs). The "double-elim until round Y, then single elim" variant the
+  TD described remains unbuilt — the two shipped formats are the standard
+  ways tournaments deliver those guarantees.
 - **64-team support.** Generator scales trivially, but requires prepending one
   round name in `ROUND_BY_DEPTH` (schedule-formats.js) AND widening `SLOT_DEFS`
   in both `api/slot-defs.js` and `frontend/bracket-data.js` (must stay in sync),
@@ -244,8 +250,10 @@ shared FORMATS registry used by both the builder API and the CLI).
   generator (`generateDoubleElim16`) is a template for other sizes and the
   "twists" (non-standard loser drops, etc.). Build off the same feed-list
   structure when those are specced.
-- **Game-guarantee brackets** (per the TD: a losers bracket for Y rounds, then
-  single-elim after). Builds on the double-elim loser-feed logic. Not yet built.
+- **Truncated double-elim** (per the TD: a losers bracket for Y rounds, then
+  single-elim after). Builds on the double-elim loser-feed logic. Not yet
+  built — the consolation + pools formats cover the usual game-guarantee
+  use cases; build this only if the TD still wants the specific structure.
 
 ---
 
