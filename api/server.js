@@ -393,11 +393,11 @@ api.get('/users', requireAdmin, ah(async (req, res) => {
       out.grantsElsewhere = Object.keys(u.roles).some(t => Number(t) !== req.tid);
       if (role === 'team') {
         const teams = store.teamsFor(u, req.tid);
-        out.teamName    = teams[0] || u.teamName;
-        out.teams       = teams;
-        out.accessToken = u.accessToken;
-      } else if (u.mustChangePassword && u.setupToken) {
-        out.setupToken = u.setupToken;
+        out.teamName = teams[0] || u.teamName;
+        out.teams    = teams;
+        // Only the hash is stored, so the raw link can't be re-shown here —
+        // the UI offers Regenerate (which returns a fresh raw token once).
+        out.hasAccessToken = !!u.accessToken;
       }
       return out;
     });
@@ -423,16 +423,20 @@ api.post('/users', requireAdmin, ah(async (req, res) => {
       if (!teamName || typeof teamName !== 'string' || !teamName.trim()) {
         return res.status(400).json({ error: 'Team name is required for team users' });
       }
+      // Raw token goes to the caller ONCE; only its hash is stored.
       const accessToken = crypto.randomBytes(32).toString('hex');
       const trimmed = teamName.trim();
       await store.createUser({
         username, role: 'team', teamName: trimmed, teams: [trimmed],
-        accessToken, mustChangePassword: false,
+        accessToken: store.hashToken(accessToken), mustChangePassword: false,
       }, req.tid);
       return res.json({ ok: true, accessToken });
     } else {
       const setupToken = crypto.randomBytes(32).toString('hex');
-      await store.createUser({ username, role, mustChangePassword: true, setupToken }, req.tid);
+      await store.createUser({
+        username, role, mustChangePassword: true,
+        setupToken: store.hashToken(setupToken),
+      }, req.tid);
       return res.json({ ok: true, setupToken });
     }
   } catch (err) {
@@ -513,7 +517,7 @@ api.post('/users/:username/setup-link', requireAdmin, ah(async (req, res) => {
   if (!user || !userActionAllowed(req, user)) return res.status(404).json({ error: 'User not found' });
   if (user.role === 'team') return res.status(400).json({ error: 'Team users use access tokens' });
   const setupToken = crypto.randomBytes(32).toString('hex');
-  await store.updateUser(username, { setupToken, mustChangePassword: true });
+  await store.updateUser(username, { setupToken: store.hashToken(setupToken), mustChangePassword: true });
   res.json({ ok: true, setupToken });
 }));
 
@@ -523,7 +527,7 @@ api.post('/users/:username/regenerate-token', requireAdmin, ah(async (req, res) 
   if (!user || !userActionAllowed(req, user)) return res.status(404).json({ error: 'User not found' });
   if (user.role !== 'team') return res.status(400).json({ error: 'Only team users have access tokens' });
   const accessToken = crypto.randomBytes(32).toString('hex');
-  await store.updateUser(username, { accessToken });
+  await store.updateUser(username, { accessToken: store.hashToken(accessToken) });
   res.json({ ok: true, accessToken });
 }));
 
@@ -557,7 +561,8 @@ api.delete('/users/:username/teams/:teamName', requireAdmin, ah(async (req, res)
 api.get('/setup-password/:token', ah(async (req, res) => {
   const { token } = req.params;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return res.redirect('/admin?setup=invalid');
-  const user = (await store.allUsers()).find(u => u.setupToken === token && u.mustChangePassword);
+  const hashed = store.hashToken(token);
+  const user = (await store.allUsers()).find(u => u.setupToken === hashed && u.mustChangePassword);
   if (!user) return res.redirect('/admin?setup=invalid');
   req.session.regenerate(err => {
     if (err) return res.redirect('/admin?setup=invalid');
@@ -571,7 +576,8 @@ api.get('/team-access/:token', ah(async (req, res) => {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) {
     return res.redirect('/lineup?invalid=1');
   }
-  const user = (await store.allUsers()).find(u => u.role === 'team' && u.accessToken === token);
+  const hashed = store.hashToken(token);
+  const user = (await store.allUsers()).find(u => u.role === 'team' && u.accessToken === hashed);
   if (!user) {
     return res.redirect('/lineup?invalid=1');
   }
@@ -1199,7 +1205,13 @@ async function restoreDemoSeed() {
     }
     try {
       if (f === 'users.json') {
-        await store.replaceUsers(Array.isArray(data.users) ? data.users : []);
+        // Seed files may carry v2-style cleartext tokens — hash on the way in.
+        const seedUsers = (Array.isArray(data.users) ? data.users : []).map(u => ({
+          ...u,
+          accessToken: store.hashTokenIfRaw(u.accessToken),
+          setupToken:  store.hashTokenIfRaw(u.setupToken),
+        }));
+        await store.replaceUsers(seedUsers);
       } else if (SEED_DOMAINS[f]) {
         await store.put(store.tid, SEED_DOMAINS[f], data);
       } else {

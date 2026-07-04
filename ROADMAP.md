@@ -64,12 +64,13 @@ reliability-critical; address before going fully public or starting v3.
   range gets mixed layouts. Decide the intended contract and unify.
 
 ### Security / ops
-- **Access token hashing** — `GET /api/users` returns all team access tokens
-  and setup tokens in plaintext; they're also stored cleartext in `users.json`.
-  Store only hashes; surface the raw token once at creation/regeneration.
-- **`COOKIE_SECURE` docs** — `.env.example` defaults to `false`. Document (or
-  enforce at startup) that any deployment not behind a TLS-terminating proxy
-  must set `COOKIE_SECURE=true`.
+- **Access token hashing** — ✅ DONE (2026-07-04): only SHA-256 hashes are
+  stored; raw tokens surface once at creation/regeneration; legacy cleartext
+  rows upgraded at boot. See HANDOFF Security items.
+- **`COOKIE_SECURE` docs** — ✅ DONE: `.env.example` explains exactly when to
+  set it (TLS all the way vs terminated upstream). Startup enforcement was
+  deliberately skipped — the server can't tell a TLS-terminating proxy from
+  a bare deployment, so a check would nag every legitimate proxied setup.
 
 ### Accessibility
 - **Focus trapping on overlays** — login, change-password, import, and

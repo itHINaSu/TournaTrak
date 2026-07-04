@@ -40,6 +40,20 @@ function domainDefault(domain) {
   return {};
 }
 
+// ── Token hashing ─────────────────────────────────────────────────────
+// Access tokens (coach magic links) and setup tokens are bearer credentials,
+// so only their SHA-256 is persisted — the raw value is surfaced once, in the
+// create/regenerate response. The 'sha256:' prefix distinguishes hashed
+// values from legacy cleartext (both are otherwise 64 hex chars); migrate.js
+// upgrades any unprefixed rows at boot, and hashTokenIfRaw guards the two
+// paths that insert externally-sourced users (legacy import, demo restore).
+function hashToken(raw) {
+  return 'sha256:' + crypto.createHash('sha256').update(String(raw)).digest('hex');
+}
+function hashTokenIfRaw(v) {
+  return (v && !String(v).startsWith('sha256:')) ? hashToken(v) : v;
+}
+
 // ── Cache ─────────────────────────────────────────────────────────────
 // Key: `${tid}/${domain}` (or 'users'); value: { data, etag }.
 const cache = new Map();
@@ -502,6 +516,7 @@ module.exports = {
   allUsers, findUser, effectiveRole, teamsFor,
   createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
   grantRole, revokeRole,
+  hashToken, hashTokenIfRaw,
   listTournaments, tournamentBySlug, createTournament, updateTournament, deleteTournament,
   SessionStore: PgSessionStore,
   _saveDomain, _withTransaction,

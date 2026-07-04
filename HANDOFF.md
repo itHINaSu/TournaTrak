@@ -25,9 +25,13 @@ At the start of every new session (or when told to "get up to speed"), ask:
 Then `git checkout <branch>` before touching anything. Do not assume `main`.
 
 ## Branch rule
-**Active development branch: `claude/tournatrak-eval-buildout-sa3mvv`** (the
-v2-cleanup → v3 build-out). Commit and push when a change is complete. Do not
-open PRs unless asked.
+**Leading branch as of 2026-07-04: `claude/handoff-continuation-9elo3q`**
+(owner decision). Other Claude sessions — including the one that previously
+led on `claude/tournatrak-eval-buildout-sa3mvv` — PULL from this branch to
+stay current; do not push to a branch you weren't assigned. Before starting
+work, `git fetch` and fast-forward onto the leading branch's tip to avoid
+the parallel-Phase-C style divergence that happened on 2026-07-02/03.
+Commit and push when a change is complete. Do not open PRs unless asked.
 - `main` — production-ready v2. All pre-buildout features land here.
 - `feature/bracket-builder` — MERGED into the buildout branch (formats engine,
   /builder UI, teams/seeding, drag-and-drop, theme colors). Do not develop here.
@@ -468,6 +472,19 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
   previously bcrypt.compare against their undefined passwordHash threw
   a 500, an account-type oracle. Verified: all three login-failure
   classes measure 339–348ms.
+- **Access/setup token hashing**: ✅ DONE — only `sha256:<hex>`-prefixed
+  hashes are persisted (users.access_token / setup_token); the raw token is
+  returned exactly once by create/regenerate responses. migrate.js upgrades
+  cleartext rows on boot (idempotent; also catches v2 import), and the demo
+  restore hashes seed tokens on the way in. `GET /api/users` no longer
+  returns tokens (team users get `hasAccessToken` instead). Admin UI:
+  Copy Link / Copy Setup Link buttons removed from lists; Regenerate (and
+  addCoach/addUser creation) copies the fresh link to the clipboard —
+  regenerating is the ONLY recovery for a lost link, old link dies. The
+  `?team=`-era copyCoachLink/copySetupLink helpers + hidden link input +
+  its CSS were removed. Verified: legacy cleartext link still works after
+  the boot upgrade (hash matches), regenerate kills the old link, setup
+  flow end-to-end, no 64-hex token anywhere in admin DOM (Playwright).
 - **Rate limiter** in-memory (resets on restart; bounded). Accepted for now.
 - **Session persistence**: ✅ DONE — Postgres `sessions` table via
   PgSessionStore (store.js); FileSessionStore removed.
