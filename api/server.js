@@ -294,8 +294,13 @@ api.get('/session', ah(async (req, res) => {
   });
 }));
 
-// Sentinel hash used when user not found, to prevent timing attacks.
-const SENTINEL_HASH = '$2b$12$invalidhashsentinelXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+// Sentinel hash compared when the account has no usable password, so a
+// failed login takes the same ~300ms whether the username exists or not.
+// It must be a REAL cost-12 hash: bcryptjs short-circuits malformed hashes
+// in <1ms, which is a timing oracle for valid usernames (the old constant
+// here was 61 chars — invalid — and had exactly that problem). Hashing a
+// random throwaway value at startup guarantees validity and matching cost.
+const SENTINEL_HASH = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12);
 
 api.post('/login', loginRateLimit, ah(async (req, res) => {
   const { username, password } = req.body || {};
@@ -304,9 +309,13 @@ api.post('/login', loginRateLimit, ah(async (req, res) => {
   }
   const user = await store.findUser(username);
   // Always run bcrypt so response time does not reveal valid usernames.
-  const hashToCompare = user ? user.passwordHash : SENTINEL_HASH;
+  // Accounts without a password (team users auth by access token; new users
+  // pending their setup link) also fall through to the sentinel — comparing
+  // against their undefined passwordHash would throw (a 500, and an
+  // account-type oracle) instead of the uniform 401.
+  const hashToCompare = (user && user.passwordHash) ? user.passwordHash : SENTINEL_HASH;
   const passwordOk = await bcrypt.compare(password, hashToCompare);
-  if (!user || !passwordOk) {
+  if (!user || !user.passwordHash || !passwordOk) {
     if (req._loginEntry) req._loginEntry.count++;
     return res.status(401).json({ error: 'Invalid credentials' });
   }

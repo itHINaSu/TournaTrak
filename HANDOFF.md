@@ -460,10 +460,14 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
   (commit 9960403, still reachable on origin/dev and origin/feature/regional)
   with a real bcrypt hash + plaintext team accessToken. Owner should rotate
   that token and decide on branch cleanup. NOT yet remediated.
-- **SENTINEL_HASH timing defense is broken** (server.js): sentinel is 61
-  chars (invalid bcrypt) so compares return in ~0.4ms vs ~334ms real —
-  username enumeration by timing. Fix: precomputed real cost-12 hash.
-  NOT yet fixed (security work de-scoped this session by owner).
+- **SENTINEL_HASH timing defense**: ✅ FIXED — sentinel is now a real
+  cost-12 hash of a random value computed at startup (the old 61-char
+  constant was invalid bcrypt; bcryptjs short-circuited it in <1ms vs
+  ~340ms real, leaking username existence). Same fix made passwordless
+  accounts (team users, pending-setup users) return the uniform 401 —
+  previously bcrypt.compare against their undefined passwordHash threw
+  a 500, an account-type oracle. Verified: all three login-failure
+  classes measure 339–348ms.
 - **Rate limiter** in-memory (resets on restart; bounded). Accepted for now.
 - **Session persistence**: ✅ DONE — Postgres `sessions` table via
   PgSessionStore (store.js); FileSessionStore removed.
