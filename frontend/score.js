@@ -17,14 +17,7 @@ function scoreApiBase() {
   return _scoreSlug ? '/api/t/' + encodeURIComponent(_scoreSlug) : '/api';
 }
 
-function showToast(msg, isError) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.toggle('toast--error', !!isError);
-  t.classList.add('show');
-  clearTimeout(showToast._tm);
-  showToast._tm = setTimeout(function() { t.classList.remove('show'); }, 2200);
-}
+// showToast() comes from tt-common.js
 
 // ── Data ──────────────────────────────────────────────────────────────
 async function loadAll() {

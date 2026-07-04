@@ -513,15 +513,7 @@ window.addEventListener('orientationchange', function() {
 // ══════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════
-function showToast(msg, err) {
-  var t = document.getElementById('toast');
-  if (!t) return;
-  t.textContent = msg;
-  t.className = 'toast' + (err ? ' error' : '');
-  t.classList.add('show');
-  clearTimeout(t._tt);
-  t._tt = setTimeout(function(){ t.classList.remove('show'); }, 2500);
-}
+// showToast() comes from tt-common.js
 
 function gameLabel(sid){
   var g = GAMES[sid];

@@ -77,6 +77,18 @@ function ttTabPath(tab) {
   return prefix + '/' + (tab || 'bracket');
 }
 
+// Toast: transient status message. Pages carry <div class="toast" id="toast">;
+// no-ops on pages without one. Second arg true → error styling (.toast.error).
+function showToast(msg, err) {
+  var t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.className = 'toast' + (err ? ' error' : '');
+  t.classList.add('show');
+  clearTimeout(t._tt);
+  t._tt = setTimeout(function() { t.classList.remove('show'); }, 2500);
+}
+
 // ── Delegated actions ──────────────────────────────────────────────────
 // Replaces inline onclick="fn(...)" attributes, which are blocked once the
 // CSP drops script-src 'unsafe-inline'. Markup declares data-action="name"

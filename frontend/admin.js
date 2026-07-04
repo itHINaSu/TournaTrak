@@ -36,7 +36,7 @@ function scopedUrl(url) {
   return url.indexOf('/api') === 0 ? adminApiBase() + url.slice(4) : url;
 }
 
-var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
+// (lineup position lists live in lineup.js LINEUP_PRESETS since v4a)
 
 // SETTINGS_DEFAULTS comes from settings-defaults.js; getSetting from tt-common.js
 
@@ -146,13 +146,7 @@ function toggleSettingsSidebar() {
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────
-function showToast(msg, err) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast' + (err ? ' error' : '');
-  t.classList.add('show');
-  setTimeout(function(){ t.classList.remove('show'); }, 2500);
-}
+// showToast() comes from tt-common.js
 
 
 // ── Fetch ──────────────────────────────────────────────────────────────
