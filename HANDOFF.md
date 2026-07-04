@@ -275,6 +275,25 @@ async rejections to the error middleware; **never add a bare async handler**.
   password `tournatrak`), then run server.js with PG* vars (or DATABASE_URL)
   + DATA_DIR/FRONTEND_DIR pointing into the repo.
 
+## Coach passwords (optional, alongside magic links)
+Coaches auth primarily by magic link, but may OPTIONALLY set a password:
+- `/api/session` exposes `hasPassword` (all authenticated users).
+- Standalone lineup page: header "Set Password" / "Change Password" button
+  (`#coachAccountBtn`, shown only for role team; the button doesn't exist in
+  admin.html so embedded mode is unaffected) opens a modal that POSTs the
+  existing `/api/change-password` (which already allowed any session).
+- The unauthenticated `/lineup` state is now an access GATE: the old
+  "Link Invalid" card (soft "Coach Access" copy when there's no ?invalid=1
+  param) plus a username/password sign-in form. Login is tid-agnostic;
+  after reload `lineupInit()` **scope-heals**: an authenticated session
+  whose role is null on the current mount follows the first `role:'team'`
+  entry in `session.tournaments` to `/lineup?t=<slug>`.
+- Magic links keep working regardless; setting a password never touches the
+  access token. SW bumped to v2.64 (lineup.html/js precached).
+- Verified (curl + Playwright, 13 checks): set/change flow, mismatch
+  validation, password sign-in for default- and non-default-tournament
+  coaches (incl. the ?t= redirect), magic link still valid afterward.
+
 ## Lineup: softball-specific — needs v3 attention
 Lineup fields (`jersey`, `name`, `position`) are sport-specific. For v3 multi-sport,
 these need to be configurable or abstracted. **Do not change in v2.**

@@ -288,6 +288,9 @@ api.get('/session', ah(async (req, res) => {
     // below lets Phase C UI expose superadmin-only features.
     role:               eff === 'superadmin' ? 'admin' : eff,
     superadmin:         u.role === 'superadmin',
+    // Coaches auth by magic link but may optionally set a password (the
+    // lineup page uses this to label Set vs Change Password).
+    hasPassword:        !!u.passwordHash,
     teamName:           teams[0] || u.teamName || null,
     teams,
     tournaments,
