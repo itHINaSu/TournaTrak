@@ -358,6 +358,9 @@ api.post('/change-password', ah(async (req, res) => {
       passwordHash: hash, mustChangePassword: false, setupToken: null,
     });
     if (!updated) return res.status(404).json({ error: 'User not found' });
+    // First-boot recovery file: once any password change succeeds, the
+    // generated initial admin password is stale — remove the plaintext.
+    try { fs.unlinkSync((process.env.SECRETS_DIR || '/run/tt-secrets') + '/initial_admin_password'); } catch (e) {}
     res.json({ ok: true });
   } catch (err) {
     console.error('change-password error:', err);

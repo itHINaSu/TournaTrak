@@ -17,8 +17,14 @@ A self-hosted tournament bracket web app supporting single- and double-eliminati
   - ✅ CSP hardening (`script-src 'self'`, no inline JS), single-sourced
     settings defaults, shared `tt-common.js`, mobile touch-target pass,
     offline resilience + live-score polling.
-  - ⬜ Multi-tournament support (`/t/:slug` routing, per-tournament admin
-    scoping, super-admin role) — next up; see `ROADMAP.md`.
+  - ✅ Multi-tournament support: public `/t/:slug` routing + path tabs,
+    per-tournament admin scoping via the header switcher, superadmin role
+    and Tournaments management panel.
+  - ✅ v4 wave: multi-sport lineups (presets + custom columns), field-side
+    scorekeeper mode at `/score`, per-tournament white-label (theme colors
+    + validated logo).
+  - ✅ Zero-touch install: `git clone` + `docker compose up -d --build`
+    generates all secrets on first boot — no `.env` needed.
 
 ---
 
@@ -227,16 +233,19 @@ Docker Compose on a Linux server. nginx fronts the stack; the `postgres`
 service is internal-only (no host ports).
 
 ```bash
-./init-env.sh                           # first run only: create .env with generated secrets
-docker compose up -d --build            # start everything
+git clone <repo> && cd TournaTrak
+docker compose up -d --build            # that's it — no configuration needed
+docker compose logs api                 # shows the generated admin password (first boot)
 docker compose up -d --build api        # rebuild after API changes
 ```
 
-`init-env.sh` copies `.env.example` to `.env` and fills in random
-`SESSION_SECRET` and `POSTGRES_PASSWORD` values; an existing `.env` is never
-touched. Note that Compose treats a single `$` in `.env` as a variable
-reference — any literal `$` in a value (e.g. a bcrypt hash) must be doubled
-to `$$`, which the checked-in default already is.
+No `.env` is required: on first boot the stack generates a random database
+password, session secret, and initial admin password (persisted in the
+`tt-secrets` volume; the admin password is printed once in the api logs and
+recoverable via `docker compose exec api cat /run/tt-secrets/initial_admin_password`
+until you change it). To override any of it, copy `.env.example` to `.env`
+(or run `./init-env.sh`) — explicit values always win. Compose treats a
+single `$` in `.env` as a variable reference; double literal `$` to `$$`.
 
 **Upgrading from v2 (JSON files):** nothing to do — on first boot against an
 empty database the API imports everything from the mounted `./files` directory
@@ -266,7 +275,7 @@ regenerate `schedule.json` via the Bracket Builder or `generate-schedule.js`).
 
 ## Setup for a new tournament
 
-1. Clone the repo, run `./init-env.sh`, then `docker compose up -d --build`
+1. Clone the repo and run `docker compose up -d --build` — secrets are generated on first boot
 2. Log in to `/admin` with the default credentials (admin / TournaTrak) — you
    will be required to change the password immediately
 3. Go to `/builder` → pick a format, enter teams, and generate the bracket
