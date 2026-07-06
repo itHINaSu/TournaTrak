@@ -324,8 +324,27 @@ BracketHQ/youth-TD sheets offer):
   GEOMETRY on desktop/mobile (cards render and feeds connect, but line
   aesthetics for the L-confined main bracket + R consolation weren't
   eyeballed) — worth a look on a real screen.
-- **tiered** ('Open → A → B', 4-game guarantee; OWNER-SPECIFIED 2026-07-04,
-  "tiered brackets ARE my guarantees"): Open is TRUE double elim (reuses the
+- **tiered** ('Open / A / B (tiered flights)'): a competitive-flight format,
+  NOT a game-guarantee format (owner correction 2026-07-05: game-guarantee ≠
+  the Open/A/B style; keep them distinct in naming/framing). ⚠️ **DROP RULE
+  UNRESOLVED — do not treat the current generator as final.** Two sources
+  conflict:
+    (a) Owner's verbal spec (2026-07-04): Open is TRUE double elim; drop to A
+        at 0-2 (lose WB opener + first LB game); drop to B on first-A-loss;
+        4-game guarantee. → this is what the CURRENT generator builds.
+    (b) The reference bracket photo the owner supplied (2025 ISSA State,
+        `/root/.claude/uploads/.../8d81a60e-IMG_5116.jpeg`): Major + A + B
+        flights. Readable game counts: **A = Gm A1–A14 (~15 teams)**, **B =
+        Gm B1–B6 (~7 teams)**, Major games numbered up past Gm 40, A-feeds
+        labelled L16–L34. A holding ~15 teams for a ~32-team Major implies a
+        SINGLE-loss drop (≈ all first-round Major losers → A), not the 0-2
+        rule (which yields only ~8 in A). The two don't match.
+  Owner said (2026-07-05) "view the referenced bracket, it's doable" and
+  wants Open/A/B DISPLAY TABS added. NEXT SESSION: get the owner to settle
+  single-loss-flights (banner) vs. double-elim-Open-0-2 (verbal), then
+  finalize the generator + build the tabs. Everything below describes the
+  current (verbal-spec) generator, which may change.
+  Open is TRUE double elim (reuses the
   extracted `doubleElimSpecs(B,pos,ifNecessary)`; plain double-elim now
   wraps the same function). Drops: go 0-2 in Open (lose WB opener + first
   LB game = lose an Open LB ROUND-1 game, slots R1.R.1..B/4) → fresh

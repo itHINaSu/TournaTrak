@@ -862,8 +862,8 @@ const FORMATS = {
   },
   'tiered': {
     id: 'tiered',
-    label: 'Open → A → B (4-game guarantee)',
-    description: 'The Open is true double elimination. Go 0-2 in the Open and you drop into a single-elim A bracket; lose your first A game and you drop into a single-elim B bracket — the straight-loss path plays 4 games, and each bracket crowns its own champion. All drops fill in automatically as results come in. 8, 16, or 32 teams (at 8, B can\'t form — Open + A only). The bracket tree shows the Open; A/B games appear in the Schedule and each team\'s Team Path.',
+    label: 'Open / A / B (tiered flights)',
+    description: 'A competitive flight structure (ISSA-style): the Open runs as double elimination, and teams knocked out early drop into a lower flight — A, then B — each a single-elim bracket that crowns its own champion. This is a separate concept from the game-guarantee formats; it exists to stratify teams by strength, not just to guarantee games. All drops fill in automatically as results come in. 8, 16, or 32 teams (at 8, B can\'t form). The main bracket shows the Open; A/B games appear in the Schedule and each team\'s Team Path. NOTE: the exact drop rule (how many teams reach A/B) is being reconciled against a reference bracket — see HANDOFF.',
     validCounts: [8, 16, 32],
     doubleElim: true,
     supportsIfNecessary: true,

@@ -153,13 +153,19 @@ Planning-stage ideas discussed but not scoped in detail. Add specifics as they'r
 ### Candidate features
 - ✅ **Lineup multi-sport support** (buildout branch: presets softball/volleyball/basketball/generic + custom columns per tournament)
   — was: **Lineup multi-sport support** — lineup fields (`jersey`, `name`, `position`) are currently softball/baseball-specific. For other sports: configurable field labels per tournament or a generic "player slot" UI (e.g., "Player 1 / Player 2" for volleyball). The periodLabel setting already handles sport labeling; lineup is the remaining softball-specific piece.
-- ✅ **Multiple bracket formats** (buildout branch, 2026-07-04): six formats in
-  the builder — single elim (now with optional 3rd-place game), double elim,
-  consolation bracket (2-game guarantee), round robin, double round robin,
-  and pool play → playoffs (3-game guarantee with pools of 4). See HANDOFF
-  "Bracket format repository". Remaining format ideas: Swiss (needs dynamic
-  per-round pairing — doesn't fit the static schedule topology), 17–20 team
-  pools (pool of 5 needs a second slot column), RR standings table.
+- ✅ **Multiple bracket formats** (buildout branch, 2026-07-04): seven formats
+  in the builder — single elim (now with optional 3rd-place game), double
+  elim, consolation bracket, round robin, double round robin, pool play →
+  playoffs, and the tiered Open/A/B flights. Two DISTINCT ideas here, kept
+  separate per the owner (2026-07-04): (1) **game-guarantee** formats
+  (consolation = 2 games, pools of 4 = 3 games) guarantee everyone a minimum
+  number of games; (2) the **tiered Open/A/B** format is a competitive-flight
+  structure (drop weaker teams into lower brackets, each with its own
+  champion) — it is NOT a game-guarantee format and shouldn't be labelled as
+  one. See HANDOFF "Bracket format repository". Remaining: Swiss (needs
+  dynamic per-round pairing), 17–20 team pools, RR standings table, and
+  finalizing the tiered drop rule against the ISSA reference bracket +
+  Open/A/B display tabs (owner confirmed both wanted).
 - **Variable team counts** — not locked to 16 teams; bracket structure derived from registration
 - **Public registration / team management** — teams sign up, admin approves
 - **Notifications** — push or SMS when a team's next game is posted or goes live
