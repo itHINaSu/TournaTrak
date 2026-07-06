@@ -791,3 +791,49 @@ section { padding: 5rem 0; }
 @media (max-width: 480px) {
   .footer-inner { justify-content: center; text-align: center; }
 }
+
+/* ── v3/v4 additions: hero note, self-host CTA row, footer links ── */
+.hero-note {
+  margin-top: 1.25rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+.hero-note code {
+  font-family: 'SFMono-Regular', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+  font-size: 0.82em;
+  background: var(--surface-2, rgba(255,255,255,0.06));
+  border: 1px solid var(--border, rgba(255,255,255,0.1));
+  border-radius: 5px;
+  padding: 0.1em 0.45em;
+  color: var(--gold, #d9a441);
+  white-space: nowrap;
+}
+.how-cta {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 2.5rem;
+}
+.footer-links {
+  display: flex;
+  gap: 1.4rem;
+  flex-wrap: wrap;
+}
+.footer-links a {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.footer-links a:hover { color: var(--gold, #d9a441); }
+
+/* Inline code in FAQ / steps */
+.faq-item code, .step p code, .section-sub code {
+  font-family: 'SFMono-Regular', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--surface-2, rgba(255,255,255,0.06));
+  border-radius: 4px;
+  padding: 0.08em 0.4em;
+  color: var(--gold, #d9a441);
+}
