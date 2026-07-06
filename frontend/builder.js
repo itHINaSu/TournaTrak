@@ -4,6 +4,11 @@
 
 // esc() comes from tt-common.js
 function $(id) { return document.getElementById(id); }
+// Null-safe show/hide. The builder markup is duplicated in admin.html (the
+// embedded builder) and builder.html (standalone); if one copy drifts and an
+// optional element is missing, degrade gracefully instead of throwing and
+// leaving the whole builder stuck on its loading spinner.
+function toggleEl(id, on) { var el = $(id); if (el) el.style.display = on ? '' : 'none'; }
 
 var FORMATS = [];        // [{ id, label, description, minTeams, maxTeams }]
 var currentFormat = null;
@@ -96,9 +101,9 @@ function buildFormatOptions() {
 
 function selectFormat(id) {
   currentFormat = FORMATS.filter(function (f) { return f.id === id; })[0] || FORMATS[0];
-  $('formatDesc').textContent = currentFormat.description || '';
-  $('ifNecField').style.display = currentFormat.supportsIfNecessary ? '' : 'none';
-  $('thirdPlaceField').style.display = currentFormat.supportsThirdPlace ? '' : 'none';
+  var descEl = $('formatDesc'); if (descEl) descEl.textContent = currentFormat.description || '';
+  toggleEl('ifNecField', currentFormat.supportsIfNecessary);
+  toggleEl('thirdPlaceField', currentFormat.supportsThirdPlace);
   updateGenCountOptions();
   refresh();
   updateShowSeedsVisibility();
@@ -110,11 +115,13 @@ function updateShowSeedsVisibility() {
 }
 
 function ifNecessaryOn() {
-  return currentFormat && currentFormat.supportsIfNecessary && $('ifNecChk').checked;
+  var el = $('ifNecChk');
+  return !!(currentFormat && currentFormat.supportsIfNecessary && el && el.checked);
 }
 
 function thirdPlaceOn() {
-  return currentFormat && currentFormat.supportsThirdPlace && $('thirdPlaceChk').checked;
+  var el = $('thirdPlaceChk');
+  return !!(currentFormat && currentFormat.supportsThirdPlace && el && el.checked);
 }
 
 // ── Teams ─────────────────────────────────────────────────────────────
@@ -632,8 +639,8 @@ async function doGenerate() {
     } else {
       body.startDate = $('simpleDate').value;
     }
-    if (currentFormat.supportsIfNecessary) body.ifNecessary = $('ifNecChk').checked;
-    if (currentFormat.supportsThirdPlace) body.thirdPlace = $('thirdPlaceChk').checked;
+    if (currentFormat.supportsIfNecessary) body.ifNecessary = ifNecessaryOn();
+    if (currentFormat.supportsThirdPlace) body.thirdPlace = thirdPlaceOn();
     var mode = $('seedMode').value;
     if (mode === 'order' || mode === 'manual') body.showSeeds = $('showSeedsChk').checked;
     var prefixEl = $('gamePrefixInput');
@@ -664,8 +671,8 @@ function wireEvents() {
   $('teamsInput').addEventListener('input', refresh);
   $('genBtn').addEventListener('click', genRandomTeams);
   $('seedMode').addEventListener('change', function () { refresh(); updateShowSeedsVisibility(); });
-  $('ifNecChk').addEventListener('change', refresh);
-  $('thirdPlaceChk').addEventListener('change', refresh);
+  var ifNec = $('ifNecChk'); if (ifNec) ifNec.addEventListener('change', refresh);
+  var thirdP = $('thirdPlaceChk'); if (thirdP) thirdP.addEventListener('change', refresh);
   $('advSchedChk').addEventListener('change', onAdvToggle);
   $('generateBtn').addEventListener('click', onGenerate);
   $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').style.display = 'none'; });
