@@ -431,6 +431,32 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
   compose files validate (`docker compose config`) but a real
   `docker compose up` should be smoke-tested on the owner's box.
 
+## Launch-readiness wave — ✅ DONE
+- **Zero-touch deploy:** `git clone && docker compose up -d --build` now yields
+  a working, secure install with NO .env. A `secrets-init` alpine service
+  generates pg_password + session_secret into the `tt-secrets` volume (env
+  values seed them when present); postgres uses POSTGRES_PASSWORD_FILE;
+  `api/entrypoint.sh` resolves creds from env-or-file and, on first boot,
+  generates a random admin password (bcrypt-12), prints it once, and keeps the
+  plaintext at `/run/tt-secrets/initial_admin_password` until the first
+  password change deletes it. `.env` is now optional (env_file required:false);
+  explicit env always overrides. No hardcoded default secrets anywhere.
+- **DB config robustness (from the owner's first real compose run):** switched
+  from a spliced DATABASE_URL to discrete PG* env vars (any password chars OK);
+  fail-fast on non-transient DB errors (invalid URL / bad password) with
+  actionable hints incl. the pgdata-first-boot gotcha. nginx `/t/:slug` regex
+  locations QUOTED (unquoted `{0,62}` = "unknown directive" boot crash).
+- **Login timing oracle fixed** (parallel branch, merged): SENTINEL_HASH is now
+  a real cost-12 hash; passwordless (team/setup) users return uniform 401.
+- **Audit cleanups:** showToast() consolidated into tt-common.js (was 3 copies
+  w/ a .toast--error vs .toast.error inconsistency); dead POSITIONS const
+  removed from admin.js. SW v2.64.
+- **Sales site rebuilt** for the open-source/self-host launch: corrected
+  double-elim-only copy, added Builder/scorekeeper/multi-tournament/white-label
+  cards + real screenshots, self-host steps, refreshed FAQ. Owner links
+  (GitHub/demo/email) are CONFIG placeholders — find/replace guide in the HTML
+  head comment.
+
 ## v4 wave (after Phase C) — ✅ DONE, all verified vs live PG16
 - **Gap pass:** all 27 relative asset refs in admin/builder/lineup HTML made
   absolute; scoped teampath share links + SW offline shell fallback verified.
