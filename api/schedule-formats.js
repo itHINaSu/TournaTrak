@@ -261,14 +261,21 @@ function applySide(entry, n, occ) {
 // `numByes` seeds receive the first-round byes (standard seeding pairs them
 // against the non-existent bottom seeds), so each mode just decides who lands
 // in those top seats:
-//   random — shuffle everything (byes go to random teams)
-//   order  — seed by input order (line 1 = top seed; first teams get byes)
-//   manual — admin-named bye teams become the top seeds; the rest keep order
+//   random  — shuffle everything (byes go to random teams)
+//   order   — seed by input order (line 1 = top seed; first teams get byes)
+//   partial — the first seedCount input lines are seeds 1..K in order; the
+//             remaining teams are shuffled into the rest of the draw
+//   manual  — admin-named bye teams become the top seeds; the rest keep order
 function resolveSeeding(opts) {
   const teams = opts.teams.slice();
   switch (opts.seedMode) {
     case 'order':
       return teams;
+    case 'partial': {
+      const k = Math.max(0, Math.min(teams.length,
+        parseInt(opts.seedCount, 10) || 0));
+      return teams.slice(0, k).concat(shuffle(teams.slice(k)));
+    }
     case 'manual': {
       const byeSet = new Set(opts.byeTeams || []);
       const byes = teams.filter(t => byeSet.has(t));
@@ -795,6 +802,41 @@ function generateTiered(opts) {
   return emitSpecs(all, opts);
 }
 
+// ── Format: double elim + B bracket (3-game guarantee, A/B only) ─────────
+// The main bracket ("A") is true double elimination — every team plays at
+// least twice. Teams that go 0-2 (losers of the A losers-bracket's first
+// round, R1.R.*) drop into a single-elim B bracket for a guaranteed third
+// game. Everyone else eliminated from A already has 3+ games (a 1-2 exit is
+// three games by definition). Unlike the tiered Open/A/B format there is no
+// middle flight: A is the championship, B is the one drop bracket.
+function generateThreeGame(opts) {
+  const teams = resolveSeeding(opts);
+  const B = nextPow2(teams.length);
+  const pos = seedOrder(B).map(s => teams[s - 1]);
+  const mainSpecs = doubleElimSpecs(B, pos, opts.ifNecessary)
+    .map((s, i) => ({ ...s, key: i }));
+  const mainMaxKey = mainSpecs.length - 1;
+
+  // A's LB round 1 (R1.R.1..q) pairs the WB round-1 losers; its losers are
+  // the 0-2 teams and every one of them enters B.
+  const q = B / 4;
+  const bEntrants = Array.from({ length: q }, (_, i) => ({ slot: `R1.R.${i + 1}`, type: 'loser' }));
+  const bDepth = Math.round(Math.log2(nextPow2(bEntrants.length)));
+  const B_CHAIN = [['R0','R',0], ['R0','R',8], ['R0','R',12]].slice(0, bDepth);
+  const bSpecs = buildFeedBracket(bEntrants, B_CHAIN, false).map(sp => ({
+    ...sp, tier: 'B', labelSuffix: ' · B Bracket', key: mainMaxKey + 0.5 + sp.col,
+  }));
+
+  const all = mainSpecs.concat(bSpecs).sort((a, b) => a.key - b.key);
+  return emitSpecs(all, opts);
+}
+
+function threeGameGames(n) {
+  const mainGames = 2 * n - 2;   // double elim without the reset
+  const bTeams = n / 4;          // LB round-1 losers (the 0-2 teams)
+  return mainGames + (bTeams >= 2 ? bTeams - 1 : 0);
+}
+
 function tieredGames(n) {
   const openGames = 2 * n - 2;    // double elim without the reset
   const aGames = n / 2 - 1;       // A is a (n/2)-team single elim
@@ -881,6 +923,17 @@ const FORMATS = {
     sideLabels: ['Open · Winners Side', 'Open · Losers Side'],
     estimateGames: (n, o) => tieredGames(n) + (o && o.ifNecessary !== false ? 1 : 0),
     generate: generateTiered,
+  },
+  'three-game': {
+    id: 'three-game',
+    label: 'Double Elim + B Bracket (3-game guarantee)',
+    description: 'The main "A" bracket runs as true double elimination — everyone plays at least twice. Go 0-2 and you drop into a single-elimination B bracket for a guaranteed third game; every other exit from A already means three or more games played. Two champions: A (the tournament) and B. 8, 16, or 32 teams. The bracket tab shows A, with a pill to flip to the B bracket; B games also appear in the Schedule and Team Path.',
+    validCounts: [8, 16, 32],
+    doubleElim: true,
+    supportsIfNecessary: true,
+    sideLabels: ['A Bracket · Winners Side', 'A Bracket · Losers Side'],
+    estimateGames: (n, o) => threeGameGames(n) + (o && o.ifNecessary !== false ? 1 : 0),
+    generate: generateThreeGame,
   },
   'pools': {
     id: 'pools',

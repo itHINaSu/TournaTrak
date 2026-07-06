@@ -111,7 +111,17 @@ function selectFormat(id) {
 
 function updateShowSeedsVisibility() {
   var mode = $('seedMode').value;
-  $('showSeedsField').style.display = (mode === 'order' || mode === 'manual') ? '' : 'none';
+  $('showSeedsField').style.display = (mode === 'order' || mode === 'partial' || mode === 'manual') ? '' : 'none';
+  var scf = $('seedCountField');
+  if (scf) scf.style.display = mode === 'partial' ? '' : 'none';
+}
+
+// Clamped top-seed count for partial seeding (1..teamCount; blank → 0).
+function seedCountVal() {
+  var el = $('seedCountInput');
+  if (!el) return 0;
+  var n = parseInt(el.value, 10) || 0;
+  return Math.max(0, Math.min(parsedTeams().length, n));
 }
 
 function ifNecessaryOn() {
@@ -603,6 +613,7 @@ function onGenerate() {
   }
 
   var seedDesc = mode === 'random' ? 'random seeding'
+    : mode === 'partial' ? ('top ' + seedCountVal() + ' seeded, rest random')
     : mode === 'order' ? 'list-order seeding'
     : byes > 0 ? selectedByes().length + ' manual bye' + (selectedByes().length === 1 ? '' : 's')
     : 'list-order seeding';
@@ -630,6 +641,7 @@ async function doGenerate() {
       format: currentFormat.id,
       teams: parsedTeams(),
       seedMode: $('seedMode').value,
+      seedCount: seedCountVal(),
       byeTeams: selectedByes(),
     };
     if (isAdvanced()) {
@@ -671,6 +683,8 @@ function wireEvents() {
   $('teamsInput').addEventListener('input', refresh);
   $('genBtn').addEventListener('click', genRandomTeams);
   $('seedMode').addEventListener('change', function () { refresh(); updateShowSeedsVisibility(); });
+  var _sci = $('seedCountInput');
+  if (_sci) _sci.addEventListener('input', refresh);
   var ifNec = $('ifNecChk'); if (ifNec) ifNec.addEventListener('change', refresh);
   var thirdP = $('thirdPlaceChk'); if (thirdP) thirdP.addEventListener('change', refresh);
   $('advSchedChk').addEventListener('change', onAdvToggle);

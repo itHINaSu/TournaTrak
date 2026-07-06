@@ -1183,6 +1183,10 @@ function updateFlightTabs() {
   var bPill = row.querySelector('[data-arg="B"]');
   if (aPill) aPill.style.display = hasA ? '' : 'none';
   if (bPill) bPill.style.display = hasB ? '' : 'none';
+  // Three-game format (B drop bracket, no A tier): the main tree IS the
+  // "A" bracket, so label its pill accordingly; tiered keeps "Open".
+  var mainPill = row.querySelector('[data-arg="open"]');
+  if (mainPill) mainPill.textContent = (hasB && !hasA) ? 'A Bracket' : 'Open';
   // Chosen flight disappeared → fall back to Open.
   if ((_bracketFlight === 'A' && !hasA) || (_bracketFlight === 'B' && !hasB)) _bracketFlight = 'open';
   row.querySelectorAll('.flight-pill').forEach(function(p){

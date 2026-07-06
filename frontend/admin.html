@@ -236,8 +236,14 @@
             <select class="bld-input" id="seedMode">
               <option value="random">Random — shuffle everything (byes to random teams)</option>
               <option value="order">By list order — line 1 is the top seed (byes to top teams)</option>
+              <option value="partial">Seed the top N — everyone else is placed randomly</option>
               <option value="manual">Manual — I'll pick which teams get byes</option>
             </select>
+          </div>
+          <div class="bld-field" id="seedCountField" style="display:none">
+            <label for="seedCountInput">How many of the top lines are seeds?</label>
+            <input type="number" class="bld-input" id="seedCountInput" min="1" step="1" value="4">
+            <p class="bld-muted">Lines 1–N keep their order as seeds 1–N; everyone below is placed randomly.</p>
           </div>
           <label class="bld-check" id="showSeedsField" style="display:none">
             <input type="checkbox" id="showSeedsChk">
