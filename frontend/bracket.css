@@ -387,6 +387,83 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   margin: 0 auto;
 }
 
+/* ── Open/A/B flight switcher (tiered format) ── */
+.bracket-flights {
+  display: flex;
+  gap: 0.4em;
+  justify-content: center;
+  margin: 0.4em auto 0.8em;
+  max-width: 30em;
+  /* The bracket canvas below is absolutely positioned and can extend up over
+     this control row; keep the pills on top so they stay clickable. */
+  position: relative;
+  z-index: 5;
+  background: var(--bg);
+  padding: 0.15em 0.4em;
+  border-radius: var(--radius-sm);
+}
+.flight-pill {
+  flex: 1;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.5em 0.6em;
+  border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 2.4em;
+}
+.flight-pill.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.flight-pill:hover:not(.active) { color: var(--text); border-color: var(--text-dim); }
+@media (pointer: coarse) { .flight-pill { min-height: 44px; } }
+
+/* A/B flights: simple left-to-right round columns (their own single-elim
+   brackets, rendered outside the Open tree). Horizontal-scroll on overflow. */
+.flight-bracket {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 1.4em;
+  overflow-x: auto;
+  padding: 0.5em 0.75em 1em;
+  max-width: 100%;
+}
+.flight-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 0.9em;
+  flex: 0 0 auto;
+  min-width: 11em;
+}
+.flight-col-hdr {
+  text-align: center;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 0.2em;
+}
+/* Cards in a flight are statically laid out (override .bc's absolute pos). */
+.flight-bc {
+  position: relative;
+  left: auto;
+  right: auto;
+}
+.flight-empty {
+  text-align: center;
+  color: var(--text-mute);
+  padding: 2em 1em;
+  font-family: 'Barlow', sans-serif;
+}
+
 .round-col {
   position: relative;
   flex-shrink: 0;

@@ -422,6 +422,7 @@ async function fetchAll(){
   applySettings();
   updateTimestamp();
   updateDelayNotice();
+  updateFlightTabs();
   populateTeamSelect();
 
   // ?view=X from lineup page tab links — consume once then strip from URL
@@ -1097,8 +1098,20 @@ function buildConnPcts(srcCol, dstCol, slotVh, posMap) {
 // ══════════════════════════════════════════════════════════
 // RENDER BRACKET
 // ══════════════════════════════════════════════════════════
+// Which flight the Bracket tab is showing: 'open' (the main tree) or a tier
+// ('A'/'B') for the tiered Open/A/B format. Non-tiered tournaments stay 'open'
+// and never see the pill row.
+var _bracketFlight = 'open';
+
 function renderBracket(){
   var root=document.getElementById('bracketRoot');
+  // A/B flights render as their own simple single-elim column layout (they
+  // live in R0 storage slots, outside the Open tree). Open uses the full
+  // WB/LB renderer below.
+  if (_bracketFlight === 'A' || _bracketFlight === 'B') {
+    renderFlightBracket(root, _bracketFlight);
+    return;
+  }
   var dims=getDims();
   applyCSSVars(dims);
   if(dims.isDesktop){
@@ -1107,6 +1120,92 @@ function renderBracket(){
   } else if(dims.isMobile){
     renderMobileBracket(root,dims);
   }
+}
+
+// Group a flight's (tier A or B) games into columns by depth: column 0 is fed
+// only by Open losers; each later column is fed by the previous one's winners.
+function flightColumns(tier) {
+  var games = Object.keys(GAMES).filter(function(g){ return GAMES[g].tier === tier; });
+  var colOf = {};
+  function col(gid) {
+    if (colOf[gid] !== undefined) return colOf[gid];
+    colOf[gid] = 0;  // guard against cycles (shouldn't happen)
+    var g = GAMES[gid];
+    var feeders = [g.t1, g.t2].filter(function(s){
+      return s && s.slot && GAMES[s.slot] && GAMES[s.slot].tier === tier;
+    });
+    var c = feeders.length
+      ? 1 + Math.max.apply(null, feeders.map(function(s){ return col(s.slot); }))
+      : 0;
+    colOf[gid] = c;
+    return c;
+  }
+  games.forEach(col);
+  if (!games.length) return [];
+  var maxCol = Math.max.apply(null, games.map(function(g){ return colOf[g]; }));
+  var cols = [];
+  for (var i = 0; i <= maxCol; i++) cols.push([]);
+  games.forEach(function(g){ cols[colOf[g]].push(g); });
+  cols.forEach(function(c){ c.sort(function(a,b){ return parseSlotId(a).num - parseSlotId(b).num; }); });
+  return cols;
+}
+
+// Render a tier flight (A/B) as left-to-right round columns of bracket cards.
+// One layout for desktop and mobile — it scrolls horizontally when needed.
+function renderFlightBracket(root, tier) {
+  var cols = flightColumns(tier);
+  if (!cols.length) {
+    root.innerHTML = '<div class="flight-empty">No ' + esc(tier) + ' bracket games yet.</div>';
+    return;
+  }
+  var html = '<div class="flight-bracket">';
+  cols.forEach(function(gids, i) {
+    var label = (i === cols.length - 1) ? 'Final'
+      : (i === cols.length - 2 && gids.length <= 2) ? 'Semifinal'
+      : 'Round ' + (i + 1);
+    html += '<div class="flight-col"><div class="flight-col-hdr">' + esc(label) + '</div>';
+    gids.forEach(function(gid) {
+      html += '<div class="bc flight-bc" data-gid="' + esc(gid) + '">' + cardHTML(gid) + '</div>';
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+  root.innerHTML = html;
+}
+
+// Show the Open/A/B pill row only for tiered tournaments; keep the active
+// pill and _bracketFlight consistent when a flight has no games (or vanishes
+// after a schedule change).
+function updateFlightTabs() {
+  var row = document.getElementById('bracketFlights');
+  if (!row) return;
+  var hasA = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'A'; });
+  var hasB = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'B'; });
+  if (!hasA && !hasB) {
+    row.style.display = 'none';
+    _bracketFlight = 'open';
+    return;
+  }
+  row.style.display = '';
+  var aPill = row.querySelector('[data-arg="A"]');
+  var bPill = row.querySelector('[data-arg="B"]');
+  if (aPill) aPill.style.display = hasA ? '' : 'none';
+  if (bPill) bPill.style.display = hasB ? '' : 'none';
+  // Chosen flight disappeared → fall back to Open.
+  if ((_bracketFlight === 'A' && !hasA) || (_bracketFlight === 'B' && !hasB)) _bracketFlight = 'open';
+  row.querySelectorAll('.flight-pill').forEach(function(p){
+    p.classList.toggle('active', p.dataset.arg === _bracketFlight);
+  });
+}
+
+function setBracketFlight(f) {
+  if (f !== 'open' && f !== 'A' && f !== 'B') return;
+  _bracketFlight = f;
+  var row = document.getElementById('bracketFlights');
+  if (row) row.querySelectorAll('.flight-pill').forEach(function(p){
+    p.classList.toggle('active', p.dataset.arg === f);
+  });
+  renderBracket();
 }
 
 // True when CHAMP2 holds a single-elim 3rd-place game (fed by semifinal
@@ -3000,4 +3099,5 @@ Object.assign(TT_ACTIONS, {
   enterBucketEdit:   function() { enterBucketEdit(); },
   saveBucketEdit:    function() { saveBucketEdit(); },
   exitBucketEdit:    function() { exitBucketEdit(); },
+  setFlight:         function(arg) { setBracketFlight(arg); },
 });

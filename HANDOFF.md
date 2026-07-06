@@ -346,12 +346,28 @@ BracketHQ/youth-TD sheets offer):
   B" rule instead, so B only takes the 0-2-vs-0-2 losers (~4 for a 32 Open).
   If the owner wants banner-B (all A-R1 losers → B), it's a one-line change
   (drop the `.slice(0, zeroTwoGames)` in generateTiered).
-  REMAINING: (1) Open/A/B DISPLAY TABS (owner wants them — the `tier` field
-  already cleanly separates flights; needs a per-flight bracket-tree renderer
-  since A/B live in R0 storage slots, not the ROUND_ORDER tree). (2) Arbitrary
-  team counts (e.g. the real ISSA Major = 23 teams, "byes slotted as needed"):
-  needs double-elim-WITH-BYES, which doubleElimSpecs (power-of-two only)
-  doesn't do yet. validCounts stays [8,16,32] until then.
+  REMAINING: Arbitrary team counts (e.g. the real ISSA Major = 23 teams,
+  "byes slotted as needed"): needs double-elim-WITH-BYES, which
+  doubleElimSpecs (power-of-two only) doesn't do yet. validCounts stays
+  [8,16,32] until then. This is the meatier follow-up — bye teams propagate
+  PHANTOM slots through the LOSERS bracket (not just round 1 like single-elim),
+  which must collapse cleanly while still fitting the fixed SLOT_DEFS grid.
+  Scoped to NOT touch the working power-of-two hardcoded tables (add a
+  separate bye-aware path for non-powers-of-two). Lean on the structural
+  simulation suite (scratchpad formatstest.js) — it play-tests every bracket.
+  ✅ **Open/A/B DISPLAY TABS DONE 2026-07-05** (SW v2.67): a pill row
+  (`#bracketFlights` in index.html, `.flight-pill` / `data-action="setFlight"`)
+  above `#bracketRoot`, shown only when tier games exist (updateFlightTabs()).
+  `_bracketFlight` state ('open'|'A'|'B'); renderBracket() short-circuits to
+  renderFlightBracket() for A/B — a lightweight left-to-right round-column
+  layout (flightColumns() groups tier games by winner-feed depth; reuses
+  cardHTML). Open keeps the full WB/LB tree. Pills auto-hide per flight
+  (B pill hidden at n=8 where B can't form) and reset to Open when a flight
+  vanishes. CSS `.bracket-flights` needs `z-index:5`+bg — the bracket canvas
+  is absolutely positioned and overlapped the pills at ≤1024px (fixed +
+  verified clickable 390–1400px). Verified: 14 Playwright checks (pill
+  visibility, flight switching, 15 A-cards / 3 B-cards for a 32 Open, Open
+  tree returns, no pills for non-tiered, B hidden at n=8).
   Open is TRUE double elim (reuses the
   extracted `doubleElimSpecs(B,pos,ifNecessary)`; plain double-elim now
   wraps the same function). Drop wiring: A entrants = losers of LB round 1
