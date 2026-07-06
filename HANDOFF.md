@@ -20,9 +20,11 @@ rate-limited login): roles are `admin`, `results`, `team` (coach), `buckets`.
 ## START OF SESSION PROMPT (always do this first)
 At the start of every new session (or when told to "get up to speed"), ask:
 
-> "Which branch should I work on this session? (default: `claude/tournatrak-eval-buildout-sa3mvv`)"
+> "Which branch should I work on this session? (default: the leading branch
+> `claude/handoff-continuation-9elo3q` — see Branch rule)"
 
-Then `git checkout <branch>` before touching anything. Do not assume `main`.
+Then `git checkout <branch>`, `git fetch`, and fast-forward to its tip before
+touching anything. Do not assume `main`.
 
 ## Branch rule
 **Leading branch as of 2026-07-04: `claude/handoff-continuation-9elo3q`**
@@ -38,6 +40,65 @@ Commit and push when a change is complete. Do not open PRs unless asked.
 - `feature/regional` — parked Postgres prototype; UNRELATED git history (no
   common ancestor with main). Reference-only for the v3 schema. Its committed
   files/users.json contains real leaked secrets — see Security items.
+
+## Outstanding work (what's still needed) — updated 2026-07-05
+Consolidated to-do list; each item points at the detailed section. Ordered
+roughly by priority / by what the owner has been driving.
+
+**Bracket builder & tiered Open/A/B format**
+1. ⬜ **Double-elim WITH BYES** — the top open item. Unblocks arbitrary team
+   counts for BOTH the plain `double-elim` format AND the `tiered` Open/A/B
+   format. Right now `doubleElimSpecs` is power-of-two only, so both are
+   locked to 4/8/16/32 — but the owner's real event (2025 ISSA State Major)
+   is **23 teams with byes**. Meaty/risky: bye teams propagate phantom slots
+   through the LOSERS bracket, must collapse cleanly while fitting the fixed
+   SLOT_DEFS grid. Plan: leave the working power-of-two hardcoded tables
+   untouched, add a SEPARATE bye-aware path for non-powers-of-two, verify
+   with scratchpad `formatstest.js` (play-tests every bracket) + a browser
+   render on a real 23-team bracket. See "Bracket format repository" →
+   tiered, "REMAINING".
+2. ⬜ **Tiered B-feed policy — owner decision pending.** Current build honors
+   the owner's "1-2 teams get no B" rule → B ≈ 4 teams for a 32 Open. The
+   ISSA banner instead appears to feed EVERY A round-1 loser to B (≈7). If
+   the owner wants banner behavior, it's a one-line change (drop the
+   `.slice(0, zeroTwoGames)` in `generateTiered`). See tiered section.
+3. ⬜ **Single-source the builder markup.** `builder.html` (standalone) and
+   `admin.html` (embedded) duplicate the entire builder form. This drift
+   caused the "builder stuck loading" bug (fixed 2026-07-05 by adding the
+   missing element + null-guards, but the duplication remains). Any new
+   builder field must be added to BOTH files. Worth extracting to one shared
+   fragment/template.
+4. ⬜ **Deferred format ideas** (lower priority): Swiss (needs dynamic
+   per-round pairing — doesn't fit static topology), 17–20 team pools (a pool
+   of 5 needs a second slot column), round-robin STANDINGS table (public
+   view; results are per-game today). See "Bracket format repository" tail.
+
+**Security** (see "Security items" for detail)
+5. ⬜ **Leaked secrets in git history** — `files/users.json` (commit 9960403,
+   reachable on origin/dev + origin/feature/regional) has a real bcrypt hash +
+   plaintext team accessToken. OWNER ACTION: rotate that token, decide on
+   history/branch cleanup. NOT remediated. (Token hashing at rest is ✅ done,
+   but the old plaintext is still in history.)
+6. ⬜ **CSP `style-src 'unsafe-inline'`** still present (script-src is already
+   locked to 'self'). Removing it means moving generated inline `style="…"`
+   attributes to classes — a real refactor. Tracked follow-up.
+
+**Ops / deploy**
+7. ⬜ **Real `docker compose up` smoke test on the owner's box.** No Docker
+   daemon in the dev container, so both compose files are only
+   `docker compose config`-validated. A genuine up (main + demo stacks,
+   fresh + upgrade-from-JSON) should be run once.
+
+**Polish / deferred batches** (from ROADMAP v2 backlog — none blocking)
+8. ⬜ Accessibility: focus-trapping on overlays, keyboard activation for
+   `role="button"` elements. (Touch targets largely done.)
+9. ⬜ CSS `rgba()` → `color-mix()` migration (~15 literals that don't adapt
+   to light mode).
+10. ⬜ Sales site: real demo URL + contact email (placeholders in
+    `sales-site/index.html`).
+11. ⬜ **Mobile double-elim round combining** — parked; needs owner to confirm
+    desired behavior before building. See the "TODO / parked" section at the
+    bottom.
 
 ## Layout
 - `frontend/` — static assets served by the API
