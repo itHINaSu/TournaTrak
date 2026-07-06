@@ -326,43 +326,42 @@ BracketHQ/youth-TD sheets offer):
   eyeballed) — worth a look on a real screen.
 - **tiered** ('Open / A / B (tiered flights)'): a competitive-flight format,
   NOT a game-guarantee format (owner correction 2026-07-05: game-guarantee ≠
-  the Open/A/B style; keep them distinct in naming/framing). ⚠️ **DROP RULE
-  UNRESOLVED — do not treat the current generator as final.** Two sources
-  conflict:
-    (a) Owner's verbal spec (2026-07-04): Open is TRUE double elim; drop to A
-        at 0-2 (lose WB opener + first LB game); drop to B on first-A-loss;
-        4-game guarantee. → this is what the CURRENT generator builds.
-    (b) The reference bracket photo the owner supplied (2025 ISSA State,
-        `/root/.claude/uploads/.../8d81a60e-IMG_5116.jpeg`): Major + A + B
-        flights. Readable game counts: **A = Gm A1–A14 (~15 teams)**, **B =
-        Gm B1–B6 (~7 teams)**, Major games numbered up past Gm 40, A-feeds
-        labelled L16–L34. A holding ~15 teams for a ~32-team Major implies a
-        SINGLE-loss drop (≈ all first-round Major losers → A), not the 0-2
-        rule (which yields only ~8 in A). The two don't match.
-  Owner said (2026-07-05) "view the referenced bracket, it's doable" and
-  wants Open/A/B DISPLAY TABS added. NEXT SESSION: get the owner to settle
-  single-loss-flights (banner) vs. double-elim-Open-0-2 (verbal), then
-  finalize the generator + build the tabs. Everything below describes the
-  current (verbal-spec) generator, which may change.
+  the Open/A/B style; keep them distinct in naming/framing). **DROP RULE
+  RESOLVED 2026-07-05** — the two earlier sources reconciled once the owner
+  clarified: teams eliminated from the Open at 0-2 OR 1-2 both drop to A
+  (the earlier "0-2 only" build was too narrow — that's why the ISSA banner's
+  A looked ~2× bigger). Precisely:
+    • 0-2 (lost WB opener, then LB round 1) → drop to A, still B-eligible.
+    • 1-2 (won an LB game, then lost — LB round 2) → drop to A, NOT B-eligible.
+    • 2-2 and deeper: stay/place in the Open (already have 4+ games).
+  A therefore holds ≈ B/2 teams (0-2 and 1-2), matching the banner's ~15-team
+  A for a 32-slot Open. To keep 1-2 teams out of B with static topology, A's
+  round 1 pairs 0-2 vs 0-2 and 1-2 vs 1-2, and only the 0-2-vs-0-2 losers feed
+  B. This yields a genuine **4-game guarantee** (structural min: lose
+  everything from the top → WB, LB1, A, B; verified over 40 random
+  playthroughs per size, min = 4 for n≥16, 3 for n=8 where B can't form).
+  A/B sizes now: n=8 → A=3,B=0; n=16 → A=7,B=1; n=32 → A=15,B=3 games.
+  NOTE vs banner: the banner's B is bigger (~7) because it appears to feed
+  ALL A round-1 losers to B; this build honors the owner's "1-2 teams get no
+  B" rule instead, so B only takes the 0-2-vs-0-2 losers (~4 for a 32 Open).
+  If the owner wants banner-B (all A-R1 losers → B), it's a one-line change
+  (drop the `.slice(0, zeroTwoGames)` in generateTiered).
+  REMAINING: (1) Open/A/B DISPLAY TABS (owner wants them — the `tier` field
+  already cleanly separates flights; needs a per-flight bracket-tree renderer
+  since A/B live in R0 storage slots, not the ROUND_ORDER tree). (2) Arbitrary
+  team counts (e.g. the real ISSA Major = 23 teams, "byes slotted as needed"):
+  needs double-elim-WITH-BYES, which doubleElimSpecs (power-of-two only)
+  doesn't do yet. validCounts stays [8,16,32] until then.
   Open is TRUE double elim (reuses the
   extracted `doubleElimSpecs(B,pos,ifNecessary)`; plain double-elim now
-  wraps the same function). Drops: go 0-2 in Open (lose WB opener + first
-  LB game = lose an Open LB ROUND-1 game, slots R1.R.1..B/4) → fresh
-  single-elim A; lose your FIRST A game (A col-0 losers) → fresh single-elim
-  B. Owner-confirmed rule: a team that WINS an LB game then loses exits
-  Open at 3+ games and does NOT filter down — min games is 3, the 4-game
-  guarantee is the straight-loss path (structurally asserted for every B
-  participant). All drops are automatic loser-feeds — no placeholders.
-  - Judgment calls (question dialog kept erroring; owner may override):
-    validCounts [8,16,32] — arbitrary counts are BLOCKED structurally: with
-    byes, whether an LB game's loser is 0-2 depends on WHICH side loses
-    (conditional drop, inexpressible in static topology) and a bye team
-    could exit at 2 games with no A. Needs a play-in design — follow-up.
-    At 8 teams B can't form (A has 2 entrants) → Open+A only, noted in the
-    format description. Display: bracket tree = Open only.
+  wraps the same function). Drop wiring: A entrants = losers of LB round 1
+  (R1.R.1..q, the 0-2 teams) ++ losers of LB round 2 (R2.R.1..q, the 1-2
+  teams), q = B/4. buildFeedBracket pairs them 0-2-vs-0-2 then 1-2-vs-1-2 in
+  A round 1; B is fed by the first q/2 A col-0 game losers (the 0-2 pairings
+  only). All drops are automatic loser-feeds — no placeholders.
   - **`tier: 'A'|'B'` schedule field** (validated enum): tier games are
-    stored in R0 (A→R0.L offsets 0/8/12, B→R0.R offsets 0/8 via
-    buildFeedBracket's new per-column num offset) and EXCLUDED from the
+    stored in R0 (A→R0.L offsets 0/8/12/14, B→R0.R offsets 0/8/12 via
+    buildFeedBracket's per-column num offset) and EXCLUDED from the
     bracket tree everywhere: buildSideColumns, mobile rounds+gidsFor,
     gridHeight, and roundLabel's populated-round counting (else R0 would
     shift Open's round numbers). They appear in Schedule (By-Round gains
@@ -375,11 +374,12 @@ BracketHQ/youth-TD sheets offer):
     with missing LB feeds (previously out at 2 losses, now alive).
   - By-Round schedule grouping also gained SF3/SF2 (pre-existing gap: the
     32-team DE losers rounds never appeared in that view).
-  - Verified: structural suite grew to 1364 checks (tier sizing, everyone
-    ≥3 games, ≥4 for every B participant, R0-only storage) + 9 Playwright
-    checks (35 games for tiered-16, tree shows exactly the 31 Open cards
-    with intact round numbers + WB/LB side labels, By-Round A/B groups, a
-    0-2 team's path continuing into A, isEliminated false at 0-2).
+  - Verified: structural suite = 1360 checks (tier A=n/2-1 & B=n/8-1
+    sizing, R0-only storage, and a 4-game guarantee proven by taking the min
+    games over 40 RANDOM playthroughs per size — min=4 for n≥16, 3 for n=8)
+    + 9 Playwright checks (tiered-16 = 39 games, tree shows exactly the 31
+    Open cards with intact round numbers + WB/LB side labels, By-Round A/B
+    groups, a 0-2 team's path continuing into A, isEliminated false at 0-2).
 - Swiss deliberately skipped: pairings depend on live standings each round,
   which a static schedule topology can't express. Round-robin STANDINGS
   table (public view) is a natural follow-up; results are per-game today.

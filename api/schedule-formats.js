@@ -725,70 +725,81 @@ function generatePools(opts) {
   return emitSpecs(specs.concat(playSpecs), opts);
 }
 
-// ── Format: Open → A → B tiered brackets (4-game guarantee) ──────────────
+// ── Format: Open / A / B tiered flights (ISSA-style) ─────────────────────
 // The Open is a true double elimination (winners L, losers R, championship,
-// optional reset). Go 0-2 in the Open — lose your winners-bracket opener,
-// then your first losers-bracket game — and you drop into a fresh
-// single-elim A bracket. Lose your FIRST A game and you drop into a fresh
-// single-elim B bracket. Straight-loss path: 2 Open + 1 A + 1 B = 4 games.
-// (A team that WINS a losers-bracket game and is later eliminated exits the
-// Open with 3+ games and does not filter down — per the owner's rule,
-// 2026-07-04.) At 8 teams B would only ever hold one team, so it's skipped
-// (the format degrades to a 3-game guarantee there).
+// optional reset). Teams knocked out of the Open EARLY drop into a lower
+// flight so they keep playing for a lower-division title. Drop rule
+// (owner-specified 2026-07-04/05, reconciled against the 2025 ISSA State
+// reference bracket):
+//   • 0-2 — lost your WB opener, then your first LB game (an Open LB
+//     ROUND-1 loss) → drop to A, and you remain eligible for B.
+//   • 1-2 — you WON a losers-bracket game before being eliminated (an Open
+//     LB ROUND-2 loss) → you still drop to A, but you can no longer reach B.
+// So A is fed by both the 0-2 and 1-2 teams (≈ B/2 teams total, matching the
+// reference bracket's ~15-team A for a 32-slot Open). To keep 1-2 teams out
+// of B with static topology, A's first round pairs 0-2 vs 0-2 and 1-2 vs
+// 1-2, and only the 0-2-vs-0-2 losers feed B. Every drop resolves
+// automatically from loser-feeds — no placeholders.
 //
 // A/B games carry tier:'A'|'B' and live in the R0 storage rounds: the
 // bracket tree shows the Open only; tiers appear in the Schedule (labelled
-// "· A Bracket") and in each team's Team Path via the loser feeds. All
-// drops resolve automatically — no placeholder names to fill in.
+// "· A Bracket") and in each team's Team Path via the loser feeds.
 //
-// Sizes are 8/16/32 only: with byes, whether an Open losers-bracket game
-// eliminates a team at 0-2 depends on WHICH side loses (a bye team's count
-// differs), and a conditional drop can't be expressed in static topology —
-// a bye team could exit with 2 games and no A. Arbitrary counts need a
-// play-in design; tracked as a follow-up.
+// Sizes are 8/16/32 (powers of two → no Open byes). The reference bracket
+// ran 23 teams with Open byes "slotted as needed"; supporting arbitrary
+// counts needs double-elim-with-byes (doubleElimSpecs is power-of-two only)
+// — tracked as a follow-up. At 8 teams B holds one team and is skipped.
 function generateTiered(opts) {
   const teams = resolveSeeding(opts);
   const B = nextPow2(teams.length);
   const pos = seedOrder(B).map(s => teams[s - 1]);
   const openSpecs = doubleElimSpecs(B, pos, opts.ifNecessary)
     .map((s, i) => ({ ...s, key: i }));
+  const openMaxKey = openSpecs.length - 1;
 
-  // Open LB round 1: R1.R.1..B/4 in every layout — both participants are
-  // 0-1 (winners-bracket-opener losers), so its losers are exactly the 0-2
-  // teams that drop to A.
-  const lbR1Count = B / 4;
-  const lbR1Slots = Array.from({ length: lbR1Count }, (_, i) => `R1.R.${i + 1}`);
-  const dropKey = openSpecs.filter(s => lbR1Slots.includes(s.slot)).pop().key;
+  // Open LB round 1 (R1.R.1..q) pairs two WB-openers-losers → its losers are
+  // the 0-2 teams. LB round 2 (R2.R.1..q) losers are the 1-2 teams (they won
+  // an LB game first). q of each; both feed A.
+  const q = B / 4;
+  const zeroTwo = Array.from({ length: q }, (_, i) => ({ slot: `R1.R.${i + 1}`, type: 'loser' }));
+  const oneTwo  = Array.from({ length: q }, (_, i) => ({ slot: `R2.R.${i + 1}`, type: 'loser' }));
 
-  const aEntrants = lbR1Slots.map(slot => ({ slot, type: 'loser' }));
+  // 0-2 teams first so buildFeedBracket pairs them together in A round 1
+  // (0-2 vs 0-2), then 1-2 vs 1-2. Only the 0-2 games' losers are B-eligible.
+  const aEntrants = zeroTwo.concat(oneTwo);
   const aDepth = Math.round(Math.log2(nextPow2(aEntrants.length)));
-  const A_CHAIN = [['R0', 'L', 0], ['R0', 'L', 8], ['R0', 'L', 12]].slice(0, aDepth);
+  const A_CHAIN = [['R0','L',0], ['R0','L',8], ['R0','L',12], ['R0','L',14]].slice(0, aDepth);
   const aSpecs = buildFeedBracket(aEntrants, A_CHAIN, false).map(s => ({
-    ...s, tier: 'A', labelSuffix: ' · A Bracket', key: dropKey + 0.5 + s.col,
+    ...s, tier: 'A', labelSuffix: ' · A Bracket', key: openMaxKey + 0.5 + s.col,
   }));
 
-  // B: losers of A's first round only ("lose your first game in A").
-  const bEntrants = aSpecs.filter(s => s.col === 0).map(s => ({ slot: s.slot, type: 'loser' }));
+  // B: losers of the 0-2-vs-0-2 A round-1 games only (the first q/2 col-0
+  // games). 1-2 teams' A losses go nowhere — they're out at that point.
+  const zeroTwoGames = q / 2;
+  const bEntrants = aSpecs
+    .filter(s => s.col === 0)
+    .slice(0, zeroTwoGames)
+    .map(s => ({ slot: s.slot, type: 'loser' }));
   let bSpecs = [];
   if (bEntrants.length >= 2) {
     const bDepth = Math.round(Math.log2(nextPow2(bEntrants.length)));
-    const B_CHAIN = [['R0', 'R', 0], ['R0', 'R', 8]].slice(0, bDepth);
+    const B_CHAIN = [['R0','R',0], ['R0','R',8], ['R0','R',12]].slice(0, bDepth);
     bSpecs = buildFeedBracket(bEntrants, B_CHAIN, false).map(s => ({
-      ...s, tier: 'B', labelSuffix: ' · B Bracket', key: dropKey + 0.75 + s.col,
+      ...s, tier: 'B', labelSuffix: ' · B Bracket', key: openMaxKey + 0.75 + s.col,
     }));
   }
 
   // Stable sort by key interleaves the tiers into the Open's play order just
-  // after the games that feed them.
+  // after the games that feed them (A col-k, then B col-k, then A col-k+1…).
   const all = openSpecs.concat(aSpecs, bSpecs).sort((a, b) => a.key - b.key);
   return emitSpecs(all, opts);
 }
 
 function tieredGames(n) {
-  const openGames = 2 * n - 2;                       // DE without the reset
-  const aEntrants = n / 4;
-  const aGames = Math.max(0, aEntrants - 1);
-  const bGames = aEntrants >= 4 ? aEntrants / 2 - 1 : 0;
+  const openGames = 2 * n - 2;    // double elim without the reset
+  const aGames = n / 2 - 1;       // A is a (n/2)-team single elim
+  const bSeeds = n / 8;           // 0-2-vs-0-2 A round-1 games
+  const bGames = bSeeds >= 2 ? bSeeds - 1 : 0;
   return openGames + aGames + bGames;
 }
 
@@ -863,7 +874,7 @@ const FORMATS = {
   'tiered': {
     id: 'tiered',
     label: 'Open / A / B (tiered flights)',
-    description: 'A competitive flight structure (ISSA-style): the Open runs as double elimination, and teams knocked out early drop into a lower flight — A, then B — each a single-elim bracket that crowns its own champion. This is a separate concept from the game-guarantee formats; it exists to stratify teams by strength, not just to guarantee games. All drops fill in automatically as results come in. 8, 16, or 32 teams (at 8, B can\'t form). The main bracket shows the Open; A/B games appear in the Schedule and each team\'s Team Path. NOTE: the exact drop rule (how many teams reach A/B) is being reconciled against a reference bracket — see HANDOFF.',
+    description: 'A competitive flight structure (ISSA-style): the Open runs as double elimination. Go 0-2 in the Open and you drop into a single-elim A bracket, still eligible for B; win a losers-bracket game before being knocked out (1-2) and you also drop to A but can no longer reach B. Lose your first B-eligible A game and you drop to a single-elim B bracket. Each flight crowns its own champion. This is a separate concept from the game-guarantee formats — it stratifies teams by strength. All drops fill in automatically. 8, 16, or 32 teams (at 8, B can\'t form; arbitrary counts with Open byes are a follow-up). The main bracket shows the Open; A/B games appear in the Schedule and each team\'s Team Path.',
     validCounts: [8, 16, 32],
     doubleElim: true,
     supportsIfNecessary: true,
