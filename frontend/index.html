@@ -77,6 +77,12 @@
 </div>
 
 <div class="view-panel active" id="view-bracket">
+  <!-- Open/A/B flight switcher — shown only for tiered tournaments -->
+  <div class="bracket-flights" id="bracketFlights" style="display:none">
+    <button class="flight-pill active" data-action="setFlight" data-arg="open">Open</button>
+    <button class="flight-pill" data-action="setFlight" data-arg="A">A Bracket</button>
+    <button class="flight-pill" data-action="setFlight" data-arg="B">B Bracket</button>
+  </div>
   <div id="bracketRoot"></div>
 </div>
 

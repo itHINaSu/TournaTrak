@@ -288,6 +288,9 @@ api.get('/session', ah(async (req, res) => {
     // below lets Phase C UI expose superadmin-only features.
     role:               eff === 'superadmin' ? 'admin' : eff,
     superadmin:         u.role === 'superadmin',
+    // Coaches auth by magic link but may optionally set a password (the
+    // lineup page uses this to label Set vs Change Password).
+    hasPassword:        !!u.passwordHash,
     teamName:           teams[0] || u.teamName || null,
     teams,
     tournaments,
@@ -396,11 +399,11 @@ api.get('/users', requireAdmin, ah(async (req, res) => {
       out.grantsElsewhere = Object.keys(u.roles).some(t => Number(t) !== req.tid);
       if (role === 'team') {
         const teams = store.teamsFor(u, req.tid);
-        out.teamName    = teams[0] || u.teamName;
-        out.teams       = teams;
-        out.accessToken = u.accessToken;
-      } else if (u.mustChangePassword && u.setupToken) {
-        out.setupToken = u.setupToken;
+        out.teamName = teams[0] || u.teamName;
+        out.teams    = teams;
+        // Only the hash is stored, so the raw link can't be re-shown here —
+        // the UI offers Regenerate (which returns a fresh raw token once).
+        out.hasAccessToken = !!u.accessToken;
       }
       return out;
     });
@@ -426,16 +429,20 @@ api.post('/users', requireAdmin, ah(async (req, res) => {
       if (!teamName || typeof teamName !== 'string' || !teamName.trim()) {
         return res.status(400).json({ error: 'Team name is required for team users' });
       }
+      // Raw token goes to the caller ONCE; only its hash is stored.
       const accessToken = crypto.randomBytes(32).toString('hex');
       const trimmed = teamName.trim();
       await store.createUser({
         username, role: 'team', teamName: trimmed, teams: [trimmed],
-        accessToken, mustChangePassword: false,
+        accessToken: store.hashToken(accessToken), mustChangePassword: false,
       }, req.tid);
       return res.json({ ok: true, accessToken });
     } else {
       const setupToken = crypto.randomBytes(32).toString('hex');
-      await store.createUser({ username, role, mustChangePassword: true, setupToken }, req.tid);
+      await store.createUser({
+        username, role, mustChangePassword: true,
+        setupToken: store.hashToken(setupToken),
+      }, req.tid);
       return res.json({ ok: true, setupToken });
     }
   } catch (err) {
@@ -516,7 +523,7 @@ api.post('/users/:username/setup-link', requireAdmin, ah(async (req, res) => {
   if (!user || !userActionAllowed(req, user)) return res.status(404).json({ error: 'User not found' });
   if (user.role === 'team') return res.status(400).json({ error: 'Team users use access tokens' });
   const setupToken = crypto.randomBytes(32).toString('hex');
-  await store.updateUser(username, { setupToken, mustChangePassword: true });
+  await store.updateUser(username, { setupToken: store.hashToken(setupToken), mustChangePassword: true });
   res.json({ ok: true, setupToken });
 }));
 
@@ -526,7 +533,7 @@ api.post('/users/:username/regenerate-token', requireAdmin, ah(async (req, res) 
   if (!user || !userActionAllowed(req, user)) return res.status(404).json({ error: 'User not found' });
   if (user.role !== 'team') return res.status(400).json({ error: 'Only team users have access tokens' });
   const accessToken = crypto.randomBytes(32).toString('hex');
-  await store.updateUser(username, { accessToken });
+  await store.updateUser(username, { accessToken: store.hashToken(accessToken) });
   res.json({ ok: true, accessToken });
 }));
 
@@ -560,7 +567,8 @@ api.delete('/users/:username/teams/:teamName', requireAdmin, ah(async (req, res)
 api.get('/setup-password/:token', ah(async (req, res) => {
   const { token } = req.params;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return res.redirect('/admin?setup=invalid');
-  const user = (await store.allUsers()).find(u => u.setupToken === token && u.mustChangePassword);
+  const hashed = store.hashToken(token);
+  const user = (await store.allUsers()).find(u => u.setupToken === hashed && u.mustChangePassword);
   if (!user) return res.redirect('/admin?setup=invalid');
   req.session.regenerate(err => {
     if (err) return res.redirect('/admin?setup=invalid');
@@ -574,7 +582,8 @@ api.get('/team-access/:token', ah(async (req, res) => {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) {
     return res.redirect('/lineup?invalid=1');
   }
-  const user = (await store.allUsers()).find(u => u.role === 'team' && u.accessToken === token);
+  const hashed = store.hashToken(token);
+  const user = (await store.allUsers()).find(u => u.role === 'team' && u.accessToken === hashed);
   if (!user) {
     return res.redirect('/lineup?invalid=1');
   }
@@ -831,27 +840,42 @@ api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
 // ── Bracket Builder ───────────────────────────────────────────────────
 // List the available tournament formats so the builder UI can render choices.
 api.get('/schedule/formats', requireAdmin, (req, res) => {
-  res.json(Object.values(FORMATS).map(f => ({
-    id: f.id,
-    label: f.label,
-    description: f.description,
-    // A format declares either a fixed teamCount, a minTeams/maxTeams range,
-    // or an explicit validCounts list (e.g. double-elim requires exact powers of 2).
-    minTeams: f.minTeams != null ? f.minTeams : f.teamCount,
-    maxTeams: f.maxTeams != null ? f.maxTeams : f.teamCount,
-    validCounts: f.validCounts || null,
-    doubleElim: !!f.doubleElim,
-    supportsIfNecessary: !!f.supportsIfNecessary,
-  })));
+  res.json(Object.values(FORMATS).map(f => {
+    const min = f.minTeams != null ? f.minTeams : f.teamCount;
+    const max = f.maxTeams != null ? f.maxTeams : f.teamCount;
+    // Base real-game count per team count (options like the 3rd-place or
+    // "if necessary" game each add one on top; the client applies those) —
+    // keeps the builder's playing-day sizing free of format math.
+    const counts = f.validCounts || Array.from({ length: max - min + 1 }, (_, i) => min + i);
+    const gamesByCount = {};
+    if (f.estimateGames) {
+      counts.forEach(n => { gamesByCount[n] = f.estimateGames(n, { ifNecessary: false, thirdPlace: false }); });
+    }
+    return {
+      id: f.id,
+      label: f.label,
+      description: f.description,
+      // A format declares either a fixed teamCount, a minTeams/maxTeams range,
+      // or an explicit validCounts list (e.g. double-elim requires exact powers of 2).
+      minTeams: min,
+      maxTeams: max,
+      validCounts: f.validCounts || null,
+      doubleElim: !!f.doubleElim,
+      supportsIfNecessary: !!f.supportsIfNecessary,
+      supportsThirdPlace: !!f.supportsThirdPlace,
+      noByes: !!f.noByes,
+      gamesByCount,
+    };
+  }));
 });
 
 // Generate a full bracket schedule from a format + teams and REPLACE the
 // current schedule. Destructive — the UI confirms before calling this.
 api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
-  const { format, startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, showSeeds, gamePrefix } = req.body || {};
+  const { format, startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, thirdPlace, showSeeds, gamePrefix } = req.body || {};
   let schedule, seededTeams;
   try {
-    ({ schedule, seededTeams } = generateSchedule(format, { startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, gamePrefix }));
+    ({ schedule, seededTeams } = generateSchedule(format, { startDate, teams, seedMode, byeTeams, shuffle, playingDays, ifNecessary, thirdPlace, gamePrefix }));
   } catch (err) {
     return res.status(400).json({ error: err.message });
   }
@@ -861,14 +885,22 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
   if (verr) return res.status(500).json({ error: 'Generated schedule failed validation: ' + verr });
   await store.put(req.tid, 'schedule', schedule);
 
-  // Double elimination has a true winners/losers split, so default the side
-  // labels to match. (Single-elim leaves the existing labels alone — its two
-  // sides are just bracket halves.)
+  // Format-driven settings defaults: formats with a true two-bracket split
+  // name the sides (WB/LB, championship/consolation); schedule-first formats
+  // (round robin, pools) land the public page on the Schedule tab, where a
+  // topology-free schedule actually reads. Single-elim leaves labels alone —
+  // its two sides are just bracket halves.
   const fmt = FORMATS[format];
-  if (fmt && fmt.doubleElim) {
+  if (fmt && (fmt.sideLabels || fmt.scheduleFirst)) {
     const settings = await store.get(req.tid, 'settings');
-    settings.leftLabel = 'Winners Bracket';
-    settings.rightLabel = 'Losers Bracket';
+    if (fmt.sideLabels) {
+      settings.leftLabel = fmt.sideLabels[0];
+      settings.rightLabel = fmt.sideLabels[1];
+    }
+    if (fmt.scheduleFirst) {
+      settings.defaultTab = 'schedule';
+      settings.defaultTabScope = 'both';
+    }
     await store.put(req.tid, 'settings', settings);
     invalidateIndexCache(req.tid);
   }
@@ -1202,7 +1234,13 @@ async function restoreDemoSeed() {
     }
     try {
       if (f === 'users.json') {
-        await store.replaceUsers(Array.isArray(data.users) ? data.users : []);
+        // Seed files may carry v2-style cleartext tokens — hash on the way in.
+        const seedUsers = (Array.isArray(data.users) ? data.users : []).map(u => ({
+          ...u,
+          accessToken: store.hashTokenIfRaw(u.accessToken),
+          setupToken:  store.hashTokenIfRaw(u.setupToken),
+        }));
+        await store.replaceUsers(seedUsers);
       } else if (SEED_DOMAINS[f]) {
         await store.put(store.tid, SEED_DOMAINS[f], data);
       } else {

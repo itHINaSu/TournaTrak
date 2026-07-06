@@ -102,11 +102,33 @@ async function importLegacyJson(pool, tid) {
   if (imported) console.log(`Imported legacy JSON data from ${DATA_DIR} (${imported} files)`);
 }
 
+// One-time upgrade: hash any cleartext access/setup tokens (rows written
+// before token hashing landed, or freshly imported from v2 JSON). Hashed
+// values carry a 'sha256:' prefix; anything without it is legacy cleartext.
+// Runs every boot — the WHERE clause makes re-runs free.
+async function upgradeLegacyTokens(pool) {
+  const store = require('./store');
+  const r = await pool.query(
+    `SELECT id, access_token, setup_token FROM users
+     WHERE (access_token IS NOT NULL AND access_token NOT LIKE 'sha256:%')
+        OR (setup_token  IS NOT NULL AND setup_token  NOT LIKE 'sha256:%')`);
+  for (const row of r.rows) {
+    await pool.query(
+      'UPDATE users SET access_token = $2, setup_token = $3 WHERE id = $1',
+      [row.id, store.hashTokenIfRaw(row.access_token), store.hashTokenIfRaw(row.setup_token)]);
+  }
+  if (r.rows.length) {
+    store.clearCache();   // drop any users cache warmed with cleartext rows
+    console.log(`Hashed ${r.rows.length} legacy cleartext token(s)`);
+  }
+}
+
 async function migrate(pool) {
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
   await pool.query(schema);
   const tid = await ensureTournament(pool);
   await importLegacyJson(pool, tid);
+  await upgradeLegacyTokens(pool);
   return tid;
 }
 

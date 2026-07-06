@@ -189,6 +189,23 @@ function generateSingleElim(opts) {
   }
   resolve(0, B, 0);
 
+  // Optional 3rd-place game: losers of the two semifinals (the depth-1 games
+  // feeding the championship). Lives in the otherwise-unused CHAMP2 slot;
+  // roundLabel() in bracket-data.js shows it as "3rd Place" (it distinguishes
+  // this from a double-elim reset by the feeds not coming from CHAMP itself).
+  // depth 0.5 sorts it after the semis and before the final, where 3rd-place
+  // games are traditionally played.
+  if (opts.thirdPlace) {
+    const semis = games.filter(g => g.depth === 1 && !g.bye);
+    if (semis.length === 2) {
+      games.push({
+        depth: 0.5, lo: 0, slot: 'CHAMP2.C.1',
+        s1: { slot: semis[0].slot, type: 'loser' },
+        s2: { slot: semis[1].slot, type: 'loser' },
+      });
+    }
+  }
+
   // Number + time games deepest round first (the first round played), left to
   // right — so "Game 1" is the earliest game, matching chronological feel.
   // Bye games are not numbered or timed: they aren't played and are excluded
@@ -213,9 +230,11 @@ function generateSingleElim(opts) {
       gameNum++;
       const slot = slotTimes ? (slotTimes[gameNum - 1] || {}) : null;   // unfilled slots blank for the editor
       entry = {
-        label: expandPrefix(opts.gamePrefix, g.slot) + gameNum,
+        label: g.depth === 0.5
+          ? '3rd Place'
+          : expandPrefix(opts.gamePrefix, g.slot) + gameNum,
         num: gameNum,
-        time: slot ? (slot.time || '') : gameTime(g.depth, totalRounds, idxInRound, startDate),
+        time: slot ? (slot.time || '') : gameTime(Math.ceil(g.depth), totalRounds, idxInRound, startDate),
       };
       if (slot && slot.field) entry.field = slot.field;
       applySide(entry, 1, g.s1);
@@ -227,13 +246,14 @@ function generateSingleElim(opts) {
   return schedule;
 }
 
-// Write one side of a game: a fixed team name, or a winner-of-slot reference.
+// Write one side of a game: a fixed team name, or a slot feed (winner unless
+// the spec names another type — the 3rd-place game feeds on semifinal losers).
 function applySide(entry, n, occ) {
   if (occ.name != null) {
     entry[`t${n}name`] = occ.name;
   } else {
     entry[`t${n}slot`] = occ.slot;
-    entry[`t${n}type`] = 'winner';
+    entry[`t${n}type`] = occ.type || 'winner';
   }
 }
 
@@ -283,7 +303,7 @@ function defaultSequentialTimes(startDate, count) {
   return out;
 }
 
-// ── Format: double elimination, 4/8/16/32 teams ───────────────────────────
+// ── Double elimination layout ─────────────────────────────────────────────
 // Winners bracket (L side), losers bracket (R side), championship (C).
 // Losers drop one round back with a cross-half pairing to delay rematches.
 // Optional "if necessary" bracket-reset game (CHAMP2).
@@ -293,14 +313,10 @@ function defaultSequentialTimes(startDate, count) {
 //   B= 8: WB[R1.L, R2.L, QF.L]   LB[R1.R, R2.R, QF.R, SF.R.1]→ 14 games
 //   B=16: WB[R1.L, R2.L, QF.L, QF2.L]  LB[...SF.R.1-2]        → 30 games
 //   B=32: WB[R1.L…SF.L]          LB[…SF.R.1-2, SF3.R.1-2, SF2.R.1-2] → 62 games
-function generateDoubleElim(opts) {
-  const teams = resolveSeeding(opts);
-  const N = teams.length;
-  const B = nextPow2(N);
-  if (![4, 8, 16, 32].includes(B)) {
-    throw new Error('Double elimination requires exactly 4, 8, 16, or 32 teams');
-  }
-  const pos = seedOrder(B).map(s => teams[s - 1]);
+// Build the spec list for a B-team double elimination (B ∈ {4,8,16,32}) over
+// seeded positions `pos`. Shared by the plain double-elim format and the
+// Open bracket of the tiered Open→A→B format.
+function doubleElimSpecs(B, pos, ifNecessary) {
   const w = slot => ({ slot, type: 'winner' });
   const l = slot => ({ slot, type: 'loser' });
   const nm = name => ({ name });
@@ -319,7 +335,7 @@ function generateDoubleElim(opts) {
     add('SF.R.2', w('SF.R.1'), l('SF.L.1'));
     // Championship
     add('CHAMP.C.1', w('SF.L.1'), w('SF.R.2'));
-    if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
+    if (ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
 
   } else if (B === 8) {
     // WB R1 (4 games)
@@ -341,7 +357,7 @@ function generateDoubleElim(opts) {
     add('SF.R.1', w('QF.R.1'), l('QF.L.1'));
     // Championship
     add('CHAMP.C.1', w('QF.L.1'), w('SF.R.1'));
-    if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
+    if (ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
 
   } else if (B === 16) {
     // WB R1 (8 games)
@@ -375,7 +391,7 @@ function generateDoubleElim(opts) {
     add('SF.R.2', w('SF.R.1'), l('QF2.L.1'));
     // Championship
     add('CHAMP.C.1', w('QF2.L.1'), w('SF.R.2'));
-    if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
+    if (ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
 
   } else { // B === 32
     // WB R1 (16 games)
@@ -425,8 +441,21 @@ function generateDoubleElim(opts) {
     add('SF2.R.2', w('SF2.R.1'), l('SF.L.1'));
     // Championship
     add('CHAMP.C.1', w('SF.L.1'), w('SF2.R.2'));
-    if (opts.ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
+    if (ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
   }
+
+  return specs;
+}
+
+// ── Format: double elimination, 4/8/16/32 teams ───────────────────────────
+function generateDoubleElim(opts) {
+  const teams = resolveSeeding(opts);
+  const B = nextPow2(teams.length);
+  if (![4, 8, 16, 32].includes(B)) {
+    throw new Error('Double elimination requires exactly 4, 8, 16, or 32 teams');
+  }
+  const pos = seedOrder(B).map(s => teams[s - 1]);
+  const specs = doubleElimSpecs(B, pos, opts.ifNecessary);
 
   const slotTimes = (opts.playingDays && opts.playingDays.length)
     ? buildSlotTimes(opts.playingDays)
@@ -444,13 +473,359 @@ function generateDoubleElim(opts) {
   return schedule;
 }
 
+// ── Generic feed bracket ───────────────────────────────────────────────
+// Single-elimination over an arbitrary entrant list, laid out down a fixed
+// column chain. Powers every bracket that ISN'T the full-page L/R layout:
+// the consolation bracket, and the pools playoff.
+//   entrants: array of {name} | {slot,type} | null (padded to a power of 2;
+//             seeded positions — pair 0v1, 2v3, … like any bracket sheet)
+//   chain:    column list FIRST round → FINAL, each ['ROUND','SIDE'] or
+//             ['ROUND','SIDE',offset]; game k of a column takes slot
+//             ROUND.SIDE.(k+1+offset) — slot numbers are node positions, so
+//             gaps stay geometric where entrants passed through. The offset
+//             lets several columns share one storage round (used by the
+//             tiered A/B brackets, which live in R0 and never render as a
+//             tree).
+//   byeCards: when a leaf pair has exactly one FIXED NAME, emit a visible
+//             Team-vs-BYE card (matches generateSingleElim); feeds and
+//             mixed pairs pass through silently instead (a "bye" whose team
+//             isn't known yet has nothing to print on a card)
+// Returns [{ slot, col, t1, t2, bye? }] in column order (col 0 first).
+function buildFeedBracket(entrants, chain, byeCards) {
+  const P = nextPow2(Math.max(2, entrants.length));
+  const specs = [];
+  let level = [];
+  for (let i = 0; i < P; i++) level.push(entrants[i] || null);
+
+  for (let col = 0; col < chain.length; col++) {
+    const [round, side, offset] = chain[col];
+    const next = [];
+    for (let k = 0; k < level.length / 2; k++) {
+      const a = level[2 * k], b = level[2 * k + 1];
+      const slot = `${round}.${side}.${k + 1 + (offset || 0)}`;
+      if (a == null && b == null) { next.push(null); continue; }
+      if (a == null || b == null) {
+        const occ = a || b;
+        if (byeCards && occ.name != null && col === 0) {
+          specs.push({ slot, col, t1: occ, t2: { name: 'BYE' }, bye: true });
+          next.push({ slot, type: 'winner' });
+        } else {
+          next.push(occ);   // passthrough — no game
+        }
+        continue;
+      }
+      specs.push({ slot, col, t1: a, t2: b });
+      next.push({ slot, type: 'winner' });
+    }
+    level = next;
+  }
+  return specs;
+}
+
+// Shared tail: number, time, and emit a spec list into a schedule object.
+// Specs must already be in chronological play order. Bye cards get no
+// number or time (they aren't played), matching generateSingleElim.
+function emitSpecs(specs, opts) {
+  const real = specs.filter(s => !s.bye).length;
+  const slotTimes = (opts.playingDays && opts.playingDays.length)
+    ? buildSlotTimes(opts.playingDays)
+    : defaultSequentialTimes(opts.startDate, real);
+  const schedule = {};
+  let n = 0;
+  for (const sp of specs) {
+    let entry;
+    if (sp.bye) {
+      entry = { label: 'Bye', bye: true, time: '' };
+    } else {
+      n++;
+      const st = slotTimes[n - 1] || {};
+      entry = {
+        label: sp.label || (expandPrefix(opts.gamePrefix, sp.slot) + n + (sp.labelSuffix || '')),
+        num: n,
+        time: st.time || '',
+      };
+      if (st.field) entry.field = st.field;
+    }
+    if (sp.tier) entry.tier = sp.tier;   // A/B drop bracket — see generateTiered
+    applySide(entry, 1, sp.t1);
+    if (sp.bye) entry.t2name = 'BYE'; else applySide(entry, 2, sp.t2);
+    schedule[sp.slot] = entry;
+  }
+  return schedule;
+}
+
+// ── Format: single elim + consolation bracket (2-game guarantee) ─────────
+// Championship bracket on the L side; every first-round loser drops into a
+// consolation bracket on the R side, so nobody goes home after one game.
+// With byes, only losers of REAL first-round games enter consolation (a team
+// that had a first-round bye and loses in round 2 is out — the standard
+// consolation rule).
+const MAIN_CHAIN = [['R1','L'], ['R2','L'], ['QF','L'], ['QF2','L'], ['CHAMP','C']];
+const CONS_CHAIN = [['R2','R'], ['QF','R'], ['QF2','R'], ['SF','R']];
+
+function generateConsolation(opts) {
+  const orderedTeams = resolveSeeding(opts);
+  const N = orderedTeams.length;
+  const B = nextPow2(N);
+  const depth = Math.round(Math.log2(B));   // main-bracket column count
+
+  // Seeded entrant positions (nulls where a seed number exceeds N = byes).
+  const order = seedOrder(B);
+  const entrants = order.map(seed => (seed <= N ? { name: orderedTeams[seed - 1] } : null));
+
+  const mainChain = MAIN_CHAIN.slice(MAIN_CHAIN.length - depth);
+  const mainSpecs = buildFeedBracket(entrants, mainChain, true);
+
+  // Consolation entrants: losers of the real (non-bye) first-column games,
+  // in bracket order.
+  const consEntrants = mainSpecs
+    .filter(s => s.col === 0 && !s.bye)
+    .map(s => ({ slot: s.slot, type: 'loser' }));
+
+  let consSpecs = [];
+  if (consEntrants.length >= 2) {
+    const consDepth = Math.round(Math.log2(nextPow2(consEntrants.length)));
+    consSpecs = buildFeedBracket(consEntrants, CONS_CHAIN.slice(0, consDepth), false)
+      .map(s => ({ ...s, cons: true }));
+  }
+
+  // Chronological order: main column k, then consolation column k (its
+  // entrants are main column k's losers — or the previous consolation
+  // column's winners, always at least one column behind main). Sort is
+  // stable, so games keep their bracket order within a column.
+  const all = mainSpecs.concat(consSpecs).sort((a, b) =>
+    (a.col * 2 + (a.cons ? 1 : 0)) - (b.col * 2 + (b.cons ? 1 : 0)));
+  return emitSpecs(all, opts);
+}
+
+// ── Format: round robin (single or double) ──────────────────────────────
+// Everyone plays everyone (once or twice) — no elimination, no topology.
+// Pairings follow the circle method, so each "round" plays every team at
+// most once; games are laid into the slot grid in round order purely for
+// storage. The Schedule tab is the meaningful view (the generate route
+// defaults the public page there); the bracket tree doesn't apply.
+const RR_SLOTS = (() => {
+  const cols = [
+    ['R1','L',16], ['R1','R',8], ['R2','L',8], ['R2','R',8],
+    ['QF','L',4], ['QF','R',4], ['QF2','L',2], ['QF2','R',4],
+    ['SF','L',3], ['SF','R',4], ['SF3','R',2], ['SF2','L',1], ['SF2','R',2],
+    ['R0','L',16], ['R0','R',16],
+  ];
+  const out = [];
+  for (const [r, s, n] of cols) for (let i = 1; i <= n; i++) out.push(`${r}.${s}.${i}`);
+  return out;
+})();
+
+function roundRobinPairs(teams) {
+  // Circle method: fix teams[0], rotate the rest; odd counts add a null
+  // "bye seat" whose pairings are skipped.
+  const list = teams.slice();
+  if (list.length % 2 === 1) list.push(null);
+  const M = list.length;
+  const rounds = [];
+  for (let r = 0; r < M - 1; r++) {
+    const pairs = [];
+    for (let k = 0; k < M / 2; k++) {
+      const a = list[k], b = list[M - 1 - k];
+      if (a != null && b != null) {
+        // Alternate home/away so no team is always listed first.
+        pairs.push(r % 2 === 0 ? [a, b] : [b, a]);
+      }
+    }
+    rounds.push(pairs);
+    list.splice(1, 0, list.pop());   // rotate all but the first seat
+  }
+  return rounds;
+}
+
+function makeRoundRobin(passes) {
+  return function generateRR(opts) {
+    const teams = resolveSeeding(opts);
+    let rounds = roundRobinPairs(teams);
+    if (passes === 2) {
+      // Second leg mirrors the first with home/away swapped.
+      rounds = rounds.concat(rounds.map(ps => ps.map(([a, b]) => [b, a])));
+    }
+    const specs = [];
+    let i = 0;
+    for (const pairs of rounds) {
+      for (const [a, b] of pairs) {
+        specs.push({ slot: RR_SLOTS[i++], col: 0, t1: { name: a }, t2: { name: b } });
+      }
+    }
+    return emitSpecs(specs, opts);
+  };
+}
+
+// ── Format: pool play → playoffs (the youth-tournament staple) ──────────
+// Teams split into 2–4 balanced pools; every pool plays a round robin, then
+// the top two of each pool cross-seed into a single-elim playoff. Pools of 4
+// give the classic 3-game guarantee. The playoff bracket is generated with
+// PLACEHOLDER names ("Pool A #1") — once pool play ends, the TD types the
+// real names over them in the schedule editor, exactly like filling in a
+// paper bracket.
+const POOL_COLS  = [['R1','L'], ['R1','R'], ['R2','L'], ['R2','R']];
+const POOL_NAMES = ['Pool A', 'Pool B', 'Pool C', 'Pool D'];
+const PLAYOFF_CHAIN = [['QF','L'], ['QF2','L'], ['CHAMP','C']];
+
+// numPools for N teams: 2–4 pools of 3–4 teams (ceil keeps every pool at 4
+// or under — a pool of 5 would need 10 round-robin games, more slots than
+// any pool column has). 6–16 teams total.
+function poolSplit(N) {
+  const numPools = Math.min(4, Math.max(2, Math.ceil(N / 4)));
+  const sizes = [];
+  for (let i = 0; i < numPools; i++) sizes.push(Math.floor(N / numPools) + (i < N % numPools ? 1 : 0));
+  return sizes;
+}
+
+function generatePools(opts) {
+  const teams = resolveSeeding(opts);
+  const N = teams.length;
+  const sizes = poolSplit(N);
+  const numPools = sizes.length;
+
+  // Snake-deal seeds into pools so strength balances: 1,2,3 / 6,5,4 / 7,8,9 …
+  const pools = sizes.map(() => []);
+  let idx = 0, dir = 1, p = 0;
+  while (idx < N) {
+    if (pools[p].length < sizes[p]) pools[p].push(teams[idx++]);
+    const nxt = p + dir;
+    if (nxt < 0 || nxt >= numPools) dir = -dir; else p = nxt;
+    // When every pool at the current sweep is full, p just revisits until one accepts.
+  }
+
+  const specs = [];
+  pools.forEach((poolTeams, pi) => {
+    const [round, side] = POOL_COLS[pi];
+    const rounds = roundRobinPairs(poolTeams);
+    let k = 0;
+    for (const pairs of rounds) {
+      for (const [a, b] of pairs) {
+        specs.push({
+          slot: `${round}.${side}.${++k}`, col: 0,
+          t1: { name: a }, t2: { name: b },
+          labelSuffix: ' · ' + POOL_NAMES[pi],
+        });
+      }
+    }
+  });
+
+  // Playoff: cross-seeded placeholders — pool winners are seeds 1..P,
+  // runners-up P+1..2P, so seedOrder pairs A1 against the weakest runner-up.
+  const qualifiers = [];
+  for (let i = 0; i < numPools; i++) qualifiers.push(`${POOL_NAMES[i]} #1`);
+  for (let i = 0; i < numPools; i++) qualifiers.push(`${POOL_NAMES[i]} #2`);
+  const P = nextPow2(qualifiers.length);
+  const order = seedOrder(P);
+  const entrants = order.map(seed => (seed <= qualifiers.length ? { name: qualifiers[seed - 1] } : null));
+  const playDepth = Math.round(Math.log2(P));
+  const playSpecs = buildFeedBracket(entrants, PLAYOFF_CHAIN.slice(PLAYOFF_CHAIN.length - playDepth), true)
+    .map(s => ({ ...s, col: s.col + 1 }));   // playoffs after all pool play
+
+  return emitSpecs(specs.concat(playSpecs), opts);
+}
+
+// ── Format: Open / A / B tiered flights (ISSA-style) ─────────────────────
+// The Open is a true double elimination (winners L, losers R, championship,
+// optional reset). Teams knocked out of the Open EARLY drop into a lower
+// flight so they keep playing for a lower-division title. Drop rule
+// (owner-specified 2026-07-04/05, reconciled against the 2025 ISSA State
+// reference bracket):
+//   • 0-2 — lost your WB opener, then your first LB game (an Open LB
+//     ROUND-1 loss) → drop to A, and you remain eligible for B.
+//   • 1-2 — you WON a losers-bracket game before being eliminated (an Open
+//     LB ROUND-2 loss) → you still drop to A, but you can no longer reach B.
+// So A is fed by both the 0-2 and 1-2 teams (≈ B/2 teams total, matching the
+// reference bracket's ~15-team A for a 32-slot Open). To keep 1-2 teams out
+// of B with static topology, A's first round pairs 0-2 vs 0-2 and 1-2 vs
+// 1-2, and only the 0-2-vs-0-2 losers feed B. Every drop resolves
+// automatically from loser-feeds — no placeholders.
+//
+// A/B games carry tier:'A'|'B' and live in the R0 storage rounds: the
+// bracket tree shows the Open only; tiers appear in the Schedule (labelled
+// "· A Bracket") and in each team's Team Path via the loser feeds.
+//
+// Sizes are 8/16/32 (powers of two → no Open byes). The reference bracket
+// ran 23 teams with Open byes "slotted as needed"; supporting arbitrary
+// counts needs double-elim-with-byes (doubleElimSpecs is power-of-two only)
+// — tracked as a follow-up. At 8 teams B holds one team and is skipped.
+function generateTiered(opts) {
+  const teams = resolveSeeding(opts);
+  const B = nextPow2(teams.length);
+  const pos = seedOrder(B).map(s => teams[s - 1]);
+  const openSpecs = doubleElimSpecs(B, pos, opts.ifNecessary)
+    .map((s, i) => ({ ...s, key: i }));
+  const openMaxKey = openSpecs.length - 1;
+
+  // Open LB round 1 (R1.R.1..q) pairs two WB-openers-losers → its losers are
+  // the 0-2 teams. LB round 2 (R2.R.1..q) losers are the 1-2 teams (they won
+  // an LB game first). q of each; both feed A.
+  const q = B / 4;
+  const zeroTwo = Array.from({ length: q }, (_, i) => ({ slot: `R1.R.${i + 1}`, type: 'loser' }));
+  const oneTwo  = Array.from({ length: q }, (_, i) => ({ slot: `R2.R.${i + 1}`, type: 'loser' }));
+
+  // 0-2 teams first so buildFeedBracket pairs them together in A round 1
+  // (0-2 vs 0-2), then 1-2 vs 1-2. Only the 0-2 games' losers are B-eligible.
+  const aEntrants = zeroTwo.concat(oneTwo);
+  const aDepth = Math.round(Math.log2(nextPow2(aEntrants.length)));
+  const A_CHAIN = [['R0','L',0], ['R0','L',8], ['R0','L',12], ['R0','L',14]].slice(0, aDepth);
+  const aSpecs = buildFeedBracket(aEntrants, A_CHAIN, false).map(s => ({
+    ...s, tier: 'A', labelSuffix: ' · A Bracket', key: openMaxKey + 0.5 + s.col,
+  }));
+
+  // B: losers of the 0-2-vs-0-2 A round-1 games only (the first q/2 col-0
+  // games). 1-2 teams' A losses go nowhere — they're out at that point.
+  const zeroTwoGames = q / 2;
+  const bEntrants = aSpecs
+    .filter(s => s.col === 0)
+    .slice(0, zeroTwoGames)
+    .map(s => ({ slot: s.slot, type: 'loser' }));
+  let bSpecs = [];
+  if (bEntrants.length >= 2) {
+    const bDepth = Math.round(Math.log2(nextPow2(bEntrants.length)));
+    const B_CHAIN = [['R0','R',0], ['R0','R',8], ['R0','R',12]].slice(0, bDepth);
+    bSpecs = buildFeedBracket(bEntrants, B_CHAIN, false).map(s => ({
+      ...s, tier: 'B', labelSuffix: ' · B Bracket', key: openMaxKey + 0.75 + s.col,
+    }));
+  }
+
+  // Stable sort by key interleaves the tiers into the Open's play order just
+  // after the games that feed them (A col-k, then B col-k, then A col-k+1…).
+  const all = openSpecs.concat(aSpecs, bSpecs).sort((a, b) => a.key - b.key);
+  return emitSpecs(all, opts);
+}
+
+function tieredGames(n) {
+  const openGames = 2 * n - 2;    // double elim without the reset
+  const aGames = n / 2 - 1;       // A is a (n/2)-team single elim
+  const bSeeds = n / 8;           // 0-2-vs-0-2 A round-1 games
+  const bGames = bSeeds >= 2 ? bSeeds - 1 : 0;
+  return openGames + aGames + bGames;
+}
+
+// Total real games for N teams under each format (exposed via the formats
+// API so the builder's advanced scheduler can size playing days without
+// duplicating format math client-side).
+function rrGames(n, passes) { return passes * n * (n - 1) / 2; }
+function consolationGames(n) {
+  const firstRound = n - nextPow2(n) / 2;   // real (non-bye) first-round games
+  return (n - 1) + Math.max(0, firstRound - 1);
+}
+function poolsGames(n) {
+  const sizes = poolSplit(n);
+  const pool = sizes.reduce((s, k) => s + k * (k - 1) / 2, 0);
+  return pool + (2 * sizes.length - 1);
+}
+
 const FORMATS = {
   'single-elim': {
     id: 'single-elim',
     label: 'Single Elimination',
-    description: "One bracket, single loss eliminates. Works for 4-64 teams; counts that aren't a power of two give first-round byes to the top seeds.",
+    description: "One bracket, single loss eliminates. Works for 4-64 teams; counts that aren't a power of two give first-round byes to the top seeds. Optionally add a 3rd-place game between the semifinal losers.",
     minTeams: 4,
     maxTeams: 64,
+    supportsThirdPlace: true,
+    estimateGames: (n, o) => (n - 1) + (o && o.thirdPlace ? 1 : 0),
     generate: generateSingleElim,
   },
   'double-elim': {
@@ -460,7 +835,63 @@ const FORMATS = {
     validCounts: [4, 8, 16, 32],
     doubleElim: true,
     supportsIfNecessary: true,
+    sideLabels: ['Winners Bracket', 'Losers Bracket'],
+    estimateGames: (n, o) => (2 * n - 2) + (o && o.ifNecessary !== false ? 1 : 0),
     generate: generateDoubleElim,
+  },
+  'consolation': {
+    id: 'consolation',
+    label: 'Consolation Bracket (2-game guarantee)',
+    description: 'Single elimination plus a consolation bracket: every first-round loser drops into a second bracket for its own championship, so no team goes home after one game. 4–32 teams (byes for non-powers of two; bye teams enter in round 2 and skip consolation).',
+    minTeams: 4,
+    maxTeams: 32,
+    sideLabels: ['Championship Bracket', 'Consolation Bracket'],
+    estimateGames: n => consolationGames(n),
+    generate: generateConsolation,
+  },
+  'round-robin': {
+    id: 'round-robin',
+    label: 'Round Robin',
+    description: 'Everyone plays everyone once — no elimination; standings decide it. 3–14 teams. Best followed on the Schedule tab (the bracket tree doesn\'t apply, so the public page defaults there).',
+    minTeams: 3,
+    maxTeams: 14,
+    noByes: true,
+    scheduleFirst: true,
+    estimateGames: n => rrGames(n, 1),
+    generate: makeRoundRobin(1),
+  },
+  'round-robin-double': {
+    id: 'round-robin-double',
+    label: 'Double Round Robin',
+    description: 'Everyone plays everyone twice (home-and-away pairings swap in the second leg). 3–10 teams. Best followed on the Schedule tab.',
+    minTeams: 3,
+    maxTeams: 10,
+    noByes: true,
+    scheduleFirst: true,
+    estimateGames: n => rrGames(n, 2),
+    generate: makeRoundRobin(2),
+  },
+  'tiered': {
+    id: 'tiered',
+    label: 'Open / A / B (tiered flights)',
+    description: 'A competitive flight structure (ISSA-style): the Open runs as double elimination. Go 0-2 in the Open and you drop into a single-elim A bracket, still eligible for B; win a losers-bracket game before being knocked out (1-2) and you also drop to A but can no longer reach B. Lose your first B-eligible A game and you drop to a single-elim B bracket. Each flight crowns its own champion. This is a separate concept from the game-guarantee formats — it stratifies teams by strength. All drops fill in automatically. 8, 16, or 32 teams (at 8, B can\'t form; arbitrary counts with Open byes are a follow-up). The main bracket shows the Open; A/B games appear in the Schedule and each team\'s Team Path.',
+    validCounts: [8, 16, 32],
+    doubleElim: true,
+    supportsIfNecessary: true,
+    sideLabels: ['Open · Winners Side', 'Open · Losers Side'],
+    estimateGames: (n, o) => tieredGames(n) + (o && o.ifNecessary !== false ? 1 : 0),
+    generate: generateTiered,
+  },
+  'pools': {
+    id: 'pools',
+    label: 'Pool Play → Playoffs (3-game guarantee)',
+    description: 'Teams split into 2–4 balanced pools (3–4 teams each) for round-robin pool play, then the top two from each pool cross-seed into a single-elimination playoff. Pools of 4 give every team at least 3 games. The playoff bracket is generated with "Pool A #1"-style placeholders — after pool play, type the real team names over them in the schedule editor. 6–16 teams.',
+    minTeams: 6,
+    maxTeams: 16,
+    noByes: true,
+    scheduleFirst: true,
+    estimateGames: n => poolsGames(n),
+    generate: generatePools,
   },
 };
 
@@ -544,8 +975,9 @@ function generateSchedule(formatId, opts) {
   }
 
   // Manual byes must name exactly the teams that will sit out round one.
+  // Formats without byes (round robin, pools) treat 'manual' as list order.
   let byeTeams = [];
-  if (seedMode === 'manual') {
+  if (seedMode === 'manual' && !fmt.noByes) {
     const numByes = nextPow2(clean.length) - clean.length;
     byeTeams = (Array.isArray(opts.byeTeams) ? opts.byeTeams : []).map(t => String(t).trim());
     const teamSet = new Set(clean);
@@ -557,7 +989,10 @@ function generateSchedule(formatId, opts) {
   }
 
   const seededTeams = resolveSeeding({ teams: clean, seedMode, byeTeams });
-  const schedule = fmt.generate({ startDate: opts.startDate, teams: clean, seedMode, byeTeams, playingDays, ifNecessary: opts.ifNecessary, gamePrefix: opts.gamePrefix });
+  const schedule = fmt.generate({
+    startDate: opts.startDate, teams: clean, seedMode, byeTeams, playingDays,
+    ifNecessary: opts.ifNecessary, thirdPlace: !!opts.thirdPlace, gamePrefix: opts.gamePrefix,
+  });
   return { schedule, seededTeams };
 }
 

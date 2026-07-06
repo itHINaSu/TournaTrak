@@ -20,20 +20,85 @@ rate-limited login): roles are `admin`, `results`, `team` (coach), `buckets`.
 ## START OF SESSION PROMPT (always do this first)
 At the start of every new session (or when told to "get up to speed"), ask:
 
-> "Which branch should I work on this session? (default: `claude/tournatrak-eval-buildout-sa3mvv`)"
+> "Which branch should I work on this session? (default: the leading branch
+> `claude/handoff-continuation-9elo3q` — see Branch rule)"
 
-Then `git checkout <branch>` before touching anything. Do not assume `main`.
+Then `git checkout <branch>`, `git fetch`, and fast-forward to its tip before
+touching anything. Do not assume `main`.
 
 ## Branch rule
-**Active development branch: `claude/tournatrak-eval-buildout-sa3mvv`** (the
-v2-cleanup → v3 build-out). Commit and push when a change is complete. Do not
-open PRs unless asked.
+**Leading branch as of 2026-07-04: `claude/handoff-continuation-9elo3q`**
+(owner decision). Other Claude sessions — including the one that previously
+led on `claude/tournatrak-eval-buildout-sa3mvv` — PULL from this branch to
+stay current; do not push to a branch you weren't assigned. Before starting
+work, `git fetch` and fast-forward onto the leading branch's tip to avoid
+the parallel-Phase-C style divergence that happened on 2026-07-02/03.
+Commit and push when a change is complete. Do not open PRs unless asked.
 - `main` — production-ready v2. All pre-buildout features land here.
 - `feature/bracket-builder` — MERGED into the buildout branch (formats engine,
   /builder UI, teams/seeding, drag-and-drop, theme colors). Do not develop here.
 - `feature/regional` — parked Postgres prototype; UNRELATED git history (no
   common ancestor with main). Reference-only for the v3 schema. Its committed
   files/users.json contains real leaked secrets — see Security items.
+
+## Outstanding work (what's still needed) — updated 2026-07-05
+Consolidated to-do list; each item points at the detailed section. Ordered
+roughly by priority / by what the owner has been driving.
+
+**Bracket builder & tiered Open/A/B format**
+1. ⬜ **Double-elim WITH BYES** — the top open item. Unblocks arbitrary team
+   counts for BOTH the plain `double-elim` format AND the `tiered` Open/A/B
+   format. Right now `doubleElimSpecs` is power-of-two only, so both are
+   locked to 4/8/16/32 — but the owner's real event (2025 ISSA State Major)
+   is **23 teams with byes**. Meaty/risky: bye teams propagate phantom slots
+   through the LOSERS bracket, must collapse cleanly while fitting the fixed
+   SLOT_DEFS grid. Plan: leave the working power-of-two hardcoded tables
+   untouched, add a SEPARATE bye-aware path for non-powers-of-two, verify
+   with scratchpad `formatstest.js` (play-tests every bracket) + a browser
+   render on a real 23-team bracket. See "Bracket format repository" →
+   tiered, "REMAINING".
+2. ⬜ **Tiered B-feed policy — owner decision pending.** Current build honors
+   the owner's "1-2 teams get no B" rule → B ≈ 4 teams for a 32 Open. The
+   ISSA banner instead appears to feed EVERY A round-1 loser to B (≈7). If
+   the owner wants banner behavior, it's a one-line change (drop the
+   `.slice(0, zeroTwoGames)` in `generateTiered`). See tiered section.
+3. ⬜ **Single-source the builder markup.** `builder.html` (standalone) and
+   `admin.html` (embedded) duplicate the entire builder form. This drift
+   caused the "builder stuck loading" bug (fixed 2026-07-05 by adding the
+   missing element + null-guards, but the duplication remains). Any new
+   builder field must be added to BOTH files. Worth extracting to one shared
+   fragment/template.
+4. ⬜ **Deferred format ideas** (lower priority): Swiss (needs dynamic
+   per-round pairing — doesn't fit static topology), 17–20 team pools (a pool
+   of 5 needs a second slot column), round-robin STANDINGS table (public
+   view; results are per-game today). See "Bracket format repository" tail.
+
+**Security** (see "Security items" for detail)
+5. ⬜ **Leaked secrets in git history** — `files/users.json` (commit 9960403,
+   reachable on origin/dev + origin/feature/regional) has a real bcrypt hash +
+   plaintext team accessToken. OWNER ACTION: rotate that token, decide on
+   history/branch cleanup. NOT remediated. (Token hashing at rest is ✅ done,
+   but the old plaintext is still in history.)
+6. ⬜ **CSP `style-src 'unsafe-inline'`** still present (script-src is already
+   locked to 'self'). Removing it means moving generated inline `style="…"`
+   attributes to classes — a real refactor. Tracked follow-up.
+
+**Ops / deploy**
+7. ⬜ **Real `docker compose up` smoke test on the owner's box.** No Docker
+   daemon in the dev container, so both compose files are only
+   `docker compose config`-validated. A genuine up (main + demo stacks,
+   fresh + upgrade-from-JSON) should be run once.
+
+**Polish / deferred batches** (from ROADMAP v2 backlog — none blocking)
+8. ⬜ Accessibility: focus-trapping on overlays, keyboard activation for
+   `role="button"` elements. (Touch targets largely done.)
+9. ⬜ CSS `rgba()` → `color-mix()` migration (~15 literals that don't adapt
+   to light mode).
+10. ⬜ Sales site: real demo URL + contact email (placeholders in
+    `sales-site/index.html`).
+11. ⬜ **Mobile double-elim round combining** — parked; needs owner to confirm
+    desired behavior before building. See the "TODO / parked" section at the
+    bottom.
 
 ## Layout
 - `frontend/` — static assets served by the API
@@ -271,6 +336,151 @@ async rejections to the error middleware; **never add a bare async handler**.
   password `tournatrak`), then run server.js with PG* vars (or DATABASE_URL)
   + DATA_DIR/FRONTEND_DIR pointing into the repo.
 
+## Bracket format repository (schedule-formats.js)
+Six formats, all registry-driven — the builder UI reads
+`GET /api/schedule/formats` (id/label/description/ranges/flags/gamesByCount),
+so a new FORMATS entry appears in the builder with ZERO client changes
+unless it needs a new option checkbox. Formats (grounded in what Challonge/
+BracketHQ/youth-TD sheets offer):
+- **single-elim** (4–64, byes) — now with optional **3rd-place game**
+  (`supportsThirdPlace` → builder checkbox → `thirdPlace` opt). The game
+  lives in CHAMP2.C.1 fed by semifinal LOSERS; `roundLabel()` +
+  `champ2State()` (new `'third-place'` state) + `isThirdPlaceGame()` in the
+  frontend distinguish it from a double-elim reset by its feeds, so none of
+  the "If Necessary"/"Not Needed" reset UI applies and it never gates the
+  champion banner.
+- **double-elim** (4/8/16/32) — unchanged engine; side-label defaulting now
+  comes from a generic `fmt.sideLabels` (WB/LB).
+- **consolation** (4–32) — 2-game guarantee: main single-elim confined to L
+  (chain R1.L→R2.L→QF.L→QF2.L→CHAMP.C, tail-sliced by depth), first-round
+  losers feed a consolation bracket on R (R2.R→QF.R→QF2.R→SF.R). Byes enter
+  in round 2 and skip consolation (standard rule). Sets side labels
+  Championship/Consolation. isEliminated already handles it (loss with a
+  loser-feed ≠ out).
+- **round-robin** (3–14) / **round-robin-double** (3–10) — circle-method
+  pairings (alternating home/away; leg 2 swaps), games laid into the slot
+  grid purely for storage (RR_SLOTS flat list, 98 capacity).
+- **pools** (6–16) — 2–4 snake-seeded pools of 3–4 (ceil(N/4) pools; pools
+  of 5 would overflow an 8-slot column — that's why 17–20 teams is a
+  FOLLOW-UP, needs a second column per pool), round robin within pool
+  (labels suffixed "· Pool A"), then top-2 cross-seed into a placeholder
+  playoff ("Pool A #1" fixed names the TD overwrites in the schedule editor
+  after pools — the paper-bracket workflow). Pools of 4 = 3-game guarantee.
+- Shared machinery: `buildFeedBracket(entrants, chain, byeCards)` (generic
+  tail-of-chain single elim with null passthrough; bye CARDS only for leaf
+  fixed-name pairs), `emitSpecs` (numbering/timing), `roundRobinPairs`.
+- `fmt.noByes` (RR/pools): builder hides bye math; server skips manual-bye
+  validation. `fmt.scheduleFirst` (RR/pools): generate route flips settings
+  defaultTab→schedule/both (bracket tree meaningless there).
+  `fmt.estimateGames(n, opts)` → formats API `gamesByCount` map → builder's
+  `realGamesNeeded()` has no client-side format math (falls back for old
+  servers).
+- **Verified**: 1300 structural checks (scratchpad formatstest.js — every
+  format × every count × option variants: validateSchedule, slot validity,
+  feed integrity, ≤200 entries, estimate==real, full play-through
+  simulation, per-format guarantees) + 16 Playwright rendering checks
+  (3rd-place labels/champion banner, consolation side labels + 22 cards +
+  loser team-path continuation, RR schedule-first landing, pools labels +
+  placeholders). NOT visually reviewed by a human: consolation bracket
+  GEOMETRY on desktop/mobile (cards render and feeds connect, but line
+  aesthetics for the L-confined main bracket + R consolation weren't
+  eyeballed) — worth a look on a real screen.
+- **tiered** ('Open / A / B (tiered flights)'): a competitive-flight format,
+  NOT a game-guarantee format (owner correction 2026-07-05: game-guarantee ≠
+  the Open/A/B style; keep them distinct in naming/framing). **DROP RULE
+  RESOLVED 2026-07-05** — the two earlier sources reconciled once the owner
+  clarified: teams eliminated from the Open at 0-2 OR 1-2 both drop to A
+  (the earlier "0-2 only" build was too narrow — that's why the ISSA banner's
+  A looked ~2× bigger). Precisely:
+    • 0-2 (lost WB opener, then LB round 1) → drop to A, still B-eligible.
+    • 1-2 (won an LB game, then lost — LB round 2) → drop to A, NOT B-eligible.
+    • 2-2 and deeper: stay/place in the Open (already have 4+ games).
+  A therefore holds ≈ B/2 teams (0-2 and 1-2), matching the banner's ~15-team
+  A for a 32-slot Open. To keep 1-2 teams out of B with static topology, A's
+  round 1 pairs 0-2 vs 0-2 and 1-2 vs 1-2, and only the 0-2-vs-0-2 losers feed
+  B. This yields a genuine **4-game guarantee** (structural min: lose
+  everything from the top → WB, LB1, A, B; verified over 40 random
+  playthroughs per size, min = 4 for n≥16, 3 for n=8 where B can't form).
+  A/B sizes now: n=8 → A=3,B=0; n=16 → A=7,B=1; n=32 → A=15,B=3 games.
+  NOTE vs banner: the banner's B is bigger (~7) because it appears to feed
+  ALL A round-1 losers to B; this build honors the owner's "1-2 teams get no
+  B" rule instead, so B only takes the 0-2-vs-0-2 losers (~4 for a 32 Open).
+  If the owner wants banner-B (all A-R1 losers → B), it's a one-line change
+  (drop the `.slice(0, zeroTwoGames)` in generateTiered).
+  REMAINING: Arbitrary team counts (e.g. the real ISSA Major = 23 teams,
+  "byes slotted as needed"): needs double-elim-WITH-BYES, which
+  doubleElimSpecs (power-of-two only) doesn't do yet. validCounts stays
+  [8,16,32] until then. This is the meatier follow-up — bye teams propagate
+  PHANTOM slots through the LOSERS bracket (not just round 1 like single-elim),
+  which must collapse cleanly while still fitting the fixed SLOT_DEFS grid.
+  Scoped to NOT touch the working power-of-two hardcoded tables (add a
+  separate bye-aware path for non-powers-of-two). Lean on the structural
+  simulation suite (scratchpad formatstest.js) — it play-tests every bracket.
+  ✅ **Open/A/B DISPLAY TABS DONE 2026-07-05** (SW v2.67): a pill row
+  (`#bracketFlights` in index.html, `.flight-pill` / `data-action="setFlight"`)
+  above `#bracketRoot`, shown only when tier games exist (updateFlightTabs()).
+  `_bracketFlight` state ('open'|'A'|'B'); renderBracket() short-circuits to
+  renderFlightBracket() for A/B — a lightweight left-to-right round-column
+  layout (flightColumns() groups tier games by winner-feed depth; reuses
+  cardHTML). Open keeps the full WB/LB tree. Pills auto-hide per flight
+  (B pill hidden at n=8 where B can't form) and reset to Open when a flight
+  vanishes. CSS `.bracket-flights` needs `z-index:5`+bg — the bracket canvas
+  is absolutely positioned and overlapped the pills at ≤1024px (fixed +
+  verified clickable 390–1400px). Verified: 14 Playwright checks (pill
+  visibility, flight switching, 15 A-cards / 3 B-cards for a 32 Open, Open
+  tree returns, no pills for non-tiered, B hidden at n=8).
+  Open is TRUE double elim (reuses the
+  extracted `doubleElimSpecs(B,pos,ifNecessary)`; plain double-elim now
+  wraps the same function). Drop wiring: A entrants = losers of LB round 1
+  (R1.R.1..q, the 0-2 teams) ++ losers of LB round 2 (R2.R.1..q, the 1-2
+  teams), q = B/4. buildFeedBracket pairs them 0-2-vs-0-2 then 1-2-vs-1-2 in
+  A round 1; B is fed by the first q/2 A col-0 game losers (the 0-2 pairings
+  only). All drops are automatic loser-feeds — no placeholders.
+  - **`tier: 'A'|'B'` schedule field** (validated enum): tier games are
+    stored in R0 (A→R0.L offsets 0/8/12/14, B→R0.R offsets 0/8/12 via
+    buildFeedBracket's per-column num offset) and EXCLUDED from the
+    bracket tree everywhere: buildSideColumns, mobile rounds+gidsFor,
+    gridHeight, and roundLabel's populated-round counting (else R0 would
+    shift Open's round numbers). They appear in Schedule (By-Round gains
+    "A Bracket"/"B Bracket" groups; labels carry "· A Bracket") and in
+    Team Path via feeds. Admin editor shows them under R0 for editing.
+  - **isEliminated rewritten**: the `losses >= 2` fallback wrongly
+    eliminated 0-2 tiered teams and was redundant — the structural rule
+    (a loss in a game with no loser-feed = out) covers single/two-sided/
+    double elim AND tiers. Behavior change only for hand-edited schedules
+    with missing LB feeds (previously out at 2 losses, now alive).
+  - By-Round schedule grouping also gained SF3/SF2 (pre-existing gap: the
+    32-team DE losers rounds never appeared in that view).
+  - Verified: structural suite = 1360 checks (tier A=n/2-1 & B=n/8-1
+    sizing, R0-only storage, and a 4-game guarantee proven by taking the min
+    games over 40 RANDOM playthroughs per size — min=4 for n≥16, 3 for n=8)
+    + 9 Playwright checks (tiered-16 = 39 games, tree shows exactly the 31
+    Open cards with intact round numbers + WB/LB side labels, By-Round A/B
+    groups, a 0-2 team's path continuing into A, isEliminated false at 0-2).
+- Swiss deliberately skipped: pairings depend on live standings each round,
+  which a static schedule topology can't express. Round-robin STANDINGS
+  table (public view) is a natural follow-up; results are per-game today.
+- SW bumped to v2.66 (bracket.js + bracket-data.js precached).
+
+## Coach passwords (optional, alongside magic links)
+Coaches auth primarily by magic link, but may OPTIONALLY set a password:
+- `/api/session` exposes `hasPassword` (all authenticated users).
+- Standalone lineup page: header "Set Password" / "Change Password" button
+  (`#coachAccountBtn`, shown only for role team; the button doesn't exist in
+  admin.html so embedded mode is unaffected) opens a modal that POSTs the
+  existing `/api/change-password` (which already allowed any session).
+- The unauthenticated `/lineup` state is now an access GATE: the old
+  "Link Invalid" card (soft "Coach Access" copy when there's no ?invalid=1
+  param) plus a username/password sign-in form. Login is tid-agnostic;
+  after reload `lineupInit()` **scope-heals**: an authenticated session
+  whose role is null on the current mount follows the first `role:'team'`
+  entry in `session.tournaments` to `/lineup?t=<slug>`.
+- Magic links keep working regardless; setting a password never touches the
+  access token. SW bumped to v2.64 (lineup.html/js precached).
+- Verified (curl + Playwright, 13 checks): set/change flow, mismatch
+  validation, password sign-in for default- and non-default-tournament
+  coaches (incl. the ?t= redirect), magic link still valid afterward.
+
 ## Lineup: softball-specific — needs v3 attention
 Lineup fields (`jersey`, `name`, `position`) are sport-specific. For v3 multi-sport,
 these need to be configurable or abstracted. **Do not change in v2.**
@@ -494,6 +704,19 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
   previously bcrypt.compare against their undefined passwordHash threw
   a 500, an account-type oracle. Verified: all three login-failure
   classes measure 339–348ms.
+- **Access/setup token hashing**: ✅ DONE — only `sha256:<hex>`-prefixed
+  hashes are persisted (users.access_token / setup_token); the raw token is
+  returned exactly once by create/regenerate responses. migrate.js upgrades
+  cleartext rows on boot (idempotent; also catches v2 import), and the demo
+  restore hashes seed tokens on the way in. `GET /api/users` no longer
+  returns tokens (team users get `hasAccessToken` instead). Admin UI:
+  Copy Link / Copy Setup Link buttons removed from lists; Regenerate (and
+  addCoach/addUser creation) copies the fresh link to the clipboard —
+  regenerating is the ONLY recovery for a lost link, old link dies. The
+  `?team=`-era copyCoachLink/copySetupLink helpers + hidden link input +
+  its CSS were removed. Verified: legacy cleartext link still works after
+  the boot upgrade (hash matches), regenerate kills the old link, setup
+  flow end-to-end, no 64-hex token anywhere in admin DOM (Playwright).
 - **Rate limiter** in-memory (resets on restart; bounded). Accepted for now.
 - **Session persistence**: ✅ DONE — Postgres `sessions` table via
   PgSessionStore (store.js); FileSessionStore removed.

@@ -514,15 +514,6 @@ input[type="time"]:focus {
   align-items: center;
   padding-top: 0.25em;
 }
-/* Hidden value store for the copy function — never shown */
-.coach-link-hidden {
-  position: absolute;
-  width: 1px; height: 1px;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-}
-
 /* ── Coach multi-team tags ── */
 .coach-team-tag {
   display: inline-flex;

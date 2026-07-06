@@ -1137,15 +1137,12 @@ function renderUsersList(users) {
     var statusLine = u.mustChangePassword ? '<span class="user-must-change">pw change pending</span>' : '';
 
     var actions = '';
-    if (u.role === 'team' && u.accessToken) {
-      actions += '<button class="sched-save-btn" data-action="copyMagicLink" data-arg="' + esc(u.accessToken) + '">Copy Link</button>';
-      actions += '<button class="admin-clear-btn user-regen-btn" data-action="regenerateToken" data-arg="' + esc(u.username) + '">Regenerate</button>';
-    } else if (u.setupToken) {
-      actions += '<button class="sched-save-btn" data-action="copySetupLink" data-arg="' + esc(u.setupToken) + '">Copy Setup Link</button>';
-    } else if (!isSelf && u.role !== 'team') {
+    // Tokens are stored hashed, so setup links can't be re-shown from the
+    // list — "Regenerate Link" mints a fresh token and copies the new link
+    // (covers pending-setup users too, whose old "Copy Setup Link" needed
+    // the raw token the server no longer returns).
+    if (!isSelf && u.role !== 'team') {
       actions += '<button class="admin-clear-btn user-regen-btn" data-action="regenerateSetupLink" data-arg="' + esc(u.username) + '">Regenerate Link</button>';
-    } else if (!isSelf) {
-      actions += '<button class="admin-clear-btn" data-action="openResetPwModal" data-arg="' + esc(u.username) + '">Reset PW</button>';
     }
     if (!isSelf) {
       // For a non-superadmin acting on a user who also has grants elsewhere,
@@ -1184,12 +1181,6 @@ function copyMagicLink(token) {
   showToast('Link copied to clipboard');
 }
 
-function copySetupLink(token) {
-  var link = window.location.origin + '/api/setup-password/' + token;
-  copyText(link);
-  showToast('Setup link copied to clipboard');
-}
-
 async function regenerateSetupLink(username) {
   var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/setup-link', { method: 'POST' });
   var d = await r.json().catch(function() { return {}; });
@@ -1215,13 +1206,16 @@ async function regenerateToken(username) {
   if (!confirm('Regenerate access link for "' + username + '"?\nThe old link will stop working immediately.')) return;
   var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/regenerate-token', { method: 'POST' });
   if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
   if (!r.ok) {
-    var data = await r.json().catch(function(){ return {}; });
     showToast(data.error || 'Regenerate failed', true);
     return;
   }
-  showToast('New link generated for ' + username);
+  // Only chance to capture the raw token — the server stores just its hash.
+  copyMagicLink(data.accessToken);
+  showToast('New link for ' + username + ' copied to clipboard');
   loadUsers();
+  loadCoaches();
 }
 
 async function addUser() {
@@ -2167,7 +2161,6 @@ function renderCoachesList(coaches) {
   }
   el.innerHTML = coaches.map(function(u) {
     var teams = Array.isArray(u.teams) && u.teams.length ? u.teams : (u.teamName ? [u.teamName] : []);
-    var link  = u.accessToken ? (window.location.origin + '/api/team-access/' + u.accessToken) : '';
     var teamTags = teams.map(function(t) {
       var canRemove = teams.length > 1;
       return '<span class="coach-team-tag">' + esc(t)
@@ -2186,9 +2179,9 @@ function renderCoachesList(coaches) {
       +   '<button class="admin-clear-btn" data-action="hideAddCoachTeam" data-arg="' + esc(u.username) + '">Cancel</button>'
       + '</div>'
       + '<div class="coach-actions">'
-      +   (link ? '<input type="text" class="coach-link-hidden" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly tabindex="-1" aria-hidden="true">' : '')
-      +   (link ? '<button class="admin-save-btn" data-action="copyCoachLink" data-arg="' + esc(u.username) + '">Copy Link</button>' : '')
-      +   (u.accessToken ? '<button class="admin-clear-btn user-regen-btn" data-action="regenerateToken" data-arg="' + esc(u.username) + '">Regenerate</button>' : '')
+      // Access tokens are stored hashed, so the link can only be copied at
+      // creation or via Regenerate (which copies the fresh link).
+      +   (u.hasAccessToken ? '<button class="admin-clear-btn user-regen-btn" data-action="regenerateToken" data-arg="' + esc(u.username) + '">Regenerate Link</button>' : '')
       +   '<button class="admin-clear-btn user-delete-btn" data-action="deleteUser" data-arg="' + esc(u.username) + '">Delete</button>'
       + '</div>'
       + '</div>';
@@ -2236,17 +2229,6 @@ async function removeCoachTeam(username, teamName) {
   loadCoaches();
 }
 
-function copyCoachLink(username) {
-  var el = document.getElementById('cl-' + username);
-  if (!el) return;
-  var text = el.value;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(function() { showToast('Link copied'); }).catch(function() { fallbackCopy(text); });
-  } else {
-    fallbackCopy(text);
-  }
-}
-
 async function addCoach() {
   var username = (document.getElementById('newCoachUsername').value || '').trim();
   var teamName = (document.getElementById('newCoachTeamName').value || '').trim();
@@ -2271,9 +2253,12 @@ async function addCoach() {
   }
   document.getElementById('newCoachUsername').value = '';
   document.getElementById('newCoachTeamName').value = '';
-  status.textContent = '✓ Added';
-  setTimeout(function(){ status.textContent = ''; }, 3000);
-  showToast('Coach ' + username + ' added');
+  // Only chance to capture the coach's magic link — the server stores just
+  // the token's hash, so copy it to the clipboard right now.
+  if (data.accessToken) copyMagicLink(data.accessToken);
+  status.textContent = '✓ Added — magic link copied';
+  setTimeout(function(){ status.textContent = ''; }, 5000);
+  showToast('Coach ' + username + ' added — link copied to clipboard');
   loadCoaches();
 }
 
@@ -2605,7 +2590,6 @@ Object.assign(TT_ACTIONS, {
   openResetPwModal:    function(arg) { openResetPwModal(arg); },
   closeResetPwModal:   function() { closeResetPwModal(); },
   copyMagicLink:       function(arg) { copyMagicLink(arg); },
-  copySetupLink:       function(arg) { copySetupLink(arg); },
   regenerateToken:     function(arg) { regenerateToken(arg); },
   regenerateSetupLink: function(arg) { regenerateSetupLink(arg); },
   // coaches
@@ -2614,7 +2598,6 @@ Object.assign(TT_ACTIONS, {
   showAddCoachTeam:    function(arg) { showAddCoachTeam(arg); },
   addCoachTeam:        function(arg) { addCoachTeam(arg); },
   hideAddCoachTeam:    function(arg) { hideAddCoachTeam(arg); },
-  copyCoachLink:       function(arg) { copyCoachLink(arg); },
 });
 
 (function bindAdminForms() {

@@ -597,16 +597,26 @@ async function lineupInit() {
     document.getElementById('lineupLoading').style.display = 'none';
 
     if (new URLSearchParams(window.location.search).get('invalid')) {
-      document.getElementById('lineupInvalid').style.display = '';
+      showLineupGate(session);
       return;
     }
     if (!session.authenticated || !['team', 'admin', 'results'].includes(session.role)) {
-      document.getElementById('lineupInvalid').style.display = '';
+      // Signed in (e.g. via password) but this mount's tournament isn't
+      // theirs — follow the team grant to its tournament and retry there.
+      if (session.authenticated && Array.isArray(session.tournaments)) {
+        var tg = session.tournaments.find(function(x) { return x.role === 'team'; });
+        if (tg && tg.slug !== _lineupSlug) {
+          window.location.replace('/lineup?t=' + encodeURIComponent(tg.slug));
+          return;
+        }
+      }
+      showLineupGate(session);
       return;
     }
 
     isAdmin         = session.role === 'admin' || session.role === 'results';
     buildNavBar(session.role);
+    if (session.role === 'team') setupCoachAccountBtn(!!session.hasPassword);
     currentTeamName = session.teamName || null;
     myTeams = isAdmin
       ? [] // admin can edit any team — checked in isSlotEditable
@@ -691,6 +701,123 @@ async function lineupInit() {
   }
 }
 
+// ── Coach password auth (standalone page only) ─────────────────────────
+// Coaches normally arrive via magic link; setting a password is OPTIONAL and
+// gives them a second door (the sign-in form on the access gate below) if
+// the link is lost. The magic link keeps working either way.
+
+// Access gate: the invalid/unauthenticated state plus the sign-in form.
+function showLineupGate(session) {
+  var invalidParam = new URLSearchParams(window.location.search).get('invalid');
+  if (!invalidParam) {
+    // Not a broken magic link — a plain visit with no (usable) session, so
+    // don't alarm with "Link Invalid".
+    var t = document.getElementById('lineupInvalidTitle');
+    var b = document.getElementById('lineupInvalidBody');
+    if (t) t.textContent = 'Coach Access';
+    if (b) b.textContent = 'Open your team\'s access link, or sign in below if you\'ve set a password.';
+  }
+  document.getElementById('lineupInvalid').style.display = '';
+  var wrap = document.getElementById('coachLoginWrap');
+  if (wrap) wrap.style.display = '';
+}
+
+async function doCoachLogin(e) {
+  if (e) e.preventDefault();
+  var user  = document.getElementById('coachLoginUser').value;
+  var pass  = document.getElementById('coachLoginPass').value;
+  var btn   = document.getElementById('coachLoginBtn');
+  var errEl = document.getElementById('coachLoginError');
+  btn.disabled = true;
+  errEl.style.display = 'none';
+  try {
+    // Login is tournament-agnostic; after the reload lineupInit follows the
+    // team grant to the right tournament (the redirect in its gate check).
+    var r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    if (r.ok) {
+      var url = new URL(window.location.href);
+      url.searchParams.delete('invalid');
+      window.location.replace(url.pathname + url.search);
+      return;
+    }
+    var data = await r.json().catch(function(){ return {}; });
+    errEl.textContent = data.error || 'Login failed';
+    errEl.style.display = 'block';
+  } catch(err) {
+    errEl.textContent = 'Network error — try again';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false;
+}
+
+function setupCoachAccountBtn(hasPassword) {
+  var btn = document.getElementById('coachAccountBtn');
+  if (!btn) return;   // embedded in /admin — staff manage passwords in Settings
+  btn.textContent = hasPassword ? 'Change Password' : 'Set Password';
+  btn.style.display = '';
+  var title = document.getElementById('coachPwTitle');
+  if (title) title.textContent = hasPassword ? 'Change Your Password' : 'Set a Password';
+}
+
+function openCoachPw() {
+  document.getElementById('coachPwNew1').value = '';
+  document.getElementById('coachPwNew2').value = '';
+  var errEl = document.getElementById('coachPwError');
+  errEl.style.display = 'none';
+  errEl.style.color = '';
+  document.getElementById('coachPwOverlay').style.display = '';
+}
+
+function closeCoachPw(e) {
+  if (e && e.target !== document.getElementById('coachPwOverlay')) return;
+  document.getElementById('coachPwOverlay').style.display = 'none';
+}
+
+async function saveCoachPw() {
+  var p1    = document.getElementById('coachPwNew1').value;
+  var p2    = document.getElementById('coachPwNew2').value;
+  var errEl = document.getElementById('coachPwError');
+  errEl.style.display = 'none';
+  errEl.style.color = '';
+  if (p1.length < 8) {
+    errEl.textContent = 'Password must be at least 8 characters';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (p1 !== p2) {
+    errEl.textContent = 'Passwords do not match';
+    errEl.style.display = 'block';
+    return;
+  }
+  var r = await fetch(lineupApiBase() + '/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: p1 })
+  });
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    errEl.textContent = data.error || 'Failed to save password';
+    errEl.style.display = 'block';
+    return;
+  }
+  setupCoachAccountBtn(true);
+  errEl.textContent = '✓ Password saved — you can now sign in with your username';
+  errEl.style.color = 'var(--win-color)';
+  errEl.style.display = 'block';
+  setTimeout(function() { document.getElementById('coachPwOverlay').style.display = 'none'; }, 1600);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var loginForm = document.getElementById('coachLoginForm');
+  if (loginForm) loginForm.addEventListener('submit', doCoachLogin);
+  var pwForm = document.getElementById('coachPwForm');
+  if (pwForm) pwForm.addEventListener('submit', function(e) { e.preventDefault(); saveCoachPw(); });
+});
+
 if (!document.getElementById('adminWrap')) lineupInit();
 
 // ── Delegated actions (see tt-common.js) ──────────────────────────────
@@ -702,4 +829,7 @@ Object.assign(TT_ACTIONS, {
   submitLineup:  function() { submitLineup(); },
   addSubRow:     function() { addSubRow(); },
   deleteSubRow:  function() { deleteSubRow(); },
+  openCoachPw:   function() { openCoachPw(); },
+  closeCoachPw:  function(arg, el, e) { closeCoachPw(e); },
+  saveCoachPw:   function() { saveCoachPw(); },
 });
