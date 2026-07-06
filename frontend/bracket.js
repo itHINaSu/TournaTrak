@@ -587,7 +587,7 @@ function gridHeight() {
   var counts = {};
   Object.keys(GAMES).forEach(function(gid) {
     var g = GAMES[gid];
-    if (g.round === 'CHAMP' || g.round === 'CHAMP2') return;
+    if (g.round === 'CHAMP' || g.round === 'CHAMP2' || g.tier) return;
     var k = g.round + '|' + g.side;
     counts[k] = (counts[k] || 0) + 1;
   });
@@ -919,7 +919,8 @@ function buildSideColumns(side){
   var rounds=ROUND_ORDER.filter(function(r){ return r!=='CHAMP'&&r!=='CHAMP2'; });
   return rounds.map(function(round){
     var games=Object.keys(GAMES).filter(function(gid){
-      return GAMES[gid].side===side&&GAMES[gid].round===round;
+      // Tiered A/B games live in the schedule/team path, not the tree.
+      return GAMES[gid].side===side&&GAMES[gid].round===round&&!GAMES[gid].tier;
     }).map(function(gid){ return {gid:gid,slot:parseSlotId(gid).num}; })
       .sort(function(a,b){ return a.slot-b.slot; });
     return {round:round,side:side,games:games};
@@ -1381,14 +1382,15 @@ function renderMobileBracket(root, dims) {
   var padPx = 12;
 
   var rounds = ROUND_ORDER.filter(function(r){
-    return Object.keys(GAMES).some(function(gid){ return GAMES[gid].round===r; });
+    // Tiered A/B games (schedule/team-path only) must not create columns.
+    return Object.keys(GAMES).some(function(gid){ return GAMES[gid].round===r && !GAMES[gid].tier; });
   });
 
   function gidsFor(round) {
     var sides = (round === 'CHAMP' || round === 'CHAMP2') ? ['C'] : ['L','R'];
     var out = [];
     sides.forEach(function(s) { out = out.concat(slotsForRoundSide(round, s)); });
-    return out;
+    return out.filter(function(gid) { return !GAMES[gid].tier; });
   }
 
   // ── Columns ────────────────────────────────────────────────────────────
@@ -2341,9 +2343,15 @@ function renderScheduleView() {
       groups.push({ id: k || 'tbd', label: k ? dayGroupLabel(k) : 'TBD', sids: byDay[k] });
     });
   } else if (scheduleMode === 'round') {
-    ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].forEach(function(round) {
-      var sids = allSids.filter(function(s) { return GAMES[s].round === round; });
+    ['R1','R2','QF','QF2','SF','SF3','SF2','CHAMP','CHAMP2'].forEach(function(round) {
+      var sids = allSids.filter(function(s) { return GAMES[s].round === round && !GAMES[s].tier; });
       if (sids.length) groups.push({ id: round, label: roundLabel(round), sids: sids });
+    });
+    // Tiered drop brackets (Open→A→B) group under their own headers — their
+    // storage round (R0) is meaningless to readers.
+    ['A','B'].forEach(function(tier) {
+      var sids = allSids.filter(function(s) { return GAMES[s].tier === tier; });
+      if (sids.length) groups.push({ id: 'tier' + tier, label: tier + ' Bracket', sids: sids });
     });
   } else { // field
     var byField = {}, fieldKeys = [];

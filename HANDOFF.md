@@ -324,10 +324,47 @@ BracketHQ/youth-TD sheets offer):
   GEOMETRY on desktop/mobile (cards render and feeds connect, but line
   aesthetics for the L-confined main bracket + R consolation weren't
   eyeballed) — worth a look on a real screen.
+- **tiered** ('Open → A → B', 4-game guarantee; OWNER-SPECIFIED 2026-07-04,
+  "tiered brackets ARE my guarantees"): Open is TRUE double elim (reuses the
+  extracted `doubleElimSpecs(B,pos,ifNecessary)`; plain double-elim now
+  wraps the same function). Drops: go 0-2 in Open (lose WB opener + first
+  LB game = lose an Open LB ROUND-1 game, slots R1.R.1..B/4) → fresh
+  single-elim A; lose your FIRST A game (A col-0 losers) → fresh single-elim
+  B. Owner-confirmed rule: a team that WINS an LB game then loses exits
+  Open at 3+ games and does NOT filter down — min games is 3, the 4-game
+  guarantee is the straight-loss path (structurally asserted for every B
+  participant). All drops are automatic loser-feeds — no placeholders.
+  - Judgment calls (question dialog kept erroring; owner may override):
+    validCounts [8,16,32] — arbitrary counts are BLOCKED structurally: with
+    byes, whether an LB game's loser is 0-2 depends on WHICH side loses
+    (conditional drop, inexpressible in static topology) and a bye team
+    could exit at 2 games with no A. Needs a play-in design — follow-up.
+    At 8 teams B can't form (A has 2 entrants) → Open+A only, noted in the
+    format description. Display: bracket tree = Open only.
+  - **`tier: 'A'|'B'` schedule field** (validated enum): tier games are
+    stored in R0 (A→R0.L offsets 0/8/12, B→R0.R offsets 0/8 via
+    buildFeedBracket's new per-column num offset) and EXCLUDED from the
+    bracket tree everywhere: buildSideColumns, mobile rounds+gidsFor,
+    gridHeight, and roundLabel's populated-round counting (else R0 would
+    shift Open's round numbers). They appear in Schedule (By-Round gains
+    "A Bracket"/"B Bracket" groups; labels carry "· A Bracket") and in
+    Team Path via feeds. Admin editor shows them under R0 for editing.
+  - **isEliminated rewritten**: the `losses >= 2` fallback wrongly
+    eliminated 0-2 tiered teams and was redundant — the structural rule
+    (a loss in a game with no loser-feed = out) covers single/two-sided/
+    double elim AND tiers. Behavior change only for hand-edited schedules
+    with missing LB feeds (previously out at 2 losses, now alive).
+  - By-Round schedule grouping also gained SF3/SF2 (pre-existing gap: the
+    32-team DE losers rounds never appeared in that view).
+  - Verified: structural suite grew to 1364 checks (tier sizing, everyone
+    ≥3 games, ≥4 for every B participant, R0-only storage) + 9 Playwright
+    checks (35 games for tiered-16, tree shows exactly the 31 Open cards
+    with intact round numbers + WB/LB side labels, By-Round A/B groups, a
+    0-2 team's path continuing into A, isEliminated false at 0-2).
 - Swiss deliberately skipped: pairings depend on live standings each round,
   which a static schedule topology can't express. Round-robin STANDINGS
   table (public view) is a natural follow-up; results are per-game today.
-- SW bumped to v2.65 (bracket.js + bracket-data.js precached).
+- SW bumped to v2.66 (bracket.js + bracket-data.js precached).
 
 ## Coach passwords (optional, alongside magic links)
 Coaches auth primarily by magic link, but may OPTIONALLY set a password:

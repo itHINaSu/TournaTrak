@@ -46,7 +46,9 @@ function roundLabel(round) {
   let n = 0;
   for (const r of ROUND_ORDER) {
     if (r === 'CHAMP' || r === 'CHAMP2') continue;
-    const has = Object.keys(GAMES).some(g => GAMES[g].round === r);
+    // Tiered A/B games are stored in R0 but aren't part of the tree —
+    // they must not create or shift bracket round numbers.
+    const has = Object.keys(GAMES).some(g => GAMES[g].round === r && !GAMES[g].tier);
     if (has) n++;
     if (r === round) return has ? 'Round ' + n : (ROUND_LABELS[round] || round);
   }
@@ -189,16 +191,19 @@ function findNextSlot(sid, type) {
 
 function isEliminated(teamName, results) {
   // Format-agnostic: topology lives in the schedule, so elimination does too.
-  // A team is out when it loses a game whose loser advances nowhere (covers
-  // single-elim and the two-sided SE layout), or reaches 2 losses (covers
-  // double-elim, where early losses feed the losers bracket).
-  let losses = 0;
+  // A team is out exactly when it loses a game whose loser advances nowhere.
+  // That single structural rule covers every format: single elim and the
+  // two-sided SE layout (no losses feed anywhere), double elim (the second
+  // loss always lands in a game without a loser feed), and the tiered
+  // Open→A→B format — where a team can be 0-2 or even 0-3 and still alive
+  // because those losses feed the A/B drop brackets. (The old `losses >= 2`
+  // fallback wrongly eliminated tiered teams and was redundant for
+  // generated double-elim topologies.)
   for (const [sid, r] of Object.entries(results)) {
     if (!r || r.loser !== teamName) continue;
-    losses++;
     if (!findNextSlot(sid, 'loser')) return true;
   }
-  return losses >= 2;
+  return false;
 }
 
 // ── applySchedule ─────────────────────────────────────────────────────
@@ -228,6 +233,10 @@ function applySchedule(schedule) {
       time:  ov.time || '',
       field: typeof ov.field === 'string' ? ov.field.trim() : '',
       bye:   ov.bye === true,
+      // 'A'|'B' for tiered drop brackets — in the schedule and team path but
+      // NOT the bracket tree (their R0 storage slots would otherwise render
+      // as extra leading columns and shift the Open's round numbering).
+      tier:  (ov.tier === 'A' || ov.tier === 'B') ? ov.tier : null,
       t1: ov.t1name
         ? { type:'fixed', team:ov.t1name }
         : { type:(ov.t1type||'winner'), slot:ov.t1slot },
