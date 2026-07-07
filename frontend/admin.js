@@ -67,7 +67,7 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     }
     // Reset to default sub-view when re-entering a tab
     if (tab.dataset.tab === 'results')  setResultsMode('games');
-    if (tab.dataset.tab === 'schedule') setSchedMode('editor');
+    if (tab.dataset.tab === 'schedule') setSchedMode('quick');
     if (tab.dataset.tab === 'settings') {
       var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
       var anyActive = document.querySelector('.settings-panel.active');
@@ -194,7 +194,7 @@ async function fetchAll() {
       target.classList.add('active');
       panel.classList.add('active');
       if (savedTab === 'lineups' && !window._lineupInitDone) { window._lineupInitDone = true; lineupInit(); }
-      if (savedTab === 'schedule') setSchedMode('editor');
+      if (savedTab === 'schedule') setSchedMode('quick');
     }
   }
   updateQuickBar();
@@ -273,14 +273,32 @@ async function saveSettings() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
+// displaySlotId: friendly on-screen form for R0 (tier drop-bracket) slot ids.
+// Storage/validation/SLOT_DEFS keep using R0.L.9 etc — this only reformats
+// for display: ('A'|'B') + 'R' + round + '.' + side + '.' + pos-in-round-band.
+// Bands: 1-8→round1, 9-12→round2, 13-14→round3, 15-16→round4. Non-R0 ids
+// (and anything else that doesn't match) pass through unchanged.
+function displaySlotId(sid) {
+  var m = /^R0\.([LR])\.(\d+)$/.exec(sid);
+  if (!m) return sid;
+  var side = m[1], n = parseInt(m[2], 10);
+  var band = n <= 8 ? 0 : n <= 12 ? 1 : n <= 14 ? 2 : 3;
+  var pos  = band === 0 ? n : band === 1 ? n - 8 : band === 2 ? n - 12 : n - 14;
+  return (side === 'L' ? 'A' : 'B') + 'R' + (band + 1) + '.' + side + '.' + pos;
+}
 function gameLabel(sid) {
-  return (GAMES[sid] && GAMES[sid].label) ? GAMES[sid].label : sid;
+  return (GAMES[sid] && GAMES[sid].label) ? GAMES[sid].label : displaySlotId(sid);
 }
 // Admin-side round display name: the TD's custom name if set, else the
 // static ROUND_LABELS (the admin editor shows every defined round, not just
 // populated ones, so it doesn't use the public roundLabel() numbering).
 function roundDisplayName(round) {
   return getSetting('roundName' + round) || ROUND_LABELS[round];
+}
+// Admin-side tier bracket display name: the TD's custom name if set, else
+// the built-in 'A Bracket' / 'B Bracket' label.
+function bracketDisplayName(tier) {
+  return getSetting('bracketName' + tier) || (tier + ' Bracket');
 }
 // esc() comes from tt-common.js
 
@@ -505,7 +523,8 @@ function slotNumDropdown(id, round, side, currentNum) {
   var opts = defs.map(function(n){
     var s2  = round + '.' + side + '.' + n;
     var occ = !!GAMES[s2];
-    var lbl = side + n + (occ ? ' (' + (GAMES[s2].label||s2) + ')' : ' — empty');
+    var slotDisp = round === 'R0' ? displaySlotId(s2) : (side + n);
+    var lbl = slotDisp + (occ ? ' (' + (GAMES[s2].label||s2) + ')' : ' — empty');
     return '<option value="' + n + '"' + (n===currentNum?' selected':'') + '>' + lbl + '</option>';
   }).join('');
   return '<select class="admin-winner-sel" id="' + id + '" style="min-width:9em">' + opts + '</select>';
@@ -517,27 +536,103 @@ function sourceDropdown(idBase, currentType, currentSlot) {
   }).join('');
 
   var slotOpts = '<option value="">— select —</option>';
-  ROUND_ORDER.forEach(function(round){
-    var sids = Object.keys(GAMES)
-      .filter(function(s){ return GAMES[s].round===round; })
-      .sort(function(a,b){ return GAMES[a].num - GAMES[b].num; });
-    if (!sids.length) return;
-    slotOpts += '<optgroup label="' + esc(roundDisplayName(round)) + '">';
-    sids.forEach(function(s){
-      var g  = GAMES[s];
-      var p1 = resolveSlot(g.t1, results) || slotLabel(g.t1);
-      var p2 = resolveSlot(g.t2, results) || slotLabel(g.t2);
-      var disp = (g.label||s) + ': ' + shortName(p1) + ' / ' + shortName(p2);
-      slotOpts += '<option value="' + s + '"' + (s===currentSlot?' selected':'') + '>' + esc(disp) + '</option>';
+  // The game being edited can't feed from its own result — offering it in
+  // the list was an easy way to build an unresolvable bracket. Strip any
+  // prefix up to the first dash (Advanced uses 'st1-SID'/'st2-SID', Quick
+  // uses 'qt1s-SID'/'qt2s-SID' — sids themselves never contain a dash).
+  var selfSid = idBase.replace(/^[^-]+-/, '');
+  // Which side (1 or 2) of selfSid this dropdown edits, so the taken-map
+  // below can skip this dropdown's own feed instead of excluding itself.
+  var selfSideM = idBase.match(/^[a-z]+([12])s?-/);
+  var selfSide = selfSideM ? selfSideM[1] : '';
+
+  // Taken-map: once some other game already feeds off "winner of G" (or
+  // "loser of G"), G shouldn't clutter other winner (or loser) pickers —
+  // walk every GAMES side and record it, skipping the side this dropdown
+  // itself edits (that's the one feed we're currently choosing).
+  var takenWinner = {}, takenLoser = {};
+  Object.keys(GAMES).forEach(function(gsid){
+    ['1','2'].forEach(function(side){
+      if (gsid === selfSid && side === selfSide) return;
+      var t = GAMES[gsid]['t' + side];
+      if (!t || (t.type !== 'winner' && t.type !== 'loser')) return;
+      (t.type === 'winner' ? takenWinner : takenLoser)[t.slot] = true;
     });
-    slotOpts += '</optgroup>';
   });
 
+  // renders one <optgroup> of feeder-game <option>s, sorted by num
+  function slotOptgroup(label, sids) {
+    sids = sids.filter(function(s){ return s !== selfSid; });
+    if (!sids.length) return;
+    slotOpts += '<optgroup label="' + esc(label) + '">';
+    sids.sort(function(a,b){ return GAMES[a].num - GAMES[b].num; });
+    sids.forEach(function(s){
+      var g   = GAMES[s];
+      var p1  = resolveSlot(g.t1, results) || slotLabel(g.t1);
+      var p2  = resolveSlot(g.t2, results) || slotLabel(g.t2);
+      var disp = (g.label||s) + ': ' + shortName(p1) + ' / ' + shortName(p2);
+      var cur = s === currentSlot;
+      var tw  = !!takenWinner[s], tl = !!takenLoser[s];
+      // Initial filter: hide+disable if the current TYPE collides with an
+      // already-claimed feed, unless this option is the current selection.
+      var collide = !cur && ((currentType === 'winner' && tw) || (currentType === 'loser' && tl));
+      var attrs = (tw ? ' data-tw="1"' : '') + (tl ? ' data-tl="1"' : '') + (cur ? ' data-cur="1"' : '')
+        + (collide ? ' hidden disabled' : '');
+      slotOpts += '<option value="' + s + '"' + (cur?' selected':'') + attrs + '>' + esc(disp) + '</option>';
+    });
+    slotOpts += '</optgroup>';
+  }
+
+  ROUND_ORDER.forEach(function(round){
+    // Tiered A/B games live in R0 but are grouped separately below, not
+    // under a meaningless "Round 0" optgroup.
+    var sids = Object.keys(GAMES)
+      .filter(function(s){ return GAMES[s].round===round && !GAMES[s].tier; });
+    slotOptgroup(roundDisplayName(round), sids);
+  });
+
+  slotOptgroup(bracketDisplayName('A'), Object.keys(GAMES).filter(function(s){ return GAMES[s].tier==='A'; }));
+  slotOptgroup(bracketDisplayName('B'), Object.keys(GAMES).filter(function(s){ return GAMES[s].tier==='B'; }));
+
   return '<div class="source-dropdown-row">'
-    + '<select class="admin-winner-sel" id="' + idBase + '-type" style="min-width:5.5em">' + typeOpts + '</select>'
+    + '<select class="admin-winner-sel" id="' + idBase + '-type" data-curtype="' + esc(currentType || '') + '" style="min-width:5.5em">' + typeOpts + '</select>'
     + '<span class="source-dropdown-sep">of</span>'
     + '<select class="admin-winner-sel" id="' + idBase + '-slot" style="min-width:12em">' + slotOpts + '</select>'
     + '</div>';
+}
+
+// bindSourceFilters: live companion to sourceDropdown's inline filter — when
+// the TYPE select flips, re-hide/disable the sibling slot select's options
+// per the data-tw/data-tl taken-map (data-cur is always exempt). If the
+// slot select's current pick just got hidden, fall back to the blank option.
+function bindSourceFilters(container) {
+  if (!container) return;
+  container.querySelectorAll('.source-dropdown-row').forEach(function(row){
+    var typeSel = row.querySelector('select[id$="-type"]');
+    var slotSel = row.querySelector('select[id$="-slot"]');
+    if (!typeSel || !slotSel) return;
+    typeSel.addEventListener('change', function(){
+      var t = typeSel.value;
+      // The stored pick is exempt only under its own stored type — after a
+      // winner/loser flip it competes like any other option, so a feed
+      // already claimed under the new type can't be double-booked.
+      var curExempt = t === typeSel.dataset.curtype;
+      Array.prototype.forEach.call(slotSel.options, function(opt){
+        if (!opt.value) return;
+        if (opt.dataset.cur && curExempt) { opt.hidden = false; opt.disabled = false; return; }
+        var hide = (t === 'winner' && opt.dataset.tw) || (t === 'loser' && opt.dataset.tl);
+        opt.hidden = !!hide;
+        opt.disabled = !!hide;
+      });
+      // optional: hide optgroups left with nothing selectable in them
+      slotSel.querySelectorAll('optgroup').forEach(function(og){
+        var kids = Array.prototype.slice.call(og.children);
+        og.hidden = kids.length > 0 && kids.every(function(o){ return o.hidden; });
+      });
+      var picked = slotSel.options[slotSel.selectedIndex];
+      if (picked && picked.hidden) slotSel.value = '';
+    });
+  });
 }
 
 function occupiedCard(sid) {
@@ -555,7 +650,7 @@ function occupiedCard(sid) {
   h += '<div class="sched-game-hdr" data-action="toggleSched" data-arg="' + esc(sid) + '">'
     + '<span class="sched-game-hdr-id">' + esc(lbl) + '</span>'
     + (field ? '<span class="sched-game-hdr-field">' + esc(field) + '</span>' : '')
-    + '<span class="sched-game-hdr-sid">' + esc(sid) + '</span>'
+    + '<span class="sched-game-hdr-sid">' + esc(displaySlotId(sid)) + '</span>'
     + '<span class="sched-game-hdr-time">' + esc(formatTime(time)) + '</span>'
     + '<span class="sched-game-hdr-teams">' + esc(t1disp) + ' vs ' + esc(t2disp) + '</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
@@ -568,7 +663,8 @@ function occupiedCard(sid) {
     + '<input type="text" id="sfield-' + sid + '" value="' + esc(over.field||g.field||'') + '" placeholder="e.g. North"></div>';
   h += '<div class="sched-field"><label>Date &amp; Time</label>'
     + datetimePairHTML('stime-' + sid, time) + '</div>';
-  h += '<div class="sched-field"><label>Bracket Slot (' + g.round + ' ' + g.side + ')</label>'
+  var slotHdr = g.round === 'R0' ? displaySlotId(sid) : (g.round + ' ' + g.side);
+  h += '<div class="sched-field"><label>Bracket Slot (' + slotHdr + ')</label>'
     + slotNumDropdown('sslot-' + sid, g.round, g.side, over.num||g.num) + '</div>';
 
   h += '<div class="sched-field"><label>Team 1</label>';
@@ -596,7 +692,7 @@ function emptyCard(sid) {
   var over = schedule[sid] || {};
   var h = '<div class="empty-slot-card" data-sid="' + sid + '">';
   h += '<div class="sched-game-hdr" data-action="toggleSched" data-arg="' + esc(sid) + '">'
-    + '<span class="sched-game-hdr-sid">' + sid + '</span>'
+    + '<span class="sched-game-hdr-sid">' + esc(displaySlotId(sid)) + '</span>'
     + '<span class="sched-game-hdr-teams empty">— empty slot —</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
     + '</div>';
@@ -637,7 +733,7 @@ async function clearSlot(sid) {
     if (!r.ok) throw new Error();
     schedule = out;
     if (typeof applySchedule === 'function') applySchedule(schedule);
-    showToast('Slot ' + sid + ' cleared');
+    showToast('Slot ' + displaySlotId(sid) + ' cleared');
     renderAdmin();
     renderScheduleEditor();
   } catch(e) { showToast('Clear failed', true); }
@@ -659,6 +755,9 @@ function renderScheduleEditor() {
   var hiddenOptions = []; // {value:'ROUND.SIDE', label} for rounds/sides not shown
 
   ROUND_ORDER.forEach(function(round){
+    // R0 is drop-bracket storage (A/B tiers), rendered separately below —
+    // not a real round in the tree.
+    if (round === 'R0') return;
     var sides = Object.keys(SLOT_DEFS[round]||{}).sort();
     var roundHtml = '';
     var roundHasShown = false;
@@ -712,6 +811,67 @@ function renderScheduleEditor() {
     }
   });
 
+  // R0 holds the drop-bracket games: L side is the A bracket, R side is B.
+  // Rendered as labeled tier sections broken into rounds (tierGameRound),
+  // instead of a generic "Round 0" or one flat list.
+  function tierSection(side, tier, label) {
+    var defs = SLOT_DEFS.R0[side] || [];
+    var shown = [];       // slot nums with a card (occupied or revealed)
+    var freeByRound = {}; // round -> lowest free (unoccupied, unrevealed) slot num in that band
+    defs.forEach(function(n){
+      var sid = 'R0.' + side + '.' + n;
+      if (GAMES[sid] || _revealedSlots[sid]) {
+        shown.push(n);
+      } else {
+        // No GAMES entry → tierGameRound returns the slot's pure band.
+        var band = tierGameRound(sid);
+        if (freeByRound[band] === undefined) freeByRound[band] = n;
+      }
+    });
+
+    if (!shown.length) {
+      if (Object.keys(freeByRound).length) {
+        hiddenOptions.push({ value: 'R0.' + side, label: label });
+      }
+      return;
+    }
+
+    html += '<div class="admin-round-hdr" id="thdr-' + esc(tier) + '">'
+      + '<span class="round-hdr-name">' + esc(label) + '</span>'
+      + '<button class="round-rename-btn" data-action="editBracketName" data-arg="' + esc(tier) + '" title="Rename this bracket">✎</button>'
+      + '</div>';
+
+    var byRound = {};
+    shown.forEach(function(n){
+      var r = tierGameRound('R0.' + side + '.' + n);
+      (byRound[r] = byRound[r] || []).push(n);
+    });
+    var roundKeys = Object.keys(byRound).map(Number).sort(function(a,b){ return a - b; });
+
+    var lastRound = roundKeys[roundKeys.length - 1];
+    roundKeys.forEach(function(r){
+      html += '<div class="sched-tier-round-hdr">Round ' + (r + 1) + '</div>';
+      byRound[r].sort(function(a,b){ return a - b; }).forEach(function(n){
+        var sid = 'R0.' + side + '.' + n;
+        html += GAMES[sid] ? occupiedCard(sid) : emptyCard(sid);
+      });
+      // Per-round "+ Add game": only if this round's band still has a free slot.
+      if (freeByRound[r] !== undefined) {
+        html += '<button class="sched-add-slot-btn" data-action="revealSlot" data-arg="'
+          + esc('R0.' + side + '.' + freeByRound[r]) + '">+ Add game</button>';
+      }
+    });
+
+    // "+ Add round": the next band beyond the last rendered round, if it has a free slot.
+    var nextBand = lastRound + 1;
+    if (nextBand <= 3 && freeByRound[nextBand] !== undefined) {
+      html += '<button class="sched-add-slot-btn" data-action="revealSlot" data-arg="'
+        + esc('R0.' + side + '.' + freeByRound[nextBand]) + '">+ Add round</button>';
+    }
+  }
+  tierSection('L', 'A', bracketDisplayName('A'));
+  tierSection('R', 'B', bracketDisplayName('B'));
+
   var fallbackRow = '';
   if (hiddenOptions.length) {
     var opts = hiddenOptions.map(function(o){
@@ -731,6 +891,7 @@ function renderScheduleEditor() {
   }
 
   wrap.innerHTML = html;
+  bindSourceFilters(wrap);
 }
 
 // revealSlot: show one empty slot and open it for editing.
@@ -799,11 +960,20 @@ async function saveOneGame(sid) {
     entry.t2type = st2typeEl.value;
     entry.t2slot = st2srcEl.value;
   }
+  // R0 is the drop-bracket storage round: L holds the A bracket, R holds B.
+  // Stamping from the slot keeps hand-made games in the right flight and
+  // stops edits from dropping the generator's tier field.
+  if (/^R0\.R\./.test(sid)) entry.tier = 'B';
+  else if (/^R0\.L\./.test(sid)) entry.tier = 'A';
   // Creating a game in an empty slot needs actual content — don't write a
   // blank entry into the schedule.
   var hasRealData = entry.label || entry.time || entry.t1name || entry.t2name || entry.t1slot || entry.t2slot;
   if (!GAMES[sid] && !hasRealData) {
     showToast('Give the game a label and teams first', true);
+    return;
+  }
+  if (entry.t1slot === sid || entry.t2slot === sid) {
+    showToast('A game can\'t take a team from its own result', true);
     return;
   }
   var out = Object.assign({}, schedule);
@@ -856,6 +1026,43 @@ async function saveRoundName(round) {
     if (!r) return;
     if (!r.ok) throw new Error();
     showToast(value ? 'Round renamed' : 'Round name reset');
+    renderScheduleEditor();
+  } catch(e) {
+    showToast('Save failed', true);
+  }
+}
+
+// editBracketName: swap a tier bracket header's contents for an inline rename input.
+// Mirrors editRoundName/saveRoundName/cancelRoundName above.
+function editBracketName(tier) {
+  var hdr = document.getElementById('thdr-' + tier);
+  if (!hdr) return;
+  var current = getSetting('bracketName' + tier) || '';
+  hdr.innerHTML = '<input type="text" class="round-rename-inp" id="tname-' + esc(tier) + '" value="' + esc(current) + '" placeholder="' + esc(tier + ' Bracket') + '" maxlength="40"> '
+    + '<button class="sched-save-btn sched-game-save-btn" data-action="saveBracketName" data-arg="' + esc(tier) + '">Save</button> '
+    + '<button class="admin-clear-btn" data-action="cancelBracketName">Cancel</button>';
+  var inp = document.getElementById('tname-' + tier);
+  if (inp) inp.focus();
+}
+
+function cancelBracketName() {
+  renderScheduleEditor();
+}
+
+async function saveBracketName(tier) {
+  var inp = document.getElementById('tname-' + tier);
+  var value = inp ? inp.value.trim() : '';
+  if (value === tier + ' Bracket') value = '';
+  settings = Object.assign({}, settings);
+  settings['bracketName' + tier] = value;
+  try {
+    var r = await apiFetch('/api/settings', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(settings)
+    });
+    if (!r) return;
+    if (!r.ok) throw new Error();
+    showToast(value ? 'Bracket renamed' : 'Bracket name reset');
     renderScheduleEditor();
   } catch(e) {
     showToast('Save failed', true);
@@ -1679,25 +1886,25 @@ function gotoDelays() {
 }
 
 // ── Schedule sub-views (mirrors setResultsMode) ────────────────────────
-var _schedMode = 'editor';
+var _schedMode = 'quick';
 
 function setSchedMode(mode) {
   _schedMode = mode;
+  var qPanel  = document.getElementById('schedQuickPanel');
   var ePanel  = document.getElementById('schedEditorPanel');
   var bPanel  = document.getElementById('schedBuilderPanel');
   var tPanel  = document.getElementById('schedTeamsPanel');
-  var nPanel  = document.getElementById('schedNamesPanel');
   var dPanel  = document.getElementById('resultsDelaysPanel');
   var slot    = document.getElementById('schedDelaysSlot');
+  var qBtn    = document.getElementById('modeQuickBtn');
   var eBtn    = document.getElementById('modeScheduleBtn');
   var bBtn    = document.getElementById('modeBuilderBtn');
   var dBtn    = document.getElementById('modeSchedDelaysBtn');
   var tBtn    = document.getElementById('modeSchedTeamsBtn');
-  var nBtn    = document.getElementById('modeNamesBtn');
+  if (qPanel)  qPanel.style.display  = mode === 'quick'   ? '' : 'none';
   if (ePanel)  ePanel.style.display  = mode === 'editor'  ? '' : 'none';
   if (bPanel)  bPanel.style.display  = mode === 'builder' ? '' : 'none';
   if (tPanel)  tPanel.style.display  = mode === 'teams'   ? '' : 'none';
-  if (nPanel)  nPanel.style.display  = mode === 'names'   ? '' : 'none';
   if (mode === 'delays' && dPanel && slot) {
     slot.appendChild(dPanel);
     dPanel.style.display = '';
@@ -1705,17 +1912,17 @@ function setSchedMode(mode) {
   } else if (dPanel) {
     dPanel.style.display = 'none';
   }
+  if (qBtn)    qBtn.classList.toggle('active',  mode === 'quick');
   if (eBtn)    eBtn.classList.toggle('active',  mode === 'editor');
   if (bBtn)    bBtn.classList.toggle('active',  mode === 'builder');
   if (dBtn)    dBtn.classList.toggle('active',  mode === 'delays');
   if (tBtn)    tBtn.classList.toggle('active',  mode === 'teams');
-  if (nBtn)    nBtn.classList.toggle('active',  mode === 'names');
   if (mode === 'builder' && !window._builderInitDone) {
     window._builderInitDone = true;
     if (typeof window.builderInit === 'function') window.builderInit();
   }
   if (mode === 'teams') loadTeams();
-  if (mode === 'names') renderNamesEditor();
+  if (mode === 'quick') renderQuickEditor();
 }
 
 function adminSwitchToBuilder() {
@@ -1725,7 +1932,7 @@ function adminSwitchToBuilder() {
 }
 
 window.adminSwitchToSchedule = function() {
-  setSchedMode('editor');
+  setSchedMode('quick');
 };
 
 // ── Bucket challenge admin ─────────────────────────────────────────────
@@ -2416,73 +2623,215 @@ checkSession();
 
 var _teamsDrag = null;   // { el, ghost, startY, idx, ys:[] }
 
-// ── Names editor ───────────────────────────────────────────────────────
+// ── Quick editor ────────────────────────────────────────────────────────
+// One compact row per OCCUPIED slot, grouped like the Advanced (card)
+// editor: main rounds first (plain headers, no rename), then the A/B tier
+// sections sub-grouped by tierGameRound. Empty slots and wiring changes are
+// Advanced's job — this view is for fast bulk edits of names/times/fields.
 
-function renderNamesEditor() {
-  var list = document.getElementById('namesEditorList');
+// quickTeamCell: fixed side → editable name input. Feed side (winner/loser
+// of another game) → the same winner/loser + game dropdowns as Advanced,
+// inline, plus a "name" checkbox that swaps them out for a blank text input
+// to override the feed with a fixed team name.
+function quickTeamCell(sid, n) {
+  var g    = GAMES[sid];
+  var over = schedule[sid] || {};
+  var side = g['t' + n];
+  var idT  = 'qt' + n + '-' + sid;
+  if (side.type === 'fixed') {
+    var name = over['t' + n + 'name'] || side.team;
+    return '<input type="text" class="quick-team-inp" id="' + idT + '" value="' + esc(name) + '">';
+  }
+  var isName  = !!over['t' + n + 'name'];
+  var curType = over['t' + n + 'type'] || side.type;
+  var curSlot = over['t' + n + 'slot'] || side.slot;
+  return '<span class="quick-team quick-team--feed" id="qfeedwrap-' + n + '-' + esc(sid) + '"' + (isName ? ' style="display:none"' : '') + '>'
+      + sourceDropdown('qt' + n + 's-' + sid, curType, curSlot)
+      + '</span>'
+    + '<label class="quick-feed-toggle"><input type="checkbox" class="quick-feed-chk" data-sid="' + esc(sid) + '" data-side="' + n + '"' + (isName ? ' checked' : '') + '>name</label>'
+    + '<input type="text" class="quick-team-inp quick-feed-inp" id="' + idT + '" placeholder="New team name" value="' + (isName ? esc(over['t' + n + 'name']) : '') + '" style="display:' + (isName ? '' : 'none') + '">';
+}
+
+function quickRowHTML(sid) {
+  var g     = GAMES[sid];
+  var over  = schedule[sid] || {};
+  var label = over.label || g.label || sid;
+  var time  = over.time  || g.time  || '';
+  var field = over.field || g.field || '';
+  return '<div class="quick-row" data-sid="' + esc(sid) + '">'
+    + '<div class="quick-line">'
+    + '<span class="quick-sid">' + esc(displaySlotId(sid)) + '</span>'
+    + '<input type="text" class="quick-label" id="qlabel-' + esc(sid) + '" value="' + esc(label) + '">'
+    + datetimePairHTML('qtime-' + sid, time)
+    + '<input type="text" class="quick-field" id="qfield-' + esc(sid) + '" value="' + esc(field) + '" placeholder="Field">'
+    + '</div>'
+    + '<div class="quick-line quick-line--teams">'
+    + quickTeamCell(sid, 1)
+    + '<span class="quick-vs">vs</span>'
+    + quickTeamCell(sid, 2)
+    + '</div>'
+    + '</div>';
+}
+
+function renderQuickEditor() {
+  var list = document.getElementById('quickEditorList');
   if (!list) return;
   var html = '';
-  // Group by round
+
+  // Main bracket rounds — plain headers, occupied slots only.
   ROUND_ORDER.forEach(function(round) {
+    if (round === 'R0') return; // R0 is drop-bracket storage, rendered below
     var sides = Object.keys(SLOT_DEFS[round] || {}).sort();
-    var gidsInRound = [];
+    var roundHtml = '';
     sides.forEach(function(side) {
       (SLOT_DEFS[round][side] || []).forEach(function(n) {
         var sid = round + '.' + side + '.' + n;
-        if (GAMES[sid]) gidsInRound.push(sid);
+        if (GAMES[sid]) roundHtml += quickRowHTML(sid);
       });
     });
-    if (!gidsInRound.length) return;
-    html += '<div class="names-round-hdr">' + esc(roundDisplayName(round)) + '</div>';
-    gidsInRound.forEach(function(sid) {
-      var g = GAMES[sid];
-      html += '<div class="names-row">'
-        + '<span class="names-slot-id">' + esc(sid) + '</span>'
-        + '<input type="text" class="names-label-inp" data-sid="' + esc(sid) + '" value="' + esc(g.label || '') + '">'
-        + '</div>';
+    if (roundHtml) {
+      html += '<div class="admin-round-hdr"><span class="round-hdr-name">' + esc(roundDisplayName(round)) + '</span></div>' + roundHtml;
+    }
+  });
+
+  // R0 tier sections (A/B drop brackets), sub-grouped by tierGameRound.
+  function tierSection(side, label) {
+    var defs = SLOT_DEFS.R0[side] || [];
+    var shown = defs.filter(function(n) { return !!GAMES['R0.' + side + '.' + n]; });
+    if (!shown.length) return;
+    html += '<div class="admin-round-hdr"><span class="round-hdr-name">' + esc(label) + '</span></div>';
+    var byRound = {};
+    shown.forEach(function(n) {
+      var r = tierGameRound('R0.' + side + '.' + n);
+      (byRound[r] = byRound[r] || []).push(n);
+    });
+    Object.keys(byRound).map(Number).sort(function(a, b) { return a - b; }).forEach(function(r) {
+      html += '<div class="sched-tier-round-hdr">Round ' + (r + 1) + '</div>';
+      byRound[r].sort(function(a, b) { return a - b; }).forEach(function(n) {
+        html += quickRowHTML('R0.' + side + '.' + n);
+      });
+    });
+  }
+  tierSection('L', bracketDisplayName('A'));
+  tierSection('R', bracketDisplayName('B'));
+
+  list.innerHTML = html || '<div class="bld-muted" style="padding:1em">No games in schedule.</div>';
+
+  // Feed ↔ fixed-name toggle: checking hides the winner/loser+game dropdowns
+  // and swaps in a blank name input; unchecking restores the dropdowns
+  // (row itself isn't re-rendered).
+  list.querySelectorAll('.quick-feed-chk').forEach(function(chk) {
+    chk.addEventListener('change', function() {
+      var sid = chk.dataset.sid, n = chk.dataset.side;
+      var wrap = document.getElementById('qfeedwrap-' + n + '-' + sid);
+      var inp  = document.getElementById('qt' + n + '-' + sid);
+      if (chk.checked) {
+        if (wrap) wrap.style.display = 'none';
+        if (inp) { inp.style.display = ''; inp.value = ''; inp.focus(); }
+      } else {
+        if (wrap) wrap.style.display = '';
+        if (inp) { inp.style.display = 'none'; inp.value = ''; }
+      }
     });
   });
-  list.innerHTML = html || '<div class="bld-muted" style="padding:1em">No games in schedule.</div>';
+
+  bindSourceFilters(list);
 }
 
-function namesReplaceAll() {
-  var find = document.getElementById('namesFindInput');
-  var repl = document.getElementById('namesReplaceInput');
+function quickReplaceAll() {
+  var find = document.getElementById('quickFindInput');
+  var repl = document.getElementById('quickReplaceInput');
   if (!find || !find.value) return;
   var findStr = find.value;
   var replStr = repl ? repl.value : '';
-  document.querySelectorAll('.names-label-inp').forEach(function(inp) {
+  document.querySelectorAll('.quick-label').forEach(function(inp) {
     if (inp.value.indexOf(findStr) !== -1) {
       inp.value = inp.value.split(findStr).join(replStr);
     }
   });
 }
 
-async function saveGameNames() {
-  var btn = document.getElementById('namesSaveBtn');
-  var status = document.getElementById('namesSaveStatus');
-  btn.disabled = true;
+// saveQuickEdits: build the whole schedule from {...schedule} then overwrite
+// each rendered row's entry with {...schedule[sid], ...edits}, so anything
+// not touched by a row (num, tier, wiring on the other side, etc.) survives.
+async function saveQuickEdits() {
+  var btn    = document.getElementById('quickSaveBtn');
+  var status = document.getElementById('quickSaveStatus');
+  if (btn) btn.disabled = true;
   var out = Object.assign({}, schedule);
-  document.querySelectorAll('.names-label-inp').forEach(function(inp) {
-    var sid = inp.dataset.sid;
-    var newLabel = inp.value.trim();
-    if (!newLabel || !out[sid]) return;
-    out[sid] = Object.assign({}, out[sid], { label: newLabel });
+
+  document.querySelectorAll('.quick-row').forEach(function(row) {
+    var sid = row.dataset.sid;
+    var g = GAMES[sid];
+    if (!g) return;
+    var entry = Object.assign({}, schedule[sid] || {});
+
+    var labelEl = document.getElementById('qlabel-' + sid);
+    var fieldEl = document.getElementById('qfield-' + sid);
+    var newLabel = labelEl ? labelEl.value.trim() : '';
+    var fieldVal = fieldEl ? fieldEl.value.trim() : '';
+    var timeVal  = readDatetime('qtime-' + sid);
+    if (newLabel) entry.label = newLabel;
+    if (timeVal)  entry.time  = timeVal;  else delete entry.time;
+    if (fieldVal) entry.field = fieldVal; else delete entry.field;
+
+    [1, 2].forEach(function(n) {
+      var side = g['t' + n];
+      var inp  = document.getElementById('qt' + n + '-' + sid);
+      if (side.type === 'fixed') {
+        var v = inp ? inp.value.trim() : '';
+        if (v) entry['t' + n + 'name'] = v;
+        return;
+      }
+      var chk = row.querySelector('.quick-feed-chk[data-side="' + n + '"]');
+      if (chk && chk.checked) {
+        if (inp && inp.value.trim()) {
+          entry['t' + n + 'name'] = inp.value.trim();
+          delete entry['t' + n + 'slot'];
+          delete entry['t' + n + 'type'];
+        }
+        return;
+      }
+      // Unchecked: read the winner/loser + game dropdowns.
+      var typeEl = document.getElementById('qt' + n + 's-' + sid + '-type');
+      var slotEl = document.getElementById('qt' + n + 's-' + sid + '-slot');
+      if (slotEl && slotEl.value) {
+        // Same self-feed guard as saveOneGame — skip rather than build an
+        // unresolvable bracket, but let the rest of the save proceed.
+        if (slotEl.value === sid) {
+          showToast(gameLabel(sid) + ' can\'t feed from itself — skipped', true);
+          return;
+        }
+        entry['t' + n + 'type'] = typeEl.value;
+        entry['t' + n + 'slot'] = slotEl.value;
+        delete entry['t' + n + 'name'];
+      }
+    });
+
+    // R0 is the drop-bracket storage round: L holds the A bracket, R holds B.
+    if (/^R0\.R\./.test(sid)) entry.tier = 'B';
+    else if (/^R0\.L\./.test(sid)) entry.tier = 'A';
+
+    out[sid] = entry;
   });
+
   try {
     var r = await apiFetch('/api/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(out)
     });
-    if (!r || !r.ok) throw new Error();
+    if (!r) return;
+    if (!r.ok) throw new Error();
     schedule = out;
     if (typeof applySchedule === 'function') applySchedule(schedule);
-    if (status) { status.textContent = 'Saved'; setTimeout(function() { status.textContent = ''; }, 2500); }
+    showToast('Schedule saved');
+    if (status) { status.textContent = '✓ Saved'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+    renderQuickEditor();
   } catch(e) {
-    if (status) { status.textContent = 'Save failed'; setTimeout(function() { status.textContent = ''; }, 2500); }
+    showToast('Save failed', true);
+    if (status) { status.textContent = '✗ Error'; setTimeout(function(){ status.textContent = ''; }, 3000); }
   } finally {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -2639,9 +2988,12 @@ Object.assign(TT_ACTIONS, {
   editRoundName:       function(arg) { editRoundName(arg); },
   saveRoundName:       function(arg) { saveRoundName(arg); },
   cancelRoundName:     function() { cancelRoundName(); },
+  editBracketName:     function(arg) { editBracketName(arg); },
+  saveBracketName:     function(arg) { saveBracketName(arg); },
+  cancelBracketName:   function() { cancelBracketName(); },
   saveTeams:           function() { saveTeams(); },
-  namesReplaceAll:     function() { namesReplaceAll(); },
-  saveGameNames:       function() { saveGameNames(); },
+  quickReplaceAll:     function() { quickReplaceAll(); },
+  saveQuickEdits:      function() { saveQuickEdits(); },
   // buckets
   saveBucketCounts:    function() { saveBucketCounts(); },
   addBucketTeam:       function() { addBucketTeam(); },

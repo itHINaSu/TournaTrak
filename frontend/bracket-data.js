@@ -110,6 +110,33 @@ function allSlotIds() {
   return ids;
 }
 
+// tierGameRound(sid): display round for a tiered (A/B) drop-bracket game.
+// The schedule GENERATOR lays tier brackets out in flat slot bands:
+// 1-8 → band 0, 9-12 → band 1, 13-14 → band 2, 15-16 → band 3. A game's
+// round is the later of its band and its winner/loser feed depth within
+// the same tier — generated brackets have band === depth so nothing
+// changes, but hand-wired games sort by whichever is deeper. Works for any
+// slot id, including ones with no GAMES entry yet (revealed-but-empty or
+// still-hidden slots), since the band alone comes from the slot number.
+// Shared by bracket.js (flightColumns) and admin.js (the schedule editor).
+function tierGameRound(sid) {
+  const num = parseSlotId(sid).num;
+  const band = num <= 8 ? 0 : num <= 12 ? 1 : num <= 14 ? 2 : 3;
+  const g = GAMES[sid];
+  if (!g) return band;
+  const tier = g.tier;
+  const seen = {};
+  function depth(gid) {
+    if (seen[gid]) return 0; // cycle guard
+    seen[gid] = true;
+    const gg = GAMES[gid];
+    if (!gg) return 0;
+    const feeders = [gg.t1, gg.t2].filter(s => s && s.slot && GAMES[s.slot] && GAMES[s.slot].tier === tier);
+    return feeders.length ? 1 + Math.max(...feeders.map(s => depth(s.slot))) : 0;
+  }
+  return Math.max(band, depth(sid));
+}
+
 function slotsForRoundSide(round, side) {
   return Object.keys(GAMES)
     .filter(s => GAMES[s].round===round && GAMES[s].side===side)
@@ -266,7 +293,7 @@ function applySchedule(schedule) {
 if (typeof module !== 'undefined') {
   module.exports = {
     GAMES, SLOT_DEFS, ROUND_ORDER, ROUND_LABELS, roundLabel,
-    allSlotIds, parseSlotId, occupiedSlots, slotsForRoundSide,
+    allSlotIds, parseSlotId, tierGameRound, occupiedSlots, slotsForRoundSide,
     resolveSlot, slotLabel, smartLabel, shortName,
     isEliminated, findNextSlot, applySchedule,
     formatTime, parseTimeVal,

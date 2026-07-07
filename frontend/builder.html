@@ -120,6 +120,14 @@
         Games fill the days in bracket order — early rounds first.</p>
       <div class="bld-cal" id="calendar"></div>
       <div class="bld-fields-setup" id="fieldsSetup"></div>
+      <div class="bld-day-defaults" id="dayDefaultsRow">
+        <span class="bld-day-defaults-label">Day defaults</span>
+        <label class="bld-day-f">Start<input type="time" class="bld-input" id="defStartTime" value="09:00"></label>
+        <label class="bld-day-f">Games<input type="number" min="1" max="100" inputmode="numeric" class="bld-input bld-input--sm" id="defGames" placeholder="all"></label>
+        <label class="bld-day-f">Min apart<input type="number" min="1" max="1440" inputmode="numeric" class="bld-input bld-input--sm" id="defInterval" value="60"></label>
+        <button type="button" class="bld-btn bld-btn--small" id="applyDefaultsBtn">Apply to all days</button>
+        <p class="bld-muted bld-day-defaults-note">New days start with these values. "Apply to all days" overwrites every added day (blank Games means each day keeps its own count).</p>
+      </div>
       <div class="bld-days" id="daysList"></div>
       <p class="bld-muted" id="slotSummary"></p>
     </div>

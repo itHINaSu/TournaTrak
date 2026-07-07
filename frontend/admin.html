@@ -176,13 +176,26 @@
   <!-- ── SCHEDULE TAB ── -->
   <div class="admin-tab-panel" id="tab-schedule">
     <div class="results-mode-bar">
-      <button class="results-mode-btn active" id="modeScheduleBtn" data-action="setSchedMode" data-arg="editor">Schedule</button>
+      <button class="results-mode-btn active" id="modeQuickBtn" data-action="setSchedMode" data-arg="quick">Edit</button>
       <button class="results-mode-btn" id="modeBuilderBtn" data-action="setSchedMode" data-arg="builder">Builder</button>
       <button class="results-mode-btn" id="modeSchedDelaysBtn" data-action="setSchedMode" data-arg="delays">Delays</button>
       <button class="results-mode-btn" id="modeSchedTeamsBtn" data-action="setSchedMode" data-arg="teams">Teams</button>
-      <button class="results-mode-btn" id="modeNamesBtn" data-action="setSchedMode" data-arg="names">Names</button>
+      <button class="results-mode-btn" id="modeScheduleBtn" data-action="setSchedMode" data-arg="editor">Advanced</button>
     </div>
-    <div id="schedEditorPanel">
+    <div id="schedQuickPanel">
+      <div class="admin-subtitle">Quick edit — change names, times, fields, and team names in bulk, then Save all changes. Wiring, adding games, and slot moves live under Advanced.</div>
+      <div class="sched-names-toolbar">
+        <input type="text" class="sched-names-find" id="quickFindInput" placeholder="Find…">
+        <input type="text" class="sched-names-replace" id="quickReplaceInput" placeholder="Replace with…">
+        <button class="sched-save-btn" data-action="quickReplaceAll">Replace All</button>
+      </div>
+      <div id="quickEditorList"></div>
+      <div class="settings-save-row">
+        <button class="sched-save-btn" id="quickSaveBtn" data-action="saveQuickEdits">Save all changes</button>
+        <span class="sched-status" id="quickSaveStatus"></span>
+      </div>
+    </div>
+    <div id="schedEditorPanel" style="display:none">
       <div class="admin-subtitle">Edit game labels, times, team names, slot positions, and team sources.
         Use "+ Add game" to fill an unused bracket slot. Each game saves individually and publishes immediately.</div>
       <div id="scheduleEditor"></div>
@@ -273,6 +286,14 @@
               Games fill the days in bracket order — early rounds first.</p>
             <div class="bld-cal" id="calendar"></div>
             <div class="bld-fields-setup" id="fieldsSetup"></div>
+            <div class="bld-day-defaults" id="dayDefaultsRow">
+              <span class="bld-day-defaults-label">Day defaults</span>
+              <label class="bld-day-f">Start<input type="time" class="bld-input" id="defStartTime" value="09:00"></label>
+              <label class="bld-day-f">Games<input type="number" min="1" max="100" inputmode="numeric" class="bld-input bld-input--sm" id="defGames" placeholder="all"></label>
+              <label class="bld-day-f">Min apart<input type="number" min="1" max="1440" inputmode="numeric" class="bld-input bld-input--sm" id="defInterval" value="60"></label>
+              <button type="button" class="bld-btn bld-btn--small" id="applyDefaultsBtn">Apply to all days</button>
+              <p class="bld-muted bld-day-defaults-note">New days start with these values. "Apply to all days" overwrites every added day (blank Games means each day keeps its own count).</p>
+            </div>
             <div class="bld-days" id="daysList"></div>
             <p class="bld-muted" id="slotSummary"></p>
           </div>
@@ -308,19 +329,6 @@
       <div class="settings-save-row">
         <button class="sched-save-btn" id="teamsSaveBtn" data-action="saveTeams">Save</button>
         <span class="sched-status" id="teamsSaveStatus"></span>
-      </div>
-    </div>
-    <div id="schedNamesPanel" style="display:none">
-      <div class="admin-subtitle">Edit game labels. Use find &amp; replace to rename in bulk.</div>
-      <div class="sched-names-toolbar">
-        <input type="text" class="sched-names-find" id="namesFindInput" placeholder="Find…">
-        <input type="text" class="sched-names-replace" id="namesReplaceInput" placeholder="Replace with…">
-        <button class="sched-save-btn" data-action="namesReplaceAll">Replace All</button>
-      </div>
-      <div id="namesEditorList" class="names-editor-list"></div>
-      <div class="settings-save-row">
-        <button class="sched-save-btn" id="namesSaveBtn" data-action="saveGameNames">Save</button>
-        <span class="sched-status" id="namesSaveStatus"></span>
       </div>
     </div>
   </div>

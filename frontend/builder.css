@@ -126,6 +126,7 @@
 
 /* Schedule calendar (multi-day selector) */
 .bld-cal {
+  max-width: 24em;
   margin: 0.75em 0;
   background: var(--bg);
   border: 0.07em solid var(--border);
@@ -237,6 +238,12 @@
   cursor: pointer;
 }
 .bld-day-del:hover { opacity: 0.8; }
+
+/* Day defaults row — sets values used when new days are added, with a
+   one-click "apply to all" for retroactively syncing existing days. */
+.bld-day-defaults { display: flex; align-items: center; flex-wrap: wrap; gap: 0.6em; margin: 0.75em 0; padding: 0.6em 0.75em; background: var(--surface2); border: 0.07em dashed var(--border); border-radius: var(--radius-sm); }
+.bld-day-defaults-label { font-family: 'Oswald', sans-serif; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+.bld-day-defaults-note { flex: 1 0 100%; margin: 0; font-size: 0.7rem; }
 
 /* Per-day field toggles — which of the venue's fields this day is played on.
    Shown only when more than one field exists; wraps onto its own row. */

@@ -62,6 +62,9 @@ function validateSchedule(updates) {
       return `invalid time format for ${sid}: expected YYYY-MM-DDTHH:MM`;
     if (entry.t1slot && !isValidSlotId(entry.t1slot)) return `invalid t1slot for ${sid}`;
     if (entry.t2slot && !isValidSlotId(entry.t2slot)) return `invalid t2slot for ${sid}`;
+    // A game feeding from its own result can never resolve.
+    if (entry.t1slot === sid || entry.t2slot === sid)
+      return `${sid} cannot take a team from its own result`;
     if (entry.t1type && !['winner','loser'].includes(entry.t1type)) return `invalid t1type for ${sid}`;
     if (entry.t2type && !['winner','loser'].includes(entry.t2type)) return `invalid t2type for ${sid}`;
     // Tiered drop brackets (Open→A→B): games marked with a tier render in
