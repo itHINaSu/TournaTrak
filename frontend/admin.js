@@ -273,8 +273,21 @@ async function saveSettings() {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
+// displaySlotId: friendly on-screen form for R0 (tier drop-bracket) slot ids.
+// Storage/validation/SLOT_DEFS keep using R0.L.9 etc — this only reformats
+// for display: ('A'|'B') + 'R' + round + '.' + side + '.' + pos-in-round-band.
+// Bands: 1-8→round1, 9-12→round2, 13-14→round3, 15-16→round4. Non-R0 ids
+// (and anything else that doesn't match) pass through unchanged.
+function displaySlotId(sid) {
+  var m = /^R0\.([LR])\.(\d+)$/.exec(sid);
+  if (!m) return sid;
+  var side = m[1], n = parseInt(m[2], 10);
+  var band = n <= 8 ? 0 : n <= 12 ? 1 : n <= 14 ? 2 : 3;
+  var pos  = band === 0 ? n : band === 1 ? n - 8 : band === 2 ? n - 12 : n - 14;
+  return (side === 'L' ? 'A' : 'B') + 'R' + (band + 1) + '.' + side + '.' + pos;
+}
 function gameLabel(sid) {
-  return (GAMES[sid] && GAMES[sid].label) ? GAMES[sid].label : sid;
+  return (GAMES[sid] && GAMES[sid].label) ? GAMES[sid].label : displaySlotId(sid);
 }
 // Admin-side round display name: the TD's custom name if set, else the
 // static ROUND_LABELS (the admin editor shows every defined round, not just
@@ -510,7 +523,8 @@ function slotNumDropdown(id, round, side, currentNum) {
   var opts = defs.map(function(n){
     var s2  = round + '.' + side + '.' + n;
     var occ = !!GAMES[s2];
-    var lbl = side + n + (occ ? ' (' + (GAMES[s2].label||s2) + ')' : ' — empty');
+    var slotDisp = round === 'R0' ? displaySlotId(s2) : (side + n);
+    var lbl = slotDisp + (occ ? ' (' + (GAMES[s2].label||s2) + ')' : ' — empty');
     return '<option value="' + n + '"' + (n===currentNum?' selected':'') + '>' + lbl + '</option>';
   }).join('');
   return '<select class="admin-winner-sel" id="' + id + '" style="min-width:9em">' + opts + '</select>';
@@ -523,8 +537,10 @@ function sourceDropdown(idBase, currentType, currentSlot) {
 
   var slotOpts = '<option value="">— select —</option>';
   // The game being edited can't feed from its own result — offering it in
-  // the list was an easy way to build an unresolvable bracket.
-  var selfSid = idBase.replace(/^st[12]-/, '');
+  // the list was an easy way to build an unresolvable bracket. Strip any
+  // prefix up to the first dash (Advanced uses 'st1-SID'/'st2-SID', Quick
+  // uses 'qt1s-SID'/'qt2s-SID' — sids themselves never contain a dash).
+  var selfSid = idBase.replace(/^[^-]+-/, '');
   // renders one <optgroup> of feeder-game <option>s, sorted by num
   function slotOptgroup(label, sids) {
     sids = sids.filter(function(s){ return s !== selfSid; });
@@ -574,7 +590,7 @@ function occupiedCard(sid) {
   h += '<div class="sched-game-hdr" data-action="toggleSched" data-arg="' + esc(sid) + '">'
     + '<span class="sched-game-hdr-id">' + esc(lbl) + '</span>'
     + (field ? '<span class="sched-game-hdr-field">' + esc(field) + '</span>' : '')
-    + '<span class="sched-game-hdr-sid">' + esc(sid) + '</span>'
+    + '<span class="sched-game-hdr-sid">' + esc(displaySlotId(sid)) + '</span>'
     + '<span class="sched-game-hdr-time">' + esc(formatTime(time)) + '</span>'
     + '<span class="sched-game-hdr-teams">' + esc(t1disp) + ' vs ' + esc(t2disp) + '</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
@@ -587,7 +603,8 @@ function occupiedCard(sid) {
     + '<input type="text" id="sfield-' + sid + '" value="' + esc(over.field||g.field||'') + '" placeholder="e.g. North"></div>';
   h += '<div class="sched-field"><label>Date &amp; Time</label>'
     + datetimePairHTML('stime-' + sid, time) + '</div>';
-  h += '<div class="sched-field"><label>Bracket Slot (' + g.round + ' ' + g.side + ')</label>'
+  var slotHdr = g.round === 'R0' ? displaySlotId(sid) : (g.round + ' ' + g.side);
+  h += '<div class="sched-field"><label>Bracket Slot (' + slotHdr + ')</label>'
     + slotNumDropdown('sslot-' + sid, g.round, g.side, over.num||g.num) + '</div>';
 
   h += '<div class="sched-field"><label>Team 1</label>';
@@ -615,7 +632,7 @@ function emptyCard(sid) {
   var over = schedule[sid] || {};
   var h = '<div class="empty-slot-card" data-sid="' + sid + '">';
   h += '<div class="sched-game-hdr" data-action="toggleSched" data-arg="' + esc(sid) + '">'
-    + '<span class="sched-game-hdr-sid">' + sid + '</span>'
+    + '<span class="sched-game-hdr-sid">' + esc(displaySlotId(sid)) + '</span>'
     + '<span class="sched-game-hdr-teams empty">— empty slot —</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
     + '</div>';
@@ -656,7 +673,7 @@ async function clearSlot(sid) {
     if (!r.ok) throw new Error();
     schedule = out;
     if (typeof applySchedule === 'function') applySchedule(schedule);
-    showToast('Slot ' + sid + ' cleared');
+    showToast('Slot ' + displaySlotId(sid) + ' cleared');
     renderAdmin();
     renderScheduleEditor();
   } catch(e) { showToast('Clear failed', true); }
@@ -2552,8 +2569,9 @@ var _teamsDrag = null;   // { el, ghost, startY, idx, ys:[] }
 // Advanced's job — this view is for fast bulk edits of names/times/fields.
 
 // quickTeamCell: fixed side → editable name input. Feed side (winner/loser
-// of another game) → muted feed text + a "name" checkbox that swaps in a
-// blank text input for overriding the feed with a fixed team name.
+// of another game) → the same winner/loser + game dropdowns as Advanced,
+// inline, plus a "name" checkbox that swaps them out for a blank text input
+// to override the feed with a fixed team name.
 function quickTeamCell(sid, n) {
   var g    = GAMES[sid];
   var over = schedule[sid] || {};
@@ -2563,9 +2581,14 @@ function quickTeamCell(sid, n) {
     var name = over['t' + n + 'name'] || side.team;
     return '<input type="text" class="quick-team-inp" id="' + idT + '" value="' + esc(name) + '">';
   }
-  return '<span class="quick-feed" id="qfeedtext-' + n + '-' + esc(sid) + '">' + esc(slotLabel(side)) + '</span>'
-    + '<label class="quick-feed-toggle"><input type="checkbox" class="quick-feed-chk" data-sid="' + esc(sid) + '" data-side="' + n + '">name</label>'
-    + '<input type="text" class="quick-team-inp quick-feed-inp" id="' + idT + '" placeholder="New team name" style="display:none">';
+  var isName  = !!over['t' + n + 'name'];
+  var curType = over['t' + n + 'type'] || side.type;
+  var curSlot = over['t' + n + 'slot'] || side.slot;
+  return '<span class="quick-team quick-team--feed" id="qfeedwrap-' + n + '-' + esc(sid) + '"' + (isName ? ' style="display:none"' : '') + '>'
+      + sourceDropdown('qt' + n + 's-' + sid, curType, curSlot)
+      + '</span>'
+    + '<label class="quick-feed-toggle"><input type="checkbox" class="quick-feed-chk" data-sid="' + esc(sid) + '" data-side="' + n + '"' + (isName ? ' checked' : '') + '>name</label>'
+    + '<input type="text" class="quick-team-inp quick-feed-inp" id="' + idT + '" placeholder="New team name" value="' + (isName ? esc(over['t' + n + 'name']) : '') + '" style="display:' + (isName ? '' : 'none') + '">';
 }
 
 function quickRowHTML(sid) {
@@ -2575,13 +2598,17 @@ function quickRowHTML(sid) {
   var time  = over.time  || g.time  || '';
   var field = over.field || g.field || '';
   return '<div class="quick-row" data-sid="' + esc(sid) + '">'
-    + '<span class="quick-sid">' + esc(sid) + '</span>'
+    + '<div class="quick-line">'
+    + '<span class="quick-sid">' + esc(displaySlotId(sid)) + '</span>'
     + '<input type="text" class="quick-label" id="qlabel-' + esc(sid) + '" value="' + esc(label) + '">'
     + datetimePairHTML('qtime-' + sid, time)
     + '<input type="text" class="quick-field" id="qfield-' + esc(sid) + '" value="' + esc(field) + '" placeholder="Field">'
-    + '<span class="quick-team">' + quickTeamCell(sid, 1) + '</span>'
+    + '</div>'
+    + '<div class="quick-line quick-line--teams">'
+    + quickTeamCell(sid, 1)
     + '<span class="quick-vs">vs</span>'
-    + '<span class="quick-team">' + quickTeamCell(sid, 2) + '</span>'
+    + quickTeamCell(sid, 2)
+    + '</div>'
     + '</div>';
 }
 
@@ -2629,18 +2656,19 @@ function renderQuickEditor() {
 
   list.innerHTML = html || '<div class="bld-muted" style="padding:1em">No games in schedule.</div>';
 
-  // Feed ↔ fixed-name toggle: checking swaps in a blank name input, box
-  // unchecking restores the muted feed text (row itself isn't re-rendered).
+  // Feed ↔ fixed-name toggle: checking hides the winner/loser+game dropdowns
+  // and swaps in a blank name input; unchecking restores the dropdowns
+  // (row itself isn't re-rendered).
   list.querySelectorAll('.quick-feed-chk').forEach(function(chk) {
     chk.addEventListener('change', function() {
       var sid = chk.dataset.sid, n = chk.dataset.side;
-      var feedTxt = document.getElementById('qfeedtext-' + n + '-' + sid);
-      var inp     = document.getElementById('qt' + n + '-' + sid);
+      var wrap = document.getElementById('qfeedwrap-' + n + '-' + sid);
+      var inp  = document.getElementById('qt' + n + '-' + sid);
       if (chk.checked) {
-        if (feedTxt) feedTxt.style.display = 'none';
+        if (wrap) wrap.style.display = 'none';
         if (inp) { inp.style.display = ''; inp.value = ''; inp.focus(); }
       } else {
-        if (feedTxt) feedTxt.style.display = '';
+        if (wrap) wrap.style.display = '';
         if (inp) { inp.style.display = 'none'; inp.value = ''; }
       }
     });
@@ -2690,13 +2718,30 @@ async function saveQuickEdits() {
       if (side.type === 'fixed') {
         var v = inp ? inp.value.trim() : '';
         if (v) entry['t' + n + 'name'] = v;
-      } else {
-        var chk = row.querySelector('.quick-feed-chk[data-side="' + n + '"]');
-        if (chk && chk.checked && inp && inp.value.trim()) {
+        return;
+      }
+      var chk = row.querySelector('.quick-feed-chk[data-side="' + n + '"]');
+      if (chk && chk.checked) {
+        if (inp && inp.value.trim()) {
           entry['t' + n + 'name'] = inp.value.trim();
           delete entry['t' + n + 'slot'];
           delete entry['t' + n + 'type'];
         }
+        return;
+      }
+      // Unchecked: read the winner/loser + game dropdowns.
+      var typeEl = document.getElementById('qt' + n + 's-' + sid + '-type');
+      var slotEl = document.getElementById('qt' + n + 's-' + sid + '-slot');
+      if (slotEl && slotEl.value) {
+        // Same self-feed guard as saveOneGame — skip rather than build an
+        // unresolvable bracket, but let the rest of the save proceed.
+        if (slotEl.value === sid) {
+          showToast(gameLabel(sid) + ' can\'t feed from itself — skipped', true);
+          return;
+        }
+        entry['t' + n + 'type'] = typeEl.value;
+        entry['t' + n + 'slot'] = slotEl.value;
+        delete entry['t' + n + 'name'];
       }
     });
 

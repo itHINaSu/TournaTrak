@@ -1031,22 +1031,31 @@ input[type="time"]:focus {
   color: var(--text);
 }
 /* ── Quick editor ── */
-.quick-row { display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; padding: 0.3em 0.2em; border-bottom: 0.07em solid var(--border); }
+/* Two-line row (desktop-focused): line 1 = sid/label/time/field, line 2 =
+   team1/vs/team2, indented under the sid column for breathing room. */
+.quick-row { display: block; padding: 0.45em 0.2em; border-bottom: 0.07em solid var(--border); }
+.quick-line { display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; }
+.quick-line--teams { margin-top: 0.3em; padding-left: 4.9em; }
 .quick-sid { font-family: 'Oswald', sans-serif; font-size: 0.6rem; letter-spacing: 0.05em; color: var(--text-mute); min-width: 4.2em; }
 .quick-label { width: 11em; }
 .quick-field { width: 6em; }
 .quick-team { display: inline-flex; align-items: center; gap: 0.35em; min-width: 11em; }
 .quick-team-inp { width: 10em; }
 .quick-vs { color: var(--text-mute); font-size: 0.7rem; }
-.quick-feed { color: var(--text-mute); font-style: italic; font-size: 0.78rem; }
 .quick-feed-toggle { display: inline-flex; align-items: center; gap: 0.2em; font-size: 0.68rem; color: var(--text-dim); cursor: pointer; }
+/* Feed side's inline winner/loser + game dropdowns — sized to fit the row */
+.quick-team--feed .source-dropdown-row { display: inline-flex; align-items: center; gap: 0.3em; }
+.quick-team--feed .admin-winner-sel { font-size: 0.78rem; padding: 0.25em 0.4em; min-width: 0; }
 .quick-row input[type="text"] { font-size: 0.85rem; padding: 0.3em 0.45em; background: var(--surface2); color: var(--text); border: 0.07em solid var(--border); border-radius: var(--radius-xs); }
 /* Compact the shared datetime-pair inputs when they sit inside a quick-row */
 .quick-row .datetime-pair { gap: 0.3em; }
 .quick-row .datetime-pair input[type="date"],
 .quick-row .datetime-pair input[type="time"] { width: 7.2em; min-width: 0; flex: none; }
 #quickEditorList { padding: 0 1em 3em; }
-@media (max-width: 700px) { .quick-row { border: 0.07em solid var(--border); border-radius: var(--radius-sm); margin-bottom: 0.5em; padding: 0.5em; } }
+@media (max-width: 700px) {
+  .quick-row { border: 0.07em solid var(--border); border-radius: var(--radius-sm); margin-bottom: 0.5em; padding: 0.5em; }
+  .quick-line--teams { padding-left: 0; }
+}
 
 /* ── Multi-tournament (Phase C) ── */
 /* Header tournament switcher — compact so it fits beside ← Bracket on phones */
