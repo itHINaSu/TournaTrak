@@ -628,7 +628,7 @@ function onGenerate() {
   $('confirmText').innerHTML =
     'This replaces the current schedule with a new <strong>' + esc(currentFormat.label) +
     '</strong> bracket for <strong>' + esc(String(n)) + ' teams</strong> (' + esc(seedDesc) +
-    ') ' + when + '.<br><span class="bld-warn">Existing schedule will be overwritten.</span>';
+    ') ' + when + '.<br><span class="bld-warn">The existing schedule is overwritten, and its results, live scores, and delays are cleared.</span>';
   $('confirmOverlay').style.display = '';
 }
 

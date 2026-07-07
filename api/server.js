@@ -885,6 +885,13 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
   if (verr) return res.status(500).json({ error: 'Generated schedule failed validation: ' + verr });
   await store.put(req.tid, 'schedule', schedule);
 
+  // A replaced schedule orphans everything keyed by game slot — old results,
+  // live scores, and delay offsets would bleed into the new bracket (a fresh
+  // round 1 showing last tournament's scores). Clear them with it.
+  await store.put(req.tid, 'results', {});
+  await store.put(req.tid, 'live', {});
+  await store.put(req.tid, 'offsets', {});
+
   // Format-driven settings defaults: formats with a true two-bracket split
   // name the sides (WB/LB, championship/consolation); schedule-first formats
   // (round robin, pools) land the public page on the Schedule tab, where a
