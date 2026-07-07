@@ -3,29 +3,50 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TournaTrak — Live Tournament Brackets for Everyone</title>
-  <meta name="description" content="Live brackets, real-time scores, and schedules for your tournament. One link, any device. No app download required.">
+  <title>TournaTrak — Free, self-hosted live tournament brackets</title>
+  <meta name="description" content="Open-source tournament software: live brackets, real-time scores, schedules, lineups, and multi-tournament hosting. Self-host in minutes with Docker. One link, any device — no app, no per-team fees.">
+
+  <!-- Open Graph / social preview -->
+  <meta property="og:title" content="TournaTrak — Free, self-hosted live tournament brackets">
+  <meta property="og:description" content="Live brackets, real-time scores, schedules, and lineups for your tournament. Open-source and self-hosted — deploy in minutes with one command.">
+  <meta property="og:type" content="website">
+
   <link rel="icon" type="image/svg+xml" href="icons/tournatrak.svg">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/trophy-192.png">
   <link rel="apple-touch-icon" href="icons/trophy-180.png">
   <link rel="stylesheet" href="style.css">
+
+  <!-- ════════════════════════════════════════════════════════════════════
+       BEFORE PUBLISHING: replace these three placeholder links everywhere.
+       Each occurrence in this file is tagged with the matching CONFIG marker
+       so you can find/replace in one pass:
+
+         CONFIG:GITHUB  → your public repo URL   (search: GITHUB_URL_HERE)
+         CONFIG:DEMO    → a hosted demo, or delete the demo CTAs if none
+                          (search: DEMO_URL_HERE)
+         CONFIG:EMAIL   → your contact address   (search: YOUR@EMAIL.COM)
+
+       If you have no hosted demo yet, the "Self-host it" GitHub CTA stands
+       on its own — the demo buttons are optional.
+       ════════════════════════════════════════════════════════════════════ -->
 </head>
 <body>
 
   <!-- ── Navigation ── -->
   <nav class="nav" aria-label="Main navigation">
     <div class="container nav-inner">
-      <a href="#" class="nav-brand" aria-label="TournaTrak home">
+      <a href="#top" class="nav-brand" aria-label="TournaTrak home">
         <img src="icons/tournatrak.svg" alt="" class="nav-logo" width="32" height="32">
         <span class="nav-name">TournaTrak</span>
       </a>
       <div class="nav-links">
         <a href="#features">Features</a>
-        <a href="#how-it-works">How it works</a>
+        <a href="#how-it-works">Self-host</a>
+        <a href="#gallery">Screenshots</a>
         <a href="#faq">FAQ</a>
       </div>
-      <!-- TODO: Replace href="#" with your live demo tournament URL -->
-      <a href="#" class="btn btn-gold btn-sm">See a Demo</a>
+      <!-- CONFIG:GITHUB -->
+      <a href="GITHUB_URL_HERE" class="btn btn-gold btn-sm">View on GitHub</a>
     </div>
   </nav>
 
@@ -34,22 +55,27 @@
     <div class="hero-bg" aria-hidden="true"></div>
     <div class="container hero-inner">
       <div class="hero-text">
-        <div class="hero-badge" aria-label="Live">
-          <span class="live-dot" aria-hidden="true">●</span> Live Tournaments
+        <div class="hero-badge" aria-label="Open source">
+          <span class="live-dot" aria-hidden="true">●</span> Free &amp; open source
         </div>
         <h1>
           Run your tournament from your phone.<br>
-          <span class="gold">Keep players and fans in the loop — automatically.</span>
+          <span class="gold">Everyone follows along from theirs.</span>
         </h1>
         <p class="hero-sub">
-          Live bracket · By-round schedule · Team Path · Coach lineups.
-          One link, any device. No app download. No group-chat chaos.
+          Live brackets, real-time scores, schedules, and coach lineups — for
+          softball, baseball, and any bracket sport. Self-hosted and open
+          source: one command to deploy, one link to share. No app store, no
+          sign-ups, no per-team fees.
         </p>
         <div class="hero-actions">
-          <!-- TODO: Replace href="#" with your live demo tournament URL -->
-          <a href="#" class="btn btn-gold btn-lg">See a Live Demo</a>
+          <!-- CONFIG:GITHUB -->
+          <a href="GITHUB_URL_HERE" class="btn btn-gold btn-lg">Self-host it — free</a>
           <a href="#features" class="btn btn-ghost btn-lg">Explore features</a>
         </div>
+        <p class="hero-note">
+          <code>git clone</code> &rarr; <code>docker compose up</code> &rarr; live in minutes.
+        </p>
       </div>
 
       <!-- CSS mock of a live game card -->
@@ -124,10 +150,23 @@
           <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="5" height="4" rx="1"/><rect x="2" y="15" width="5" height="4" rx="1"/><rect x="9.5" y="10" width="5" height="4" rx="1"/><rect x="17" y="10" width="5" height="4" rx="1"/><path d="M7 7h1.5v10h-1.5M8.5 12h1M14.5 12h2.5"/></svg></div>
           <h3>Live, real-time bracket</h3>
           <p>
-            A full double-elimination bracket that updates as results come in.
-            Games in progress show a <span class="live-dot" aria-label="live">●</span>
-            <strong>LIVE</strong> indicator with the score and inning — fans see
-            it change without refreshing.
+            The bracket updates as results come in. A game in progress shows a
+            <span class="live-dot" aria-label="live">●</span> <strong>LIVE</strong>
+            badge with the score and inning right on its card — fans watch it
+            change without refreshing. Tuned layouts for desktop and a
+            swipe-through mobile view.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 8l7-5 7 5"/><rect x="3" y="8" width="6" height="4" rx="1"/><rect x="15" y="8" width="6" height="4" rx="1"/><rect x="9" y="16" width="6" height="4" rx="1"/></svg></div>
+          <h3>Bracket Builder — any size, any format</h3>
+          <p>
+            Paste a team list and generate a full schedule in seconds:
+            <strong>single-elimination (4&ndash;64 teams</strong>, automatic
+            byes) or <strong>double-elimination</strong> with an optional
+            "if necessary" final. Seed by rank or random, then lay games out
+            across days and fields.
           </p>
         </div>
 
@@ -138,7 +177,29 @@
             <strong>Bracket</strong>, <strong>Schedule</strong>,
             <strong>Team Path</strong>, and a <strong>Challenge Leaderboard</strong>.
             Team Path lets fans jump straight to their team's road through the
-            bracket — shareable by link.
+            bracket — win path and loss path — shareable by its own link.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/><path d="M9 12h.01M15 12h.01"/></svg></div>
+          <h3>Field-side scorekeeper mode</h3>
+          <p>
+            A stripped-down, big-button page for scorekeepers: filter to your
+            field, tap the score up or down, and it pushes live to every
+            watching phone within seconds. Hit <strong>Final</strong> and the
+            result posts itself. Built for one thumb and a chain-link fence.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a2 2 0 012-2h12a2 2 0 012 2v2"/><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 12h8M8 16h5"/></svg></div>
+          <h3>Run many tournaments at once</h3>
+          <p>
+            One deployment hosts as many events as you want, each at its own
+            clean URL (<code>/t/your-event</code>). Switch between them from a
+            single admin, with a super-admin over the top and per-tournament
+            organizers, scorekeepers, and coaches underneath.
           </p>
         </div>
 
@@ -146,49 +207,42 @@
           <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
           <h3>Simple admin panel</h3>
           <p>
-            Enter results, set game times and fields, and flip a game to live —
-            all from your phone. One-tap live scoring: update the score and
-            inning, hit finalize, done.
-          </p>
-        </div>
-
-        <div class="feature-card reveal">
-          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
-          <h3>Role-based access</h3>
-          <p>
-            Separate logins for admins, scorekeepers, coaches, and leaderboard
-            editors. Delegate without handing over the keys. Secure login with
-            rate-limiting built in.
-          </p>
-        </div>
-
-        <div class="feature-card reveal">
-          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 19h2"/></svg></div>
-          <h3>Works like an app — without being one</h3>
-          <p>
-            Visitors can add TournaTrak to their home screen and open it
-            full-screen like a native app. No app store. No download friction.
-            Just a link. Designed to hold up on spotty tournament-field Wi-Fi.
+            Enter results, set game times and fields, post rain delays, and
+            flip a game to live — all from your phone. Per-game save so you
+            don't lose your place, and a delay banner when the whole day slips.
           </p>
         </div>
 
         <div class="feature-card reveal">
           <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg></div>
-          <h3>Coach lineup tool</h3>
+          <h3>Coach lineup tool — any sport</h3>
           <p>
-            Coaches get a private link to submit their batting order and positions
-            before each game. Import last game's lineup in one tap. Automatically
-            locks once the result is entered — no more late edits.
+            Coaches get a private link to submit their lineup before each game
+            and import the last one in a tap. Columns adapt to your sport —
+            softball/baseball, volleyball, basketball, or your own custom
+            fields. Locks automatically once the result is in.
           </p>
         </div>
 
         <div class="feature-card reveal">
-          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="10" cy="18" r="2"/></svg></div>
-          <h3>Customizable to your event</h3>
+          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="12" r="2.5"/><circle cx="9" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 22a10 10 0 010-20 6 6 0 000 12 2 2 0 012 2 4 4 0 004 4 4 4 0 01-4 2z"/></svg></div>
+          <h3>White-label to your event</h3>
           <p>
-            Set your tournament name, scoring labels (Inning, Quarter, Half,
-            Period, Set&hellip;), date formats, default tab, and light or dark
-            theme — all from the settings panel.
+            Set each tournament's name, logo, accent colors, and scoring
+            labels (Inning, Quarter, Half, Period, Set&hellip;). Light or dark
+            theme, per viewer. It looks like <em>your</em> tournament, not a
+            generic template.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
+          <h3>Yours, and secure by default</h3>
+          <p>
+            Self-hosted on your own box — your data never leaves it. Role-based
+            logins, bcrypt passwords, rate-limited login, and a strict
+            content-security policy out of the box. Works like an installable
+            app and holds up on spotty tournament-field Wi-Fi.
           </p>
         </div>
 
@@ -196,28 +250,38 @@
     </div>
   </section>
 
-  <!-- ── How it Works ── -->
-  <section class="how-it-works" id="how-it-works" aria-label="How it works">
+  <!-- ── How it Works (self-host) ── -->
+  <section class="how-it-works" id="how-it-works" aria-label="How to self-host">
     <div class="container">
-      <h2 class="section-title">Up and running in minutes</h2>
+      <h2 class="section-title">Self-host in minutes</h2>
+      <p class="section-sub">
+        No build steps, no cloud account, no secrets to generate by hand.
+        Clone it, bring it up, and it configures itself on first boot.
+      </p>
       <div class="steps-grid">
         <div class="step reveal">
           <div class="step-number" aria-hidden="true">1</div>
-          <h3>Set up your bracket</h3>
-          <p>Enter your teams, game times, and fields in the admin panel. The bracket builds itself.</p>
+          <h3>Clone &amp; compose up</h3>
+          <p><code>git clone</code> the repo and run <code>docker compose up -d</code>. Postgres, the API, and the web server all start together.</p>
         </div>
         <div class="step-connector" aria-hidden="true"></div>
         <div class="step reveal">
           <div class="step-number" aria-hidden="true">2</div>
-          <h3>Share one link</h3>
-          <p>Send the tournament link to teams, families, and fans. That's the only step they need.</p>
+          <h3>Log in &amp; build your bracket</h3>
+          <p>First boot prints a one-time admin password. Log in, paste your teams into the Bracket Builder, and set your times and fields.</p>
         </div>
         <div class="step-connector" aria-hidden="true"></div>
         <div class="step reveal">
           <div class="step-number" aria-hidden="true">3</div>
-          <h3>Update results &amp; go live</h3>
-          <p>As games are played, enter scores from your phone. Everyone watching sees it instantly.</p>
+          <h3>Share one link &amp; go live</h3>
+          <p>Send the tournament link to teams and fans. Enter scores from your phone — everyone watching sees it instantly.</p>
         </div>
+      </div>
+      <div class="how-cta">
+        <!-- CONFIG:GITHUB -->
+        <a href="GITHUB_URL_HERE" class="btn btn-gold btn-lg">Get it on GitHub</a>
+        <!-- CONFIG:DEMO — delete this button if you don't have a hosted demo -->
+        <a href="DEMO_URL_HERE" class="btn btn-ghost btn-lg">See a live demo</a>
       </div>
     </div>
   </section>
@@ -225,44 +289,44 @@
   <!-- ── Use Cases ── -->
   <section class="use-cases" id="use-cases" aria-label="Who it's for">
     <div class="container">
-      <h2 class="section-title">Built for any tournament</h2>
+      <h2 class="section-title">Built for any bracket</h2>
       <div class="use-cases-grid">
         <div class="use-case-card reveal">
           <div class="use-case-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l8 8-8 8-8-8z"/><circle cx="12" cy="4" r="1.5" fill="currentColor" stroke="none"/><circle cx="20" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="20" r="1.5" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></div>
           <h3>Softball &amp; Baseball</h3>
-          <p>The flagship use case — built and battle-tested on a real 16-team double-elimination event.</p>
+          <p>The flagship use case — built and battle-tested on a real 32-team, two-sided event with live scoring and coach lineups.</p>
         </div>
         <div class="use-case-card reveal">
           <div class="use-case-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H3.5a2.5 2.5 0 010-5H6"/><path d="M18 9h2.5a2.5 2.5 0 000-5H18"/><path d="M12 17a5 5 0 01-5-5V4h10v8a5 5 0 01-5 5z"/><path d="M12 17v4M9 21h6"/></svg></div>
           <h3>Rec Leagues &amp; Clubs</h3>
-          <p>Weekend brackets where everyone wants to know "who's up next and on which field."</p>
+          <p>Weekend brackets where everyone wants to know "who's up next and on which field." Run several divisions from one deployment.</p>
         </div>
         <div class="use-case-card reveal">
           <div class="use-case-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4.5 13H12L11 22L19.5 11H12L13 2z"/></svg></div>
           <h3>Multi-Sport Events</h3>
-          <p>Scoring labels are fully configurable — Inning, Quarter, Half, Period, Set. Fits basketball, soccer, volleyball, hockey, and more.</p>
+          <p>Configurable scoring labels and per-sport lineup columns fit basketball, soccer, volleyball, hockey, pickleball, and more.</p>
         </div>
         <div class="use-case-card reveal">
           <div class="use-case-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 8l10 5 10-5-10-5z"/><path d="M6 10.5v5a6 6 0 0012 0v-5"/><path d="M22 8v4"/></svg></div>
           <h3>Schools &amp; Fundraisers</h3>
-          <p>Run a clean, professional bracket without expensive bracket software or a spreadsheet nobody can read.</p>
+          <p>Run a clean, professional bracket for free — no per-team pricing, no expensive software, no spreadsheet nobody can read.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ── Market differentiation ── -->
+  <!-- ── Market differentiation / open-source ── -->
   <section class="problem" id="why" aria-label="Why TournaTrak">
     <div class="container">
-      <div class="solution-card" style="max-width:680px;margin:0 auto;text-align:center;">
-        <h2>Purpose-built for tournament directors.</h2>
+      <div class="solution-card" style="max-width:720px;margin:0 auto;text-align:center;">
+        <h2>Purpose-built for tournament directors — and truly yours.</h2>
         <p style="margin-top:0.75rem;">
-          Most bracket tools are either glorified spreadsheets or overpowered
-          registration platforms. TournaTrak is built specifically for the TD who
-          needs to run the day, not spend it copying scores into a PDF and
-          answering texts. The combination of a live bracket, inline schedule,
-          Team Path with shareable links, and a coach lineup tool in one
-          self-hosted app is — to our knowledge — rare in this space.
+          Most bracket tools are glorified spreadsheets, ad-stuffed apps, or
+          overpowered registration platforms that charge per team and hold your
+          data. TournaTrak is open source and self-hosted: a live bracket,
+          inline schedule, shareable Team Paths, a field-side scorekeeper, and
+          per-sport coach lineups in one app you run and own. No fees, no
+          lock-in, no ads.
         </p>
       </div>
     </div>
@@ -273,9 +337,9 @@
     <div class="container">
       <h2 class="section-title">See it in action</h2>
       <p class="section-sub">
-        Real screenshots from a live demo tournament.
-        <!-- TODO: Replace href="#" with your live demo tournament URL -->
-        <a href="#" class="link-gold">Try the live demo →</a>
+        Real screenshots from a running tournament.
+        <!-- CONFIG:DEMO — delete this link if you don't have a hosted demo -->
+        <a href="DEMO_URL_HERE" class="link-gold">Try the live demo →</a>
       </p>
       <div class="gallery-grid">
 
@@ -292,6 +356,46 @@
         <figure class="gallery-shot reveal">
           <div class="gallery-shot-img">
             <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-score-dark.png">
+              <img src="screenshots/mobile-score-light.png" alt="Field-side scorekeeper mode with large tap targets" loading="lazy">
+            </picture>
+          </div>
+          <figcaption>Scorekeeper mode — big buttons, live updates</figcaption>
+        </figure>
+
+        <figure class="gallery-shot reveal">
+          <div class="gallery-shot-img">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-bracket-dark.png">
+              <img src="screenshots/desktop-bracket-light.png" alt="Full 32-team tournament bracket on desktop" loading="lazy">
+            </picture>
+          </div>
+          <figcaption>Desktop full bracket — the whole event at a glance</figcaption>
+        </figure>
+
+        <figure class="gallery-shot reveal">
+          <div class="gallery-shot-img">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-builder-dark.png">
+              <img src="screenshots/desktop-builder-light.png" alt="Bracket Builder generating a schedule from a team list" loading="lazy">
+            </picture>
+          </div>
+          <figcaption>Bracket Builder — teams in, schedule out</figcaption>
+        </figure>
+
+        <figure class="gallery-shot reveal">
+          <div class="gallery-shot-img">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/teampath-landscape-dark.png">
+              <img src="screenshots/teampath-landscape-light.png" alt="Team Path feature showing a team's complete tournament journey" loading="lazy">
+            </picture>
+          </div>
+          <figcaption>Team Path — follow any team's full journey</figcaption>
+        </figure>
+
+        <figure class="gallery-shot reveal">
+          <div class="gallery-shot-img">
+            <picture>
               <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-schedule-dark.png">
               <img src="screenshots/mobile-schedule-light.png" alt="By-round schedule view showing all games by time" loading="lazy">
             </picture>
@@ -302,51 +406,11 @@
         <figure class="gallery-shot reveal">
           <div class="gallery-shot-img">
             <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-bracket-dark.png">
-              <img src="screenshots/desktop-bracket-light.png" alt="Full 32-team tournament bracket on desktop" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Desktop full bracket — 32 teams, at a glance</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/teampath-landscape-dark.png">
-              <img src="screenshots/teampath-landscape-light.png" alt="Team Path feature showing a team's complete tournament journey" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Team Path — follow any team's full tournament journey</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-teampath-dark.png">
-              <img src="screenshots/mobile-teampath-light.png" alt="Team path view on mobile phone" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Team Path on mobile</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
-            <picture>
               <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-buckets-dark.png">
               <img src="screenshots/mobile-buckets-light.png" alt="Challenge leaderboard showing team standings" loading="lazy">
             </picture>
           </div>
-          <figcaption>Bucket challenge leaderboard</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-admin-dark.png">
-              <img src="screenshots/mobile-admin-light.png" alt="Admin panel on mobile phone" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Admin panel — run it from your phone</figcaption>
+          <figcaption>Challenge leaderboard</figcaption>
         </figure>
 
         <figure class="gallery-shot reveal">
@@ -380,32 +444,55 @@
       <div class="faq-list">
 
         <details class="faq-item reveal">
+          <summary>Is it really free?</summary>
+          <p>
+            Yes — TournaTrak is open source and self-hosted. There's no per-team
+            or per-player pricing and no subscription. You run it on your own
+            server (a cheap VPS or even a spare PC), and your tournament data
+            stays with you.
+          </p>
+        </details>
+
+        <details class="faq-item reveal">
+          <summary>How hard is it to set up?</summary>
+          <p>
+            If you can run one command, you can host it.
+            <code>git clone</code> the repository and
+            <code>docker compose up</code> — the database, API, and web server
+            start together, secrets are generated automatically on first boot,
+            and a one-time admin password is printed for you. No manual config
+            files to edit.
+          </p>
+        </details>
+
+        <details class="faq-item reveal">
           <summary>Do people need to download an app?</summary>
           <p>
-            No — TournaTrak is a website. Anyone can open the link in any browser,
-            on any phone or laptop. If you want the full app feel, you can optionally
-            add it to your home screen in one tap and it opens full-screen like a
-            native app.
+            No — it's a website. Anyone opens the link in any browser, on any
+            phone or laptop. If they want the full app feel, they can add it to
+            their home screen in one tap and it opens full-screen like a native
+            app.
           </p>
         </details>
 
         <details class="faq-item reveal">
-          <summary>Does it cost money per player or per team?</summary>
+          <summary>What bracket formats and sports does it support?</summary>
           <p>
-            No per-seat pricing — it's a single app for your whole event.
-            Teams, families, and fans all use the same link.
-            <a href="#contact" class="link-gold">Reach out</a> to talk through
-            what works for your tournament.
+            Single-elimination for 4&ndash;64 teams (with automatic byes) and
+            double-elimination with an optional "if necessary" final. Scoring
+            labels (Inning, Quarter, Half, Period, Set) and coach-lineup columns
+            are configurable per tournament, so it fits softball, baseball,
+            basketball, volleyball, soccer, hockey, and more.
           </p>
         </details>
 
         <details class="faq-item reveal">
-          <summary>What sports does it support?</summary>
+          <summary>Can I run more than one tournament?</summary>
           <p>
-            TournaTrak is built around double-elimination brackets.
-            The scoring-period label is fully configurable — Inning, Quarter, Half,
-            Period, Set — so it fits softball, baseball, basketball, soccer,
-            volleyball, hockey, and more.
+            Yes. A single deployment hosts as many tournaments as you like, each
+            at its own URL (<code>/t/your-event</code>), each with its own
+            bracket, schedule, users, colors, and logo. A super-admin manages
+            them all; per-tournament organizers only see theirs.
           </p>
         </details>
 
@@ -414,26 +501,27 @@
           <p>
             Yes. Games in progress show a
             <span class="live-dot" aria-label="live">●</span> LIVE indicator with
-            the current score and inning/period right on the bracket card. The score
-            updates in real time — no refresh needed.
+            the current score and period right on the card, and it updates in
+            near-real time — no refresh needed.
           </p>
         </details>
 
         <details class="faq-item reveal">
-          <summary>Can I let a scorekeeper update scores without giving them full admin access?</summary>
+          <summary>Can a scorekeeper update scores without full admin access?</summary>
           <p>
-            Yes — TournaTrak has separate roles for full admins, scorekeepers,
-            coaches, and leaderboard editors, so you can delegate exactly the right
-            level of access to each person.
+            Yes — there are separate roles for super-admins, tournament admins,
+            scorekeepers, coaches, and leaderboard editors, so you delegate
+            exactly the right level of access to each person. Scorekeepers get a
+            dedicated big-button page for entering scores from the field.
           </p>
         </details>
 
         <details class="faq-item reveal">
           <summary>Will it work at the field with bad signal?</summary>
           <p>
-            It's built to be resilient on spotty tournament-field Wi-Fi and cell.
-            TournaTrak is designed to keep showing the latest data it has and recover
-            gracefully when the connection drops.
+            It's built for spotty tournament-field Wi-Fi and cell. The public
+            page keeps showing the latest data it has, shows an offline notice
+            when the connection drops, and recovers on its own when it's back.
           </p>
         </details>
 
@@ -441,17 +529,22 @@
     </div>
   </section>
 
-  <!-- ── Contact (understated) ── -->
-  <section class="contact" id="contact" aria-label="Contact">
+  <!-- ── Contact / CTA ── -->
+  <section class="contact" id="contact" aria-label="Get started">
     <div class="container">
       <div class="contact-inner">
-        <h2>Interested in TournaTrak for your next event?</h2>
+        <h2>Ready to run your next tournament?</h2>
         <p>
-          TournaTrak is in active development. If you'd like to use it for an
-          upcoming tournament, get in touch — we'd love to set it up with you.
+          TournaTrak is free and open source. Grab it on GitHub and host it
+          yourself, or get in touch if you'd like a hand setting it up for an
+          upcoming event.
         </p>
-        <!-- TODO: Replace href below with your actual contact email, e.g. mailto:you@example.com -->
-        <a href="mailto:YOUR@EMAIL.COM" class="btn btn-outline">Get in touch</a>
+        <div class="hero-actions" style="justify-content:center;">
+          <!-- CONFIG:GITHUB -->
+          <a href="GITHUB_URL_HERE" class="btn btn-gold btn-lg">Get it on GitHub</a>
+          <!-- CONFIG:EMAIL -->
+          <a href="mailto:YOUR@EMAIL.COM" class="btn btn-outline btn-lg">Get in touch</a>
+        </div>
       </div>
     </div>
   </section>
@@ -463,7 +556,13 @@
         <img src="icons/tournatrak.svg" alt="TournaTrak" class="footer-logo" width="24" height="24">
         <span>TournaTrak</span>
       </div>
-      <p class="footer-copy">&copy; 2026 TournaTrak. All rights reserved.</p>
+      <div class="footer-links">
+        <!-- CONFIG:GITHUB -->
+        <a href="GITHUB_URL_HERE">GitHub</a>
+        <a href="#features">Features</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <p class="footer-copy">&copy; 2026 TournaTrak — free &amp; open source.</p>
     </div>
   </footer>
 

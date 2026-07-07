@@ -1,5 +1,36 @@
 services:
 
+  # First-boot secret generation: creates random pg_password / session_secret
+  # in the tt-secrets volume if missing (values from .env win when provided),
+  # then exits. Runs before postgres and the API. Makes a bare
+  # `git clone && docker compose up -d --build` a complete, secure install.
+  secrets-init:
+    image: alpine:3.20
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:-}"
+      SESSION_SECRET: "${SESSION_SECRET:-}"
+      PUID: "${PUID:-1000}"
+      PGID: "${PGID:-1000}"
+    volumes:
+      - tt-secrets:/run/tt-secrets
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        cd /run/tt-secrets
+        gen() { head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'; }
+        if [ ! -s pg_password ]; then
+          if [ -n "$$POSTGRES_PASSWORD" ]; then printf '%s' "$$POSTGRES_PASSWORD" > pg_password;
+          else gen > pg_password; echo "generated pg_password"; fi
+        fi
+        if [ ! -s session_secret ]; then
+          if [ -n "$$SESSION_SECRET" ]; then printf '%s' "$$SESSION_SECRET" > session_secret;
+          else gen > session_secret; echo "generated session_secret"; fi
+        fi
+        chown -R "$$PUID:$$PGID" /run/tt-secrets
+        chmod 700 /run/tt-secrets
+        chmod 600 ./*
+
   nginx:
     image: nginx:alpine
     ports:
@@ -13,14 +44,66 @@ services:
 
   api:
     build: ./api
+    # Run the container as the host user that owns ./files so bind-mounted
+    # data is written with matching ownership (avoids root-owned files the
+    # node user can't overwrite). Defaults to 1000:1000 — override by setting
+    # PUID/PGID in your shell or .env, e.g. `PUID=1001 PGID=1001`.
+    user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
-      - ./files:/data
+      # /data is only read now (one-time legacy JSON import on first boot
+      # against an empty database); persistence lives in Postgres.
+      - ./files:/data:ro
       - ./frontend:/frontend:ro
+      - tt-secrets:/run/tt-secrets
     restart: unless-stopped
     expose:
       - "3000"
-    # ── Environment ────────────────────────────────────────────────────────
-    # Copy the example file and fill in real values before first run:
-    #   mv .env.example .env
-    # Then edit .env with your SESSION_SECRET, password hash, etc.
-    env_file: ./.env
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    environment:
+      # Discrete PG* vars instead of a DATABASE_URL: pg reads these natively,
+      # so the password never passes through URL parsing and may contain any
+      # characters (a base64 secret with '/', '+', '=' broke the URL form).
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: tournatrak
+      PGDATABASE: tournatrak
+      # Falls back to the generated /run/tt-secrets/pg_password when unset
+      # (see api/entrypoint.sh); same for SESSION_SECRET / ADMIN_PASSWORD_HASH.
+      PGPASSWORD: "${POSTGRES_PASSWORD:-}"
+    # .env is OPTIONAL: with no .env at all, secrets are generated on first
+    # boot (see secrets-init + api/entrypoint.sh) and the initial admin
+    # password is printed in `docker compose logs api`. Create .env only to
+    # override defaults (see .env.example).
+    env_file:
+      - path: ./.env
+        required: false
+
+  postgres:
+    image: postgres:16-alpine
+    # No ports/expose to the host — reachable only on the compose network.
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: tournatrak
+      POSTGRES_DB: tournatrak
+      # Read from the generated (or .env-seeded) secret file. NOTE: postgres
+      # bakes this into pgdata on FIRST init; see .env.example.
+      POSTGRES_PASSWORD_FILE: /run/tt-secrets/pg_password
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - tt-secrets:/run/tt-secrets:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tournatrak -d tournatrak"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  tt-secrets:

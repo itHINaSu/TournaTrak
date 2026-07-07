@@ -3,33 +3,21 @@
 // STATE
 // ══════════════════════════════════════════════════════════
 var results={}, schedule={}, settings={}, buckets={}, liveScores={}, _offsets={entries:[]}, _fieldColors={}, _themeColors={};
+var _teamsData = { showSeeds: false, teams: [] };
+var _seedMap = {};   // { teamName: seedNumber (1-based) }
 var _sessionRole = null;
 var _bucketEditMode = false;
+var _bracketEditMode = false;
 var scheduleMode = null; // null = uninitialised; set from settings on first render
-function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+// esc() comes from tt-common.js
 
-var SETTING_DEFAULTS = {
-  tournamentName: 'Tournament Bracket',
-  pageTitle:      'Tournament Bracket',
-  adminName:      'Tournament Admin',
-  subtitle:       '',
-  leftLabel:        'Left Bracket',
-  rightLabel:       'Right Bracket',
-  playInLabel:      'Play-In',
-  showSideDividers: 'true',
-  periodLabel:      'Inning',
-  showDate:         'true',
-  showDay:          'true',
-  dateFormat:       'short',
-  dayFormat:        'long',
-  defaultTab:          'bracket',
-  defaultTabScope:     'both',
-  defaultScheduleGroup: 'day',
-};
+// SETTINGS_DEFAULTS comes from settings-defaults.js; getSetting from tt-common.js
 
-function getSetting(key) {
-  return (settings[key] !== undefined && settings[key] !== '')
-    ? settings[key] : SETTING_DEFAULTS[key];
+
+
+function seedChip(name) {
+  var n = _seedMap[name];
+  return n ? '<span class="tt-seed">(' + n + ')</span>' : '';
 }
 
 function _hexToHsl(hex) {
@@ -53,6 +41,18 @@ function _lightModeColor(hex) {
 function applyThemeColors() {
   var root = document.documentElement;
   var tc = _themeColors;
+  // Per-tournament logo — assigned via the src property (never innerHTML);
+  // the server only stores validated png/jpeg/webp data URIs.
+  var logoEl = document.getElementById('siteLogo');
+  if (logoEl) {
+    if (tc.logo && /^data:image\/(png|jpeg|webp);base64,/.test(tc.logo)) {
+      logoEl.src = tc.logo;
+      logoEl.style.display = '';
+    } else {
+      logoEl.removeAttribute('src');
+      logoEl.style.display = 'none';
+    }
+  }
   var darkMap = { accent: ['--gold','--gold-lt'], interactive: ['--blue','--blue-lt'], winColor: ['--win-color'], loseColor: ['--lose-color'] };
   var lightRules = [];
   Object.keys(darkMap).forEach(function(key) {
@@ -79,6 +79,14 @@ function applySettings() {
   var subEl = document.getElementById('siteSubtitle');
   if (subtitle) { subEl.textContent = subtitle; subEl.style.visibility = 'visible'; subEl.style.display = 'block'; }
   else { subEl.innerHTML = '&#8203;'; subEl.style.display = 'block'; subEl.style.visibility = 'hidden'; }
+}
+
+// ── Offline banner ────────────────────────────────────────────────────
+// Shown when a data refresh fails; the page keeps rendering the last
+// successfully fetched state instead of blanking (field-side Wi-Fi drops).
+function setOffline(on) {
+  var el = document.getElementById('offlineNotice');
+  if (el) el.style.display = on ? '' : 'none';
 }
 
 // ── Results notification bar ──────────────────────────────────────────
@@ -161,7 +169,7 @@ function renderBucketView() {
   var schedTeams = [];
   Object.values(GAMES).forEach(function(g) {
     if (g.t1 && g.t1.type === 'fixed' && g.t1.team) schedTeams.push(g.t1.team);
-    if (g.t2 && g.t2.type === 'fixed' && g.t2.team) schedTeams.push(g.t2.team);
+    if (!g.bye && g.t2 && g.t2.type === 'fixed' && g.t2.team) schedTeams.push(g.t2.team);
   });
   schedTeams = schedTeams.filter(function(t, i, a) { return a.indexOf(t) === i; });
   var allTeams = schedTeams.concat(extraTeams.filter(function(t) { return schedTeams.indexOf(t) === -1; }));
@@ -184,8 +192,8 @@ function renderBucketView() {
     });
     editHTML += '</div>'
       + '<div class="bucket-edit-actions">'
-      + '<button class="bucket-edit-save-btn" onclick="saveBucketEdit()">Save</button>'
-      + '<button class="bucket-edit-cancel-btn" onclick="exitBucketEdit()">Cancel</button>'
+      + '<button class="bucket-edit-save-btn" data-action="saveBucketEdit">Save</button>'
+      + '<button class="bucket-edit-cancel-btn" data-action="exitBucketEdit">Cancel</button>'
       + '<span class="bucket-edit-status" id="bucketEditStatus"></span>'
       + '</div>';
     out.innerHTML = editHTML;
@@ -235,6 +243,18 @@ function renderBucketView() {
   }
 }
 
+function toggleBracketEdit() {
+  _bracketEditMode = !_bracketEditMode;
+  var btn = document.getElementById('bracketEditBtn');
+  if (btn) { btn.textContent = _bracketEditMode ? 'Done' : 'Edit'; btn.classList.toggle('admin-btn-active', _bracketEditMode); }
+  if (_bracketEditMode && activeView() !== 'bracket') {
+    var tab = document.querySelector('.view-tab[data-view="bracket"]');
+    if (tab) tab.click();
+  } else {
+    renderBracket();
+  }
+}
+
 function enterBucketEdit() {
   document.querySelectorAll('.view-tab').forEach(function(t){ t.classList.remove('active'); });
   document.querySelectorAll('.view-panel').forEach(function(p){ p.classList.remove('active'); });
@@ -267,7 +287,7 @@ function saveBucketEdit() {
   var statusEl = document.getElementById('bucketEditStatus');
   if (statusEl) statusEl.textContent = 'Saving…';
 
-  fetch('/api/buckets/counts', {
+  fetch(apiBase() + '/buckets/counts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ counts: counts, hidden: hidden })
@@ -287,53 +307,13 @@ function saveBucketEdit() {
 }
 
 // ══════════════════════════════════════════════════════════
-// COOKIES
+// THEME — managed by tt-common.js; re-render bracket so connector
+// line colors pick up the new theme.
 // ══════════════════════════════════════════════════════════
-function setCookie(name, val) {
-  document.cookie = name + '=' + encodeURIComponent(val) + ';max-age=31536000;path=/';
-}
-function getCookie(name) {
-  var m = document.cookie.match('(?:^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
-  return m ? decodeURIComponent(m[1]) : '';
-}
+document.addEventListener('tt:themechange', function() {
+  if (typeof activeView === 'function' && activeView() === 'bracket') renderBracket();
+});
 
-// ══════════════════════════════════════════════════════════
-// THEME
-// ══════════════════════════════════════════════════════════
-var themeBtn=document.getElementById('themeToggle');
-
-// Theme: saved preference in localStorage wins over OS; persists across pages.
-// localStorage may throw in Safari private/restricted mode — all calls are wrapped.
-(function(){
-  var mq = window.matchMedia('(prefers-color-scheme: light)');
-  var PREF_KEY = 'tt_theme';
-  function storageGet(k)    { try { return localStorage.getItem(k); } catch(e) {} try { return sessionStorage.getItem(k); } catch(e2) { return null; } }
-  function storageSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} try { sessionStorage.setItem(k, v); } catch(e2) {} }
-  function applyLight(light) {
-    document.body.classList.toggle('light', light);
-    if (themeBtn) themeBtn.textContent = light ? '🌙 Dark' : '☀ Light';
-  }
-  var saved = storageGet(PREF_KEY);
-  var _userPicked = saved !== null;
-  applyLight(_userPicked ? saved === 'light' : mq.matches);
-  mq.addEventListener('change', function(e) {
-    if (!_userPicked) applyLight(e.matches);
-  });
-  if (themeBtn) {
-    function toggleTheme() {
-      _userPicked = true;
-      var nowLight = !document.body.classList.contains('light');
-      applyLight(nowLight);
-      storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
-      if(activeView()==='bracket') renderBracket();
-    }
-    themeBtn.addEventListener('click', toggleTheme);
-    themeBtn.addEventListener('touchend', function(e) {
-      e.preventDefault();
-      toggleTheme();
-    });
-  }
-})();
 
 // ══════════════════════════════════════════════════════════
 // TABS
@@ -349,11 +329,14 @@ document.querySelectorAll('.view-tab').forEach(function(tab){
     tab.classList.add('active');
     document.getElementById('view-'+tab.dataset.view).classList.add('active');
     setCookie('tt_tab', tab.dataset.view);
-    // Leaving the team path clears the shareable ?team= param so other tabs
-    // aren't yanked back to team path by fetchAll re-reading the URL.
-    if (tab.dataset.view !== 'teampath') {
-      history.replaceState(null, '', window.location.pathname);
+    if (tab.dataset.view !== 'bracket' && _bracketEditMode) {
+      _bracketEditMode = false;
+      var editBtn = document.getElementById('bracketEditBtn');
+      if (editBtn) { editBtn.textContent = 'Edit'; editBtn.classList.remove('admin-btn-active'); }
     }
+    // Push the tab's canonical path (also drops the teampath ?team= param —
+    // pushState with no search string clears it).
+    history.pushState(null, '', ttTabPath(tab.dataset.view));
     renderActive();
     fetchAll(); // refresh data on every tab tap (PWA-friendly)
   });
@@ -366,6 +349,21 @@ function renderActive(){
   if(v==='teampath')  renderTeamView();
   if(v==='buckets') renderBucketView();
 }
+// Back/forward navigation between tabs pushed via ttTabPath (see the tab
+// click handler above). Slug changes never reach here — those come from a
+// fresh document load, not a popstate on this one.
+window.addEventListener('popstate', function() {
+  var tab = parseTtPath().tab || 'bracket';
+  var targetTab   = document.querySelector('.view-tab[data-view="' + tab + '"]');
+  var targetPanel = document.getElementById('view-' + tab);
+  if (!targetTab || !targetPanel) return;
+  document.querySelectorAll('.view-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.view-panel').forEach(function(p){ p.classList.remove('active'); });
+  targetTab.classList.add('active');
+  targetPanel.classList.add('active');
+  setCookie('tt_tab', tab);
+  renderActive();
+});
 
 // ══════════════════════════════════════════════════════════
 // FETCH
@@ -373,44 +371,76 @@ function renderActive(){
 // Fingerprint of the last successfully fetched data blobs.
 // Empty string means "never fetched" so the first fetch always renders.
 var _fetchFingerprint = '';
+// True once the URL-path tab (TT_ROUTE.tab, from tt-common.js) has been
+// applied on the first fetchAll(). Later calls (from our own tab clicks)
+// must not re-force the page's original path — the cookie already reflects
+// the current tab by then.
+var _routeTabApplied = false;
 
 async function fetchAll(){
   var rawTexts;
   try{
-    var [rr,sr,str,br,lr,or2,fc,tc]=await Promise.all([
-      fetch('/api/results'),
-      fetch('/api/schedule'),
-      fetch('/api/settings'),
-      fetch('/api/buckets'),
-      fetch('/api/live'),
-      fetch('/api/offsets'),
-      fetch('/api/field-colors'),
-      fetch('/api/theme-colors'),
+    var [rr,sr,str,br,lr,or2,fc,tc,tmr]=await Promise.all([
+      fetch(apiBase() + '/results'),
+      fetch(apiBase() + '/schedule'),
+      fetch(apiBase() + '/settings'),
+      fetch(apiBase() + '/buckets'),
+      fetch(apiBase() + '/live'),
+      fetch(apiBase() + '/offsets'),
+      fetch(apiBase() + '/field-colors'),
+      fetch(apiBase() + '/theme-colors'),
+      fetch(apiBase() + '/teams'),
     ]);
+    // A 404 here means an unknown tournament slug — surface it the same way
+    // as a connectivity failure (offline banner) rather than rendering a
+    // page-shaped error blob as if it were bracket data.
+    if (!rr.ok || !sr.ok || !str.ok) throw new Error('fetch failed: ' + rr.status + '/' + sr.status + '/' + str.status);
     rawTexts = await Promise.all([rr.text(), sr.text(), str.text(), br.ok ? br.text() : Promise.resolve(''), lr.ok ? lr.text() : Promise.resolve('{}'), or2.ok ? or2.text() : Promise.resolve('{"entries":[]}')]);
     results=JSON.parse(rawTexts[0]); schedule=JSON.parse(rawTexts[1]); settings=JSON.parse(rawTexts[2]);
     buckets=br.ok ? JSON.parse(rawTexts[3]) : {};
     liveScores=JSON.parse(rawTexts[4]);
     var _offParsed=JSON.parse(rawTexts[5]); _offsets=(_offParsed&&Array.isArray(_offParsed.entries))?_offParsed:{entries:[]};
     _fieldColors=fc.ok ? await fc.json() : {};
+    _teamsData = tmr.ok ? await tmr.json() : { showSeeds: false, teams: [] };
+    _seedMap = {};
+    if (_teamsData.showSeeds && Array.isArray(_teamsData.teams)) {
+      _teamsData.teams.forEach(function(t, i) { if (t && t.name) _seedMap[t.name] = i + 1; });
+    }
     _themeColors=tc.ok ? await tc.json() : {};
     if(typeof applySchedule==='function') applySchedule(schedule);
-  }catch(e){ results={}; schedule={}; settings={}; buckets={}; liveScores={}; _offsets={entries:[]}; _fieldColors={}; _themeColors={}; rawTexts=null; }
+    _rebuildFieldDefaultColors();
+    _lastResultsJson = rawTexts[0];
+    _lastLiveJson    = rawTexts[4];
+    setOffline(false);
+  }catch(e){
+    // Keep the last-good state and show the offline banner instead of
+    // wiping everything to an empty page.
+    setOffline(true);
+    rawTexts = null;
+  }
   applyThemeColors();
   applySettings();
   updateTimestamp();
   updateDelayNotice();
+  updateFlightTabs();
   populateTeamSelect();
 
   // ?view=X from lineup page tab links — consume once then strip from URL
   // so subsequent fetchAll() calls (from tab clicks) don't re-override the tab
   var qView = new URLSearchParams(window.location.search).get('view');
   if (qView) history.replaceState(null, '', window.location.pathname);
-  // Restore saved tab. With no saved preference, fall back to the admin-
-  // configured default tab. Its scope decides reach: 'both' applies the
-  // default everywhere; 'mobile' applies it only below the desktop breakpoint
-  // (desktop then keeps the HTML default, Bracket).
+  // Restore saved tab. Priority: an explicit /bracket|schedule|teampath|buckets
+  // path segment (only on the FIRST fetchAll — later calls come from our own
+  // tab clicks, which already set the cookie and pushed the new path) beats
+  // ?view=, which beats the saved cookie. With no saved preference, fall back
+  // to the admin-configured default tab. Its scope decides reach: 'both'
+  // applies the default everywhere; 'mobile' applies it only below the
+  // desktop breakpoint (desktop then keeps the HTML default, Bracket).
   var savedTab = qView || getCookie('tt_tab');
+  if (!_routeTabApplied) {
+    _routeTabApplied = true;
+    if (TT_ROUTE.tab) { savedTab = TT_ROUTE.tab; setCookie('tt_tab', savedTab); }
+  }
   if (!savedTab) {
     if (getSetting('defaultTabScope') === 'both' || window.innerWidth < 1280) {
       savedTab = getSetting('defaultTab');
@@ -484,6 +514,8 @@ window.addEventListener('orientationchange', function() {
 // ══════════════════════════════════════════════════════════
 // HELPERS
 // ══════════════════════════════════════════════════════════
+// showToast() comes from tt-common.js
+
 function gameLabel(sid){
   var g = GAMES[sid];
   return g && g.label ? g.label : sid;
@@ -491,17 +523,31 @@ function gameLabel(sid){
 
 // Small badge showing which field a game is played on (set via admin panel).
 // Returns '' when no field is assigned so cards render unchanged.
+// Mirrors FIELD_DEFAULT_COLORS in admin.js so the public bracket and admin panel
+// assign the same palette when no user-set colors exist.
+var FIELD_DEFAULT_COLORS = ['#0d9488','#ea580c','#7c3aed','#db2777','#4a90d9'];
+// Stable mapping from field name → default color, built once per fetchAll().
+var _fieldDefaultColorMap = {};
+function _rebuildFieldDefaultColors() {
+  _fieldDefaultColorMap = {};
+  var seen = [];
+  Object.keys(GAMES).forEach(function(sid) {
+    var f = GAMES[sid].field;
+    if (f && seen.indexOf(f) === -1) seen.push(f);
+  });
+  seen.sort();
+  seen.forEach(function(f, i) { _fieldDefaultColorMap[f] = FIELD_DEFAULT_COLORS[i % FIELD_DEFAULT_COLORS.length]; });
+}
+
 function fieldTagHTML(sid){
   var g = GAMES[sid];
   if (!g || !g.field) return '';
   var field = g.field;
-  var userColor = _fieldColors && _fieldColors[field];
-  if (userColor) {
-    return '<span class="game-field-tag" style="color:' + esc(userColor) + ';border-color:' + esc(userColor) + '">' + esc(field) + '</span>';
+  var color = (_fieldColors && _fieldColors[field]) || _fieldDefaultColorMap[field];
+  if (color) {
+    return '<span class="game-field-tag" style="color:' + esc(color) + ';border-color:' + esc(color) + '">' + esc(field) + '</span>';
   }
-  var num = parseInt(field.replace(/\D/g, ''), 10) || 0;
-  var cls = 'game-field-tag' + (num >= 1 && num <= 5 ? ' game-field-tag--' + num : '');
-  return '<span class="' + cls + '">' + esc(field) + '</span>';
+  return '<span class="game-field-tag">' + esc(field) + '</span>';
 }
 function gameDateHTML(dateStr) {
   var d = fmtDate(dateStr);
@@ -524,11 +570,32 @@ var CARD_RATIO=0.82, CARD_ASPECT=2.6;
 /// slotTopVh: positions a card within its round column.
 // n = max(actual game count, highest slot number used) so slots spread evenly
 // across the full column height regardless of how many SLOT_DEFS defines.
+// gridHeight: max games in any single column across the loaded bracket.
+// Drives the bracket's virtual row grid — replaces the former hardcoded 8.
+// Cached per gamesGeneration; minimum is 8 so small brackets look the same.
+var _gridHeightCache = { gen: -1, val: 8 };
+function gridHeight() {
+  var curGen = gamesGeneration;
+  if (_gridHeightCache.gen === curGen) return _gridHeightCache.val;
+  var counts = {};
+  Object.keys(GAMES).forEach(function(gid) {
+    var g = GAMES[gid];
+    if (g.round === 'CHAMP' || g.round === 'CHAMP2' || g.tier) return;
+    var k = g.round + '|' + g.side;
+    counts[k] = (counts[k] || 0) + 1;
+  });
+  var max = 8;
+  Object.keys(counts).forEach(function(k) { if (counts[k] > max) max = counts[k]; });
+  _gridHeightCache = { gen: curGen, val: max };
+  return max;
+}
+
 // _slotNCache memoizes the computed n per (round|side) key, keyed by gamesGeneration
 // so it is automatically invalidated whenever applySchedule() rebuilds GAMES.
 var _slotNCache = { gen: -1, data: {} };
 function slotTopVh(round, slot, slotVh, side) {
-  if (round === 'CHAMP' || round === 'CHAMP2') return 3.5 * slotVh;
+  var gridH = gridHeight();
+  if (round === 'CHAMP' || round === 'CHAMP2') return (gridH / 2 - 0.5) * slotVh;
   var s = side || 'L';
   var cacheKey = round + '|' + s;
   var curGen = gamesGeneration;
@@ -545,9 +612,7 @@ function slotTopVh(round, slot, slotVh, side) {
     n = Math.max(gids.length, maxSlot) || 1;
     _slotNCache.data[cacheKey] = n;
   }
-  // 8 = max games per side per round (R1 has 8); used as the grid row count so
-  // all rounds occupy the same total column height regardless of game count.
-  var spacing = 8 / n;
+  var spacing = gridH / n;
   return ((slot - 1) * spacing + spacing / 2 - 0.5) * slotVh;
 }
 function cardMidVh(round, slot, slotVh, side) {
@@ -568,7 +633,6 @@ function getDims(){
   var isDesktop = winW >= 1280;
 
   if(isDesktop){
-    var champVw=10;
     var nL=Math.max(buildSideColumns('L').length,1);
     var nR=Math.max(buildSideColumns('R').length,1);
     // 97vw = usable bracket width (nearly full window, small side margins).
@@ -578,16 +642,23 @@ function getDims(){
     // unit and the championship sits at the seam between the two brackets,
     // even when the sides have different round counts.
     var units=nL+nR+(Math.max(nL-1,0)+Math.max(nR-1,0))*0.15;
+    // Championship column has 1.6vw of fixed padding/margin, so its inner
+    // width = champVw - 1.6.  When there are few rounds, colVw grows large;
+    // in that case expand champVw so the championship card matches the rest.
+    // Solving colVw == champVw - 1.6 gives colVw = (97-1.6)/(units+1).
+    var champVw=10;
     var colVw=(97-champVw)/units;
+    if(colVw > champVw - 1.6){ colVw = 95.4/(units+1); champVw = colVw + 1.6; }
     var gapVw=colVw*0.15;
     var vwPx=window.innerWidth/100, vhPx=window.innerHeight/100;
     var cardVh=(colVw*vwPx/CARD_ASPECT)/vhPx;
     var rowVh=cardVh/3;
     if(rowVh<2.4){ rowVh=2.4; cardVh=rowVh*3; }
-    var maxCardVh=(availVh/8)*CARD_RATIO;
+    var gridH = gridHeight();
+    var maxCardVh=(availVh/gridH)*CARD_RATIO;
     if(cardVh>maxCardVh){ cardVh=maxCardVh; rowVh=cardVh/3; }
     var slotVh=cardVh/CARD_RATIO;
-    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*8,isDesktop,isMobile};
+    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*gridH,isDesktop,isMobile};
   }
 
   if(isMobile){
@@ -781,19 +852,22 @@ function cardHTML(gid){
   var t1=disp(gid,g.t1), t2=disp(gid,g.t2), r=results[gid]||{};
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
+  if(g.bye){ c1=''; c2='bye'; }   // lone team advances; opponent is the BYE slot
   var isChampSlot = gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
   var offMin = getGameOffset(gid);
   var offHTML = (offMin !== null && offMin !== 0)
     ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
     : '';
-  return '<div class="bc-hdr"><span class="bc-id">'+esc(gameLabel(gid))+'</span>'
+  return '<div class="bc-hdr">'+(g.bye?'<span class="bc-id" style="visibility:hidden">x</span>':'<span class="bc-id">'+esc(gameLabel(gid))+'</span>')
     +fieldTagHTML(gid)
     +(gameIsLive(gid)
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
         : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'+offHTML))
     +'</div>'
-    +'<div class="bc-team '+c1+'"><span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
-    +'<div class="bc-team '+c2+'"><span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>';
+    +'<div class="bc-team '+c1+'">'+seedChip(t1.name)+'<span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
+    +(g.bye
+      ? '<div class="bc-team bye"><span class="bc-bye-label">— BYE —</span></div>'
+      : '<div class="bc-team '+c2+'">'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -835,10 +909,11 @@ function connLines(conns,wVw,hVh,lc,mirror){
 // BUILD SIDE COLUMNS
 // ══════════════════════════════════════════════════════════
 function buildSideColumns(side){
-  var rounds=['R1','R2','QF','QF2','SF'];
+  var rounds=ROUND_ORDER.filter(function(r){ return r!=='CHAMP'&&r!=='CHAMP2'; });
   return rounds.map(function(round){
     var games=Object.keys(GAMES).filter(function(gid){
-      return GAMES[gid].side===side&&GAMES[gid].round===round;
+      // Tiered A/B games live in the schedule/team path, not the tree.
+      return GAMES[gid].side===side&&GAMES[gid].round===round&&!GAMES[gid].tier;
     }).map(function(gid){ return {gid:gid,slot:parseSlotId(gid).num}; })
       .sort(function(a,b){ return a.slot-b.slot; });
     return {round:round,side:side,games:games};
@@ -869,7 +944,8 @@ function computeLBPositions(slotVh) {
   var posMap = {};
   var cols = buildSideColumns('R');
   if (!cols.length) return posMap;
-  var maxTop = 8 * slotVh - slotVh * CARD_RATIO; // keep cards inside the column
+  var gridH = gridHeight();
+  var maxTop = gridH * slotVh - slotVh * CARD_RATIO; // keep cards inside the column
 
   function clamp(v) { return Math.max(0, Math.min(v, maxTop)); }
 
@@ -900,7 +976,7 @@ function computeLBPositions(slotVh) {
   if (cols.length > 1) {
     var consumers = cols[1].games; // already sorted by slot in buildSideColumns
     var vGrid = 2 * consumers.length;
-    var vSpacing = 8 / vGrid;
+    var vSpacing = gridH / vGrid;
     consumers.forEach(function(entry, idx) {
       var cg = GAMES[entry.gid];
       if (!cg) return;
@@ -957,11 +1033,38 @@ function computeLBPositions(slotVh) {
     });
   });
 
+  // ── Align LB final with WB SF for a clean horizontal championship row ──
+  // Find which WB game feeds CHAMP (there should be exactly one) and compute
+  // its top position. Then find which LB game feeds CHAMP and pin it to the
+  // same position, so both CHAMP feeders are at the same height. Since CHAMP
+  // is already hardcoded at 3.5*slotVh and the WB SF (n=1) is also naturally
+  // at 3.5*slotVh, this produces the canonical paper-bracket look.
+  var champG = GAMES['CHAMP.C.1'];
+  if (champG) {
+    var wbSFTops = [];
+    [champG.t1, champG.t2].forEach(function(slotDef) {
+      if (!slotDef || slotDef.type !== 'winner') return;
+      var fg = GAMES[slotDef.slot];
+      if (!fg || fg.side !== 'L') return;
+      var parts = slotDef.slot.split('.');
+      wbSFTops.push(slotTopVh(parts[0], parseInt(parts[2], 10), slotVh, 'L'));
+    });
+    var wbSFMidTop = wbSFTops.length
+      ? wbSFTops.reduce(function(a, b) { return a + b; }, 0) / wbSFTops.length
+      : 3.5 * slotVh;
+    [champG.t1, champG.t2].forEach(function(slotDef) {
+      if (!slotDef || slotDef.type !== 'winner') return;
+      var fg = GAMES[slotDef.slot];
+      if (!fg || fg.side !== 'R') return;
+      posMap[slotDef.slot] = clamp(wbSFMidTop);
+    });
+  }
+
   return posMap;
 }
 
 function buildConnPcts(srcCol, dstCol, slotVh, posMap) {
-  var totalVh = slotVh * 8, conns = [];
+  var totalVh = slotVh * gridHeight(), conns = [];
   function getTop(col, entry) {
     return (posMap && posMap[entry.gid] !== undefined)
       ? posMap[entry.gid]
@@ -987,25 +1090,182 @@ function buildConnPcts(srcCol, dstCol, slotVh, posMap) {
 // ══════════════════════════════════════════════════════════
 // RENDER BRACKET
 // ══════════════════════════════════════════════════════════
+// Which flight the Bracket tab is showing: 'open' (the main tree) or a tier
+// ('A'/'B') for the tiered Open/A/B format. Non-tiered tournaments stay 'open'
+// and never see the pill row.
+var _bracketFlight = 'open';
+
+// Which flight the Schedule tab's game list is filtered to: 'open' (untagged
+// games) or a tier ('A'/'B'). Mirrors _bracketFlight but is independent so
+// switching tabs doesn't clobber the other's selection.
+var _schedFlight = 'open';
+
 function renderBracket(){
   var root=document.getElementById('bracketRoot');
+  // A/B flights render as their own simple single-elim column layout (they
+  // live in R0 storage slots, outside the Open tree). Open uses the full
+  // WB/LB renderer below.
+  if (_bracketFlight === 'A' || _bracketFlight === 'B') {
+    renderFlightBracket(root, _bracketFlight);
+    return;
+  }
   var dims=getDims();
   applyCSSVars(dims);
   if(dims.isDesktop){
     renderDesktopBracket(root,dims);
+    if(_sessionRole==='admin' && _bracketEditMode) initBracketDrag(root);
   } else if(dims.isMobile){
     renderMobileBracket(root,dims);
   }
 }
 
-// ── champ2State: returns 'pending' | 'needed' | 'not-needed' ─────────
-// 'pending'    — CHAMP not yet decided; CHAMP2 may or may not be needed
-// 'needed'     — LB finalist won CHAMP; CHAMP2 must be played
-// 'not-needed' — WB finalist won CHAMP; CHAMP2 is cancelled
+// Group a flight's (tier A or B) games into columns by depth: column 0 is fed
+// only by Open losers; each later column is fed by the previous one's winners.
+function flightColumns(tier) {
+  var games = Object.keys(GAMES).filter(function(g){ return GAMES[g].tier === tier; });
+  var colOf = {};
+  function col(gid) {
+    if (colOf[gid] !== undefined) return colOf[gid];
+    colOf[gid] = 0;  // guard against cycles (shouldn't happen)
+    var g = GAMES[gid];
+    var feeders = [g.t1, g.t2].filter(function(s){
+      return s && s.slot && GAMES[s.slot] && GAMES[s.slot].tier === tier;
+    });
+    var c = feeders.length
+      ? 1 + Math.max.apply(null, feeders.map(function(s){ return col(s.slot); }))
+      : 0;
+    colOf[gid] = c;
+    return c;
+  }
+  games.forEach(col);
+  if (!games.length) return [];
+  var maxCol = Math.max.apply(null, games.map(function(g){ return colOf[g]; }));
+  var cols = [];
+  for (var i = 0; i <= maxCol; i++) cols.push([]);
+  games.forEach(function(g){ cols[colOf[g]].push(g); });
+  cols.forEach(function(c){ c.sort(function(a,b){ return parseSlotId(a).num - parseSlotId(b).num; }); });
+  return cols;
+}
+
+// Render a tier flight (A/B) as left-to-right round columns of bracket cards.
+// One layout for desktop and mobile — it scrolls horizontally when needed.
+function renderFlightBracket(root, tier) {
+  var cols = flightColumns(tier);
+  if (!cols.length) {
+    root.innerHTML = '<div class="flight-empty">No ' + esc(tier) + ' bracket games yet.</div>';
+    return;
+  }
+  var html = '<div class="flight-bracket">';
+  cols.forEach(function(gids, i) {
+    var label = (i === cols.length - 1) ? 'Final'
+      : (i === cols.length - 2 && gids.length <= 2) ? 'Semifinal'
+      : 'Round ' + (i + 1);
+    html += '<div class="flight-col"><div class="flight-col-hdr">' + esc(label) + '</div>';
+    gids.forEach(function(gid) {
+      html += '<div class="bc flight-bc" data-gid="' + esc(gid) + '">' + cardHTML(gid) + '</div>';
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+  root.innerHTML = html;
+}
+
+// Show the Open/A/B pill row only for tiered tournaments; keep the active
+// pill and _bracketFlight consistent when a flight has no games (or vanishes
+// after a schedule change).
+function updateFlightTabs() {
+  var row = document.getElementById('bracketFlights');
+  if (!row) return;
+  var hasA = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'A'; });
+  var hasB = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'B'; });
+  if (!hasA && !hasB) {
+    row.style.display = 'none';
+    _bracketFlight = 'open';
+    return;
+  }
+  row.style.display = '';
+  var aPill = row.querySelector('[data-arg="A"]');
+  var bPill = row.querySelector('[data-arg="B"]');
+  if (aPill) aPill.style.display = hasA ? '' : 'none';
+  if (bPill) bPill.style.display = hasB ? '' : 'none';
+  // Three-game format (B drop bracket, no A tier): the main tree IS the
+  // "A" bracket, so label its pill accordingly; tiered keeps "Open".
+  var mainPill = row.querySelector('[data-arg="open"]');
+  if (mainPill) mainPill.textContent = (hasB && !hasA) ? 'A Bracket' : 'Open';
+  // Chosen flight disappeared → fall back to Open.
+  if ((_bracketFlight === 'A' && !hasA) || (_bracketFlight === 'B' && !hasB)) _bracketFlight = 'open';
+  row.querySelectorAll('.flight-pill').forEach(function(p){
+    p.classList.toggle('active', p.dataset.arg === _bracketFlight);
+  });
+}
+
+function setBracketFlight(f) {
+  if (f !== 'open' && f !== 'A' && f !== 'B') return;
+  _bracketFlight = f;
+  var row = document.getElementById('bracketFlights');
+  if (row) row.querySelectorAll('.flight-pill').forEach(function(p){
+    p.classList.toggle('active', p.dataset.arg === f);
+  });
+  renderBracket();
+}
+
+// Show the Open/A/B pill row on the Schedule tab only for tiered tournaments;
+// keep the active pill and _schedFlight consistent when a flight has no
+// games (or vanishes after a schedule change). Mirrors updateFlightTabs().
+function updateScheduleFlightTabs() {
+  var row = document.getElementById('scheduleFlights');
+  if (!row) return;
+  var hasA = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'A'; });
+  var hasB = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'B'; });
+  if (!hasA && !hasB) {
+    row.style.display = 'none';
+    _schedFlight = 'open';
+    return;
+  }
+  row.style.display = '';
+  var aPill = row.querySelector('[data-arg="A"]');
+  var bPill = row.querySelector('[data-arg="B"]');
+  if (aPill) aPill.style.display = hasA ? '' : 'none';
+  if (bPill) bPill.style.display = hasB ? '' : 'none';
+  // Three-game format (B drop bracket, no A tier): the main tree IS the
+  // "A" bracket, so label its pill accordingly; tiered keeps "Open".
+  var mainPill = row.querySelector('[data-arg="open"]');
+  if (mainPill) mainPill.textContent = (hasB && !hasA) ? 'A Bracket' : 'Open';
+  // Chosen flight disappeared → fall back to Open.
+  if ((_schedFlight === 'A' && !hasA) || (_schedFlight === 'B' && !hasB)) _schedFlight = 'open';
+  row.querySelectorAll('.flight-pill').forEach(function(p){
+    p.classList.toggle('active', p.dataset.arg === _schedFlight);
+  });
+}
+
+function setSchedFlight(f) {
+  if (f !== 'open' && f !== 'A' && f !== 'B') return;
+  _schedFlight = f;
+  var row = document.getElementById('scheduleFlights');
+  if (row) row.querySelectorAll('.flight-pill').forEach(function(p){
+    p.classList.toggle('active', p.dataset.arg === f);
+  });
+  renderScheduleView();
+}
+
+// True when CHAMP2 holds a single-elim 3rd-place game (fed by semifinal
+// LOSERS) rather than a double-elim bracket reset (fed by CHAMP itself).
+function isThirdPlaceGame() {
+  var g = GAMES['CHAMP2.C.1'];
+  return !!(g && g.t1 && g.t1.type === 'loser' && g.t1.slot !== 'CHAMP.C.1');
+}
+
+// ── champ2State: 'pending' | 'needed' | 'not-needed' | 'third-place' ──
+// 'pending'     — CHAMP not yet decided; CHAMP2 may or may not be needed
+// 'needed'      — LB finalist won CHAMP; CHAMP2 must be played
+// 'not-needed'  — WB finalist won CHAMP; CHAMP2 is cancelled
+// 'third-place' — CHAMP2 is a 3rd-place game: always played, never gates
+//                 the champion banner, none of the reset UI applies
 function champ2State() {
   // No CHAMP2 game scheduled (e.g. single elimination): a bracket reset can
   // never be needed, so the champion banner must not be suppressed.
   if (!GAMES['CHAMP2.C.1']) return 'not-needed';
+  if (isThirdPlaceGame()) return 'third-place';
   var champG = GAMES['CHAMP.C.1'];
   if (!champG) return 'pending';
   var cr = results['CHAMP.C.1'] || {};
@@ -1044,8 +1304,19 @@ function renderDesktopBracket(root,dims){
           : slotTopVh(col.round,entry.slot,slotVh,col.side);
         cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" style="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
       });
+      if (_bracketEditMode) {
+        var usedSlots = {};
+        col.games.forEach(function(e) { usedSlots[e.slot] = true; });
+        var slotNums = (SLOT_DEFS[col.round] && SLOT_DEFS[col.round][col.side]) || [];
+        slotNums.forEach(function(sn) {
+          if (usedSlots[sn]) return;
+          var slotId = col.round + '.' + col.side + '.' + sn;
+          var topVh = slotTopVh(col.round, sn, slotVh, col.side);
+          cardsHTML += '<div class="bc bc-empty-slot" data-slot="'+esc(slotId)+'" style="top:'+topVh+'vh"></div>';
+        });
+      }
       html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
-        +'<div class="round-col-hdr">'+ROUND_LABELS[col.round]+'</div>'+cardsHTML+'</div>';
+        +'<div class="round-col-hdr">'+roundLabel(col.round)+'</div>'+cardsHTML+'</div>';
       if(ci<ordCols.length-1){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
@@ -1084,7 +1355,7 @@ function renderDesktopBracket(root,dims){
           ? '<div class="champ-ifnec-note">Played only if the Loser\'s Bracket finalist wins the Championship</div>'
           : '';
         ifNecHTML='<div class="champ-center--ifnec' + c2DimCls + '">'
-          +'<div class="champ-ifnec-label">If Necessary</div>'
+          +'<div class="champ-ifnec-label">' + (c2s === 'third-place' ? '3rd Place' : 'If Necessary') + '</div>'
           + c2Note
           +(champ2G.time?'<div class="champ-gametime">'+esc(formatTime(champ2G.time))+'</div>':'')
           +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" data-gid="CHAMP2.C.1" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP2.C.1')+'</div></div>'
@@ -1163,6 +1434,7 @@ function mobileRoundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
+  if (g.bye) { c1 = 'won'; c2 = 'bye'; }   // lone team advances; opponent is a greyed BYE
   var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
   if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
@@ -1182,11 +1454,11 @@ function mobileRoundCardHTML(gid) {
             + '</span>')
     + '</div>'
     + '<div class="mbc-game-team ' + c1 + '">'
-    +   '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
+    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
     +   (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     + '</div>'
     + '<div class="mbc-game-team ' + c2 + '">'
-    +   '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
+    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
     +   (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     + '</div>'
     + '</div>';
@@ -1201,6 +1473,7 @@ function roundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
+  if (g.bye) { c1 = 'won'; c2 = 'bye'; }   // lone team advances; opponent is a greyed BYE
   var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
   if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
@@ -1210,10 +1483,10 @@ function roundCardHTML(gid) {
     + gameDateHTML(dateStr)
     + timeOrLiveHTML(gid, dateStr, dowStr, timeStr)
     + '</div>'
-    + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t1.name) + '<span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
     + (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid, 1))
     + '</div>'
-    + '<div class="round-team-row"><span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t2.name) + '<span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
     + (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid, 2))
     + '</div>'
     + '</div>';
@@ -1247,15 +1520,16 @@ function renderMobileBracket(root, dims) {
   var colW  = Math.round(winW * 0.72);
   var padPx = 12;
 
-  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].filter(function(r){
-    return Object.keys(GAMES).some(function(gid){ return GAMES[gid].round===r; });
+  var rounds = ROUND_ORDER.filter(function(r){
+    // Tiered A/B games (schedule/team-path only) must not create columns.
+    return Object.keys(GAMES).some(function(gid){ return GAMES[gid].round===r && !GAMES[gid].tier; });
   });
 
   function gidsFor(round) {
     var sides = (round === 'CHAMP' || round === 'CHAMP2') ? ['C'] : ['L','R'];
     var out = [];
     sides.forEach(function(s) { out = out.concat(slotsForRoundSide(round, s)); });
-    return out;
+    return out.filter(function(gid) { return !GAMES[gid].tier; });
   }
 
   // ── Columns ────────────────────────────────────────────────────────────
@@ -1273,23 +1547,41 @@ function renderMobileBracket(root, dims) {
   //
   // divs: [{idx, label}] — dividers inserted above the game at that index.
   var cols = [];
+  // isWBGame: true when a game has no 'loser' type feeder and all advancing-slot
+  // feeders also trace back through WB games. Fixed-team games are WB by definition.
+  // Memoised per renderMobileBracket call.
+  var _wbCache = {};
+  function isWBGame(gid) {
+    if (_wbCache[gid] !== undefined) return _wbCache[gid];
+    var g = GAMES[gid];
+    if (!g) return (_wbCache[gid] = false);
+    var slots = [g.t1, g.t2].filter(function(s){ return s && s.type !== 'fixed'; });
+    // Any 'loser' slot means a WB team dropped down → LB game.
+    if (slots.some(function(s){ return s.type === 'loser'; })) return (_wbCache[gid] = false);
+    // All slots are 'winner' type — recurse to check their sources.
+    return (_wbCache[gid] = slots.every(function(s){
+      return !s.slot || isWBGame(s.slot);
+    }));
+  }
+
   rounds.forEach(function(round) {
     var gids = gidsFor(round);
     if (round === 'CHAMP' || round === 'CHAMP2') {
-      cols.push({ round: round, label: ROUND_LABELS[round], gids: gids, divs: [] });
+      cols.push({ round: round, label: roundLabel(round), gids: gids, divs: [] });
       return;
     }
 
-    // Detect single-side rounds (all games on L or all on R, not both).
-    var hasSide = {};
-    gids.forEach(function(gid) { hasSide[GAMES[gid].side] = true; });
-    var singleSide = Object.keys(hasSide).length === 1;
+    // Absorb LB-only rounds into the previous column so WB games in adjacent
+    // columns remain visually adjacent. A round is LB-only when none of its games
+    // is a WB game (detected by tracing feeder slots: any 'loser' type feeder
+    // marks a game as LB, regardless of how many bracket sides it spans).
+    var hasWB = gids.some(function(gid){ return isWBGame(gid); });
 
-    if (singleSide && cols.length > 0) {
+    if (!hasWB && cols.length > 0) {
       // Absorb into the previous column under a "Loser's Bracket" divider.
       var prev = cols[cols.length - 1];
-      prev.divs.push({ idx: prev.gids.length, label: ROUND_LABELS[round], type: 'absorbed' });
-      prev.label = prev.label + ' · ' + ROUND_LABELS[round];
+      prev.divs.push({ idx: prev.gids.length, label: roundLabel(round), type: 'absorbed' });
+      prev.label = prev.label + ' · ' + roundLabel(round);
       gids.forEach(function(gid) { prev.gids.push(gid); });
       return;
     }
@@ -1315,7 +1607,7 @@ function renderMobileBracket(root, dims) {
       if (wi) divs.push({ idx: flat.length, label: getSetting('playInLabel'), type: 'playin' });
       flat = flat.concat(wave);
     });
-    cols.push({ round: round, label: ROUND_LABELS[round], gids: flat, divs: divs });
+    cols.push({ round: round, label: roundLabel(round), gids: flat, divs: divs });
   });
 
   // ── Reorder each column so games feeding the same next-column game sit
@@ -2149,15 +2441,17 @@ function scheduleCardHTML(sid) {
     + timeOrLiveHTML(sid, dateStr, dowStr, timeStr)
     + '</div>'
     + champ2NoteHTML
-    + '<div class="round-team-row"><span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t1.name) + '<span class="round-team-name ' + c1 + '">' + esc(t1.name) + '</span>'
     + (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(sid,1))
     + '</div>'
-    + '<div class="round-team-row"><span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
+    + '<div class="round-team-row">' + seedChip(t2.name) + '<span class="round-team-name ' + c2 + '">' + esc(t2.name) + '</span>'
     + (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(sid,2))
     + '</div></div>';
 }
 
 function renderScheduleView() {
+  updateScheduleFlightTabs();
+
   // Initialise mode from settings on first render (persists for the session)
   if (scheduleMode === null) scheduleMode = getSetting('defaultScheduleGroup') || 'day';
 
@@ -2171,8 +2465,15 @@ function renderScheduleView() {
   var groupSel = document.getElementById('schedGroup');
   if (groupSel) groupSel.value = scheduleMode;
 
-  // All game IDs sorted by time (TBD games sort to end via parseTimeVal→Infinity)
-  var allSids = Object.keys(GAMES).sort(function(a, b) {
+  // All game IDs sorted by time (TBD games sort to end via parseTimeVal→Infinity).
+  // Bye games are excluded — they aren't played, so they never appear in the schedule.
+  // Also filtered to the selected Schedule flight pill (Open/A/B), same tiers
+  // as the Bracket tab's flight switcher.
+  var allSids = Object.keys(GAMES).filter(function(s) {
+    if (GAMES[s].bye) return false;
+    if (_schedFlight === 'open') return !GAMES[s].tier;
+    return GAMES[s].tier === _schedFlight;
+  }).sort(function(a, b) {
     return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time);
   });
 
@@ -2189,9 +2490,15 @@ function renderScheduleView() {
       groups.push({ id: k || 'tbd', label: k ? dayGroupLabel(k) : 'TBD', sids: byDay[k] });
     });
   } else if (scheduleMode === 'round') {
-    ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'].forEach(function(round) {
-      var sids = allSids.filter(function(s) { return GAMES[s].round === round; });
-      if (sids.length) groups.push({ id: round, label: ROUND_LABELS[round], sids: sids });
+    ['R1','R2','QF','QF2','SF','SF3','SF2','CHAMP','CHAMP2'].forEach(function(round) {
+      var sids = allSids.filter(function(s) { return GAMES[s].round === round && !GAMES[s].tier; });
+      if (sids.length) groups.push({ id: round, label: roundLabel(round), sids: sids });
+    });
+    // Tiered drop brackets (Open→A→B) group under their own headers — their
+    // storage round (R0) is meaningless to readers.
+    ['A','B'].forEach(function(tier) {
+      var sids = allSids.filter(function(s) { return GAMES[s].tier === tier; });
+      if (sids.length) groups.push({ id: 'tier' + tier, label: tier + ' Bracket', sids: sids });
     });
   } else { // field
     var byField = {}, fieldKeys = [];
@@ -2279,7 +2586,7 @@ function populateTeamSelect(){
   var teams={};
   Object.values(GAMES).forEach(function(g){
     if(g.t1&&g.t1.type==='fixed'&&g.t1.team) teams[g.t1.team]=1;
-    if(g.t2&&g.t2.type==='fixed'&&g.t2.team) teams[g.t2.team]=1;
+    if(!g.bye&&g.t2&&g.t2.type==='fixed'&&g.t2.team) teams[g.t2.team]=1;
   });
   Object.keys(teams).sort().forEach(function(name){
     var o=document.createElement('option');
@@ -2479,7 +2786,7 @@ function renderTeamView(){
     var teamNames = [];
     Object.values(GAMES).forEach(function(g){
       if(g.t1&&g.t1.type==='fixed'&&g.t1.team) teamNames.push(g.t1.team);
-      if(g.t2&&g.t2.type==='fixed'&&g.t2.team) teamNames.push(g.t2.team);
+      if(!g.bye&&g.t2&&g.t2.type==='fixed'&&g.t2.team) teamNames.push(g.t2.team);
     });
     teamNames = teamNames.filter(function(t,i,a){ return a.indexOf(t)===i; }).sort();
     if(!teamNames.length){ out.innerHTML=''; return; }
@@ -2509,6 +2816,7 @@ function renderTeamView(){
   var firstGid=null;
   occupiedSlots().forEach(function(sid){
     if(firstGid) return;
+    if(GAMES[sid].bye) return;   // a bye isn't a real game in the team's path
     if(resolveSlot(GAMES[sid].t1,results)===team||resolveSlot(GAMES[sid].t2,results)===team)
       firstGid=sid;
   });
@@ -2679,17 +2987,115 @@ document.addEventListener('click',function(e){
 });
 
 // ══════════════════════════════════════════════════════════
+// ADMIN DRAG-AND-DROP (desktop bracket only)
+// ══════════════════════════════════════════════════════════
+function initBracketDrag(root) {
+  var dragState = null;
+  var ghost     = null;
+  var overEl    = null;
+
+  root.querySelectorAll('.bc[data-gid]').forEach(function(card) {
+    card.style.cursor = 'grab';
+    card.addEventListener('pointerdown', onDown);
+  });
+
+  function onDown(e) {
+    if (e.button !== 0 || dragState) return;
+    var card = e.currentTarget;
+    var gid  = card.dataset.gid;
+    if (!gid) return;
+    e.preventDefault();
+
+    var rect = card.getBoundingClientRect();
+    dragState = { el: card, gid: gid, offX: e.clientX - rect.left, offY: e.clientY - rect.top };
+
+    ghost = card.cloneNode(true);
+    ghost.removeAttribute('data-gid');
+    ghost.className = 'bc bc-drag-ghost';
+    ghost.style.cssText = 'position:fixed;pointer-events:none;z-index:9999;'
+      + 'width:' + rect.width + 'px;height:' + rect.height + 'px;'
+      + 'left:' + (e.clientX - dragState.offX) + 'px;top:' + (e.clientY - dragState.offY) + 'px;';
+    document.body.appendChild(ghost);
+    card.classList.add('bc-dragging');
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup',   onUp);
+    document.addEventListener('pointercancel', onCancel);
+  }
+
+  function onMove(e) {
+    if (!dragState) return;
+    ghost.style.left = (e.clientX - dragState.offX) + 'px';
+    ghost.style.top  = (e.clientY - dragState.offY) + 'px';
+
+    // Briefly hide ghost so elementsFromPoint can see what's underneath.
+    ghost.style.display = 'none';
+    var els = document.elementsFromPoint(e.clientX, e.clientY);
+    ghost.style.display = '';
+
+    var target = null;
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (!el.classList || !el.classList.contains('bc')) continue;
+      if (el.dataset.gid && el !== dragState.el) { target = el; break; }
+      if (el.dataset.slot) { target = el; break; }
+    }
+    if (overEl && overEl !== target) overEl.classList.remove('bc-drop-target');
+    overEl = target;
+    if (overEl) overEl.classList.add('bc-drop-target');
+  }
+
+  function onUp() {
+    var src = dragState, tgt = overEl;
+    cleanup();
+    if (!tgt || !src) return;
+    var targetId = tgt.dataset.gid || tgt.dataset.slot;
+    if (!targetId || targetId === src.gid) return;
+
+    fetch(apiBase() + '/schedule/swap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slotA: src.gid, slotB: targetId })
+    }).then(function(r) {
+      return r.ok ? r.json() : r.json().then(function(d) { throw new Error(d.error || r.status); });
+    }).then(function() {
+      return fetch(apiBase() + '/schedule', { cache: 'no-store' }).then(function(r) { return r.json(); });
+    }).then(function(sched) {
+      schedule = sched;
+      if (typeof applySchedule === 'function') applySchedule(schedule);
+      _rebuildFieldDefaultColors();
+      renderBracket();
+    }).catch(function(err) {
+      showToast('Swap failed: ' + (err.message || 'unknown error'), true);
+    });
+  }
+
+  function onCancel() { cleanup(); }
+
+  function cleanup() {
+    if (ghost)     { ghost.remove(); ghost = null; }
+    if (dragState) { dragState.el.classList.remove('bc-dragging'); dragState = null; }
+    if (overEl)    { overEl.classList.remove('bc-drop-target'); overEl = null; }
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup',   onUp);
+    document.removeEventListener('pointercancel', onCancel);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
 // INIT
 // ══════════════════════════════════════════════════════════
-fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(function(sess) {
+fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).then(function(sess) {
   _sessionRole = sess.role || null;
   var isPwa    = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
-  var adminBtn  = document.getElementById('adminPortalBtn');
-  var lineupBtn = document.getElementById('lineupPortalBtn');
-  var editBtn   = document.getElementById('bucketEditBtn');
-  if (adminBtn)  adminBtn.style.display  = (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
-  if (lineupBtn) lineupBtn.style.display = (_sessionRole === 'team') ? '' : 'none';
-  if (editBtn)   editBtn.style.display   = (_sessionRole === 'buckets') ? '' : 'none';
+  var adminBtn       = document.getElementById('adminPortalBtn');
+  var lineupBtn      = document.getElementById('lineupPortalBtn');
+  var editBtn        = document.getElementById('bucketEditBtn');
+  var bracketEditBtn = document.getElementById('bracketEditBtn');
+  if (adminBtn)       adminBtn.style.display       = (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
+  if (lineupBtn)      lineupBtn.style.display      = (_sessionRole === 'team') ? '' : 'none';
+  if (editBtn)        editBtn.style.display        = (_sessionRole === 'buckets') ? '' : 'none';
+  if (bracketEditBtn) bracketEditBtn.style.display = (_sessionRole === 'admin') ? '' : 'none';
   // PWA home preference: redirect to admin if user prefers it and is in standalone mode
   if (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) {
     var pref; try { pref = localStorage.getItem('ttPwaHome'); } catch(e) {}
@@ -2697,3 +3103,50 @@ fetch('/api/session').then(function(r){ return r.ok ? r.json() : {}; }).then(fun
   }
 }).catch(function(){});
 fetchAll();
+
+// ── Live refresh ──────────────────────────────────────────────────────
+// Poll only the fast-changing endpoints (live scores + results) while the
+// tab is visible; a full fetchAll() catches everything else up whenever the
+// tab becomes visible again (phone unlock, app switch). Renders only when
+// the payload actually changed, and never auto-scrolls.
+var LIVE_POLL_MS = 20000;
+var _lastLiveJson = null, _lastResultsJson = null;
+
+function renderActiveNoScroll() {
+  var v = activeView();
+  updateTimestamp();
+  if (v === 'bracket')  renderBracket();
+  if (v === 'schedule') renderScheduleView();
+  if (v === 'teampath') renderTeamView();
+  if (v === 'buckets')  renderBucketView();
+}
+
+async function pollLive() {
+  if (document.visibilityState !== 'visible') return;
+  try {
+    var [lr, rr] = await Promise.all([fetch(apiBase() + '/live'), fetch(apiBase() + '/results')]);
+    if (!lr.ok || !rr.ok) return;
+    var lt = await lr.text(), rt = await rr.text();
+    var changed = (lt !== _lastLiveJson) || (rt !== _lastResultsJson);
+    _lastLiveJson = lt; _lastResultsJson = rt;
+    setOffline(false);
+    if (!changed) return;
+    liveScores = JSON.parse(lt);
+    results    = JSON.parse(rt);
+    renderActiveNoScroll();
+  } catch (e) { setOffline(true); }
+}
+setInterval(pollLive, LIVE_POLL_MS);
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') fetchAll();
+});
+
+// ── Delegated actions (see tt-common.js) ──────────────────────────────
+Object.assign(TT_ACTIONS, {
+  toggleBracketEdit: function() { toggleBracketEdit(); },
+  enterBucketEdit:   function() { enterBucketEdit(); },
+  saveBucketEdit:    function() { saveBucketEdit(); },
+  exitBucketEdit:    function() { exitBucketEdit(); },
+  setFlight:         function(arg) { setBracketFlight(arg); },
+  setSchedFlight:    function(arg) { setSchedFlight(arg); },
+});

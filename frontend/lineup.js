@@ -8,60 +8,126 @@ var currentSlotId   = null;
 var isReadOnly      = false;
 var lineupResults   = {};
 
-var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH'];
+// ── Sport presets (v4) ─────────────────────────────────────────────────
+// Column layout is chosen per tournament via the lineupPreset setting
+// ('custom' reads labels from lineupCustomCols). kinds: 'num' = narrow
+// numeric input, 'text' = name-style input, 'pos' = select from options.
+// Custom columns map positionally onto the stored row keys so old data
+// stays readable and the server's field clamps still apply.
+var LINEUP_PRESETS = {
+  softball: { rows: 11, subs: true, cols: [
+    { key: 'jersey',   label: '#',           kind: 'num'  },
+    { key: 'name',     label: 'Player Name', kind: 'text' },
+    { key: 'position', label: 'Position',    kind: 'pos', options: ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH'] },
+  ]},
+  volleyball: { rows: 6, subs: true, cols: [
+    { key: 'jersey',   label: '#',           kind: 'num'  },
+    { key: 'name',     label: 'Player Name', kind: 'text' },
+    { key: 'position', label: 'Position',    kind: 'pos', options: ['', 'S', 'OH', 'MB', 'OPP', 'L', 'DS'] },
+  ]},
+  basketball: { rows: 5, subs: true, cols: [
+    { key: 'jersey',   label: '#',           kind: 'num'  },
+    { key: 'name',     label: 'Player Name', kind: 'text' },
+    { key: 'position', label: 'Position',    kind: 'pos', options: ['', 'PG', 'SG', 'SF', 'PF', 'C'] },
+  ]},
+  generic: { rows: 10, subs: false, cols: [
+    { key: 'jersey', label: '#',           kind: 'num'  },
+    { key: 'name',   label: 'Player Name', kind: 'text' },
+  ]},
+};
+var LINEUP_CUSTOM_KEYS = ['jersey', 'name', 'position', 'extra'];
 
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+function lineupConfig() {
+  var preset = getSetting('lineupPreset') || 'softball';
+  if (preset === 'custom') {
+    var labels = String(getSetting('lineupCustomCols') || '')
+      .split(',').map(function(x) { return x.trim(); }).filter(Boolean).slice(0, 4);
+    if (labels.length) {
+      return { rows: 10, subs: false, cols: labels.map(function(lbl, i) {
+        return { key: LINEUP_CUSTOM_KEYS[i], label: lbl,
+                 kind: (i === 0 && /(^#|#$|\bno\.?$)/i.test(lbl)) ? 'num' : 'text' };
+      }) };
+    }
+  }
+  return LINEUP_PRESETS[preset] || LINEUP_PRESETS.softball;
 }
 
-function posOptions(selected) {
-  return POSITIONS.map(function(p) {
-    var sel = p === (selected || '') ? ' selected' : '';
+// Render the table header to match the active column config. Both the
+// standalone page and the admin-embedded panel carry a #lineupHead row.
+function renderLineupHead() {
+  var head = document.getElementById('lineupHead');
+  if (!head) return;
+  var cfg = lineupConfig();
+  head.innerHTML = '<th class="lineup-th lineup-th--order"></th>'
+    + cfg.cols.map(function(c) {
+        var cls = c.kind === 'num' ? 'lineup-th--num' : c.kind === 'pos' ? 'lineup-th--pos' : 'lineup-th--name';
+        return '<th class="lineup-th ' + cls + '">' + esc(c.label) + '</th>';
+      }).join('');
+}
+
+// esc() comes from tt-common.js
+
+// ── Tournament scoping ─────────────────────────────────────────────────
+// The coach magic link lands here with ?t=<slug> when their team belongs to
+// a non-default tournament (see /api/team-access). All data fetches then go
+// through the scoped mount. The /lineup nav link preserves the parameter so
+// the scope survives internal navigation.
+var _lineupSlug = new URLSearchParams(window.location.search).get('t') || null;
+function lineupApiBase() {
+  // Embedded in /admin: follow the header tournament switcher instead.
+  if (typeof adminApiBase === 'function') return adminApiBase();
+  return _lineupSlug ? '/api/t/' + encodeURIComponent(_lineupSlug) : '/api';
+}
+
+function posOptions(selected, options) {
+  return (options || []).map(function(p) {
+    var sel = (p === (selected || '')) ? ' selected' : '';
     return '<option value="' + p + '"' + sel + '>' + (p || '—') + '</option>';
   }).join('');
 }
 
-var lineupRowCount  = 11;
-var isReorderMode   = false;
-var reorderSelected = -1; // index of the tapped row waiting for a swap target
+var lineupRowCount  = 11;  // reset to lineupConfig().rows once settings load
+var isReorderMode = false;
 
 function buildRows(rows, readOnly) {
-  var html  = '';
-  var dis   = readOnly ? ' disabled' : '';
-  var count = lineupRowCount;
-  for (var i = 0; i < count; i++) {
+  var html = '';
+  var dis  = readOnly ? ' disabled' : '';
+  var cfg  = lineupConfig();
+  renderLineupHead();
+  for (var i = 0; i < lineupRowCount; i++) {
     var r     = (rows && rows[i]) ? rows[i] : {};
-    var isSub = i >= 11;
+    var isSub = cfg.subs && i >= cfg.rows;
     var rowCls = 'lineup-row' + (isSub ? ' lineup-row--sub' : '');
     var orderCell;
     if (isReorderMode) {
-      var isSelected = (i === reorderSelected);
-      rowCls += isSelected ? ' lineup-row--selected' : '';
-      orderCell = '<td class="lineup-td-order lineup-td-order--reorder" onclick="tapRow(' + i + ')">'
-        + '<span class="lineup-order lineup-order--tap">' + (i + 1) + '</span>'
+      orderCell = '<td class="lineup-td-order lineup-td-order--reorder">'
+        + '<span class="lineup-drag-handle"></span>'
         + '</td>';
     } else {
       orderCell = '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>';
     }
-    html += '<tr class="' + rowCls + '"' + (isReorderMode ? ' onclick="tapRow(' + i + ')"' : '') + '>'
-      + orderCell
-      + '<td class="lineup-td-num"><input type="text" class="lineup-inp lineup-inp--num" id="lj-' + i + '" maxlength="4" value="' + esc(r.jersey || '') + '" placeholder="#" inputmode="numeric"' + dis + '></td>'
-      + '<td class="lineup-td-name"><input type="text" class="lineup-inp lineup-inp--name" id="ln-' + i + '" maxlength="64" value="' + esc(r.name || '') + '" placeholder="Player name"' + dis + '></td>'
-      + '<td class="lineup-td-pos">';
-    if (isSub) {
-      html += '<span class="lineup-sub-tag">Sub</span>';
-    } else {
-      html += '<select class="lineup-sel" id="lp-' + i + '"' + dis + '>' + posOptions(r.position) + '</select>';
-    }
-    html += '</td></tr>';
+    html += '<tr class="' + rowCls + '"' + (isReorderMode ? ' data-idx="' + i + '"' : '') + '>' + orderCell;
+    cfg.cols.forEach(function(c, ci) {
+      var id = 'lc' + ci + '-' + i;
+      if (c.kind === 'pos') {
+        html += '<td class="lineup-td-pos">'
+          + (isSub ? '<span class="lineup-sub-tag">Sub</span>'
+                   : '<select class="lineup-sel" id="' + id + '"' + dis + '>' + posOptions(r[c.key], c.options) + '</select>')
+          + '</td>';
+      } else if (c.kind === 'num') {
+        html += '<td class="lineup-td-num"><input type="text" class="lineup-inp lineup-inp--num" id="' + id + '" maxlength="4" value="' + esc(r[c.key] || '') + '" placeholder="#" inputmode="numeric"' + dis + '></td>';
+      } else {
+        html += '<td class="lineup-td-name"><input type="text" class="lineup-inp lineup-inp--name" id="' + id + '" maxlength="64" value="' + esc(r[c.key] || '') + '" placeholder="' + esc(c.label) + '"' + dis + '></td>';
+      }
+    });
+    html += '</tr>';
   }
   return html;
 }
 
 // ── Reorder ────────────────────────────────────────────────────────────
 function toggleReorder() {
-  isReorderMode   = !isReorderMode;
-  reorderSelected = -1;
+  isReorderMode = !isReorderMode;
   var btn = document.getElementById('lineupReorderBtn');
   if (btn) {
     btn.textContent = isReorderMode ? 'Done' : 'Reorder';
@@ -70,38 +136,94 @@ function toggleReorder() {
   }
   var rows = getCurrentRows();
   document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+  if (isReorderMode) initLineupDrag();
 }
 
-function tapRow(idx) {
-  if (!isReorderMode) return;
-  if (reorderSelected === -1) {
-    // First tap: select this row
-    reorderSelected = idx;
-    var rows = getCurrentRows();
-    document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
-  } else if (reorderSelected === idx) {
-    // Tap same row: deselect
-    reorderSelected = -1;
-    var rows = getCurrentRows();
-    document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
-  } else {
-    var rows = getCurrentRows();
-    var a = reorderSelected, b = idx;
-    var bothRegular = (a < 11 && b < 11);
-    var tmpJersey    = rows[a].jersey;
-    var tmpName      = rows[a].name;
-    var tmpPosition  = rows[a].position;
-    rows[a].jersey   = rows[b].jersey;
-    rows[a].name     = rows[b].name;
-    rows[b].jersey   = tmpJersey;
-    rows[b].name     = tmpName;
-    if (bothRegular) {
-      rows[a].position = rows[b].position;
-      rows[b].position = tmpPosition;
+function initLineupDrag() {
+  document.querySelectorAll('#lineupBody .lineup-drag-handle').forEach(function(handle) {
+    handle.addEventListener('pointerdown', function(e) {
+      e.preventDefault();
+      handle.setPointerCapture(e.pointerId);
+      var row = handle.closest('tr');
+      if (row) lineupDragStart(row, e);
+    });
+  });
+}
+
+function lineupDragStart(srcRow, e) {
+  var tbody  = srcRow.parentElement;
+  var srcIdx = parseInt(srcRow.dataset.idx, 10);
+  var rowRect = srcRow.getBoundingClientRect();
+  var offsetY = e.clientY - rowRect.top;
+
+  var ghostTable = document.createElement('table');
+  ghostTable.className = 'lineup-table';
+  ghostTable.style.borderCollapse = 'collapse';
+  var ghostTbody = document.createElement('tbody');
+  ghostTbody.appendChild(srcRow.cloneNode(true));
+  ghostTable.appendChild(ghostTbody);
+  Object.assign(ghostTable.style, {
+    position: 'fixed', left: rowRect.left + 'px', top: rowRect.top + 'px',
+    width: rowRect.width + 'px', zIndex: '9999', pointerEvents: 'none',
+    opacity: '0.45', transform: 'rotate(1deg)',
+    boxShadow: '0 8px 28px rgba(0,0,0,0.5)', transition: 'none'
+  });
+  document.body.appendChild(ghostTable);
+  srcRow.style.opacity = '0.08';
+
+  var lastInsertBeforeIdx = null;
+
+  function onMove(e2) {
+    e2.preventDefault();
+    ghostTable.style.top = (e2.clientY - offsetY) + 'px';
+    tbody.querySelectorAll('tr.lineup-row').forEach(function(r) {
+      r.classList.remove('drop-before', 'drop-after');
+    });
+    var rows = Array.from(tbody.querySelectorAll('tr.lineup-row'));
+    if (!rows.length) return;
+    var insertBeforeRow = null;
+    for (var i = 0; i < rows.length; i++) {
+      var rect = rows[i].getBoundingClientRect();
+      if (e2.clientY < rect.top + rect.height / 2) { insertBeforeRow = rows[i]; break; }
     }
-    reorderSelected  = -1;
-    document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+    if (insertBeforeRow) {
+      insertBeforeRow.classList.add('drop-before');
+      lastInsertBeforeIdx = parseInt(insertBeforeRow.dataset.idx, 10);
+    } else {
+      rows[rows.length - 1].classList.add('drop-after');
+      lastInsertBeforeIdx = lineupRowCount;
+    }
   }
+
+  function cleanup() {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onCancel);
+    ghostTable.remove();
+    srcRow.style.opacity = '';
+    tbody.querySelectorAll('tr.lineup-row').forEach(function(r) {
+      r.classList.remove('drop-before', 'drop-after');
+    });
+  }
+
+  function onCancel() { cleanup(); }
+
+  function onUp() {
+    cleanup();
+    if (lastInsertBeforeIdx !== null && lastInsertBeforeIdx !== srcIdx && lastInsertBeforeIdx !== srcIdx + 1) {
+      var rows = getCurrentRows();
+      var moved = rows.splice(srcIdx, 1)[0];
+      var insertAt = lastInsertBeforeIdx;
+      if (srcIdx < insertAt) insertAt--;
+      rows.splice(insertAt, 0, moved);
+      document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+      initLineupDrag();
+    }
+  }
+
+  document.addEventListener('pointermove', onMove, { passive: false });
+  document.addEventListener('pointerup', onUp);
+  document.addEventListener('pointercancel', onCancel);
 }
 
 // ── Import ─────────────────────────────────────────────────────────────
@@ -116,7 +238,7 @@ async function openImport() {
   overlay.style.display = 'flex';
 
   try {
-    var r    = await fetch('/api/lineups/by-team/' + encodeURIComponent(viewedTeamName));
+    var r    = await fetch(lineupApiBase() + '/lineups/by-team/' + encodeURIComponent(viewedTeamName));
     var data = r.ok ? await r.json() : {};
     _importData = data;
 
@@ -151,8 +273,11 @@ function closeImport(e) {
 }
 
 function hasCurrentData() {
+  var cfg = lineupConfig();
+  var nameIdx = cfg.cols.findIndex(function(c) { return c.kind === 'text'; });
+  if (nameIdx === -1) nameIdx = 0;
   for (var i = 0; i < lineupRowCount; i++) {
-    var n = document.getElementById('ln-' + i);
+    var n = document.getElementById('lc' + nameIdx + '-' + i);
     if (n && n.value.trim()) return true;
   }
   return false;
@@ -166,7 +291,7 @@ function confirmImport() {
 
   var doImport = function() {
     var rows = (_importData[sid].rows || []).slice();
-    lineupRowCount = Math.max(11, rows.length);
+    lineupRowCount = Math.max(lineupConfig().rows, rows.length);
     document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
     updateSubButtons();
     document.getElementById('lineupImportOverlay').style.display = 'none';
@@ -179,15 +304,15 @@ function confirmImport() {
 
 function getCurrentRows() {
   var rows = [];
+  var cfg  = lineupConfig();
   for (var i = 0; i < lineupRowCount; i++) {
-    var j = document.getElementById('lj-' + i);
-    var n = document.getElementById('ln-' + i);
-    var p = document.getElementById('lp-' + i);
-    rows.push({
-      jersey:   j ? j.value : '',
-      name:     n ? n.value : '',
-      position: i >= 11 ? 'Sub' : (p ? p.value : ''),
+    var row = {};
+    var isSub = cfg.subs && i >= cfg.rows;
+    cfg.cols.forEach(function(c, ci) {
+      var el = document.getElementById('lc' + ci + '-' + i);
+      row[c.key] = (c.kind === 'pos' && isSub) ? 'Sub' : (el ? el.value : '');
     });
+    rows.push(row);
   }
   return rows;
 }
@@ -195,13 +320,13 @@ function getCurrentRows() {
 function addSubRow() {
   var rows = getCurrentRows();
   lineupRowCount++;
-  rows.push({ jersey: '', name: '', position: 'Sub' });
+  rows.push({ jersey: '', name: '', position: 'Sub', extra: '' });
   document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
   updateSubButtons();
 }
 
 function deleteSubRow() {
-  if (lineupRowCount <= 11) return;
+  if (lineupRowCount <= lineupConfig().rows) return;
   var rows = getCurrentRows();
   lineupRowCount--;
   rows.pop();
@@ -211,22 +336,23 @@ function deleteSubRow() {
 
 function updateSubButtons(readOnly) {
   var ro     = (readOnly !== undefined) ? readOnly : isReadOnly;
+  var cfg    = lineupConfig();
+  var hideSubs = ro || !cfg.subs;
   var addBtn = document.getElementById('lineupAddSubBtn');
   var delBtn = document.getElementById('lineupDelSubBtn');
-  if (addBtn) addBtn.style.display = ro ? 'none' : '';
+  if (addBtn) addBtn.style.display = hideSubs ? 'none' : '';
   if (delBtn) {
-    delBtn.style.display = ro ? 'none' : '';
-    delBtn.disabled      = lineupRowCount <= 11;
+    delBtn.style.display = hideSubs ? 'none' : '';
+    delBtn.disabled      = lineupRowCount <= cfg.rows;
   }
   // Tool buttons (Import / Reorder) only shown when editable
   var tools = document.getElementById('lineupTools');
   if (tools) tools.style.display = ro ? 'none' : '';
   // Reset reorder mode when game changes
   if (ro && isReorderMode) {
-    isReorderMode   = false;
-    reorderSelected = -1;
+    isReorderMode = false;
     var rb = document.getElementById('lineupReorderBtn');
-    if (rb) rb.textContent = 'Reorder';
+    if (rb) { rb.textContent = 'Reorder'; rb.classList.replace('lineup-tool-btn--done', 'lineup-tool-btn--reorder'); }
   }
 }
 
@@ -259,17 +385,7 @@ function findTeamGames(teamName) {
   return games;
 }
 
-function getScheduleTeams() {
-  var teams = [];
-  if (typeof GAMES !== 'undefined') {
-    Object.values(GAMES).forEach(function(g) {
-      if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams.push(g.t1.team);
-      if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams.push(g.t2.team);
-    });
-    teams = teams.filter(function(t, i, a) { return a.indexOf(t) === i; }).sort();
-  }
-  return teams;
-}
+// getScheduleTeams() comes from tt-common.js
 
 function gameOptionLabel(slotId, teamName) {
   var g = GAMES[slotId];
@@ -340,13 +456,13 @@ async function loadLineupForGame(slotId, teamName, readOnly, readOnlyReason) {
   if (statusEl) statusEl.textContent = '';
 
   try {
-    var r    = await fetch('/api/lineups/game/' + encodeURIComponent(slotId) + '/' + encodeURIComponent(teamName));
+    var r    = await fetch(lineupApiBase() + '/lineups/game/' + encodeURIComponent(slotId) + '/' + encodeURIComponent(teamName));
     var data = r.ok ? await r.json() : { rows: [] };
     var rows = data.rows || [];
-    lineupRowCount = Math.max(11, rows.length);
+    lineupRowCount = Math.max(lineupConfig().rows, rows.length);
     document.getElementById('lineupBody').innerHTML = buildRows(rows, readOnly);
   } catch(e) {
-    lineupRowCount = 11;
+    lineupRowCount = lineupConfig().rows;
     document.getElementById('lineupBody').innerHTML = buildRows([], readOnly);
   }
   updateSubButtons(readOnly);
@@ -360,7 +476,7 @@ async function submitLineup() {
   var rows = getCurrentRows();
   try {
     var r = await fetch(
-      '/api/lineups/game/' + encodeURIComponent(currentSlotId) + '/' + encodeURIComponent(viewedTeamName),
+      lineupApiBase() + '/lineups/game/' + encodeURIComponent(currentSlotId) + '/' + encodeURIComponent(viewedTeamName),
       { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rows: rows }) }
     );
     if (r.ok) {
@@ -409,7 +525,7 @@ function buildNavBar(role) {
 
     var tabs = [
       { label: 'Results',  icon: 'results',  href: '/admin?tab=results'  },
-      { label: 'Lineups',  icon: 'lineups',  href: '/lineup', active: true },
+      { label: 'Lineups',  icon: 'lineups',  href: _lineupSlug ? '/lineup?t=' + encodeURIComponent(_lineupSlug) : '/lineup', active: true },
     ];
     if (role === 'admin') {
       tabs.push({ label: 'Schedule', icon: 'schedule', href: '/admin?tab=schedule' });
@@ -443,34 +559,7 @@ function buildNavBar(role) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  // Theme: only manage it on the standalone lineup page. On the admin page
-  // admin.js already owns the toggle (sets __ttThemeManaged); binding a second
-  // click handler here would double-toggle and cancel admin's out.
-  if (!window.__ttThemeManaged) {
-    var themeBtn = document.getElementById('themeToggle');
-    var mq = window.matchMedia('(prefers-color-scheme: light)');
-    var PREF_KEY = 'tt_theme';
-    function storageGet(k)    { try { return localStorage.getItem(k); } catch(e) {} try { return sessionStorage.getItem(k); } catch(e2) { return null; } }
-    function storageSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} try { sessionStorage.setItem(k, v); } catch(e2) {} }
-    function applyLight(light) {
-      document.body.classList.toggle('light', light);
-      if (themeBtn) themeBtn.textContent = light ? '🌙 Dark' : '☀ Light';
-    }
-    var saved = storageGet(PREF_KEY);
-    var _userPicked = saved !== null;
-    applyLight(_userPicked ? saved === 'light' : mq.matches);
-    mq.addEventListener('change', function(e) { if (!_userPicked) applyLight(e.matches); });
-    if (themeBtn) {
-      var toggleTheme = function() {
-        _userPicked = true;
-        var nowLight = !document.body.classList.contains('light');
-        applyLight(nowLight);
-        storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
-      };
-      themeBtn.addEventListener('click', toggleTheme);
-      themeBtn.addEventListener('touchend', function(e) { e.preventDefault(); toggleTheme(); });
-    }
-  }
+  // Theme toggle is managed by tt-common.js.
 
   var teamSel = document.getElementById('lineupTeamSel');
   if (teamSel) {
@@ -503,21 +592,31 @@ document.addEventListener('DOMContentLoaded', function() {
 async function lineupInit() {
   setAppHeight();
   try {
-    var sr      = await fetch('/api/session');
+    var sr      = await fetch(lineupApiBase() + '/session');  // scoped: role/teams are per-tournament
     var session = await sr.json();
     document.getElementById('lineupLoading').style.display = 'none';
 
     if (new URLSearchParams(window.location.search).get('invalid')) {
-      document.getElementById('lineupInvalid').style.display = '';
+      showLineupGate(session);
       return;
     }
     if (!session.authenticated || !['team', 'admin', 'results'].includes(session.role)) {
-      document.getElementById('lineupInvalid').style.display = '';
+      // Signed in (e.g. via password) but this mount's tournament isn't
+      // theirs — follow the team grant to its tournament and retry there.
+      if (session.authenticated && Array.isArray(session.tournaments)) {
+        var tg = session.tournaments.find(function(x) { return x.role === 'team'; });
+        if (tg && tg.slug !== _lineupSlug) {
+          window.location.replace('/lineup?t=' + encodeURIComponent(tg.slug));
+          return;
+        }
+      }
+      showLineupGate(session);
       return;
     }
 
     isAdmin         = session.role === 'admin' || session.role === 'results';
     buildNavBar(session.role);
+    if (session.role === 'team') setupCoachAccountBtn(!!session.hasPassword);
     currentTeamName = session.teamName || null;
     myTeams = isAdmin
       ? [] // admin can edit any team — checked in isSlotEditable
@@ -530,13 +629,17 @@ async function lineupInit() {
     document.getElementById('lineupContent').style.display = '';
 
     var [rr, schedR, settingsR] = await Promise.all([
-      fetch('/api/results'),
-      fetch('/api/schedule'),
-      fetch('/api/settings'),
+      fetch(lineupApiBase() + '/results'),
+      fetch(lineupApiBase() + '/schedule'),
+      fetch(lineupApiBase() + '/settings'),
     ]);
     lineupResults    = rr.ok       ? await rr.json()       : {};
     var sched        = schedR.ok   ? await schedR.json()   : {};
     var settingsData = settingsR.ok ? await settingsR.json() : {};
+    // Publish for getSetting()/lineupConfig() — the standalone page has no
+    // other owner of the settings global (admin.js owns it when embedded).
+    window.settings = settingsData;
+    lineupRowCount = lineupConfig().rows;
 
     if (typeof applySchedule === 'function') applySchedule(sched);
 
@@ -598,4 +701,135 @@ async function lineupInit() {
   }
 }
 
+// ── Coach password auth (standalone page only) ─────────────────────────
+// Coaches normally arrive via magic link; setting a password is OPTIONAL and
+// gives them a second door (the sign-in form on the access gate below) if
+// the link is lost. The magic link keeps working either way.
+
+// Access gate: the invalid/unauthenticated state plus the sign-in form.
+function showLineupGate(session) {
+  var invalidParam = new URLSearchParams(window.location.search).get('invalid');
+  if (!invalidParam) {
+    // Not a broken magic link — a plain visit with no (usable) session, so
+    // don't alarm with "Link Invalid".
+    var t = document.getElementById('lineupInvalidTitle');
+    var b = document.getElementById('lineupInvalidBody');
+    if (t) t.textContent = 'Coach Access';
+    if (b) b.textContent = 'Open your team\'s access link, or sign in below if you\'ve set a password.';
+  }
+  document.getElementById('lineupInvalid').style.display = '';
+  var wrap = document.getElementById('coachLoginWrap');
+  if (wrap) wrap.style.display = '';
+}
+
+async function doCoachLogin(e) {
+  if (e) e.preventDefault();
+  var user  = document.getElementById('coachLoginUser').value;
+  var pass  = document.getElementById('coachLoginPass').value;
+  var btn   = document.getElementById('coachLoginBtn');
+  var errEl = document.getElementById('coachLoginError');
+  btn.disabled = true;
+  errEl.style.display = 'none';
+  try {
+    // Login is tournament-agnostic; after the reload lineupInit follows the
+    // team grant to the right tournament (the redirect in its gate check).
+    var r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass })
+    });
+    if (r.ok) {
+      var url = new URL(window.location.href);
+      url.searchParams.delete('invalid');
+      window.location.replace(url.pathname + url.search);
+      return;
+    }
+    var data = await r.json().catch(function(){ return {}; });
+    errEl.textContent = data.error || 'Login failed';
+    errEl.style.display = 'block';
+  } catch(err) {
+    errEl.textContent = 'Network error — try again';
+    errEl.style.display = 'block';
+  }
+  btn.disabled = false;
+}
+
+function setupCoachAccountBtn(hasPassword) {
+  var btn = document.getElementById('coachAccountBtn');
+  if (!btn) return;   // embedded in /admin — staff manage passwords in Settings
+  btn.textContent = hasPassword ? 'Change Password' : 'Set Password';
+  btn.style.display = '';
+  var title = document.getElementById('coachPwTitle');
+  if (title) title.textContent = hasPassword ? 'Change Your Password' : 'Set a Password';
+}
+
+function openCoachPw() {
+  document.getElementById('coachPwNew1').value = '';
+  document.getElementById('coachPwNew2').value = '';
+  var errEl = document.getElementById('coachPwError');
+  errEl.style.display = 'none';
+  errEl.style.color = '';
+  document.getElementById('coachPwOverlay').style.display = '';
+}
+
+function closeCoachPw(e) {
+  if (e && e.target !== document.getElementById('coachPwOverlay')) return;
+  document.getElementById('coachPwOverlay').style.display = 'none';
+}
+
+async function saveCoachPw() {
+  var p1    = document.getElementById('coachPwNew1').value;
+  var p2    = document.getElementById('coachPwNew2').value;
+  var errEl = document.getElementById('coachPwError');
+  errEl.style.display = 'none';
+  errEl.style.color = '';
+  if (p1.length < 8) {
+    errEl.textContent = 'Password must be at least 8 characters';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (p1 !== p2) {
+    errEl.textContent = 'Passwords do not match';
+    errEl.style.display = 'block';
+    return;
+  }
+  var r = await fetch(lineupApiBase() + '/change-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: p1 })
+  });
+  var data = await r.json().catch(function(){ return {}; });
+  if (!r.ok) {
+    errEl.textContent = data.error || 'Failed to save password';
+    errEl.style.display = 'block';
+    return;
+  }
+  setupCoachAccountBtn(true);
+  errEl.textContent = '✓ Password saved — you can now sign in with your username';
+  errEl.style.color = 'var(--win-color)';
+  errEl.style.display = 'block';
+  setTimeout(function() { document.getElementById('coachPwOverlay').style.display = 'none'; }, 1600);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var loginForm = document.getElementById('coachLoginForm');
+  if (loginForm) loginForm.addEventListener('submit', doCoachLogin);
+  var pwForm = document.getElementById('coachPwForm');
+  if (pwForm) pwForm.addEventListener('submit', function(e) { e.preventDefault(); saveCoachPw(); });
+});
+
 if (!document.getElementById('adminWrap')) lineupInit();
+
+// ── Delegated actions (see tt-common.js) ──────────────────────────────
+Object.assign(TT_ACTIONS, {
+  openImport:    function() { openImport(); },
+  closeImport:   function(arg, el, e) { closeImport(e); },
+  confirmImport: function() { confirmImport(); },
+  toggleReorder: function() { toggleReorder(); },
+  submitLineup:  function() { submitLineup(); },
+  addSubRow:     function() { addSubRow(); },
+  deleteSubRow:  function() { deleteSubRow(); },
+  openCoachPw:   function() { openCoachPw(); },
+  closeCoachPw:  function(arg, el, e) { closeCoachPw(e); },
+  saveCoachPw:   function() { saveCoachPw(); },
+});

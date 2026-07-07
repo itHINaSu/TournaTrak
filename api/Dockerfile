@@ -5,11 +5,12 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
-COPY server.js generate-hash.js validation.js slot-defs.js ./
+COPY server.js store.js migrate.js schema.sql generate-hash.js validation.js slot-defs.js schedule-formats.js entrypoint.sh ./
+RUN chmod +x entrypoint.sh
 
 # Run as non-root so a compromised process can't write to host-mounted volumes as root.
 RUN chown -R node:node /app
 USER node
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+ENTRYPOINT ["/app/entrypoint.sh"]

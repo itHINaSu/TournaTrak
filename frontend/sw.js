@@ -7,13 +7,15 @@
 // back into this cache, so the offline copy also self-heals on each online
 // visit — but a forgotten bump still leaves stale assets for fully-offline
 // clients, so bump it.
-var CACHE = 'tournatrak-v2.33';
+var CACHE = 'tournatrak-v2.71';
 var PRECACHE_URLS = [
   '/',
   '/index.html',
   '/fonts.css',
   '/base.css',
   '/bracket.css',
+  '/settings-defaults.js',
+  '/tt-common.js',
   '/bracket-data.js',
   '/bracket.js',
   '/lineup',
@@ -65,7 +67,15 @@ self.addEventListener('fetch', function(e) {
       }
       return response;
     }).catch(function() {
-      return caches.match(e.request);
+      return caches.match(e.request).then(function(cached) {
+        if (cached) return cached;
+        // Unprecached path (e.g. /t/:slug or a bare tab path reached while
+        // offline) — fall back to the precached '/' shell for navigations so
+        // the app still boots; bracket.js reads the real URL itself for
+        // routing, so this only matters for the initial HTML document.
+        if (e.request.mode === 'navigate') return caches.match('/');
+        return undefined;
+      });
     })
   );
 });

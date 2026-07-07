@@ -7,20 +7,57 @@
 
 // IMPORTANT: Keep in sync with api/slot-defs.js (API container cannot import this file).
 const SLOT_DEFS = {
-  R1:    { L:[1,2,3,4,5,6,7,8], R:[1,2,3,4,5,6,7,8] },
-  R2:    { L:[1,2,3,4],         R:[1,2,3,4] },
-  QF:    { L:[1,2,3,4],         R:[1,2,3,4] },
-  QF2:   { L:[1,2],             R:[1,2] },
-  SF:    { L:[1,2,3],           R:[1,2,3] },
+  R0:   { L:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], R:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16] },
+  R1:   { L:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], R:[1,2,3,4,5,6,7,8] },
+  R2:   { L:[1,2,3,4,5,6,7,8],                        R:[1,2,3,4,5,6,7,8] },
+  QF:   { L:[1,2,3,4],                                 R:[1,2,3,4] },
+  QF2:  { L:[1,2],                                     R:[1,2,3,4] },
+  SF:   { L:[1,2,3],                                   R:[1,2,3,4] },
+  SF3:  {                                               R:[1,2] },
+  SF2:  { L:[1],                                       R:[1,2] },
   CHAMP:  { C:[1] },
   CHAMP2: { C:[1] }
 };
 
-const ROUND_ORDER  = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
+const ROUND_ORDER  = ['R0','R1','R2','QF','QF2','SF','SF3','SF2','CHAMP','CHAMP2'];
 const ROUND_LABELS = {
-  R1:'Round 1', R2:'Round 2', QF:'Round 3', QF2:'Round 4',
-  SF:'Round 5', CHAMP:'Championship', CHAMP2:'If Necessary'
+  R0:'Round 0', R1:'Round 1', R2:'Round 2', QF:'Round 3', QF2:'Round 4',
+  SF:'Round 5', SF3:'Round 6', SF2:'Round 7', CHAMP:'Championship', CHAMP2:'If Necessary'
 };
+
+// roundLabel — display name for a round, numbered by the populated rounds only.
+// The static ROUND_LABELS above assume the full bracket structure, so a bracket
+// smaller than the maximum (e.g. an 8-team single-elim using only QF/SF/CHAMP)
+// would otherwise show "Round 3" as its first column. This numbers the
+// populated pre-championship rounds sequentially instead, so any bracket reads
+// "Round 1, Round 2, …". For the full structure every round is populated, so
+// the result is identical to ROUND_LABELS (no change for existing brackets).
+// NOTE: intended for the public bracket, which renders only populated rounds.
+// The admin editor shows every defined round and keeps the static labels.
+function roundLabel(round) {
+  // A TD's custom name always wins, even over the automatic CHAMP2 '3rd
+  // Place' relabel below.
+  var custom = (typeof getSetting === 'function') ? getSetting('roundName' + round) : '';
+  if (custom) return custom;
+  if (round === 'CHAMP')  return ROUND_LABELS.CHAMP;
+  if (round === 'CHAMP2') {
+    // CHAMP2 is the double-elim "if necessary" reset, EXCEPT when its feeds
+    // are semifinal losers — then it's a single-elim 3rd-place game.
+    const g = GAMES['CHAMP2.C.1'];
+    if (g && g.t1 && g.t1.type === 'loser' && g.t1.slot !== 'CHAMP.C.1') return '3rd Place';
+    return ROUND_LABELS.CHAMP2;
+  }
+  let n = 0;
+  for (const r of ROUND_ORDER) {
+    if (r === 'CHAMP' || r === 'CHAMP2') continue;
+    // Tiered A/B games are stored in R0 but aren't part of the tree —
+    // they must not create or shift bracket round numbers.
+    const has = Object.keys(GAMES).some(g => GAMES[g].round === r && !GAMES[g].tier);
+    if (has) n++;
+    if (r === round) return has ? 'Round ' + n : (ROUND_LABELS[round] || round);
+  }
+  return ROUND_LABELS[round] || round;
+}
 
 // GAMES starts empty — populated by applySchedule() on load
 const GAMES = {};
@@ -93,7 +130,14 @@ function occupiedSlots() {
 function resolveSlot(teamSlot, results) {
   if (!teamSlot) return null;
   if (teamSlot.type==='fixed')  return teamSlot.team || null;
-  if (teamSlot.type==='winner') return (results[teamSlot.slot]||{}).winner || null;
+  if (teamSlot.type==='winner') {
+    var w = (results[teamSlot.slot]||{}).winner;
+    if (w) return w;
+    // Bye game: no result is ever entered, but the lone team auto-advances.
+    var g = GAMES[teamSlot.slot];
+    if (g && g.bye) return resolveSlot(g.t1, results);
+    return null;
+  }
   if (teamSlot.type==='loser')  return (results[teamSlot.slot]||{}).loser  || null;
   return null;
 }
@@ -150,11 +194,20 @@ function findNextSlot(sid, type) {
 }
 
 function isEliminated(teamName, results) {
-  // Double elimination: a team is out after 2 losses. The previous round-specific
-  // check was wrong — losing QF on the winner's side gives 1 loss, not elimination.
-  let losses = 0;
-  for (const r of Object.values(results)) { if (r.loser === teamName) losses++; }
-  return losses >= 2;
+  // Format-agnostic: topology lives in the schedule, so elimination does too.
+  // A team is out exactly when it loses a game whose loser advances nowhere.
+  // That single structural rule covers every format: single elim and the
+  // two-sided SE layout (no losses feed anywhere), double elim (the second
+  // loss always lands in a game without a loser feed), and the tiered
+  // Open→A→B format — where a team can be 0-2 or even 0-3 and still alive
+  // because those losses feed the A/B drop brackets. (The old `losses >= 2`
+  // fallback wrongly eliminated tiered teams and was redundant for
+  // generated double-elim topologies.)
+  for (const [sid, r] of Object.entries(results)) {
+    if (!r || r.loser !== teamName) continue;
+    if (!findNextSlot(sid, 'loser')) return true;
+  }
+  return false;
 }
 
 // ── applySchedule ─────────────────────────────────────────────────────
@@ -183,6 +236,11 @@ function applySchedule(schedule) {
       num:   ov.num != null ? parseInt(ov.num) : parsed.num,
       time:  ov.time || '',
       field: typeof ov.field === 'string' ? ov.field.trim() : '',
+      bye:   ov.bye === true,
+      // 'A'|'B' for tiered drop brackets — in the schedule and team path but
+      // NOT the bracket tree (their R0 storage slots would otherwise render
+      // as extra leading columns and shift the Open's round numbering).
+      tier:  (ov.tier === 'A' || ov.tier === 'B') ? ov.tier : null,
       t1: ov.t1name
         ? { type:'fixed', team:ov.t1name }
         : { type:(ov.t1type||'winner'), slot:ov.t1slot },
@@ -207,7 +265,7 @@ function applySchedule(schedule) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    GAMES, SLOT_DEFS, ROUND_ORDER, ROUND_LABELS,
+    GAMES, SLOT_DEFS, ROUND_ORDER, ROUND_LABELS, roundLabel,
     allSlotIds, parseSlotId, occupiedSlots, slotsForRoundSide,
     resolveSlot, slotLabel, smartLabel, shortName,
     isEliminated, findNextSlot, applySchedule,

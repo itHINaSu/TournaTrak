@@ -1,0 +1,121 @@
+{
+  "R2.L.1": {
+    "label": "Game 1",
+    "num": 1,
+    "time": "2026-07-04T08:00",
+    "t1name": "Northside Eagles",
+    "t2name": "Westfield Warriors"
+  },
+  "R2.L.2": {
+    "label": "Game 2",
+    "num": 2,
+    "time": "2026-07-04T08:00",
+    "t1name": "Blue Ridge Bombers",
+    "t2name": "Lakeview Lions"
+  },
+  "R2.L.3": {
+    "label": "Game 3",
+    "num": 3,
+    "time": "2026-07-04T08:00",
+    "t1name": "Harbor Hooks",
+    "t2name": "Riverside Rockets"
+  },
+  "R2.L.4": {
+    "label": "Game 4",
+    "num": 4,
+    "time": "2026-07-04T08:00",
+    "t1name": "Ironwood Crushers",
+    "t2name": "Coastal Crushers"
+  },
+  "R2.R.1": {
+    "label": "Game 5",
+    "num": 5,
+    "time": "2026-07-04T10:00",
+    "t1name": "River Rats",
+    "t2name": "Summit Stars"
+  },
+  "R2.R.2": {
+    "label": "Game 6",
+    "num": 6,
+    "time": "2026-07-04T10:00",
+    "t1name": "Valley Thunder",
+    "t2name": "Capital City Sox"
+  },
+  "R2.R.3": {
+    "label": "Game 7",
+    "num": 7,
+    "time": "2026-07-04T10:00",
+    "t1name": "Steel City Sluggers",
+    "t2name": "Mountain Men"
+  },
+  "R2.R.4": {
+    "label": "Game 8",
+    "num": 8,
+    "time": "2026-07-04T10:00",
+    "t1name": "Sunset Diamonds",
+    "t2name": "Eastside Heat"
+  },
+  "QF.L.1": {
+    "label": "Game 9",
+    "num": 9,
+    "time": "2026-07-05T08:00",
+    "t1slot": "R2.L.1",
+    "t1type": "winner",
+    "t2slot": "R2.L.2",
+    "t2type": "winner"
+  },
+  "QF.L.2": {
+    "label": "Game 10",
+    "num": 10,
+    "time": "2026-07-05T08:00",
+    "t1slot": "R2.L.3",
+    "t1type": "winner",
+    "t2slot": "R2.L.4",
+    "t2type": "winner"
+  },
+  "QF.R.1": {
+    "label": "Game 11",
+    "num": 11,
+    "time": "2026-07-05T08:00",
+    "t1slot": "R2.R.1",
+    "t1type": "winner",
+    "t2slot": "R2.R.2",
+    "t2type": "winner"
+  },
+  "QF.R.2": {
+    "label": "Game 12",
+    "num": 12,
+    "time": "2026-07-05T08:00",
+    "t1slot": "R2.R.3",
+    "t1type": "winner",
+    "t2slot": "R2.R.4",
+    "t2type": "winner"
+  },
+  "SF.L.1": {
+    "label": "Game 13",
+    "num": 13,
+    "time": "2026-07-05T11:00",
+    "t1slot": "QF.L.1",
+    "t1type": "winner",
+    "t2slot": "QF.L.2",
+    "t2type": "winner"
+  },
+  "SF.R.1": {
+    "label": "Game 14",
+    "num": 14,
+    "time": "2026-07-05T11:00",
+    "t1slot": "QF.R.1",
+    "t1type": "winner",
+    "t2slot": "QF.R.2",
+    "t2type": "winner"
+  },
+  "CHAMP.C.1": {
+    "label": "Game 15",
+    "num": 15,
+    "time": "2026-07-05T13:30",
+    "t1slot": "SF.L.1",
+    "t1type": "winner",
+    "t2slot": "SF.R.1",
+    "t2type": "winner"
+  }
+}

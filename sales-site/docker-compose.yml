@@ -1,3 +1,6 @@
+# No PUID/PGID override here: this is a static nginx site with no writable
+# bind mounts (content is baked into the image at build time), so there are no
+# host files whose ownership needs to match — and nginx needs root to bind :80.
 services:
   tournatrak-sales:
     build: .

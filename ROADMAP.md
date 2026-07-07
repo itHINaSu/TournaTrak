@@ -64,12 +64,13 @@ reliability-critical; address before going fully public or starting v3.
   range gets mixed layouts. Decide the intended contract and unify.
 
 ### Security / ops
-- **Access token hashing** — `GET /api/users` returns all team access tokens
-  and setup tokens in plaintext; they're also stored cleartext in `users.json`.
-  Store only hashes; surface the raw token once at creation/regeneration.
-- **`COOKIE_SECURE` docs** — `.env.example` defaults to `false`. Document (or
-  enforce at startup) that any deployment not behind a TLS-terminating proxy
-  must set `COOKIE_SECURE=true`.
+- **Access token hashing** — ✅ DONE (2026-07-04): only SHA-256 hashes are
+  stored; raw tokens surface once at creation/regeneration; legacy cleartext
+  rows upgraded at boot. See HANDOFF Security items.
+- **`COOKIE_SECURE` docs** — ✅ DONE: `.env.example` explains exactly when to
+  set it (TLS all the way vs terminated upstream). Startup enforcement was
+  deliberately skipped — the server can't tell a TLS-terminating proxy from
+  a bare deployment, so a check would nag every legitimate proxied setup.
 
 ### Accessibility
 - **Focus trapping on overlays** — login, change-password, import, and
@@ -88,6 +89,13 @@ reliability-critical; address before going fully public or starting v3.
 
 ## v3 — Multi-tournament + Postgres
 
+**Status (buildout branch, 2026-07):** the Postgres storage layer is DONE —
+`api/schema.sql` + `api/store.js` (read-whole/write-whole facade, pg-backed
+sessions) + `api/migrate.js` (idempotent schema, one-time /data JSON import),
+compose gained an internal-only postgres service. Remaining: `/t/:slug`
+multi-tournament routing, admin scoping, super-admin role, path-based tabs.
+See HANDOFF.md "Persistence (v3)" for the layer's contract.
+
 **Branch:** `feature/regional` (parked Postgres / multi-tournament prototype)
 - Branched from old `dev` **before** the entire v2 feature wave, so it lacks
   all recent `main` work.
@@ -97,16 +105,24 @@ reliability-critical; address before going fully public or starting v3.
 - Do not push to `feature/regional` from normal v2 sessions; it is touched
   only when v3 work formally begins.
 
-### Goals
-- Replace JSON-file persistence with **PostgreSQL**
+### Goals — DECIDED 2026-07-02 (owner picked all four)
+- Replace JSON-file persistence with **PostgreSQL** — ✅ DONE (buildout branch)
 - Support **multiple simultaneous tournaments** under one deployment
-- Each tournament has its own bracket, schedule, results, settings, and users
-- URL structure something like `/t/:tournamentSlug/` for public views, `/admin?t=slug` or sub-routes for admin
-- Super-admin role to create/manage tournaments; existing roles (results, coach, team) scope to a tournament
-- **Path-based tab routing** (`/bracket`, `/schedule`, `/teampath`, `/buckets`)
-  with server-side SPA fallback — the clean-URL version of deep-linking.
-  Deferred from v2 (which kept cookie-based tabs + the configurable default
-  landing tab); fits naturally alongside the multi-tournament URL redesign.
+- **Public URLs:** `/t/:slug/...` per tournament; the bare `/` serves a
+  configurable default tournament so single-tournament deployments and all
+  existing links/QR codes keep working unchanged.
+- **Admin scoping:** ONE `/admin` page with a tournament switcher in the
+  header (picker sets which tournament all tabs operate on). No per-tournament
+  admin URLs.
+- **Roles:** new global `superadmin` role creates/manages tournaments and
+  users everywhere; `admin`/`results`/`team`/`buckets` become per-tournament
+  grants (`user_roles` table — a user can be admin of A and results on B).
+  Existing users migrate to grants on the default tournament; the bootstrap
+  admin becomes superadmin.
+- **Path-based tab routing** (`/bracket`, `/schedule`, `/teampath`,
+  `/buckets`, and the same under `/t/:slug/`) with server-side SPA fallback —
+  built TOGETHER with the multi-tournament routing so the URL layer is touched
+  once.
 
 ### What's already built (feature/regional)
 - Postgres schema and migration scripts exist on that branch
@@ -135,16 +151,115 @@ When starting v3:
 Planning-stage ideas discussed but not scoped in detail. Add specifics as they're decided.
 
 ### Candidate features
-- **Lineup multi-sport support** — lineup fields (`jersey`, `name`, `position`) are currently softball/baseball-specific. For other sports: configurable field labels per tournament or a generic "player slot" UI (e.g., "Player 1 / Player 2" for volleyball). The periodLabel setting already handles sport labeling; lineup is the remaining softball-specific piece.
-- **Multiple bracket formats** — single elimination, pools + bracket, round robin
+- ✅ **Lineup multi-sport support** (buildout branch: presets softball/volleyball/basketball/generic + custom columns per tournament)
+  — was: **Lineup multi-sport support** — lineup fields (`jersey`, `name`, `position`) are currently softball/baseball-specific. For other sports: configurable field labels per tournament or a generic "player slot" UI (e.g., "Player 1 / Player 2" for volleyball). The periodLabel setting already handles sport labeling; lineup is the remaining softball-specific piece.
+- ✅ **Multiple bracket formats** (buildout branch, 2026-07-04): seven formats
+  in the builder — single elim (now with optional 3rd-place game), double
+  elim, consolation bracket, round robin, double round robin, pool play →
+  playoffs, and the tiered Open/A/B flights. Two DISTINCT ideas here, kept
+  separate per the owner (2026-07-04): (1) **game-guarantee** formats
+  (consolation = 2 games, pools of 4 = 3 games) guarantee everyone a minimum
+  number of games; (2) the **tiered Open/A/B** format is a competitive-flight
+  structure (drop weaker teams into lower brackets, each with its own
+  champion) — it is NOT a game-guarantee format and shouldn't be labelled as
+  one. See HANDOFF "Bracket format repository". Remaining: Swiss (needs
+  dynamic per-round pairing), 17–20 team pools, RR standings table, and
+  finalizing the tiered drop rule against the ISSA reference bracket +
+  Open/A/B display tabs (owner confirmed both wanted).
 - **Variable team counts** — not locked to 16 teams; bracket structure derived from registration
 - **Public registration / team management** — teams sign up, admin approves
 - **Notifications** — push or SMS when a team's next game is posted or goes live
-- **Embedded scorekeeper view** — field-side UI optimized for score entry, minimal UI, big buttons
+- ✅ **Embedded scorekeeper view** (buildout branch: /score — field filter, live auto-push, finalize)
+  — was: **Embedded scorekeeper view** — field-side UI optimized for score entry, minimal UI, big buttons
 - **Historical tournament archive** — past tournaments browsable by year/event
 - **Stats layer** — runs, hits, errors per game; season standings across tournaments
 - **Multi-sport** — period label is already configurable; extend for quarters, sets, periods
-- **White-label / theming** — per-tournament color scheme and logo
+- ✅ **White-label / theming** (buildout branch: per-tournament theme colors + validated logo upload)
+  — was: **White-label / theming** — per-tournament color scheme and logo
+
+---
+
+## Bracket Builder (branch: `feature/bracket-builder`)
+
+Admin tool at `/builder` that generates a full bracket schedule from a format +
+team list and writes `schedule.json`. Backed by `api/schedule-formats.js` (a
+shared FORMATS registry used by both the builder API and the CLI).
+
+### Done
+- **Single Elimination, 4–32 teams** with automatic byes for non-power-of-two
+  counts. Three seeding modes: random, list order, and manual bye selection.
+- Byes use a "mixed" game (one side a fixed team name, the other a winner-slot),
+  which the data model + `applySchedule()` already support.
+- **Dynamic round-header labels** (`roundLabel()` in `bracket-data.js`): the
+  public bracket numbers populated rounds sequentially, so a sub-32 bracket
+  reads "Round 1, 2, …" instead of borrowing tail names. The full structure is
+  unchanged. The admin editor keeps static labels (it shows every defined round).
+- **Bye games** render as a greyed "BYE" card; the team auto-advances and the
+  card is hidden from the schedule and team path.
+- **Calendar schedule editor** (optional): pick playing days, set per-day start
+  time / game count / fields in use / interval; games fill in bracket order. With
+  more than one field, games run in concurrent waves (auto-assigned "Field N"
+  labels) so a multi-field day finishes sooner. Build-time only.
+- **Standard 16-team double elimination** (`double-elim-16`): WB on L, LB on R,
+  cross-half loser drops, championship + optional "if necessary" bracket reset
+  (the `supportsIfNecessary` checkbox — on for all double-elim formats). Verified
+  structurally for all outcomes (every team can win; exactly 15 reach two losses).
+  ⚠️ Needs in-browser layout verification — the LB slot packing relies on the
+  renderer's LB-absorption / play-in handling and hasn't been seen rendered yet.
+- **Named fields + per-day chip selection**: venue fields defined once; each
+  playing day picks which fields it's using via chip toggles. Labels suppressed
+  only when the whole tournament uses one field (not just that day).
+- **Team seeding display**: TD can mark the tournament as seeded; seeds display
+  as small muted `(1)` chips before team names on all bracket cards. Teams tab
+  in admin Settings lets TD drag-reorder teams (order = seed), edit names inline,
+  and toggle seed display. Available in builder step 3 for order/manual modes.
+  `teams.json` stores `{ showSeeds, teams: [{name}] }`; public bracket and admin
+  both call `GET /api/teams` (auto-derived from schedule when file absent).
+- **Demo sandbox fixes**: `demo-files/.gitkeep` committed so git clones create
+  the directory with user-owned permissions; `ensureDataFiles()` and `ensureUsers()`
+  wrapped in try/catch so a permission error warns instead of crashing before
+  `app.listen()`.
+- **Configurable container user** (`PUID`/`PGID`): both compose files run the
+  API as `${PUID:-1000}:${PGID:-1000}` so bind-mounted data files are owned by
+  the host user, not root. Documented in `.env.example`.
+- **Random team-name generator** (builder step 2): "Randomly generate [N] team
+  names" row fills the textarea with distinct generated names; the count dropdown
+  tracks the selected format's valid range.
+- **Teams tab ⇄ schedule sync**: `GET /api/teams` now treats the schedule as the
+  source of truth for which teams exist (merging in saved order/seeds), so
+  brackets built via the schedule editor populate the Teams tab. Excludes the
+  "BYE" placeholder. The tab re-fetches on open so editor changes show without a
+  reload.
+
+### Follow-ups (next session, in progress)
+- **Admin nav link to `/builder`** still reachable only by direct URL; add to
+  admin sidebar or header.
+- **Sales site demo URL placeholders**: three `href="#"` spots in the sales site
+  need a real demo URL once the demo is publicly accessible.
+- **(Low priority) Sales-site nginx unprivileged**: `sales-site/docker-compose.yml`
+  intentionally doesn't set `user:` because nginx needs root to bind :80. If
+  desired, switch to `nginxinc/nginx-unprivileged` image (listens on 8080) and
+  add `user: "${PUID:-1000}:${PGID:-1000}"` to match the main stacks.
+
+### Deferred builder follow-ups
+- ✅ **Game-guarantee brackets (2- and 3-game)** (2026-07-04): the
+  `consolation` format covers the 2-game guarantee (first-round losers get a
+  consolation bracket) and `pools` covers the 3-game guarantee (pools of 4 →
+  playoffs). The "double-elim until round Y, then single elim" variant the
+  TD described remains unbuilt — the two shipped formats are the standard
+  ways tournaments deliver those guarantees.
+- **64-team support.** Generator scales trivially, but requires prepending one
+  round name in `ROUND_BY_DEPTH` (schedule-formats.js) AND widening `SLOT_DEFS`
+  in both `api/slot-defs.js` and `frontend/bracket-data.js` (must stay in sync),
+  plus verifying the 6-round / 32-per-side bracket renders legibly on mobile.
+- **More double-elim sizes / variants.** 16-team standard is built; the
+  generator (`generateDoubleElim16`) is a template for other sizes and the
+  "twists" (non-standard loser drops, etc.). Build off the same feed-list
+  structure when those are specced.
+- **Truncated double-elim** (per the TD: a losers bracket for Y rounds, then
+  single-elim after). Builds on the double-elim loser-feed logic. Not yet
+  built — the consolation + pools formats cover the usual game-guarantee
+  use cases; build this only if the TD still wants the specific structure.
 
 ---
 

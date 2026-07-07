@@ -1,6 +1,30 @@
 # TournaTrak
 
-A self-hosted double-elimination tournament bracket web app. Built for the Dedham, IA 16" softball tournament and designed to be reusable — all team names, game times, schedule data, and settings are managed through the admin panel and persisted to JSON files. No tournament data is hardcoded.
+A self-hosted tournament bracket web app supporting single- and double-elimination formats (4–64 teams, generated via the admin Bracket Builder). The flagship Dedham, IA 16" softball layout is a **32-team, two-sided single-elimination bracket** — two independent 16-team sides feeding one championship game. Built for that tournament and designed to be reusable — all team names, game times, schedule data, and settings are managed through the admin panel and persisted to PostgreSQL. No tournament data is hardcoded.
+
+---
+
+## Project status
+
+- **`main`** — stable v2: single tournament, JSON-file storage. Everything in
+  the Features list below.
+- **v3 buildout branch (this branch)** — the v3 port in progress:
+  - ✅ **PostgreSQL storage** — all persistence moved from JSON files to
+    Postgres (`api/store.js` + `api/schema.sql`); sessions included. On first
+    boot against an empty database, existing `/data` JSON files (including
+    active sessions) are imported automatically — a v2 deployment upgrades in
+    place without losing anything or logging anyone out.
+  - ✅ CSP hardening (`script-src 'self'`, no inline JS), single-sourced
+    settings defaults, shared `tt-common.js`, mobile touch-target pass,
+    offline resilience + live-score polling.
+  - ✅ Multi-tournament support: public `/t/:slug` routing + path tabs,
+    per-tournament admin scoping via the header switcher, superadmin role
+    and Tournaments management panel.
+  - ✅ v4 wave: multi-sport lineups (presets + custom columns), field-side
+    scorekeeper mode at `/score`, per-tournament white-label (theme colors
+    + validated logo).
+  - ✅ Zero-touch install: `git clone` + `docker compose up -d --build`
+    generates all secrets on first boot — no `.env` needed.
 
 ---
 
@@ -19,8 +43,13 @@ A self-hosted double-elimination tournament bracket web app. Built for the Dedha
 **Admin panel** (`/admin` — requires login)
 - Post and clear game results
 - Start/update/end live scoring per game
-- Edit game labels, times, and team name overrides
-- Manage tournament settings (name, date/day formats, default landing tab, etc.)
+- Edit game labels, times, and team name overrides (with per-game save)
+- Time delays: per-field/per-day offset entries shown on the public page, plus a free-text delay banner
+- Bracket Builder (`/builder`): generate a full schedule from a format + team
+  list — single-elim 4–64 teams with byes, double-elim with optional
+  "if necessary" final, seeding modes, calendar/day scheduling
+- Teams tab: drag-reorder seeds, inline rename, seed-display toggle
+- Manage tournament settings (name, date/day formats, default landing tab, etc.), field tag colors, and theme colors
 - User management with role-based access
 - Lineup entry per game per team (softball: jersey / name / position)
 
@@ -41,17 +70,24 @@ A self-hosted double-elimination tournament bracket web app. Built for the Dedha
 /
 ├── api/
 │   ├── server.js          # Express API, auth, all REST endpoints
+│   ├── store.js           # Postgres persistence facade + session store
+│   ├── migrate.js         # idempotent schema apply + one-time /data JSON import
+│   ├── schema.sql         # v3 database schema
+│   ├── schedule-formats.js# bracket-format registry + schedule generator
 │   ├── slot-defs.js       # SLOT_DEFS (server-side copy)
 │   ├── validation.js      # slot ID + score + name validation
 │   ├── Dockerfile
 │   └── package.json
-├── frontend/              # static assets served by the API container
+├── frontend/              # static assets served by nginx (read-only mount for the API)
 │   ├── index.html         # public bracket page
 │   ├── bracket.js         # all public rendering logic
 │   ├── bracket-data.js    # bracket model, SLOT_DEFS, helpers
 │   ├── bracket.css        # public styles
 │   ├── base.css           # CSS design tokens (dark + light), reset, shared header
+│   ├── tt-common.js       # shared helpers (esc, cookies, theme manager, action delegation)
+│   ├── settings-defaults.js  # SETTINGS_DEFAULTS — single source, loaded by pages AND server
 │   ├── admin.html / admin.js / admin.css
+│   ├── builder.html / builder.js / builder.css   # Bracket Builder
 │   ├── lineup.html / lineup.js / lineup.css
 │   ├── sw.js              # service worker (network-first; bump CACHE version on asset changes)
 │   ├── manifest.json
@@ -61,23 +97,24 @@ A self-hosted double-elimination tournament bracket web app. Built for the Dedha
 ├── sales-site/            # static marketing site (separate nginx container, port 8081)
 │   ├── index.html / style.css / script.js
 │   └── nginx.conf
-├── files/                 # runtime data — gitignored, mounted at deploy time
-│   ├── results.json
-│   ├── schedule.json
-│   ├── live.json
-│   ├── settings.json
-│   ├── lineups.json
-│   ├── buckets.json
-│   ├── users.json
-│   └── schedule.example.json   # documents expected format (tracked)
-└── compose.yml
+├── files/                 # legacy v2 JSON data — gitignored; now only the one-time
+│   │                      # import source, mounted read-only at /data
+│   └── schedule.example.json   # documents the schedule format (tracked)
+├── init-env.sh            # first-run bootstrap: creates .env with generated secrets
+├── compose.yml            # nginx + api + postgres (internal-only)
+└── compose.demo.yml       # public demo sandbox stack
 ```
 
 ### Key design choices
 - No framework, no build step — plain JS/HTML/CSS, instantly editable
-- JSON file persistence — simple, zero-dependency, appropriate for single-tournament use
+- PostgreSQL persistence via `api/store.js` — routes read/write each domain
+  (results, schedule, live, lineups, settings, …) as one JSON-shaped value,
+  so route logic stayed identical to v2 while gaining transactions,
+  durability, and the multi-tournament foundation
 - `SLOT_DEFS` is the single source of truth for bracket structure; validation derives all slot constraints from it automatically
-- Three copies of `SETTINGS_DEFAULTS` (server, admin.js, bracket.js) must stay in sync — a v3 cleanup item
+- `frontend/settings-defaults.js` is the single source for `SETTINGS_DEFAULTS`
+  (loaded by all pages and `require()`d by the server; its keys are the
+  POST /api/settings allowlist)
 
 ---
 
@@ -104,7 +141,7 @@ A self-hosted double-elimination tournament bracket web app. Built for the Dedha
 | POST | `/api/change-password` | any | Change own password |
 | POST | `/api/change-username` | any | Change own username |
 
-**Public data** (no auth, ETags for efficient polling)
+**Public data** (no auth; `/api/results` and `/api/buckets` send ETags for efficient polling)
 
 | Method | Path | Purpose |
 |--------|------|---------|
@@ -113,6 +150,10 @@ A self-hosted double-elimination tournament bracket web app. Built for the Dedha
 | GET | `/api/settings` | Tournament settings |
 | GET | `/api/live` | Current live scoring entries |
 | GET | `/api/buckets` | Bucket data |
+| GET | `/api/offsets` | Active time-delay entries |
+| GET | `/api/teams` | Team list + seed order (derived from schedule when unsaved) |
+| GET | `/api/field-colors` | Per-field tag color overrides |
+| GET | `/api/theme-colors` | Tournament theme color overrides |
 
 **Results + live** (`results` or `admin`)
 
@@ -128,7 +169,14 @@ A self-hosted double-elimination tournament bracket web app. Built for the Dedha
 | Method | Path | Purpose |
 |--------|------|---------|
 | POST | `/api/schedule` | Save schedule overrides |
+| POST | `/api/schedule/swap` | Swap two game slots |
+| GET | `/api/schedule/formats` | Bracket Builder format list |
+| POST | `/api/schedule/generate` | Generate + replace schedule from a format |
 | POST | `/api/settings` | Save settings |
+| POST | `/api/offsets` | Save delay entries + banner |
+| POST | `/api/teams` | Save team order / seed display |
+| POST | `/api/field-colors` | Save field tag colors |
+| POST | `/api/theme-colors` | Save theme colors |
 
 **Users** (`admin`)
 
@@ -165,36 +213,77 @@ A self-hosted double-elimination tournament bracket web app. Built for the Dedha
 
 | Segment | Values |
 |---------|--------|
-| ROUND | `R1` `R2` `QF` `QF2` `SF` `CHAMP` `CHAMP2` |
-| SIDE | `L` (winners bracket) `R` (losers bracket) `C` (championship) |
+| ROUND | `R0` `R1` `R2` `QF` `QF2` `SF` `SF3` `SF2` `CHAMP` `CHAMP2` |
+| SIDE | `L` (left side) `R` (right side) `C` (championship) |
 | NUM | 1-based integer |
 
-`CHAMP2` is "If Necessary" — only played if the LB finalist beats the WB finalist in CHAMP.
+The slot grid is format-agnostic: game topology (who feeds whom, winner vs
+loser advancement) is defined per game in `schedule.json`, not by the slot IDs.
+In the flagship two-sided single-elim layout, `L`/`R` are two independent
+16-team single-elimination sides and only winners advance. In double-elim
+formats generated by the Bracket Builder, `L` holds the winners bracket and
+`R` the losers bracket, and `CHAMP2` ("If Necessary") is played only if the
+LB finalist beats the WB finalist in CHAMP.
 
 ---
 
 ## Hosting
 
-Docker Compose on a Linux server. nginx fronts the stack.
+Docker Compose on a Linux server. nginx fronts the stack; the `postgres`
+service is internal-only (no host ports).
 
 ```bash
-docker compose up -d                    # start everything
+git clone <repo> && cd TournaTrak
+docker compose up -d --build            # that's it — no configuration needed
+docker compose logs api                 # shows the generated admin password (first boot)
 docker compose up -d --build api        # rebuild after API changes
 ```
 
+No `.env` is required: on first boot the stack generates a random database
+password, session secret, and initial admin password (persisted in the
+`tt-secrets` volume; the admin password is printed once in the api logs and
+recoverable via `docker compose exec api cat /run/tt-secrets/initial_admin_password`
+until you change it). To override any of it, copy `.env.example` to `.env`
+(or run `./init-env.sh`) — explicit values always win. Compose treats a
+single `$` in `.env` as a variable reference; double literal `$` to `$$`.
+
+**Upgrading from v2 (JSON files):** nothing to do — on first boot against an
+empty database the API imports everything from the mounted `./files` directory
+(results, schedule, settings, users, lineups, buckets, offsets, colors, and
+active sessions), leaving the files in place untouched.
+
 The sales site runs as a separate service on port 8081.
+
+### Public demo sandbox
+
+`compose.demo.yml` runs a second, throwaway stack on port **3024** for a "try it
+live" link. It has its own internal postgres service and volume and runs in
+`DEMO_MODE`, so the API restores the `./demo-seed` snapshot on boot and every
+`DEMO_RESET_MINUTES` (default 30) — anything a visitor changes is wiped back to
+the seed. Public credentials: **demo / demo**.
+
+```bash
+docker compose -f compose.demo.yml -p tournatrak-demo up -d --build
+```
+
+The demo shares one dataset (v2 is single-tenant), so simultaneous visitors see
+each other's edits until the next reset. Per-visitor isolation is a v3 concern.
+To change the demo's starting state, edit the files in `demo-seed/` (e.g.
+regenerate `schedule.json` via the Bracket Builder or `generate-schedule.js`).
 
 ---
 
 ## Setup for a new tournament
 
-1. Clone the repo and copy `files/schedule.example.json` to understand the data format
-2. Start the stack: `docker compose up -d`
-3. Log in to `/admin` with the default credentials and change the password immediately
-4. Go to Settings → set tournament name, date formats, default tab, etc.
-5. Go to Schedule & Teams → set all game times and team name overrides
-6. Create user accounts for scorekeepers (results role) and coaches (team role)
-7. As games complete, post results in the Results tab
+1. Clone the repo and run `docker compose up -d --build` — secrets are generated on first boot
+2. Log in to `/admin` with the default credentials (admin / TournaTrak) — you
+   will be required to change the password immediately
+3. Go to `/builder` → pick a format, enter teams, and generate the bracket
+   schedule (or hand-edit games in the Schedule tab; see
+   `files/schedule.example.json` for the format)
+4. Go to Settings → set tournament name, date formats, default tab, field colors, etc.
+5. Create user accounts for scorekeepers (results role) and coaches (team role)
+6. As games complete, post results (or run live scoring) in the Results tab
 
 ---
 

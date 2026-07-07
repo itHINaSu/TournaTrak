@@ -64,6 +64,9 @@ function validateSchedule(updates) {
     if (entry.t2slot && !isValidSlotId(entry.t2slot)) return `invalid t2slot for ${sid}`;
     if (entry.t1type && !['winner','loser'].includes(entry.t1type)) return `invalid t1type for ${sid}`;
     if (entry.t2type && !['winner','loser'].includes(entry.t2type)) return `invalid t2type for ${sid}`;
+    // Tiered drop brackets (Open→A→B): games marked with a tier render in
+    // the schedule/team path but stay out of the bracket tree.
+    if (entry.tier !== undefined && !['A','B'].includes(entry.tier)) return `invalid tier for ${sid}`;
     if (entry.num !== undefined) {
       const n = parseInt(entry.num);
       if (isNaN(n) || n < 1) return `invalid num for ${sid}`;

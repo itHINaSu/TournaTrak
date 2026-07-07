@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Scorekeeper</title>
+<meta name="theme-color" content="#0f1410" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f0f4f1" media="(prefers-color-scheme: light)">
+<link rel="stylesheet" href="/fonts.css">
+<link rel="stylesheet" href="/base.css">
+<link rel="stylesheet" href="/score.css">
+<script src="/app-h.js"></script>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="header-name-block">
+    <h1 id="scoreSiteName">Scorekeeper</h1>
+  </div>
+  <div class="header-controls">
+    <a href="/admin" class="admin-public-btn">Admin</a>
+    <button class="theme-toggle" id="themeToggle">☀ Light</button>
+  </div>
+</header>
+
+<!-- Shown until the session check passes with a results/admin role -->
+<div class="score-gate" id="scoreGate" style="display:none">
+  <div class="score-gate-box">
+    <div class="score-gate-title">Sign in required</div>
+    <div class="score-gate-desc">Scorekeeper mode needs a results or admin account.</div>
+    <a class="score-btn score-btn--primary" href="/admin">Sign in at Admin</a>
+  </div>
+</div>
+
+<main class="score-wrap" id="scoreWrap" style="display:none">
+  <div class="score-field-bar" id="fieldBar"></div>
+  <div class="score-list" id="gameList"></div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="/settings-defaults.js"></script>
+<script src="/tt-common.js"></script>
+<script src="/bracket-data.js"></script>
+<script src="/score.js"></script>
+</body>
+</html>

@@ -246,3 +246,7 @@ select:focus-visible,
   .theme-toggle    { min-height: 2.75rem; min-width: 2.75rem; }
   .admin-public-btn { min-height: 2.75rem; }
 }
+
+/* Per-tournament header logo (white-label). Set via img.src from the
+   validated theme-colors logo data URI; hidden when none is configured. */
+.site-logo { height: 2.4em; width: auto; max-width: 6em; object-fit: contain; border-radius: 0.25em; margin-right: 0.15em; align-self: center; }

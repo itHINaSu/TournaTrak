@@ -1,69 +1,48 @@
 // admin.js — admin panel logic
+
+// Loaded before builder.js on the admin page — tells it it's embedded, not standalone.
+window.__builderEmbedded = true;
 var results = {}, schedule = {}, settings = {}, buckets = {}, _offsets = { entries: [] }, _fieldColors = {}, _themeColors = {};
+var _teamsData = { showSeeds: false, teams: [] };  // loaded from /api/teams
 var currentRole = null;
 var currentTeamName = null;
 var _bucketTeams = [];
 
-var POSITIONS = ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH', 'sub'];
-
-var SETTING_DEFAULTS = {
-  tournamentName:   'Tournament Bracket',
-  pageTitle:        'Tournament Bracket',
-  adminName:        'Tournament Admin',
-  subtitle:         '',
-  leftLabel:        'Left Bracket',
-  rightLabel:       'Right Bracket',
-  playInLabel:      'Play-In',
-  showSideDividers: 'true',
-  periodLabel:      'Inning',
-  showDate:         'true',
-  showDay:          'true',
-  dateFormat:       'short',
-  dayFormat:        'long',
-  defaultTab:           'bracket',
-  defaultTabScope:      'both',
-  defaultScheduleGroup: 'day',
-};
-
-function getSetting(key) {
-  return (settings[key] !== undefined && settings[key] !== '')
-    ? settings[key] : SETTING_DEFAULTS[key];
+// ── Multi-tournament scoping ───────────────────────────────────────────
+// The admin acts on ONE tournament at a time, chosen in the header switcher
+// and remembered per-device. All data/user fetches go through the scoped
+// mount (/api/t/:slug); auth (login/logout/session) stays on the global /api.
+// null slug = the default tournament (legacy /api mount).
+var _adminTournaments = [];   // [{ slug, name, role }] from /api/session
+var _isSuperadmin = false;
+function getAdminSlug() {
+  try { return localStorage.getItem('ttAdminTournament') || null; } catch (e) { return null; }
+}
+function setAdminSlug(slug) {
+  try { if (slug) localStorage.setItem('ttAdminTournament', slug); else localStorage.removeItem('ttAdminTournament'); } catch (e) {}
+}
+// Base for tournament-scoped API calls. Falls back to the default mount when
+// no slug is selected or the selected slug isn't among the user's grants.
+function adminApiBase() {
+  var slug = getAdminSlug();
+  if (slug && _adminTournaments.some(function(t) { return t.slug === slug; })) {
+    return '/api/t/' + encodeURIComponent(slug);
+  }
+  return '/api';
+}
+// Rewrite a leading '/api' to the scoped base. Auth endpoints are global and
+// must NOT be rewritten — callers use fetch() directly for those.
+function scopedUrl(url) {
+  return url.indexOf('/api') === 0 ? adminApiBase() + url.slice(4) : url;
 }
 
-// ── Theme ──────────────────────────────────────────────────────────────
-(function(){
-  // Claim theme management so lineup.js (also loaded on this page) doesn't
-  // bind a second click handler that double-toggles and cancels this one out.
-  window.__ttThemeManaged = true;
-  var btn = document.getElementById('themeToggle');
-  var mq  = window.matchMedia('(prefers-color-scheme: light)');
-  var PREF_KEY = 'tt_theme';
-  function storageGet(k)    { try { return localStorage.getItem(k); } catch(e) {} try { return sessionStorage.getItem(k); } catch(e2) { return null; } }
-  function storageSet(k, v) { try { localStorage.setItem(k, v); } catch(e) {} try { sessionStorage.setItem(k, v); } catch(e2) {} }
-  function applyLight(light) {
-    document.body.classList.toggle('light', light);
-    if (btn) btn.textContent = light ? '🌙 Dark' : '☀ Light';
-  }
-  var saved = storageGet(PREF_KEY);
-  var _userPicked = saved !== null;
-  applyLight(_userPicked ? saved === 'light' : mq.matches);
-  mq.addEventListener('change', function(e) {
-    if (!_userPicked) applyLight(e.matches);
-  });
-  if (btn) {
-    function toggleTheme() {
-      _userPicked = true;
-      var nowLight = !document.body.classList.contains('light');
-      applyLight(nowLight);
-      storageSet(PREF_KEY, nowLight ? 'light' : 'dark');
-    }
-    btn.addEventListener('click', toggleTheme);
-    btn.addEventListener('touchend', function(e) {
-      e.preventDefault();
-      toggleTheme();
-    });
-  }
-})();
+// (lineup position lists live in lineup.js LINEUP_PRESETS since v4a)
+
+// SETTINGS_DEFAULTS comes from settings-defaults.js; getSetting from tt-common.js
+
+
+
+// Theme toggle is managed by tt-common.js.
 
 // ── Tabs ───────────────────────────────────────────────────────────────
 document.querySelectorAll('.admin-tab').forEach(function(tab){
@@ -73,17 +52,22 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       toggleSettingsSidebar();
       return;
     }
+    // Hide delays panel on any tab switch
+    var _dp = document.getElementById('resultsDelaysPanel');
+    if (_dp) _dp.style.display = 'none';
     document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
     document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
     tab.classList.add('active');
     document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+    try { localStorage.setItem('adminTab', tab.dataset.tab); } catch(e) {}
     updateQuickBar();
     if (tab.dataset.tab === 'lineups' && !window._lineupInitDone) {
       window._lineupInitDone = true;
       lineupInit();
     }
-    // Reset results to games mode when re-entering the results tab
-    if (tab.dataset.tab === 'results') setResultsMode('games');
+    // Reset to default sub-view when re-entering a tab
+    if (tab.dataset.tab === 'results')  setResultsMode('games');
+    if (tab.dataset.tab === 'schedule') setSchedMode('editor');
     if (tab.dataset.tab === 'settings') {
       var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
       var anyActive = document.querySelector('.settings-panel.active');
@@ -111,7 +95,7 @@ function updateQuickBar() {
 }
 
 // ── Settings sidebar ───────────────────────────────────────────────────
-var SETTINGS_SECTION_TITLES = { pageinfo: 'Page Info', account: 'Account', users: 'Users', coaches: 'Coaches' };
+var SETTINGS_SECTION_TITLES = { pageinfo: 'Site Settings', account: 'Account', users: 'Users', coaches: 'Coaches' };
 
 function showSettingsSection(section) {
   document.querySelectorAll('.settings-panel').forEach(function(p) {
@@ -123,7 +107,19 @@ function showSettingsSection(section) {
   closeSettingsSidebar();
   if (section === 'coaches') loadCoaches();
   if (section === 'users')   loadUsers();
+  if (section === 'tournaments') loadTournaments();
   if (section === 'pageinfo') { renderThemeSection(); renderFieldsPanel(); }
+}
+
+// Re-fetch the team list each time the Teams tab opens so changes made via the
+// schedule editor (which derives teams from the schedule) are always reflected,
+// rather than rendering the possibly-stale snapshot taken at page load.
+async function loadTeams() {
+  renderTeamsEditor();   // paint immediately with whatever we have
+  try {
+    var r = await fetch(scopedUrl('/api/teams'));
+    if (r.ok) { _teamsData = await r.json(); renderTeamsEditor(); }
+  } catch (e) { /* keep the current snapshot on network error */ }
 }
 
 function openSettingsSidebar() {
@@ -150,27 +146,22 @@ function toggleSettingsSidebar() {
 }
 
 // ── Toast ──────────────────────────────────────────────────────────────
-function showToast(msg, err) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = 'toast' + (err ? ' error' : '');
-  t.classList.add('show');
-  setTimeout(function(){ t.classList.remove('show'); }, 2500);
-}
+// showToast() comes from tt-common.js
 
 
 // ── Fetch ──────────────────────────────────────────────────────────────
 async function fetchAll() {
   try {
-    var [rr, sr, str, br, lr, or2, fc, tc] = await Promise.all([
-      fetch('/api/results'),
-      fetch('/api/schedule'),
-      fetch('/api/settings'),
-      fetch('/api/buckets'),
-      fetch('/api/live'),
-      fetch('/api/offsets'),
-      fetch('/api/field-colors'),
-      fetch('/api/theme-colors'),
+    var [rr, sr, str, br, lr, or2, fc, tc, tmr] = await Promise.all([
+      fetch(scopedUrl('/api/results')),
+      fetch(scopedUrl('/api/schedule')),
+      fetch(scopedUrl('/api/settings')),
+      fetch(scopedUrl('/api/buckets')),
+      fetch(scopedUrl('/api/live')),
+      fetch(scopedUrl('/api/offsets')),
+      fetch(scopedUrl('/api/field-colors')),
+      fetch(scopedUrl('/api/theme-colors')),
+      fetch(scopedUrl('/api/teams')),
     ]);
     results  = await rr.json();
     schedule = await sr.json();
@@ -182,23 +173,28 @@ async function fetchAll() {
     if (!Array.isArray(_offsets.entries)) _offsets = { entries: [] };
     _fieldColors = fc.ok ? await fc.json() : {};
     _themeColors = tc.ok ? await tc.json() : {};
+    _teamsData = tmr.ok ? await tmr.json() : { showSeeds: false, teams: [] };
     if (typeof applySchedule === 'function') applySchedule(schedule);
-  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; _offsets = { entries: [] }; _fieldColors = {}; _themeColors = {}; }
+  } catch(e) { results = {}; schedule = {}; settings = {}; buckets = {}; _offsets = { entries: [] }; _fieldColors = {}; _themeColors = {}; _teamsData = { showSeeds: false, teams: [] }; }
+  applyThemeColors();
   applySettingsToPage();
   renderAdmin();
   renderScheduleEditor();
   populateSettingsFields();
 
-  // ?tab=X from lineup page tab links: activate that tab on load
+  // ?tab=X from lineup page tab links takes priority; otherwise restore last tab from localStorage.
   var qTab = new URLSearchParams(window.location.search).get('tab');
-  if (qTab) {
-    var target = document.querySelector('.admin-tab[data-tab="' + qTab + '"]');
-    var panel  = document.getElementById('tab-' + qTab);
-    if (target && panel) {
+  var savedTab = qTab || (function(){ try { return localStorage.getItem('adminTab'); } catch(e) { return null; } }());
+  if (savedTab) {
+    var target = document.querySelector('.admin-tab[data-tab="' + savedTab + '"]');
+    var panel  = document.getElementById('tab-' + savedTab);
+    if (target && panel && target.style.display !== 'none') {
       document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
       document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
       target.classList.add('active');
       panel.classList.add('active');
+      if (savedTab === 'lineups' && !window._lineupInitDone) { window._lineupInitDone = true; lineupInit(); }
+      if (savedTab === 'schedule') setSchedMode('editor');
     }
   }
   updateQuickBar();
@@ -210,13 +206,23 @@ function applySettingsToPage() {
 }
 
 function populateSettingsFields() {
-  Object.keys(SETTING_DEFAULTS).forEach(function(key) {
+  Object.keys(SETTINGS_DEFAULTS).forEach(function(key) {
     var el = document.getElementById('set-' + key);
     if (!el) return;
     if (el.type === 'checkbox') el.checked = getSetting(key) !== 'false';
     else if (el.tagName === 'SELECT') el.value = getSetting(key);
     else el.value = settings[key] || '';
   });
+  onLineupPresetChange();
+  _logoDataUri = (_themeColors && _themeColors.logo) || null;
+  syncLogoUI();
+}
+
+// Show the custom-columns field only when the Custom preset is selected.
+function onLineupPresetChange() {
+  var sel   = document.getElementById('set-lineupPreset');
+  var field = document.getElementById('lineupCustomColsField');
+  if (sel && field) field.style.display = sel.value === 'custom' ? '' : 'none';
 }
 
 function toggleSection(hdrEl) {
@@ -230,7 +236,7 @@ function toggleSection(hdrEl) {
 async function saveSettings() {
   var status = document.getElementById('settingsStatus');
   var out = {};
-  Object.keys(SETTING_DEFAULTS).forEach(function(key) {
+  Object.keys(SETTINGS_DEFAULTS).forEach(function(key) {
     var el = document.getElementById('set-' + key);
     if (!el) return;
     out[key] = el.type === 'checkbox' ? String(el.checked) : el.value.trim();
@@ -240,6 +246,7 @@ async function saveSettings() {
     var inp = document.getElementById('themeColor-' + key);
     if (inp) themeColors[key] = inp.value;
   });
+  if (_logoDataUri) themeColors.logo = _logoDataUri;
   var fieldColors = {};
   document.querySelectorAll('.field-color-picker:not(.theme-color-picker)').forEach(function(inp) {
     if (inp.dataset.field) fieldColors[inp.dataset.field] = inp.value;
@@ -251,9 +258,10 @@ async function saveSettings() {
       apiFetch('/api/field-colors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(fieldColors) }),
     ]);
     if (!r || !r.ok || !r1 || !r1.ok || !r2 || !r2.ok) throw new Error();
-    settings = out;
+    settings = Object.assign({}, settings, out);
     _themeColors = themeColors;
     _fieldColors = fieldColors;
+    applyThemeColors();
     applySettingsToPage();
     showToast('Settings saved');
     status.textContent = '✓ Saved';
@@ -268,23 +276,14 @@ async function saveSettings() {
 function gameLabel(sid) {
   return (GAMES[sid] && GAMES[sid].label) ? GAMES[sid].label : sid;
 }
-function esc(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+// Admin-side round display name: the TD's custom name if set, else the
+// static ROUND_LABELS (the admin editor shows every defined round, not just
+// populated ones, so it doesn't use the public roundLabel() numbering).
+function roundDisplayName(round) {
+  return getSetting('roundName' + round) || ROUND_LABELS[round];
 }
+// esc() comes from tt-common.js
 
-// Escape a value for safe embedding inside a single-quoted JS string literal
-// that itself sits inside an inline event handler attribute (e.g. onclick="fn('VALUE')").
-// We backslash-escape JS-significant chars first, then HTML-escape the result so the
-// attribute parser cannot reconstruct a quote that breaks out of the JS string.
-function jsStr(s) {
-  return esc(String(s)
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029'));
-}
 
 // Split stored ISO string into date and time parts for the two inputs
 function splitTime(iso) {
@@ -332,8 +331,8 @@ function renderAdmin() {
   var html = '';
   var periodLbl = getSetting('periodLabel') || 'Inning';
 
-  // Sort all games by date/time, then by game num as tiebreak
-  var allSids = Object.keys(GAMES).sort(function(a, b) {
+  // Sort all non-bye games by date/time, then by game num as tiebreak
+  var allSids = Object.keys(GAMES).filter(function(s) { return !GAMES[s].bye; }).sort(function(a, b) {
     var ta = parseTimeVal(GAMES[a].time);
     var tb = parseTimeVal(GAMES[b].time);
     if (ta !== tb) return ta - tb;
@@ -374,7 +373,7 @@ function renderAdmin() {
       return '<div class="admin-res-card">' + hdr
         + '<div class="admin-res-team-row"><span class="admin-res-team ' + c1 + '">' + esc(t1) + '</span>' + sc1 + '</div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team ' + c2 + '">' + esc(t2) + '</span>' + sc2 + '</div>'
-        + '<div class="admin-res-footer"><button class="admin-clear-btn" onclick="clearResult(\'' + sid + '\')">Clear</button></div>'
+        + '<div class="admin-res-footer"><button class="admin-clear-btn" data-action="clearResult" data-arg="' + esc(sid) + '">Clear</button></div>'
         + '</div>';
     }
 
@@ -386,28 +385,28 @@ function renderAdmin() {
         + '<div class="admin-res-team-row">'
         + '<span class="admin-live-badge">● LIVE</span>'
         + '<span class="admin-live-period-lbl">' + esc(periodLbl) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-period-inp" id="per-' + sid + '" value="' + esc(String(ls.period)) + '" placeholder="#" onfocus="this.select()">'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-period-inp" id="per-' + sid + '" value="' + esc(String(ls.period)) + '" placeholder="#" data-selectall>'
         + '</div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" value="' + esc(String(s1)) + '" placeholder="Score" onfocus="this.select()"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" value="' + esc(String(s1)) + '" placeholder="Score" data-selectall></div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" value="' + esc(String(s2)) + '" placeholder="Score" onfocus="this.select()"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" value="' + esc(String(s2)) + '" placeholder="Score" data-selectall></div>'
         + '<div class="admin-res-footer">'
-        + '<button class="admin-clear-btn" onclick="endLive(\'' + sid + '\')">Clear</button>'
-        + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
-        + '<button class="admin-live-update-btn" onclick="updateLive(\'' + sid + '\')">Update</button>'
+        + '<button class="admin-clear-btn" data-action="endLive" data-arg="' + esc(sid) + '">Clear</button>'
+        + '<button class="admin-save-btn" data-action="saveResult" data-arg="' + esc(sid) + '">Final</button>'
+        + '<button class="admin-live-update-btn" data-action="updateLive" data-arg="' + esc(sid) + '">Update</button>'
         + '</div></div>';
     }
 
     if (both) {
       return '<div class="admin-res-card upcoming">' + hdr
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" placeholder="Score" onfocus="this.select()"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" placeholder="Score" data-selectall></div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" placeholder="Score" onfocus="this.select()"></div>'
+        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" placeholder="Score" data-selectall></div>'
         + '<div class="admin-res-footer">'
-        + '<button class="admin-live-start-btn" onclick="startLive(\'' + sid + '\')">Live</button>'
-        + '<button class="admin-save-btn" onclick="saveResult(\'' + sid + '\')">Final</button>'
+        + '<button class="admin-live-start-btn" data-action="startLive" data-arg="' + esc(sid) + '">Live</button>'
+        + '<button class="admin-save-btn" data-action="saveResult" data-arg="' + esc(sid) + '">Final</button>'
         + '</div></div>';
     }
 
@@ -523,7 +522,7 @@ function sourceDropdown(idBase, currentType, currentSlot) {
       .filter(function(s){ return GAMES[s].round===round; })
       .sort(function(a,b){ return GAMES[a].num - GAMES[b].num; });
     if (!sids.length) return;
-    slotOpts += '<optgroup label="' + ROUND_LABELS[round] + '">';
+    slotOpts += '<optgroup label="' + esc(roundDisplayName(round)) + '">';
     sids.forEach(function(s){
       var g  = GAMES[s];
       var p1 = resolveSlot(g.t1, results) || slotLabel(g.t1);
@@ -553,7 +552,7 @@ function occupiedCard(sid) {
 
   var field = over.field || g.field || '';
   var h = '<div class="sched-game-card" data-sid="' + sid + '">';
-  h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
+  h += '<div class="sched-game-hdr" data-action="toggleSched" data-arg="' + esc(sid) + '">'
     + '<span class="sched-game-hdr-id">' + esc(lbl) + '</span>'
     + (field ? '<span class="sched-game-hdr-field">' + esc(field) + '</span>' : '')
     + '<span class="sched-game-hdr-sid">' + esc(sid) + '</span>'
@@ -583,9 +582,9 @@ function occupiedCard(sid) {
   h += '</div>';
 
   h += '<div class="sched-game-footer">'
-    + '<button class="admin-clear-btn" onclick="clearSlot(\'' + sid + '\')">Clear Slot</button>'
+    + '<button class="admin-clear-btn" data-action="clearSlot" data-arg="' + esc(sid) + '">Clear Slot</button>'
     + '<span class="sched-footer-note">Removes this game entirely — slot returns to empty</span>'
-    + '<button class="sched-save-btn sched-game-save-btn" onclick="saveOneGame(\'' + sid + '\')">Save</button>'
+    + '<button class="sched-save-btn sched-game-save-btn" data-action="saveOneGame" data-arg="' + esc(sid) + '">Save</button>'
     + '<span class="sched-status" id="sgstatus-' + sid + '"></span>'
     + '</div>';
 
@@ -596,13 +595,13 @@ function occupiedCard(sid) {
 function emptyCard(sid) {
   var over = schedule[sid] || {};
   var h = '<div class="empty-slot-card" data-sid="' + sid + '">';
-  h += '<div class="sched-game-hdr" onclick="toggleSched(\'' + sid + '\')">'
+  h += '<div class="sched-game-hdr" data-action="toggleSched" data-arg="' + esc(sid) + '">'
     + '<span class="sched-game-hdr-sid">' + sid + '</span>'
     + '<span class="sched-game-hdr-teams empty">— empty slot —</span>'
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
     + '</div>';
   h += '<div class="sched-game-body" id="sbody-' + sid + '">';
-  h += '<div class="empty-slot-instructions">Fill this slot to create a new game. Requires a label and both teams. Save All to apply.</div>';
+  h += '<div class="empty-slot-instructions">Fill this slot to create a new game. Give it a label and both teams, then Create Game.</div>';
   h += '<div class="sched-field"><label>Game Label</label>'
     + '<input type="text" id="slabel-' + sid + '" value="' + esc(over.label||'') + '" placeholder="e.g. G7"></div>';
   h += '<div class="sched-field"><label>Field</label>'
@@ -617,6 +616,11 @@ function emptyCard(sid) {
     + '<input type="text" id="st2-' + sid + '" value="' + esc(over.t2name||'') + '" placeholder="Team name"></div>';
   h += '<div class="sched-field"><label>Team 2 Source (if not fixed)</label>'
     + sourceDropdown('st2-'+sid, over.t2type||'winner', over.t2slot||'') + '</div>';
+  h += '<div class="sched-game-footer">'
+    + '<button class="sched-save-btn sched-game-save-btn" data-action="saveOneGame" data-arg="' + esc(sid) + '">Create Game</button>'
+    + '<span class="sched-status" id="sgstatus-' + sid + '"></span>'
+    + '<button class="admin-clear-btn" data-action="hideEmptySlot" data-arg="' + esc(sid) + '">Hide</button>'
+    + '</div>';
   h += '</div></div>';
   return h;
 }
@@ -639,33 +643,123 @@ async function clearSlot(sid) {
   } catch(e) { showToast('Clear failed', true); }
 }
 
+// The slot grid (SLOT_DEFS) is the fixed maximum bracket structure, so most
+// tournaments use a fraction of it. Occupied slots always show; empty slots
+// stay hidden until revealed one at a time via the "+ Add game" buttons.
+var _revealedSlots = {}; // sid -> true, for empty slots manually revealed
+
 function renderScheduleEditor() {
   var wrap = document.getElementById('scheduleEditor');
+  // A revealed slot that now has a real game no longer needs tracking.
+  Object.keys(_revealedSlots).forEach(function(sid){
+    if (GAMES[sid]) delete _revealedSlots[sid];
+  });
+
   var html = '';
+  var hiddenOptions = []; // {value:'ROUND.SIDE', label} for rounds/sides not shown
+
   ROUND_ORDER.forEach(function(round){
     var sides = Object.keys(SLOT_DEFS[round]||{}).sort();
-    var hasAny = sides.some(function(side){
-      return Object.keys(GAMES).some(function(s){ return GAMES[s].round===round && GAMES[s].side===side; })
-        || (SLOT_DEFS[round][side]||[]).length > 0;
-    });
-    if (!hasAny) return;
-    html += '<div class="admin-round-hdr">' + ROUND_LABELS[round] + '</div>';
+    var roundHtml = '';
+    var roundHasShown = false;
+
     sides.forEach(function(side){
       var defs = SLOT_DEFS[round][side] || [];
-      if (!defs.length) return;
+      var shown = [];
+      var nextAvail = null;
+      defs.forEach(function(n){
+        var sid = round + '.' + side + '.' + n;
+        if (GAMES[sid] || _revealedSlots[sid]) shown.push(n);
+        else if (nextAvail === null) nextAvail = n;
+      });
+
+      if (!shown.length) {
+        if (nextAvail !== null) {
+          hiddenOptions.push({
+            value: round + '.' + side,
+            label: roundDisplayName(round) + (sides.length > 1
+              ? ' — ' + (side==='L' ? getSetting('leftLabel')
+                       : side==='R' ? getSetting('rightLabel')
+                       : side)
+              : '')
+          });
+        }
+        return;
+      }
+
+      roundHasShown = true;
       if (sides.length > 1) {
-        html += '<div class="sched-side-label">'
+        roundHtml += '<div class="sched-side-label">'
           + (side==='L' ? getSetting('leftLabel')
            : side==='R' ? getSetting('rightLabel')
            : side) + '</div>';
       }
-      defs.forEach(function(n){
+      shown.forEach(function(n){
         var sid = round + '.' + side + '.' + n;
-        html += GAMES[sid] ? occupiedCard(sid) : emptyCard(sid);
+        roundHtml += GAMES[sid] ? occupiedCard(sid) : emptyCard(sid);
       });
+      if (nextAvail !== null) {
+        roundHtml += '<button class="sched-add-slot-btn" data-action="revealSlot" data-arg="'
+          + esc(round + '.' + side + '.' + nextAvail) + '">+ Add game</button>';
+      }
     });
+
+    if (roundHasShown) {
+      html += '<div class="admin-round-hdr" id="rhdr-' + round + '">'
+        + '<span class="round-hdr-name">' + esc(roundDisplayName(round)) + '</span>'
+        + '<button class="round-rename-btn" data-action="editRoundName" data-arg="' + esc(round) + '" title="Rename this round">✎</button>'
+        + '</div>' + roundHtml;
+    }
   });
+
+  var fallbackRow = '';
+  if (hiddenOptions.length) {
+    var opts = hiddenOptions.map(function(o){
+      return '<option value="' + esc(o.value) + '">' + esc(o.label) + '</option>';
+    }).join('');
+    fallbackRow = '<div class="sched-add-round-row">'
+      + '<select class="admin-winner-sel" id="addRoundSel">' + opts + '</select>'
+      + '<button class="sched-add-slot-btn" data-action="revealSlotFromSelect">+ Add game</button>'
+      + '</div>';
+  }
+
+  if (!html) {
+    html = '<div class="bld-muted" style="padding:1em">No games yet. Use the Builder to generate '
+      + 'a schedule, or add games below.</div>' + fallbackRow;
+  } else {
+    html += fallbackRow;
+  }
+
   wrap.innerHTML = html;
+}
+
+// revealSlot: show one empty slot and open it for editing.
+function revealSlot(sid) {
+  _revealedSlots[sid] = true;
+  renderScheduleEditor();
+  toggleSched(sid);
+}
+
+// revealSlotFromSelect: fallback control for rounds/sides with no games at
+// all — reveals the first free slot in the chosen ROUND.SIDE.
+function revealSlotFromSelect() {
+  var sel = document.getElementById('addRoundSel');
+  if (!sel || !sel.value) return;
+  var parts = sel.value.split('.');
+  var round = parts[0], side = parts[1];
+  var defs = SLOT_DEFS[round][side] || [];
+  var n = null;
+  for (var i = 0; i < defs.length; i++) {
+    var sid = round + '.' + side + '.' + defs[i];
+    if (!GAMES[sid] && !_revealedSlots[sid]) { n = defs[i]; break; }
+  }
+  if (n === null) return;
+  revealSlot(round + '.' + side + '.' + n);
+}
+
+function hideEmptySlot(sid) {
+  delete _revealedSlots[sid];
+  renderScheduleEditor();
 }
 
 function toggleSched(sid) {
@@ -674,79 +768,6 @@ function toggleSched(sid) {
   if (!body) return;
   body.classList.toggle('open');
   arrow.textContent = body.classList.contains('open') ? '▲' : '▼';
-}
-
-async function saveAllSchedule() {
-  var btn    = document.getElementById('schedSaveBtn');
-  var status = document.getElementById('schedStatus');
-  var statusB = document.getElementById('schedStatusBottom');
-  btn.disabled = true;
-  var out = {};
-
-  Object.keys(schedule).forEach(function(sid){
-    if (schedule[sid] && schedule[sid].clear) out[sid] = { clear: true };
-  });
-
-  allSlotIds().forEach(function(sid){
-    var labelEl   = document.getElementById('slabel-' + sid);
-    var slotEl    = document.getElementById('sslot-'  + sid);
-    var t1El      = document.getElementById('st1-'    + sid);
-    var t2El      = document.getElementById('st2-'    + sid);
-    var st1typeEl = document.getElementById('st1-' + sid + '-type');
-    var st1srcEl  = document.getElementById('st1-' + sid + '-slot');
-    var st2typeEl = document.getElementById('st2-' + sid + '-type');
-    var st2srcEl  = document.getElementById('st2-' + sid + '-slot');
-    var newLabel  = labelEl ? labelEl.value.trim() : '';
-
-    if (schedule[sid] && schedule[sid].clear && !newLabel) return;
-
-    var entry  = {};
-    var timeVal  = readDatetime('stime-' + sid);
-    var fieldEl  = document.getElementById('sfield-' + sid);
-    var fieldVal = fieldEl ? fieldEl.value.trim() : '';
-    if (newLabel)                  entry.label  = newLabel;
-    if (fieldVal)                  entry.field  = fieldVal;
-    if (timeVal)                   entry.time   = timeVal;
-    if (slotEl && slotEl.value)    entry.num    = parseInt(slotEl.value);
-    if (t1El && t1El.value.trim()) entry.t1name = t1El.value.trim();
-    if (t2El && t2El.value.trim()) entry.t2name = t2El.value.trim();
-    if (st1typeEl && st1srcEl && st1srcEl.value) {
-      entry.t1type = st1typeEl.value;
-      entry.t1slot = st1srcEl.value;
-    }
-    if (st2typeEl && st2srcEl && st2srcEl.value) {
-      entry.t2type = st2typeEl.value;
-      entry.t2slot = st2srcEl.value;
-    }
-
-    var hasRealData = entry.label || entry.time || entry.t1name || entry.t2name || entry.t1slot || entry.t2slot;
-    if (hasRealData) out[sid] = entry;
-  });
-
-  try {
-    var r = await apiFetch('/api/schedule', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(out)
-    });
-    if (!r) { btn.disabled = false; return; }
-    if (!r.ok) throw new Error();
-    schedule = out;
-    if (typeof applySchedule === 'function') applySchedule(schedule);
-    showToast('Schedule saved');
-    status.textContent = '✓ Saved';
-    if (statusB) statusB.textContent = '✓ Saved';
-    setTimeout(function(){
-      status.textContent = '';
-      if (statusB) statusB.textContent = '';
-    }, 3000);
-    renderAdmin();
-    renderScheduleEditor();
-  } catch(e) {
-    showToast('Save failed', true);
-    status.textContent = '✗ Error';
-    if (statusB) statusB.textContent = '✗ Error';
-  }
-  btn.disabled = false;
 }
 
 async function saveOneGame(sid) {
@@ -778,6 +799,13 @@ async function saveOneGame(sid) {
     entry.t2type = st2typeEl.value;
     entry.t2slot = st2srcEl.value;
   }
+  // Creating a game in an empty slot needs actual content — don't write a
+  // blank entry into the schedule.
+  var hasRealData = entry.label || entry.time || entry.t1name || entry.t2name || entry.t1slot || entry.t2slot;
+  if (!GAMES[sid] && !hasRealData) {
+    showToast('Give the game a label and teams first', true);
+    return;
+  }
   var out = Object.assign({}, schedule);
   out[sid] = entry;
   try {
@@ -798,17 +826,53 @@ async function saveOneGame(sid) {
   }
 }
 
+// editRoundName: swap a round header's contents for an inline rename input.
+function editRoundName(round) {
+  var hdr = document.getElementById('rhdr-' + round);
+  if (!hdr) return;
+  var current = getSetting('roundName' + round) || '';
+  hdr.innerHTML = '<input type="text" class="round-rename-inp" id="rname-' + esc(round) + '" value="' + esc(current) + '" placeholder="' + esc(ROUND_LABELS[round]) + '" maxlength="40"> '
+    + '<button class="sched-save-btn sched-game-save-btn" data-action="saveRoundName" data-arg="' + esc(round) + '">Save</button> '
+    + '<button class="admin-clear-btn" data-action="cancelRoundName">Cancel</button>';
+  var inp = document.getElementById('rname-' + round);
+  if (inp) inp.focus();
+}
+
+function cancelRoundName() {
+  renderScheduleEditor();
+}
+
+async function saveRoundName(round) {
+  var inp = document.getElementById('rname-' + round);
+  var value = inp ? inp.value.trim() : '';
+  if (value === ROUND_LABELS[round]) value = '';
+  settings = Object.assign({}, settings);
+  settings['roundName' + round] = value;
+  try {
+    var r = await apiFetch('/api/settings', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(settings)
+    });
+    if (!r) return;
+    if (!r.ok) throw new Error();
+    showToast(value ? 'Round renamed' : 'Round name reset');
+    renderScheduleEditor();
+  } catch(e) {
+    showToast('Save failed', true);
+  }
+}
+
 // ── Auth ───────────────────────────────────────────────────────────────
 // Wrapper for mutation fetches: shows login overlay on 401 (session expired).
 async function apiFetch(url, opts) {
-  var r = await fetch(url, opts);
+  var r = await fetch(scopedUrl(url), opts);
   if (r.status === 401) { showLogin(); return null; }
   return r;
 }
 
 // Apply role-based visibility restrictions. Idempotent — safe to call multiple times.
 function applyRoleRestrictions(role) {
-  // Schedule tab is admin-only
+  // Schedule tab is admin-only (Builder is a sub-view of Schedule, no own tab)
   document.querySelectorAll('.admin-tab').forEach(function(tab) {
     var hide = role !== 'admin' && tab.dataset.tab === 'schedule';
     tab.style.display = hide ? 'none' : '';
@@ -876,8 +940,63 @@ function showAdmin(username, role, teamName) {
     roleEl.addEventListener('change', onNewUserRoleChange);
     onNewUserRoleChange();
   }
+  loadTournamentContext().then(function() {
+    if (currentRole === 'admin') loadUsers();
+    fetchAll();
+  });
+}
+
+// Load the user's tournaments + superadmin flag from the session, populate the
+// header switcher, and reconcile the saved slug against current grants.
+async function loadTournamentContext() {
+  try {
+    var r = await fetch('/api/session');
+    var data = await r.json();
+    _adminTournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
+    _isSuperadmin = !!data.superadmin;
+  } catch (e) { _adminTournaments = []; _isSuperadmin = false; }
+
+  // Drop a saved slug the user no longer has access to.
+  var saved = getAdminSlug();
+  if (saved && !_adminTournaments.some(function(t) { return t.slug === saved; })) setAdminSlug(null);
+
+  var navT = document.getElementById('navTournaments');
+  if (navT) navT.style.display = _isSuperadmin ? '' : 'none';
+  renderTournamentSwitcher();
+}
+
+// Header <select> of the user's tournaments. Hidden when there's only one
+// choice (the default) and the user isn't a superadmin — nothing to switch.
+function renderTournamentSwitcher() {
+  var sel = document.getElementById('tournamentSwitcher');
+  if (!sel) return;
+  var opts = _adminTournaments.slice();
+  sel.innerHTML = opts.map(function(t) {
+    return '<option value="' + esc(t.slug) + '">' + esc(t.name) + '</option>';
+  }).join('');
+  var cur = getAdminSlug();
+  if (cur && opts.some(function(t) { return t.slug === cur; })) sel.value = cur;
+  else if (opts.length) { sel.value = opts[0].slug; setAdminSlug(opts[0].slug); }
+  // Show the switcher only when there's a real choice.
+  sel.style.display = opts.length > 1 ? '' : 'none';
+  updateViewPublicLink();
+}
+
+// Point the "← Bracket" link at the active tournament's public page.
+function updateViewPublicLink() {
+  var link = document.getElementById('viewPublicLink');
+  if (!link) return;
+  var slug = getAdminSlug();
+  link.href = slug ? '/t/' + encodeURIComponent(slug) : '/';
+}
+
+// Switcher change handler: remember the choice and reload all scoped data.
+function switchTournament(slug) {
+  setAdminSlug(slug || null);
+  updateViewPublicLink();
   if (currentRole === 'admin') loadUsers();
   fetchAll();
+  showToast('Switched tournament');
 }
 
 function showLogin() {
@@ -1093,18 +1212,20 @@ function renderUsersList(users) {
     var statusLine = u.mustChangePassword ? '<span class="user-must-change">pw change pending</span>' : '';
 
     var actions = '';
-    if (u.role === 'team' && u.accessToken) {
-      actions += '<button class="sched-save-btn" onclick="copyMagicLink(\'' + jsStr(u.accessToken) + '\')">Copy Link</button>';
-      actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + jsStr(u.username) + '\')">Regenerate</button>';
-    } else if (u.setupToken) {
-      actions += '<button class="sched-save-btn" onclick="copySetupLink(\'' + jsStr(u.setupToken) + '\')">Copy Setup Link</button>';
-    } else if (!isSelf && u.role !== 'team') {
-      actions += '<button class="admin-clear-btn user-regen-btn" onclick="regenerateSetupLink(\'' + jsStr(u.username) + '\')">Regenerate Link</button>';
-    } else if (!isSelf) {
-      actions += '<button class="admin-clear-btn" onclick="openResetPwModal(\'' + jsStr(u.username) + '\')">Reset PW</button>';
+    // Tokens are stored hashed, so setup links can't be re-shown from the
+    // list — "Regenerate Link" mints a fresh token and copies the new link
+    // (covers pending-setup users too, whose old "Copy Setup Link" needed
+    // the raw token the server no longer returns).
+    if (!isSelf && u.role !== 'team') {
+      actions += '<button class="admin-clear-btn user-regen-btn" data-action="regenerateSetupLink" data-arg="' + esc(u.username) + '">Regenerate Link</button>';
     }
     if (!isSelf) {
-      actions += '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + jsStr(u.username) + '\')">Delete</button>';
+      // For a non-superadmin acting on a user who also has grants elsewhere,
+      // Delete only removes this tournament's access (revoke). Superadmins,
+      // and users with no other grants, get a full account delete.
+      var revokeOnly = u.grantsElsewhere && !_isSuperadmin;
+      var delLabel = revokeOnly ? 'Remove' : 'Delete';
+      actions += '<button class="admin-clear-btn user-delete-btn" data-action="deleteUser" data-arg="' + esc(u.username) + '"' + (revokeOnly ? ' data-revoke="1"' : '') + '>' + delLabel + '</button>';
     } else {
       actions += '<span class="user-self-label">(you)</span>';
     }
@@ -1135,12 +1256,6 @@ function copyMagicLink(token) {
   showToast('Link copied to clipboard');
 }
 
-function copySetupLink(token) {
-  var link = window.location.origin + '/api/setup-password/' + token;
-  copyText(link);
-  showToast('Setup link copied to clipboard');
-}
-
 async function regenerateSetupLink(username) {
   var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/setup-link', { method: 'POST' });
   var d = await r.json().catch(function() { return {}; });
@@ -1166,13 +1281,16 @@ async function regenerateToken(username) {
   if (!confirm('Regenerate access link for "' + username + '"?\nThe old link will stop working immediately.')) return;
   var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/regenerate-token', { method: 'POST' });
   if (!r) return;
+  var data = await r.json().catch(function(){ return {}; });
   if (!r.ok) {
-    var data = await r.json().catch(function(){ return {}; });
     showToast(data.error || 'Regenerate failed', true);
     return;
   }
-  showToast('New link generated for ' + username);
+  // Only chance to capture the raw token — the server stores just its hash.
+  copyMagicLink(data.accessToken);
+  showToast('New link for ' + username + ' copied to clipboard');
   loadUsers();
+  loadCoaches();
 }
 
 async function addUser() {
@@ -1224,8 +1342,12 @@ function onNewUserRoleChange() {
   if (teamField) teamField.style.display = role === 'team' ? '' : 'none';
 }
 
-async function deleteUser(username) {
-  if (!confirm('Delete user "' + username + '"? This cannot be undone.')) return;
+async function deleteUser(username, el) {
+  var revokeOnly = el && el.dataset && el.dataset.revoke === '1';
+  var prompt = revokeOnly
+    ? 'Remove "' + username + '" from this tournament? Their account and access to other tournaments are kept.'
+    : 'Delete user "' + username + '"? This cannot be undone.';
+  if (!confirm(prompt)) return;
   var r = await apiFetch('/api/users/' + encodeURIComponent(username), { method: 'DELETE' });
   if (!r) return;
   if (!r.ok) {
@@ -1233,8 +1355,120 @@ async function deleteUser(username) {
     showToast(data.error || 'Delete failed', true);
     return;
   }
-  showToast('User ' + username + ' deleted');
+  var res = await r.json().catch(function(){ return {}; });
+  showToast(res.deleted === false ? 'User ' + username + ' removed from this tournament' : 'User ' + username + ' deleted');
   loadUsers();
+}
+
+// ── Tournament management (superadmin) ─────────────────────────────────
+// These call the UNSCOPED /api mount — tournament CRUD is a deployment-global
+// superadmin operation, not scoped to the currently-selected tournament.
+async function loadTournaments() {
+  var el = document.getElementById('tournamentsList');
+  if (!el) return;
+  try {
+    var r = await fetch('/api/tournaments');
+    if (!r.ok) { el.innerHTML = '<div class="admin-subtitle">Could not load tournaments.</div>'; return; }
+    var list = await r.json();
+    renderTournamentsList(list);
+  } catch (e) { el.innerHTML = '<div class="admin-subtitle">Could not load tournaments.</div>'; }
+}
+
+function renderTournamentsList(list) {
+  var el = document.getElementById('tournamentsList');
+  if (!el) return;
+  if (!list.length) { el.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No tournaments.</div>'; return; }
+  var activeSlug = getAdminSlug();
+  el.innerHTML = list.map(function(t) {
+    var pub = t.isPublic !== false;
+    var isActive = t.slug === activeSlug;
+    return '<div class="user-row">'
+      + '<div class="user-info">'
+      +   '<span class="user-name">' + esc(t.name) + (isActive ? ' <span class="user-self-label">(active)</span>' : '') + '</span>'
+      +   '<span class="user-team-name">/t/' + esc(t.slug) + '</span>'
+      + '</div>'
+      + '<span class="user-role user-role--' + (pub ? 'results' : 'admin') + '">' + (pub ? 'Public' : 'Private') + '</span>'
+      + '<div class="user-actions">'
+      +   '<button class="admin-clear-btn" data-action="renameTournament" data-arg="' + esc(t.slug) + '">Rename</button>'
+      +   '<button class="admin-clear-btn" data-action="toggleTournamentPublic" data-arg="' + esc(t.slug) + '" data-public="' + (pub ? '1' : '0') + '">' + (pub ? 'Make Private' : 'Make Public') + '</button>'
+      +   '<button class="admin-clear-btn user-delete-btn" data-action="deleteTournament" data-arg="' + esc(t.slug) + '">Delete</button>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+async function createTournament() {
+  var nameEl = document.getElementById('newTournamentName');
+  var slugEl = document.getElementById('newTournamentSlug');
+  var pubEl  = document.getElementById('newTournamentPublic');
+  var statusEl = document.getElementById('createTournamentStatus');
+  var name = (nameEl.value || '').trim();
+  var slug = (slugEl.value || '').trim().toLowerCase();
+  if (!name) { statusEl.textContent = 'Name required'; return; }
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug)) { statusEl.textContent = 'Invalid slug'; return; }
+  var r = await apiFetch('/api/tournaments', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name, slug: slug, isPublic: pubEl.checked }),
+  });
+  if (!r) return;
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { statusEl.textContent = d.error || 'Create failed'; return; }
+  nameEl.value = ''; slugEl.value = ''; pubEl.checked = true;
+  statusEl.textContent = '✓ Created';
+  setTimeout(function(){ statusEl.textContent = ''; }, 3000);
+  await loadTournamentContext();   // refresh the switcher with the new tournament
+  loadTournaments();
+}
+
+async function renameTournament(slug) {
+  var newName = prompt('New name for this tournament:');
+  if (newName === null) return;
+  newName = newName.trim();
+  if (!newName) return;
+  var newSlug = prompt('New slug (leave unchanged to keep URLs). WARNING: changing the slug breaks existing links and QR codes.', slug);
+  if (newSlug === null) return;
+  newSlug = newSlug.trim().toLowerCase();
+  var body = { name: newName };
+  if (newSlug && newSlug !== slug) {
+    if (!confirm('Change the slug from "' + slug + '" to "' + newSlug + '"? Existing /t/' + slug + ' links and QR codes will stop working.')) return;
+    body.slug = newSlug;
+  }
+  var r = await apiFetch('/api/tournaments/' + encodeURIComponent(slug), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  if (!r) return;
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { showToast(d.error || 'Rename failed', true); return; }
+  // If we renamed the active tournament's slug, follow it.
+  if (body.slug && getAdminSlug() === slug) setAdminSlug(body.slug);
+  showToast('Tournament updated');
+  await loadTournamentContext();
+  loadTournaments();
+}
+
+async function toggleTournamentPublic(slug, el) {
+  var makePublic = el.dataset.public !== '1';
+  var r = await apiFetch('/api/tournaments/' + encodeURIComponent(slug), {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isPublic: makePublic }),
+  });
+  if (!r) return;
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { showToast(d.error || 'Update failed', true); return; }
+  showToast(makePublic ? 'Tournament is now public' : 'Tournament is now private');
+  loadTournaments();
+}
+
+async function deleteTournamentUI(slug) {
+  if (!confirm('Delete tournament "' + slug + '"? This permanently removes its bracket, schedule, results, lineups, and all data. This cannot be undone.')) return;
+  var r = await apiFetch('/api/tournaments/' + encodeURIComponent(slug), { method: 'DELETE' });
+  if (!r) return;
+  var d = await r.json().catch(function(){ return {}; });
+  if (!r.ok) { showToast(d.error || 'Delete failed', true); return; }
+  if (getAdminSlug() === slug) setAdminSlug(null);
+  showToast('Tournament deleted');
+  await loadTournamentContext();
+  loadTournaments();
+  fetchAll();
 }
 
 // ── PWA home preference ────────────────────────────────────────────────
@@ -1242,8 +1476,88 @@ function savePwaHome(val) {
   try { localStorage.setItem('ttPwaHome', val); } catch(e) {}
 }
 
+// ── Tournament logo (white-label) ──────────────────────────────────────
+// Held as a data URI; rides the theme-colors POST in saveSettings(). The
+// server re-validates format, size, and magic bytes.
+var _logoDataUri = null;
+var LOGO_MAX_FILE = 36 * 1024;
+
+function syncLogoUI() {
+  var img = document.getElementById('logoPreview');
+  var rm  = document.getElementById('logoRemoveBtn');
+  if (!img || !rm) return;
+  if (_logoDataUri) { img.src = _logoDataUri; img.style.display = ''; rm.style.display = ''; }
+  else { img.removeAttribute('src'); img.style.display = 'none'; rm.style.display = 'none'; }
+}
+
+function pickLogo(val, el) {
+  var f = el.files && el.files[0];
+  if (!f) return;
+  if (['image/png', 'image/jpeg', 'image/webp'].indexOf(f.type) === -1) {
+    showToast('Logo must be PNG, JPEG, or WebP', true);
+    el.value = '';
+    return;
+  }
+  if (f.size > LOGO_MAX_FILE) {
+    showToast('Logo too large — max 36 KB (resize/crop it first)', true);
+    el.value = '';
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function() {
+    _logoDataUri = reader.result;
+    syncLogoUI();
+    showToast('Logo ready — press Save to apply');
+  };
+  reader.readAsDataURL(f);
+}
+
+function removeLogo() {
+  _logoDataUri = null;
+  var inp = document.getElementById('logoFileInput');
+  if (inp) inp.value = '';
+  syncLogoUI();
+  showToast('Logo will be removed on Save');
+}
+
 // ── Theme & field color management ─────────────────────────────────────
 var FIELD_DEFAULT_COLORS = ['#0d9488', '#ea580c', '#7c3aed', '#db2777', '#4a90d9'];
+
+// ── Color utilities (mirrored from bracket.js) ─────────────────────────────
+function _hexToHsl(hex) {
+  var r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
+  var max=Math.max(r,g,b), min=Math.min(r,g,b), l=(max+min)/2, s=0, h=0;
+  if (max!==min) { var d=max-min; s=d/(l>0.5?2-max-min:max+min); if(max===r)h=((g-b)/d+(g<b?6:0))/6; else if(max===g)h=((b-r)/d+2)/6; else h=((r-g)/d+4)/6; }
+  return [h*360, s*100, l*100];
+}
+function _hslToHex(h,s,l) {
+  h/=360; s/=100; l/=100;
+  var r,g,b; if(s===0){r=g=b=l;}else{var q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q; function hue(t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;} r=hue(h+1/3);g=hue(h);b=hue(h-1/3);}
+  return '#'+[r,g,b].map(function(x){return Math.round(x*255).toString(16).padStart(2,'0');}).join('');
+}
+function _lightModeColor(hex) {
+  var hsl = _hexToHsl(hex);
+  return _hslToHex(hsl[0], hsl[1], Math.max(10, hsl[2] - 40));
+}
+function applyThemeColors() {
+  var root = document.documentElement;
+  var tc = _themeColors;
+  var darkMap = { accent: ['--gold','--gold-lt'], interactive: ['--blue','--blue-lt'], winColor: ['--win-color'], loseColor: ['--lose-color'] };
+  var lightRules = [];
+  Object.keys(darkMap).forEach(function(key) {
+    darkMap[key].forEach(function(prop) {
+      if (tc[key]) root.style.setProperty(prop, tc[key]);
+      else root.style.removeProperty(prop);
+    });
+    if (tc[key]) {
+      var lc = _lightModeColor(tc[key]);
+      darkMap[key].forEach(function(prop) { lightRules.push('  ' + prop + ':' + lc + ';'); });
+    }
+  });
+  var styleEl = document.getElementById('tt-theme-overrides');
+  if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'tt-theme-overrides'; document.head.appendChild(styleEl); }
+  styleEl.textContent = lightRules.length ? 'body.light{' + lightRules.join('') + '}' : '';
+}
 
 var THEME_COLOR_DEFAULTS = { accent: '#e8b82a', interactive: '#4a90d9', winColor: '#4a9a4a', loseColor: '#c05050' };
 var THEME_COLOR_LABELS   = { accent: 'Accent (gold)', interactive: 'Interactive (blue)', winColor: 'Win color', loseColor: 'Lose color' };
@@ -1267,7 +1581,7 @@ function renderThemeSection() {
       + '<div class="field-color-input-row">'
       + '<input type="color" class="field-color-picker theme-color-picker" id="themeColor-' + key + '" data-key="' + key + '" data-default="' + esc(def) + '" value="' + esc(cur) + '">'
       + '<span class="theme-color-swatch" style="background:' + esc(cur) + '"></span>'
-      + '<button class="admin-clear-btn" onclick="resetOneThemeColor(this)">Reset</button>'
+      + '<button class="admin-clear-btn" data-action="resetOneThemeColor">Reset</button>'
       + '</div>'
       + '</div>';
   });
@@ -1293,11 +1607,14 @@ function resetOneThemeColor(btn) {
 function renderFieldsPanel() {
   var el = document.getElementById('fieldsColorList');
   if (!el) return;
+  var section = document.getElementById('fieldColorsSection');
   var fields = getScheduleFields();
   if (!fields.length) {
-    el.innerHTML = '<div class="settings-field" style="color:var(--text-mute);font-size:0.9rem">No fields found in schedule yet.</div>';
+    if (section) section.style.display = 'none';
+    el.innerHTML = '';
     return;
   }
+  if (section) section.style.display = '';
   var html = '';
   fields.forEach(function(f, i) {
     var defColor = FIELD_DEFAULT_COLORS[i % FIELD_DEFAULT_COLORS.length];
@@ -1307,7 +1624,7 @@ function renderFieldsPanel() {
       + '<div class="field-color-input-row">'
       + '<input type="color" class="field-color-picker" data-field="' + esc(f) + '" data-default="' + esc(defColor) + '" value="' + esc(curColor) + '">'
       + '<span class="field-color-preview" style="color:' + esc(curColor) + ';border-color:' + esc(curColor) + '">' + esc(f) + '</span>'
-      + '<button class="admin-clear-btn" onclick="resetOneFieldColor(this)">Reset</button>'
+      + '<button class="admin-clear-btn" data-action="resetOneFieldColor">Reset</button>'
       + '</div>'
       + '</div>';
   });
@@ -1334,12 +1651,14 @@ async function resetTheme() {
   var statusEl = document.getElementById('themeResetStatus');
   try {
     var [r1, r2] = await Promise.all([
-      apiFetch('/api/theme-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }),
+      // Reset colors but keep the tournament logo — branding isn't a color default.
+      apiFetch('/api/theme-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(_logoDataUri ? { logo: _logoDataUri } : {}) }),
       apiFetch('/api/field-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }),
     ]);
     if (!r1 || !r1.ok || !r2 || !r2.ok) throw new Error();
-    _themeColors = {};
+    _themeColors = _logoDataUri ? { logo: _logoDataUri } : {};
     _fieldColors = {};
+    applyThemeColors();
     renderThemeSection();
     renderFieldsPanel();
     if (statusEl) { statusEl.textContent = '✓ Reset'; setTimeout(function(){ statusEl.textContent = ''; }, 3000); }
@@ -1359,6 +1678,56 @@ function gotoDelays() {
   updateQuickBar();
 }
 
+// ── Schedule sub-views (mirrors setResultsMode) ────────────────────────
+var _schedMode = 'editor';
+
+function setSchedMode(mode) {
+  _schedMode = mode;
+  var ePanel  = document.getElementById('schedEditorPanel');
+  var bPanel  = document.getElementById('schedBuilderPanel');
+  var tPanel  = document.getElementById('schedTeamsPanel');
+  var nPanel  = document.getElementById('schedNamesPanel');
+  var dPanel  = document.getElementById('resultsDelaysPanel');
+  var slot    = document.getElementById('schedDelaysSlot');
+  var eBtn    = document.getElementById('modeScheduleBtn');
+  var bBtn    = document.getElementById('modeBuilderBtn');
+  var dBtn    = document.getElementById('modeSchedDelaysBtn');
+  var tBtn    = document.getElementById('modeSchedTeamsBtn');
+  var nBtn    = document.getElementById('modeNamesBtn');
+  if (ePanel)  ePanel.style.display  = mode === 'editor'  ? '' : 'none';
+  if (bPanel)  bPanel.style.display  = mode === 'builder' ? '' : 'none';
+  if (tPanel)  tPanel.style.display  = mode === 'teams'   ? '' : 'none';
+  if (nPanel)  nPanel.style.display  = mode === 'names'   ? '' : 'none';
+  if (mode === 'delays' && dPanel && slot) {
+    slot.appendChild(dPanel);
+    dPanel.style.display = '';
+    renderDelaysAdmin();
+  } else if (dPanel) {
+    dPanel.style.display = 'none';
+  }
+  if (eBtn)    eBtn.classList.toggle('active',  mode === 'editor');
+  if (bBtn)    bBtn.classList.toggle('active',  mode === 'builder');
+  if (dBtn)    dBtn.classList.toggle('active',  mode === 'delays');
+  if (tBtn)    tBtn.classList.toggle('active',  mode === 'teams');
+  if (nBtn)    nBtn.classList.toggle('active',  mode === 'names');
+  if (mode === 'builder' && !window._builderInitDone) {
+    window._builderInitDone = true;
+    if (typeof window.builderInit === 'function') window.builderInit();
+  }
+  if (mode === 'teams') loadTeams();
+  if (mode === 'names') renderNamesEditor();
+}
+
+function adminSwitchToBuilder() {
+  var schedTab = document.querySelector('.admin-tab[data-tab="schedule"]');
+  if (schedTab && !schedTab.classList.contains('active')) schedTab.click();
+  setSchedMode('builder');
+}
+
+window.adminSwitchToSchedule = function() {
+  setSchedMode('editor');
+};
+
 // ── Bucket challenge admin ─────────────────────────────────────────────
 var _resultsMode = 'games';
 
@@ -1374,7 +1743,13 @@ function setResultsMode(mode) {
   var saveStat = document.getElementById('bucketModeSaveStatus');
   if (gPanel)   gPanel.style.display = mode === 'games'   ? '' : 'none';
   if (bPanel)   bPanel.style.display = mode === 'buckets' ? '' : 'none';
-  if (dPanel)   dPanel.style.display = mode === 'delays'  ? '' : 'none';
+  if (mode === 'delays' && dPanel) {
+    var _rSlot = document.getElementById('resultsDelaysSlot');
+    if (_rSlot) _rSlot.appendChild(dPanel);
+    dPanel.style.display = '';
+  } else if (dPanel) {
+    dPanel.style.display = 'none';
+  }
   if (gBtn)     gBtn.classList.toggle('active', mode === 'games');
   if (bBtn)     bBtn.classList.toggle('active', mode === 'buckets');
   if (dBtn)     dBtn.classList.toggle('active', mode === 'delays');
@@ -1437,7 +1812,7 @@ function renderDelaysAdmin() {
       fieldChips.innerHTML = '<span class="delay-chip delay-chip--auto">' + esc(fields[0]) + '</span>';
     } else {
       fieldChips.innerHTML = fields.map(function(f) {
-        return '<button class="delay-chip" data-value="' + esc(f) + '" onclick="this.classList.toggle(\'delay-chip--sel\')">' + esc(f) + '</button>';
+        return '<button class="delay-chip" data-value="' + esc(f) + '" data-action="toggleChipSel">' + esc(f) + '</button>';
       }).join('');
     }
   }
@@ -1448,7 +1823,7 @@ function renderDelaysAdmin() {
   if (dayWrap)  dayWrap.style.display = days.length > 1 ? '' : 'none';
   if (dayChips && days.length > 1) {
     dayChips.innerHTML = days.map(function(d) {
-      return '<button class="delay-chip" data-value="' + esc(d) + '" onclick="this.classList.toggle(\'delay-chip--sel\')">' + esc(fmtDayLabel(d)) + '</button>';
+      return '<button class="delay-chip" data-value="' + esc(d) + '" data-action="toggleChipSel">' + esc(fmtDayLabel(d)) + '</button>';
     }).join('');
   }
 
@@ -1473,7 +1848,7 @@ function renderDelaysAdmin() {
     html += '<div class="delay-offset-row">'
       + '<span class="delay-offset-val" style="color:' + color + '">' + sign + mins + ' min</span>'
       + '<span class="delay-offset-desc">' + esc(fieldStr) + ' · ' + esc(dayStrs) + '</span>'
-      + '<button class="admin-clear-btn delay-offset-del" onclick="deleteOffset(' + idx + ')">✕</button>'
+      + '<button class="admin-clear-btn delay-offset-del" data-action="deleteOffset" data-arg="' + idx + '">✕</button>'
       + '</div>';
   });
   list.innerHTML = html;
@@ -1580,17 +1955,7 @@ async function clearDelayBanner() {
   } catch(e) { showToast('Clear failed', true); }
 }
 
-function getScheduleTeams() {
-  var teams = [];
-  if (typeof GAMES !== 'undefined') {
-    Object.values(GAMES).forEach(function(g) {
-      if (g.t1 && g.t1.type === 'fixed' && g.t1.team) teams.push(g.t1.team);
-      if (g.t2 && g.t2.type === 'fixed' && g.t2.team) teams.push(g.t2.team);
-    });
-    teams = teams.filter(function(t, i, a) { return a.indexOf(t) === i; }).sort();
-  }
-  return teams;
-}
+// getScheduleTeams() comes from tt-common.js
 
 function renderBucketAdmin() {
   var wrap = document.getElementById('bucketAdminWrap');
@@ -1632,8 +1997,8 @@ function renderBucketAdmin() {
       + '<span class="bucket-drag-handle" title="Drag to reorder"></span>'
       + '<span class="bucket-admin-name">' + esc(team.name) + '</span>'
       + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="bucket-admin-inp" id="bci-' + i + '" value="' + val + '">'
-      + '<button class="' + hideBtnCls + '" onclick="toggleBucketHidden(' + i + ')">' + hideLbl + '</button>'
-      + (team.extra ? '<button class="admin-clear-btn" onclick="deleteBucketTeam(' + i + ')">Remove</button>' : '')
+      + '<button class="' + hideBtnCls + '" data-action="toggleBucketHidden" data-arg="' + i + '">' + hideLbl + '</button>'
+      + (team.extra ? '<button class="admin-clear-btn" data-action="deleteBucketTeam" data-arg="' + i + '">Remove</button>' : '')
       + '</div>';
   });
   html += '</div>';
@@ -1871,29 +2236,28 @@ function renderCoachesList(coaches) {
   }
   el.innerHTML = coaches.map(function(u) {
     var teams = Array.isArray(u.teams) && u.teams.length ? u.teams : (u.teamName ? [u.teamName] : []);
-    var link  = u.accessToken ? (window.location.origin + '/api/team-access/' + u.accessToken) : '';
     var teamTags = teams.map(function(t) {
       var canRemove = teams.length > 1;
       return '<span class="coach-team-tag">' + esc(t)
-        + (canRemove ? '<button class="coach-team-remove" onclick="removeCoachTeam(\'' + jsStr(u.username) + '\',\'' + jsStr(t) + '\')" title="Remove team">✕</button>' : '')
+        + (canRemove ? '<button class="coach-team-remove" data-action="removeCoachTeam" data-arg="' + esc(u.username) + '" data-arg2="' + esc(t) + '" title="Remove team">✕</button>' : '')
         + '</span>';
     }).join('');
     return '<div class="coach-card">'
       + '<span class="coach-card-name">' + esc(u.username) + '</span>'
       + '<div class="coach-teams-wrap">'
       +   teamTags
-      +   '<button class="coach-add-team-btn" onclick="showAddCoachTeam(\'' + jsStr(u.username) + '\')">+ Team</button>'
+      +   '<button class="coach-add-team-btn" data-action="showAddCoachTeam" data-arg="' + esc(u.username) + '">+ Team</button>'
       + '</div>'
       + '<div class="coach-add-team-row" id="cat-' + esc(u.username) + '" style="display:none">'
       +   '<select class="styled" id="cat-sel-' + esc(u.username) + '"></select>'
-      +   '<button class="admin-save-btn" onclick="addCoachTeam(\'' + jsStr(u.username) + '\')">Add</button>'
-      +   '<button class="admin-clear-btn" onclick="hideAddCoachTeam(\'' + jsStr(u.username) + '\')">Cancel</button>'
+      +   '<button class="admin-save-btn" data-action="addCoachTeam" data-arg="' + esc(u.username) + '">Add</button>'
+      +   '<button class="admin-clear-btn" data-action="hideAddCoachTeam" data-arg="' + esc(u.username) + '">Cancel</button>'
       + '</div>'
       + '<div class="coach-actions">'
-      +   (link ? '<input type="text" class="coach-link-hidden" id="cl-' + esc(u.username) + '" value="' + esc(link) + '" readonly tabindex="-1" aria-hidden="true">' : '')
-      +   (link ? '<button class="admin-save-btn" onclick="copyCoachLink(\'' + jsStr(u.username) + '\')">Copy Link</button>' : '')
-      +   (u.accessToken ? '<button class="admin-clear-btn user-regen-btn" onclick="regenerateToken(\'' + jsStr(u.username) + '\')">Regenerate</button>' : '')
-      +   '<button class="admin-clear-btn user-delete-btn" onclick="deleteUser(\'' + jsStr(u.username) + '\')">Delete</button>'
+      // Access tokens are stored hashed, so the link can only be copied at
+      // creation or via Regenerate (which copies the fresh link).
+      +   (u.hasAccessToken ? '<button class="admin-clear-btn user-regen-btn" data-action="regenerateToken" data-arg="' + esc(u.username) + '">Regenerate Link</button>' : '')
+      +   '<button class="admin-clear-btn user-delete-btn" data-action="deleteUser" data-arg="' + esc(u.username) + '">Delete</button>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -1940,17 +2304,6 @@ async function removeCoachTeam(username, teamName) {
   loadCoaches();
 }
 
-function copyCoachLink(username) {
-  var el = document.getElementById('cl-' + username);
-  if (!el) return;
-  var text = el.value;
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(function() { showToast('Link copied'); }).catch(function() { fallbackCopy(text); });
-  } else {
-    fallbackCopy(text);
-  }
-}
-
 async function addCoach() {
   var username = (document.getElementById('newCoachUsername').value || '').trim();
   var teamName = (document.getElementById('newCoachTeamName').value || '').trim();
@@ -1975,9 +2328,12 @@ async function addCoach() {
   }
   document.getElementById('newCoachUsername').value = '';
   document.getElementById('newCoachTeamName').value = '';
-  status.textContent = '✓ Added';
-  setTimeout(function(){ status.textContent = ''; }, 3000);
-  showToast('Coach ' + username + ' added');
+  // Only chance to capture the coach's magic link — the server stores just
+  // the token's hash, so copy it to the clipboard right now.
+  if (data.accessToken) copyMagicLink(data.accessToken);
+  status.textContent = '✓ Added — magic link copied';
+  setTimeout(function(){ status.textContent = ''; }, 5000);
+  showToast('Coach ' + username + ' added — link copied to clipboard');
   loadCoaches();
 }
 
@@ -2053,3 +2409,289 @@ checkSession();
   }
   applyStickyOffsets();
 }());
+
+// ── Teams editor ─────────────────────────────────────────────────────
+// A drag-and-drop ordered list of team names. The list order defines seeds.
+// When showSeeds is on, the seed number is shown left of each name.
+
+var _teamsDrag = null;   // { el, ghost, startY, idx, ys:[] }
+
+// ── Names editor ───────────────────────────────────────────────────────
+
+function renderNamesEditor() {
+  var list = document.getElementById('namesEditorList');
+  if (!list) return;
+  var html = '';
+  // Group by round
+  ROUND_ORDER.forEach(function(round) {
+    var sides = Object.keys(SLOT_DEFS[round] || {}).sort();
+    var gidsInRound = [];
+    sides.forEach(function(side) {
+      (SLOT_DEFS[round][side] || []).forEach(function(n) {
+        var sid = round + '.' + side + '.' + n;
+        if (GAMES[sid]) gidsInRound.push(sid);
+      });
+    });
+    if (!gidsInRound.length) return;
+    html += '<div class="names-round-hdr">' + esc(roundDisplayName(round)) + '</div>';
+    gidsInRound.forEach(function(sid) {
+      var g = GAMES[sid];
+      html += '<div class="names-row">'
+        + '<span class="names-slot-id">' + esc(sid) + '</span>'
+        + '<input type="text" class="names-label-inp" data-sid="' + esc(sid) + '" value="' + esc(g.label || '') + '">'
+        + '</div>';
+    });
+  });
+  list.innerHTML = html || '<div class="bld-muted" style="padding:1em">No games in schedule.</div>';
+}
+
+function namesReplaceAll() {
+  var find = document.getElementById('namesFindInput');
+  var repl = document.getElementById('namesReplaceInput');
+  if (!find || !find.value) return;
+  var findStr = find.value;
+  var replStr = repl ? repl.value : '';
+  document.querySelectorAll('.names-label-inp').forEach(function(inp) {
+    if (inp.value.indexOf(findStr) !== -1) {
+      inp.value = inp.value.split(findStr).join(replStr);
+    }
+  });
+}
+
+async function saveGameNames() {
+  var btn = document.getElementById('namesSaveBtn');
+  var status = document.getElementById('namesSaveStatus');
+  btn.disabled = true;
+  var out = Object.assign({}, schedule);
+  document.querySelectorAll('.names-label-inp').forEach(function(inp) {
+    var sid = inp.dataset.sid;
+    var newLabel = inp.value.trim();
+    if (!newLabel || !out[sid]) return;
+    out[sid] = Object.assign({}, out[sid], { label: newLabel });
+  });
+  try {
+    var r = await apiFetch('/api/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(out)
+    });
+    if (!r || !r.ok) throw new Error();
+    schedule = out;
+    if (typeof applySchedule === 'function') applySchedule(schedule);
+    if (status) { status.textContent = 'Saved'; setTimeout(function() { status.textContent = ''; }, 2500); }
+  } catch(e) {
+    if (status) { status.textContent = 'Save failed'; setTimeout(function() { status.textContent = ''; }, 2500); }
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderTeamsEditor() {
+  var chk = document.getElementById('teams-showSeeds');
+  if (chk) chk.checked = !!_teamsData.showSeeds;
+
+  var list = document.getElementById('teamsEditorList');
+  if (!list) return;
+  var teams = (_teamsData.teams && _teamsData.teams.length) ? _teamsData.teams : [];
+  var showS = !!_teamsData.showSeeds;
+
+  list.innerHTML = teams.map(function(t, i) {
+    return '<div class="team-ed-row" draggable="true" data-idx="' + i + '">' +
+      '<span class="team-ed-handle" aria-hidden="true">&#8942;</span>' +
+      (showS ? '<span class="team-ed-seed">(' + (i + 1) + ')</span>' : '') +
+      '<input type="text" class="team-ed-name" data-idx="' + i + '" value="' + esc(t.name) + '" maxlength="100" aria-label="Team name">' +
+      '<button type="button" class="team-ed-up" data-idx="' + i + '" aria-label="Move up" ' + (i === 0 ? 'disabled' : '') + '">↑</button>' +
+      '<button type="button" class="team-ed-down" data-idx="' + i + '" aria-label="Move down" ' + (i === teams.length - 1 ? 'disabled' : '') + '">↓</button>' +
+    '</div>';
+  }).join('');
+
+  // Up/down buttons
+  list.querySelectorAll('.team-ed-up').forEach(function(b) {
+    b.addEventListener('click', function() { teamsMove(parseInt(b.dataset.idx, 10), -1); });
+  });
+  list.querySelectorAll('.team-ed-down').forEach(function(b) {
+    b.addEventListener('click', function() { teamsMove(parseInt(b.dataset.idx, 10), 1); });
+  });
+
+  // Inline name edit — commit on blur
+  list.querySelectorAll('.team-ed-name').forEach(function(inp) {
+    inp.addEventListener('change', function() {
+      var i = parseInt(inp.dataset.idx, 10);
+      var v = inp.value.trim();
+      if (!v) { inp.value = _teamsData.teams[i].name; return; }
+      _teamsData.teams[i] = { name: v };
+    });
+  });
+
+  // HTML5 drag-and-drop reorder
+  wireTeamsDragAndDrop(list);
+}
+
+function teamsMove(idx, dir) {
+  var teams = _teamsData.teams;
+  var other = idx + dir;
+  if (other < 0 || other >= teams.length) return;
+  var tmp = teams[idx]; teams[idx] = teams[other]; teams[other] = tmp;
+  renderTeamsEditor();
+}
+
+function wireTeamsDragAndDrop(list) {
+  var rows = Array.prototype.slice.call(list.querySelectorAll('.team-ed-row'));
+  var dragSrc = null;
+
+  rows.forEach(function(row) {
+    row.addEventListener('dragstart', function(e) {
+      dragSrc = row;
+      row.classList.add('team-ed-row--dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.dataset.idx);
+    });
+    row.addEventListener('dragend', function() {
+      row.classList.remove('team-ed-row--dragging');
+      list.querySelectorAll('.team-ed-row--over').forEach(function(r) { r.classList.remove('team-ed-row--over'); });
+      dragSrc = null;
+    });
+    row.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (row !== dragSrc) row.classList.add('team-ed-row--over');
+    });
+    row.addEventListener('dragleave', function() {
+      row.classList.remove('team-ed-row--over');
+    });
+    row.addEventListener('drop', function(e) {
+      e.preventDefault();
+      row.classList.remove('team-ed-row--over');
+      if (!dragSrc || dragSrc === row) return;
+      var fromIdx = parseInt(dragSrc.dataset.idx, 10);
+      var toIdx   = parseInt(row.dataset.idx, 10);
+      var teams = _teamsData.teams;
+      var moved = teams.splice(fromIdx, 1)[0];
+      teams.splice(toIdx, 0, moved);
+      renderTeamsEditor();
+    });
+  });
+}
+
+async function saveTeams() {
+  var btn = document.getElementById('teamsSaveBtn');
+  var status = document.getElementById('teamsSaveStatus');
+  var chk = document.getElementById('teams-showSeeds');
+  if (btn) btn.disabled = true;
+
+  // Commit any in-progress name edits
+  document.querySelectorAll('.team-ed-name').forEach(function(inp) {
+    var i = parseInt(inp.dataset.idx, 10);
+    var v = inp.value.trim();
+    if (v && _teamsData.teams[i]) _teamsData.teams[i] = { name: v };
+  });
+
+  _teamsData.showSeeds = chk ? chk.checked : false;
+
+  try {
+    var r = await apiFetch('/api/teams', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ showSeeds: _teamsData.showSeeds, teams: _teamsData.teams }),
+    });
+    if (!r || !r.ok) throw new Error();
+    showToast('Teams saved');
+    if (status) { status.textContent = '✓ Saved'; setTimeout(function() { status.textContent = ''; }, 3000); }
+    renderTeamsEditor();
+  } catch(e) {
+    showToast('Save failed', true);
+    if (status) status.textContent = '✗ Error';
+  }
+  if (btn) btn.disabled = false;
+}
+
+// ── Delegated actions + form bindings (see tt-common.js) ──────────────
+// Explicit allowlist replacing the old inline onclick/onchange/onsubmit
+// attributes, so the CSP can drop script-src 'unsafe-inline'.
+Object.assign(TT_ACTIONS, {
+  // header / account
+  doLogout:            function() { doLogout(); },
+  saveUsername:        function() { saveUsername(); },
+  savePassword:        function() { savePassword(); },
+  savePwaHome:         function(v) { savePwaHome(v); },
+  closeSettingsSidebar:function() { closeSettingsSidebar(); },
+  switchTournament:    function(v) { switchTournament(v); },
+  // tournaments (superadmin)
+  createTournament:    function() { createTournament(); },
+  renameTournament:    function(arg) { renameTournament(arg); },
+  toggleTournamentPublic: function(arg, el) { toggleTournamentPublic(arg, el); },
+  deleteTournament:    function(arg) { deleteTournamentUI(arg); },
+  // results tab
+  setResultsMode:      function(arg) { setResultsMode(arg); },
+  clearResult:         function(arg) { clearResult(arg); },
+  saveResult:          function(arg) { saveResult(arg); },
+  startLive:           function(arg) { startLive(arg); },
+  updateLive:          function(arg) { updateLive(arg); },
+  endLive:             function(arg) { endLive(arg); },
+  // schedule tab
+  setSchedMode:        function(arg) { setSchedMode(arg); },
+  toggleSched:         function(arg) { toggleSched(arg); },
+  clearSlot:           function(arg) { clearSlot(arg); },
+  saveOneGame:         function(arg) { saveOneGame(arg); },
+  revealSlot:          function(arg) { revealSlot(arg); },
+  revealSlotFromSelect:function() { revealSlotFromSelect(); },
+  hideEmptySlot:       function(arg) { hideEmptySlot(arg); },
+  editRoundName:       function(arg) { editRoundName(arg); },
+  saveRoundName:       function(arg) { saveRoundName(arg); },
+  cancelRoundName:     function() { cancelRoundName(); },
+  saveTeams:           function() { saveTeams(); },
+  namesReplaceAll:     function() { namesReplaceAll(); },
+  saveGameNames:       function() { saveGameNames(); },
+  // buckets
+  saveBucketCounts:    function() { saveBucketCounts(); },
+  addBucketTeam:       function() { addBucketTeam(); },
+  toggleBucketHidden:  function(arg) { toggleBucketHidden(Number(arg)); },
+  deleteBucketTeam:    function(arg) { deleteBucketTeam(Number(arg)); },
+  // delays
+  applyOffset:         function() { applyOffset(); },
+  saveDelayBanner:     function() { saveDelayBanner(); },
+  clearDelayBanner:    function() { clearDelayBanner(); },
+  clearAllOffsets:     function() { clearAllOffsets(); },
+  deleteOffset:        function(arg) { deleteOffset(Number(arg)); },
+  toggleChipSel:       function(arg, el) { el.classList.toggle('delay-chip--sel'); },
+  // settings
+  showSettingsSection: function(arg) { showSettingsSection(arg); },
+  onLineupPresetChange: function() { onLineupPresetChange(); },
+  toggleSection:       function(arg, el) { toggleSection(el); },
+  saveSettings:        function() { saveSettings(); },
+  resetTheme:          function() { resetTheme(); },
+  resetOneThemeColor:  function(arg, el) { resetOneThemeColor(el); },
+  pickLogo:            function(arg, el) { pickLogo(arg, el); },
+  removeLogo:          function() { removeLogo(); },
+  resetOneFieldColor:  function(arg, el) { resetOneFieldColor(el); },
+  // users
+  addUser:             function() { addUser(); },
+  onNewUserRoleChange: function() { onNewUserRoleChange(); },
+  deleteUser:          function(arg, el) { deleteUser(arg, el); },
+  openResetPwModal:    function(arg) { openResetPwModal(arg); },
+  closeResetPwModal:   function() { closeResetPwModal(); },
+  copyMagicLink:       function(arg) { copyMagicLink(arg); },
+  regenerateToken:     function(arg) { regenerateToken(arg); },
+  regenerateSetupLink: function(arg) { regenerateSetupLink(arg); },
+  // coaches
+  addCoach:            function() { addCoach(); },
+  removeCoachTeam:     function(arg, el) { removeCoachTeam(arg, el.dataset.arg2); },
+  showAddCoachTeam:    function(arg) { showAddCoachTeam(arg); },
+  addCoachTeam:        function(arg) { addCoachTeam(arg); },
+  hideAddCoachTeam:    function(arg) { hideAddCoachTeam(arg); },
+});
+
+(function bindAdminForms() {
+  var lf = document.getElementById('loginForm');
+  if (lf) lf.addEventListener('submit', doLogin);
+  var ff = document.getElementById('firstLoginForm');
+  if (ff) ff.addEventListener('submit', doFirstLoginPasswordChange);
+  var rf = document.getElementById('resetPwForm');
+  if (rf) rf.addEventListener('submit', submitResetPassword);
+  var tat = document.getElementById('themeAdvancedToggle');
+  if (tat) tat.addEventListener('change', function() {
+    var panel = document.getElementById('themeAdvancedPanel');
+    if (panel) panel.style.display = this.checked ? '' : 'none';
+    if (this.checked) renderThemeSection();
+  });
+})();

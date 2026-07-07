@@ -1,0 +1,420 @@
+/* builder.css — Bracket Builder page. Uses tokens from base.css. */
+
+.bld-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  padding: 0.75em 1em;
+  padding-top: calc(0.75em + env(safe-area-inset-top));
+  background: var(--surface);
+  border-bottom: 0.15em solid var(--gold);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.bld-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+.bld-back {
+  font-size: var(--text-sm);
+  color: var(--blue-lt);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.bld-back:hover { text-decoration: underline; }
+
+.bld-main {
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 1em;
+  padding-bottom: calc(2em + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+}
+
+.bld-card {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1em 1.1em;
+}
+
+.bld-h2 {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--blue-lt);
+  margin-bottom: 0.75em;
+}
+
+.bld-count {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  margin-left: 0.4em;
+}
+.bld-count--ok { color: var(--win-color); }
+
+.bld-field { margin-bottom: 0.75em; }
+.bld-field label {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  margin-bottom: 0.3em;
+}
+
+.bld-input {
+  width: 100%;
+  font-family: 'Barlow', sans-serif;
+  font-size: max(1rem, 16px); /* >=16px prevents iOS zoom on focus */
+  background: var(--bg);
+  color: var(--text);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.55em 0.7em;
+}
+.bld-input:focus-visible {
+  outline: none;
+  border-color: var(--blue-lt);
+}
+.bld-textarea {
+  resize: vertical;
+  min-height: 8em;
+  line-height: 1.5;
+}
+
+.bld-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.bld-check input { width: 1.1em; height: 1.1em; }
+
+/* Manual bye picker */
+.bld-bye-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10em, 1fr));
+  gap: 0.35em 0.75em;
+  max-height: 16em;
+  overflow-y: auto;
+  margin-top: 0.4em;
+  padding: 0.5em;
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.bld-bye-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  font-size: var(--text-sm);
+  color: var(--text);
+  cursor: pointer;
+  min-height: 2.2rem;
+}
+.bld-bye-item input { width: 1.1em; height: 1.1em; flex: none; }
+
+/* Schedule calendar (multi-day selector) */
+.bld-cal {
+  margin: 0.75em 0;
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6em;
+}
+.bld-cal-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5em;
+}
+.bld-cal-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-md);
+  color: var(--text);
+}
+.bld-cal-nav {
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.bld-cal-nav:hover { opacity: 0.85; }
+.bld-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.25em;
+}
+.bld-cal-dow {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-mute);
+  padding: 0.2em 0;
+}
+.bld-cal-cell {
+  aspect-ratio: 1;
+  min-height: 2.4rem;
+  border: 0.07em solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bld-cal-cell:hover { border-color: var(--blue-lt); }
+.bld-cal-cell--empty { background: transparent; cursor: default; }
+.bld-cal-cell--sel {
+  background: var(--blue);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Per-day detail table */
+.bld-days { display: flex; flex-direction: column; gap: 0.6em; margin-bottom: 0.6em; }
+.bld-day {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5em;
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.55em;
+}
+.bld-day-date {
+  flex: none;
+  width: 5.5em;
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  color: var(--blue-lt);
+  padding-bottom: 0.5em;
+}
+.bld-day-fields {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr 0.9fr;
+  gap: 0.5em;
+  flex: 1;
+  min-width: 0;
+}
+.bld-day-f {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  min-width: 0;
+}
+.bld-day-f .bld-input { padding: 0.4em 0.45em; }
+.bld-input--sm { text-align: center; }
+.bld-day-del {
+  flex: none;
+  width: 2rem;
+  height: 2.5rem;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--lose-color);
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.bld-day-del:hover { opacity: 0.8; }
+
+/* Per-day field toggles — which of the venue's fields this day is played on.
+   Shown only when more than one field exists; wraps onto its own row. */
+.bld-day-chips {
+  flex: 1 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35em;
+  padding-top: 0.15em;
+}
+.bld-day-chip {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  padding: 0.3em 0.7em;
+  border: 0.07em solid var(--border);
+  border-radius: 1em;
+  background: var(--surface2);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.bld-day-chip--on {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.bld-day-chip:hover:not(.bld-day-chip--on) { color: var(--text); border-color: var(--text-dim); }
+
+/* Venue fields setup — name the fields, add/remove them. */
+.bld-fields-setup { margin: 0.2em 0 0.8em; }
+.bld-fields-hdr {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  color: var(--blue-lt);
+  margin-bottom: 0.45em;
+}
+.bld-fields-list { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em; }
+.bld-field-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2em;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  padding: 0.2em 0.3em 0.2em 0.45em;
+}
+.bld-field-name {
+  width: 6.5em;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  padding: 0.15em 0;
+}
+.bld-field-name:focus { outline: none; }
+.bld-field-del {
+  border: none;
+  background: transparent;
+  color: var(--lose-color);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.15em;
+}
+.bld-field-add {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: 0.04em;
+  padding: 0.4em 0.7em;
+  border: 0.07em dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.bld-field-add:hover { color: var(--text); border-color: var(--text-dim); }
+
+/* Narrow screens: stack the date label above the fields */
+@media (max-width: 28rem) {
+  .bld-day { align-items: stretch; }
+  .bld-day-date { width: 100%; padding-bottom: 0.2em; }
+  .bld-day-fields { grid-template-columns: 1fr 1fr 1fr; }
+}
+
+.bld-muted {
+  font-size: var(--text-sm);
+  color: var(--text-mute);
+  line-height: 1.5;
+}
+
+.bld-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  align-items: stretch;
+}
+.bld-error {
+  color: var(--lose-color);
+  font-size: var(--text-sm);
+  display: none;
+}
+
+.bld-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--btn-font-size);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 0.7em 1.2em;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+  text-decoration: none;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.bld-btn:hover { opacity: 0.85; }
+.bld-btn:disabled { opacity: 0.5; cursor: default; }
+.bld-btn--primary { background: var(--blue); border-color: var(--blue); color: #fff; }
+.bld-btn--danger  { background: var(--clear-color); border-color: var(--clear-border); color: #fff; }
+.bld-btn--small {
+  padding: 0.4em 0.9em;
+  min-height: 2.2rem;
+  font-size: var(--text-sm);
+}
+
+/* Random team-name generator row (step 2) */
+.bld-gen-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.85em;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+}
+.bld-gen-count {
+  width: auto;
+  min-width: 4.5em;
+  padding: 0.4em 0.5em;
+  font-size: max(0.95rem, 16px); /* keep >=16px to avoid iOS zoom */
+}
+
+/* Auth gate */
+.bld-gate { text-align: center; display: flex; flex-direction: column; gap: 1em; align-items: center; }
+.bld-gate-msg { color: var(--text-dim); line-height: 1.5; }
+
+/* Overlays / modals */
+.bld-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1em;
+  z-index: 100;
+}
+.bld-modal {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.25em;
+  max-width: 26em;
+  width: 100%;
+}
+.bld-modal-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.6em;
+}
+.bld-modal-body { font-size: var(--text-sm); color: var(--text-dim); line-height: 1.6; margin-bottom: 1.1em; }
+.bld-modal-actions { display: flex; gap: 0.6em; justify-content: flex-end; flex-wrap: wrap; }
+.bld-warn { color: var(--lose-color); font-style: italic; }

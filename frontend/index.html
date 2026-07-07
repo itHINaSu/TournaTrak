@@ -9,25 +9,28 @@
 <meta name="theme-color" content="#f0f4f1" media="(prefers-color-scheme: light)">
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="base.css">
-<link rel="stylesheet" href="bracket.css">
-<script>document.documentElement.style.setProperty('--app-h', window.innerHeight + 'px');</script>
+<link rel="stylesheet" href="/base.css">
+<link rel="stylesheet" href="/bracket.css">
+<script src="/app-h.js"></script>
 </head>
 <body>
 
 <header class="site-header" id="siteHeader">
+  <img id="siteLogo" class="site-logo" alt="" style="display:none">
   <div class="header-name-block">
     <h1 id="siteName">Tournament Bracket</h1>
     <div id="siteSubtitle" class="site-subtitle"></div>
   </div>
   <div class="header-controls">
-    <button class="admin-public-btn" id="bucketEditBtn" style="display:none" onclick="enterBucketEdit()">Edit</button>
+    <button class="admin-public-btn" id="bracketEditBtn" style="display:none" data-action="toggleBracketEdit">Edit</button>
+    <button class="admin-public-btn" id="bucketEditBtn" style="display:none" data-action="enterBucketEdit">Edit</button>
     <a href="/lineup" class="admin-public-btn" id="lineupPortalBtn" style="display:none">Lineup →</a>
     <a href="/admin" class="admin-public-btn" id="adminPortalBtn" style="display:none">Admin →</a>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
   </div>
 </header>
 
+<div class="offline-notice" id="offlineNotice" style="display:none">Offline — showing last loaded data</div>
 <div class="update-bar" id="updateBar" style="display:none">
   <span id="updateBarText"></span>
 </div>
@@ -74,10 +77,22 @@
 </div>
 
 <div class="view-panel active" id="view-bracket">
+  <!-- Open/A/B flight switcher — shown only for tiered tournaments -->
+  <div class="bracket-flights" id="bracketFlights" style="display:none">
+    <button class="flight-pill active" data-action="setFlight" data-arg="open">Open</button>
+    <button class="flight-pill" data-action="setFlight" data-arg="A">A Bracket</button>
+    <button class="flight-pill" data-action="setFlight" data-arg="B">B Bracket</button>
+  </div>
   <div id="bracketRoot"></div>
 </div>
 
 <div class="view-panel" id="view-schedule">
+  <!-- Open/A/B flight switcher — shown only for tournaments with drop brackets -->
+  <div class="bracket-flights sched-flights" id="scheduleFlights" style="display:none">
+    <button class="flight-pill active" data-action="setSchedFlight" data-arg="open">Open</button>
+    <button class="flight-pill" data-action="setSchedFlight" data-arg="A">A Bracket</button>
+    <button class="flight-pill" data-action="setSchedFlight" data-arg="B">B Bracket</button>
+  </div>
   <div class="selector-row">
     <div class="selector-inner sched-selector-inner">
       <div class="sched-select-wrap sched-select-wrap--group">
@@ -119,14 +134,10 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="bracket-data.js"></script>
-<script src="bracket.js"></script>
-<script>
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js').catch(function() {});
-  });
-}
-</script>
+<script src="/settings-defaults.js"></script>
+<script src="/tt-common.js"></script>
+<script src="/bracket-data.js"></script>
+<script src="/bracket.js"></script>
+<script src="/sw-register.js" data-sw="/sw.js"></script>
 </body>
 </html>
