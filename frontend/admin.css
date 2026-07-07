@@ -1030,42 +1030,23 @@ input[type="time"]:focus {
   border-radius: var(--radius-xs);
   color: var(--text);
 }
-.names-editor-list { padding: 0 1em 3em; }
-.names-round-hdr {
-  font-family: 'Oswald', sans-serif;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--gold-lt);
-  padding: 1em 0 0.4em;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 0.5em;
-}
-.names-row {
-  display: flex;
-  align-items: center;
-  gap: 0.75em;
-  padding: 0.35em 0;
-}
-.names-slot-id {
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.75rem;
-  color: var(--text-mute);
-  min-width: 8em;
-  flex-shrink: 0;
-}
-.names-label-inp {
-  flex: 1;
-  font-family: 'Barlow', sans-serif;
-  font-size: 0.9rem;
-  padding: 0.3em 0.6em;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  color: var(--text);
-}
-.names-label-inp:focus { border-color: var(--blue); outline: none; }
+/* ── Quick editor ── */
+.quick-row { display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; padding: 0.3em 0.2em; border-bottom: 0.07em solid var(--border); }
+.quick-sid { font-family: 'Oswald', sans-serif; font-size: 0.6rem; letter-spacing: 0.05em; color: var(--text-mute); min-width: 4.2em; }
+.quick-label { width: 11em; }
+.quick-field { width: 6em; }
+.quick-team { display: inline-flex; align-items: center; gap: 0.35em; min-width: 11em; }
+.quick-team-inp { width: 10em; }
+.quick-vs { color: var(--text-mute); font-size: 0.7rem; }
+.quick-feed { color: var(--text-mute); font-style: italic; font-size: 0.78rem; }
+.quick-feed-toggle { display: inline-flex; align-items: center; gap: 0.2em; font-size: 0.68rem; color: var(--text-dim); cursor: pointer; }
+.quick-row input[type="text"] { font-size: 0.85rem; padding: 0.3em 0.45em; background: var(--surface2); color: var(--text); border: 0.07em solid var(--border); border-radius: var(--radius-xs); }
+/* Compact the shared datetime-pair inputs when they sit inside a quick-row */
+.quick-row .datetime-pair { gap: 0.3em; }
+.quick-row .datetime-pair input[type="date"],
+.quick-row .datetime-pair input[type="time"] { width: 7.2em; min-width: 0; flex: none; }
+#quickEditorList { padding: 0 1em 3em; }
+@media (max-width: 700px) { .quick-row { border: 0.07em solid var(--border); border-radius: var(--radius-sm); margin-bottom: 0.5em; padding: 0.5em; } }
 
 /* ── Multi-tournament (Phase C) ── */
 /* Header tournament switcher — compact so it fits beside ← Bracket on phones */

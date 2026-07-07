@@ -67,7 +67,7 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     }
     // Reset to default sub-view when re-entering a tab
     if (tab.dataset.tab === 'results')  setResultsMode('games');
-    if (tab.dataset.tab === 'schedule') setSchedMode('editor');
+    if (tab.dataset.tab === 'schedule') setSchedMode('quick');
     if (tab.dataset.tab === 'settings') {
       var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
       var anyActive = document.querySelector('.settings-panel.active');
@@ -194,7 +194,7 @@ async function fetchAll() {
       target.classList.add('active');
       panel.classList.add('active');
       if (savedTab === 'lineups' && !window._lineupInitDone) { window._lineupInitDone = true; lineupInit(); }
-      if (savedTab === 'schedule') setSchedMode('editor');
+      if (savedTab === 'schedule') setSchedMode('quick');
     }
   }
   updateQuickBar();
@@ -1808,25 +1808,25 @@ function gotoDelays() {
 }
 
 // ── Schedule sub-views (mirrors setResultsMode) ────────────────────────
-var _schedMode = 'editor';
+var _schedMode = 'quick';
 
 function setSchedMode(mode) {
   _schedMode = mode;
+  var qPanel  = document.getElementById('schedQuickPanel');
   var ePanel  = document.getElementById('schedEditorPanel');
   var bPanel  = document.getElementById('schedBuilderPanel');
   var tPanel  = document.getElementById('schedTeamsPanel');
-  var nPanel  = document.getElementById('schedNamesPanel');
   var dPanel  = document.getElementById('resultsDelaysPanel');
   var slot    = document.getElementById('schedDelaysSlot');
+  var qBtn    = document.getElementById('modeQuickBtn');
   var eBtn    = document.getElementById('modeScheduleBtn');
   var bBtn    = document.getElementById('modeBuilderBtn');
   var dBtn    = document.getElementById('modeSchedDelaysBtn');
   var tBtn    = document.getElementById('modeSchedTeamsBtn');
-  var nBtn    = document.getElementById('modeNamesBtn');
+  if (qPanel)  qPanel.style.display  = mode === 'quick'   ? '' : 'none';
   if (ePanel)  ePanel.style.display  = mode === 'editor'  ? '' : 'none';
   if (bPanel)  bPanel.style.display  = mode === 'builder' ? '' : 'none';
   if (tPanel)  tPanel.style.display  = mode === 'teams'   ? '' : 'none';
-  if (nPanel)  nPanel.style.display  = mode === 'names'   ? '' : 'none';
   if (mode === 'delays' && dPanel && slot) {
     slot.appendChild(dPanel);
     dPanel.style.display = '';
@@ -1834,17 +1834,17 @@ function setSchedMode(mode) {
   } else if (dPanel) {
     dPanel.style.display = 'none';
   }
+  if (qBtn)    qBtn.classList.toggle('active',  mode === 'quick');
   if (eBtn)    eBtn.classList.toggle('active',  mode === 'editor');
   if (bBtn)    bBtn.classList.toggle('active',  mode === 'builder');
   if (dBtn)    dBtn.classList.toggle('active',  mode === 'delays');
   if (tBtn)    tBtn.classList.toggle('active',  mode === 'teams');
-  if (nBtn)    nBtn.classList.toggle('active',  mode === 'names');
   if (mode === 'builder' && !window._builderInitDone) {
     window._builderInitDone = true;
     if (typeof window.builderInit === 'function') window.builderInit();
   }
   if (mode === 'teams') loadTeams();
-  if (mode === 'names') renderNamesEditor();
+  if (mode === 'quick') renderQuickEditor();
 }
 
 function adminSwitchToBuilder() {
@@ -1854,7 +1854,7 @@ function adminSwitchToBuilder() {
 }
 
 window.adminSwitchToSchedule = function() {
-  setSchedMode('editor');
+  setSchedMode('quick');
 };
 
 // ── Bucket challenge admin ─────────────────────────────────────────────
@@ -2545,73 +2545,185 @@ checkSession();
 
 var _teamsDrag = null;   // { el, ghost, startY, idx, ys:[] }
 
-// ── Names editor ───────────────────────────────────────────────────────
+// ── Quick editor ────────────────────────────────────────────────────────
+// One compact row per OCCUPIED slot, grouped like the Advanced (card)
+// editor: main rounds first (plain headers, no rename), then the A/B tier
+// sections sub-grouped by tierGameRound. Empty slots and wiring changes are
+// Advanced's job — this view is for fast bulk edits of names/times/fields.
 
-function renderNamesEditor() {
-  var list = document.getElementById('namesEditorList');
+// quickTeamCell: fixed side → editable name input. Feed side (winner/loser
+// of another game) → muted feed text + a "name" checkbox that swaps in a
+// blank text input for overriding the feed with a fixed team name.
+function quickTeamCell(sid, n) {
+  var g    = GAMES[sid];
+  var over = schedule[sid] || {};
+  var side = g['t' + n];
+  var idT  = 'qt' + n + '-' + sid;
+  if (side.type === 'fixed') {
+    var name = over['t' + n + 'name'] || side.team;
+    return '<input type="text" class="quick-team-inp" id="' + idT + '" value="' + esc(name) + '">';
+  }
+  return '<span class="quick-feed" id="qfeedtext-' + n + '-' + esc(sid) + '">' + esc(slotLabel(side)) + '</span>'
+    + '<label class="quick-feed-toggle"><input type="checkbox" class="quick-feed-chk" data-sid="' + esc(sid) + '" data-side="' + n + '">name</label>'
+    + '<input type="text" class="quick-team-inp quick-feed-inp" id="' + idT + '" placeholder="New team name" style="display:none">';
+}
+
+function quickRowHTML(sid) {
+  var g     = GAMES[sid];
+  var over  = schedule[sid] || {};
+  var label = over.label || g.label || sid;
+  var time  = over.time  || g.time  || '';
+  var field = over.field || g.field || '';
+  return '<div class="quick-row" data-sid="' + esc(sid) + '">'
+    + '<span class="quick-sid">' + esc(sid) + '</span>'
+    + '<input type="text" class="quick-label" id="qlabel-' + esc(sid) + '" value="' + esc(label) + '">'
+    + datetimePairHTML('qtime-' + sid, time)
+    + '<input type="text" class="quick-field" id="qfield-' + esc(sid) + '" value="' + esc(field) + '" placeholder="Field">'
+    + '<span class="quick-team">' + quickTeamCell(sid, 1) + '</span>'
+    + '<span class="quick-vs">vs</span>'
+    + '<span class="quick-team">' + quickTeamCell(sid, 2) + '</span>'
+    + '</div>';
+}
+
+function renderQuickEditor() {
+  var list = document.getElementById('quickEditorList');
   if (!list) return;
   var html = '';
-  // Group by round
+
+  // Main bracket rounds — plain headers, occupied slots only.
   ROUND_ORDER.forEach(function(round) {
+    if (round === 'R0') return; // R0 is drop-bracket storage, rendered below
     var sides = Object.keys(SLOT_DEFS[round] || {}).sort();
-    var gidsInRound = [];
+    var roundHtml = '';
     sides.forEach(function(side) {
       (SLOT_DEFS[round][side] || []).forEach(function(n) {
         var sid = round + '.' + side + '.' + n;
-        if (GAMES[sid]) gidsInRound.push(sid);
+        if (GAMES[sid]) roundHtml += quickRowHTML(sid);
       });
     });
-    if (!gidsInRound.length) return;
-    html += '<div class="names-round-hdr">' + esc(roundDisplayName(round)) + '</div>';
-    gidsInRound.forEach(function(sid) {
-      var g = GAMES[sid];
-      html += '<div class="names-row">'
-        + '<span class="names-slot-id">' + esc(sid) + '</span>'
-        + '<input type="text" class="names-label-inp" data-sid="' + esc(sid) + '" value="' + esc(g.label || '') + '">'
-        + '</div>';
+    if (roundHtml) {
+      html += '<div class="admin-round-hdr"><span class="round-hdr-name">' + esc(roundDisplayName(round)) + '</span></div>' + roundHtml;
+    }
+  });
+
+  // R0 tier sections (A/B drop brackets), sub-grouped by tierGameRound.
+  function tierSection(side, label) {
+    var defs = SLOT_DEFS.R0[side] || [];
+    var shown = defs.filter(function(n) { return !!GAMES['R0.' + side + '.' + n]; });
+    if (!shown.length) return;
+    html += '<div class="admin-round-hdr"><span class="round-hdr-name">' + esc(label) + '</span></div>';
+    var byRound = {};
+    shown.forEach(function(n) {
+      var r = tierGameRound('R0.' + side + '.' + n);
+      (byRound[r] = byRound[r] || []).push(n);
+    });
+    Object.keys(byRound).map(Number).sort(function(a, b) { return a - b; }).forEach(function(r) {
+      html += '<div class="sched-tier-round-hdr">Round ' + (r + 1) + '</div>';
+      byRound[r].sort(function(a, b) { return a - b; }).forEach(function(n) {
+        html += quickRowHTML('R0.' + side + '.' + n);
+      });
+    });
+  }
+  tierSection('L', bracketDisplayName('A'));
+  tierSection('R', bracketDisplayName('B'));
+
+  list.innerHTML = html || '<div class="bld-muted" style="padding:1em">No games in schedule.</div>';
+
+  // Feed ↔ fixed-name toggle: checking swaps in a blank name input, box
+  // unchecking restores the muted feed text (row itself isn't re-rendered).
+  list.querySelectorAll('.quick-feed-chk').forEach(function(chk) {
+    chk.addEventListener('change', function() {
+      var sid = chk.dataset.sid, n = chk.dataset.side;
+      var feedTxt = document.getElementById('qfeedtext-' + n + '-' + sid);
+      var inp     = document.getElementById('qt' + n + '-' + sid);
+      if (chk.checked) {
+        if (feedTxt) feedTxt.style.display = 'none';
+        if (inp) { inp.style.display = ''; inp.value = ''; inp.focus(); }
+      } else {
+        if (feedTxt) feedTxt.style.display = '';
+        if (inp) { inp.style.display = 'none'; inp.value = ''; }
+      }
     });
   });
-  list.innerHTML = html || '<div class="bld-muted" style="padding:1em">No games in schedule.</div>';
 }
 
-function namesReplaceAll() {
-  var find = document.getElementById('namesFindInput');
-  var repl = document.getElementById('namesReplaceInput');
+function quickReplaceAll() {
+  var find = document.getElementById('quickFindInput');
+  var repl = document.getElementById('quickReplaceInput');
   if (!find || !find.value) return;
   var findStr = find.value;
   var replStr = repl ? repl.value : '';
-  document.querySelectorAll('.names-label-inp').forEach(function(inp) {
+  document.querySelectorAll('.quick-label').forEach(function(inp) {
     if (inp.value.indexOf(findStr) !== -1) {
       inp.value = inp.value.split(findStr).join(replStr);
     }
   });
 }
 
-async function saveGameNames() {
-  var btn = document.getElementById('namesSaveBtn');
-  var status = document.getElementById('namesSaveStatus');
-  btn.disabled = true;
+// saveQuickEdits: build the whole schedule from {...schedule} then overwrite
+// each rendered row's entry with {...schedule[sid], ...edits}, so anything
+// not touched by a row (num, tier, wiring on the other side, etc.) survives.
+async function saveQuickEdits() {
+  var btn    = document.getElementById('quickSaveBtn');
+  var status = document.getElementById('quickSaveStatus');
+  if (btn) btn.disabled = true;
   var out = Object.assign({}, schedule);
-  document.querySelectorAll('.names-label-inp').forEach(function(inp) {
-    var sid = inp.dataset.sid;
-    var newLabel = inp.value.trim();
-    if (!newLabel || !out[sid]) return;
-    out[sid] = Object.assign({}, out[sid], { label: newLabel });
+
+  document.querySelectorAll('.quick-row').forEach(function(row) {
+    var sid = row.dataset.sid;
+    var g = GAMES[sid];
+    if (!g) return;
+    var entry = Object.assign({}, schedule[sid] || {});
+
+    var labelEl = document.getElementById('qlabel-' + sid);
+    var fieldEl = document.getElementById('qfield-' + sid);
+    var newLabel = labelEl ? labelEl.value.trim() : '';
+    var fieldVal = fieldEl ? fieldEl.value.trim() : '';
+    var timeVal  = readDatetime('qtime-' + sid);
+    if (newLabel) entry.label = newLabel;
+    if (timeVal)  entry.time  = timeVal;  else delete entry.time;
+    if (fieldVal) entry.field = fieldVal; else delete entry.field;
+
+    [1, 2].forEach(function(n) {
+      var side = g['t' + n];
+      var inp  = document.getElementById('qt' + n + '-' + sid);
+      if (side.type === 'fixed') {
+        var v = inp ? inp.value.trim() : '';
+        if (v) entry['t' + n + 'name'] = v;
+      } else {
+        var chk = row.querySelector('.quick-feed-chk[data-side="' + n + '"]');
+        if (chk && chk.checked && inp && inp.value.trim()) {
+          entry['t' + n + 'name'] = inp.value.trim();
+          delete entry['t' + n + 'slot'];
+          delete entry['t' + n + 'type'];
+        }
+      }
+    });
+
+    // R0 is the drop-bracket storage round: L holds the A bracket, R holds B.
+    if (/^R0\.R\./.test(sid)) entry.tier = 'B';
+    else if (/^R0\.L\./.test(sid)) entry.tier = 'A';
+
+    out[sid] = entry;
   });
+
   try {
     var r = await apiFetch('/api/schedule', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(out)
     });
-    if (!r || !r.ok) throw new Error();
+    if (!r) return;
+    if (!r.ok) throw new Error();
     schedule = out;
     if (typeof applySchedule === 'function') applySchedule(schedule);
-    if (status) { status.textContent = 'Saved'; setTimeout(function() { status.textContent = ''; }, 2500); }
+    showToast('Schedule saved');
+    if (status) { status.textContent = '✓ Saved'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+    renderQuickEditor();
   } catch(e) {
-    if (status) { status.textContent = 'Save failed'; setTimeout(function() { status.textContent = ''; }, 2500); }
+    showToast('Save failed', true);
+    if (status) { status.textContent = '✗ Error'; setTimeout(function(){ status.textContent = ''; }, 3000); }
   } finally {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
   }
 }
 
@@ -2772,8 +2884,8 @@ Object.assign(TT_ACTIONS, {
   saveBracketName:     function(arg) { saveBracketName(arg); },
   cancelBracketName:   function() { cancelBracketName(); },
   saveTeams:           function() { saveTeams(); },
-  namesReplaceAll:     function() { namesReplaceAll(); },
-  saveGameNames:       function() { saveGameNames(); },
+  quickReplaceAll:     function() { quickReplaceAll(); },
+  saveQuickEdits:      function() { saveQuickEdits(); },
   // buckets
   saveBucketCounts:    function() { saveBucketCounts(); },
   addBucketTeam:       function() { addBucketTeam(); },
