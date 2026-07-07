@@ -41,9 +41,67 @@ Commit and push when a change is complete. Do not open PRs unless asked.
   common ancestor with main). Reference-only for the v3 schema. Its committed
   files/users.json contains real leaked secrets — see Security items.
 
-## Outstanding work (what's still needed) — updated 2026-07-07
+## Outstanding work (what's still needed) — updated 2026-07-07 (evening)
 Consolidated to-do list; each item points at the detailed section. Ordered
 roughly by priority / by what the owner has been driving.
+
+**Shipped 2026-07-07 (this session, all on the buildout branch / PR #15)**
+Beyond item 1 below (byes): public Schedule flight sub-tabs; schedule-editor
+unused slots hidden behind per-round "+ Add game" (+ "+ Add round" for tier
+brackets, which now display real rounds via `tierGameRound` = max(slot band,
+feed depth) shared with the public renderer); TD-renamable round names
+(settings `roundNameR1`… ) and bracket names (`bracketNameA/B` — name B
+"Consolation" on any format and every pill/header follows); the QUICK EDITOR
+(Schedule tab default "Edit" mode: two-line row per game — label, date@time,
+field, matchup — with inline winner/loser+game dropdowns for feeds, a "name"
+checkbox to convert a feed to a typed team, find/replace, one Save-all; old
+card editor lives under "Advanced"; Names mode absorbed/removed); source
+dropdowns exclude the game itself, reject self-feeds (client+server), and
+hide feeds already claimed elsewhere (re-filtering live on winner/loser
+flip); tier slots display as `BR2.R.1`-style aliases everywhere in the admin
+(storage stays `R0.*`); builder: desktop calendar width capped, "Day
+defaults" bar with apply-to-all for multi-day plans, partial seeding now
+honors "show seeds" and numbers ONLY the top-N (`teams.seedCount`); public
+pages pick up schedule edits within one 20s poll (schedule added to the live
+poll — visible second-monitor windows no longer go stale); restore of the
+lost Save All → replaced by per-slot Create Game; generate clears
+results/live/offsets; `scripts/db-snapshot.sh` / `db-restore.sh` so the
+owner can commit their exact instance for debugging (dump includes password
+hashes — strip before open-sourcing). POST /settings now MERGES (partial
+saves can't wipe other settings). SW cache at v2.74.
+
+**Next up — owner-requested, specced but NOT built (ran out of session)**
+0a. ⬜ **"Project winners" (public, device-local).** Viewers step through the
+    bracket picking who they think wins each game. Constraints from owner:
+    never synced to the server; must NOT survive a hard refresh; MUST survive
+    the auto-refresh. That means plain in-memory state — `var _projected =
+    {}` (slot → winner name) in bracket.js, NO localStorage, nothing POSTed.
+    Design: a "Project winners" toggle on the public Bracket tab (pill/button
+    near `#bracketFlights`); while active, tapping a team name in a game with
+    no REAL result records the projection. Rendering: resolve display through
+    a merged view — real `results[slot]` wins; else `_projected[slot]` — so
+    downstream "Winner of…" slots fill in with projected teams; style
+    projected picks distinctly (italic/tinted + a small "projected" chip) and
+    add a "Clear projections" action. The 20s `pollLive` and `fetchAll` only
+    rebuild results/schedule/GAMES, so `_projected` survives auto-refresh for
+    free; renders must apply the overlay AFTER real results (a projection for
+    a game that has since gone final is simply ignored/dropped). Watch out:
+    bracket-card clicks are also used by admin bracket-edit mode — gate the
+    projection handler on the toggle being active and `_sessionRole` not
+    mid-edit. Team Path/Schedule overlays are optional v2. Files: bracket.js,
+    bracket.css, index.html (+ SW bump).
+0b. ⬜ **Builder keeps its form state after generating.** Owner wants to
+    regenerate with slightly different settings without re-entering
+    everything. Today the form state actually lives per page-load
+    (builderInit runs once), so the work is: verify nothing clears
+    `teamsInput`/format/seeding/days on success, make the done overlay
+    dismissible back to the intact form (add a "Back to builder" button next
+    to the existing done actions if there isn't one), and re-check the
+    playing-days calendar/day rows survive (playingDays array is module
+    state — it does, but the auto-seeded simpleDate day logic runs on
+    advanced-toggle only when playingDays is empty, so it won't stomp).
+    Files: builder.js + the done-overlay markup in BOTH builder.html and
+    admin.html (duplication hazard, see item 3).
 
 **Bracket builder & tiered Open/A/B format**
 1. ✅ **Double-elim WITH BYES** — done 2026-07-07. `double-elim` is now 4–32
