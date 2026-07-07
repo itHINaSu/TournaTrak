@@ -632,32 +632,51 @@ async function clearSlot(sid) {
   } catch(e) { showToast('Clear failed', true); }
 }
 
+// The slot grid (SLOT_DEFS) is the fixed maximum bracket structure, so most
+// tournaments use a fraction of it. Hide the unused slots by default and let
+// the "Show unused slots" toggle reveal them for adding games manually.
+var _showEmptySlots = (function(){
+  try { return localStorage.getItem('ttShowEmptySlots') === '1'; } catch(e) { return false; }
+})();
+
+function setShowEmptySlots(on) {
+  _showEmptySlots = !!on;
+  try { localStorage.setItem('ttShowEmptySlots', on ? '1' : '0'); } catch(e) {}
+  renderScheduleEditor();
+}
+
 function renderScheduleEditor() {
   var wrap = document.getElementById('scheduleEditor');
+  var chk = document.getElementById('showEmptySlotsChk');
+  if (chk) chk.checked = _showEmptySlots;
+  var slotsFor = function(round, side){
+    var defs = SLOT_DEFS[round][side] || [];
+    if (_showEmptySlots) return defs;
+    return defs.filter(function(n){ return GAMES[round + '.' + side + '.' + n]; });
+  };
   var html = '';
   ROUND_ORDER.forEach(function(round){
     var sides = Object.keys(SLOT_DEFS[round]||{}).sort();
-    var hasAny = sides.some(function(side){
-      return Object.keys(GAMES).some(function(s){ return GAMES[s].round===round && GAMES[s].side===side; })
-        || (SLOT_DEFS[round][side]||[]).length > 0;
-    });
-    if (!hasAny) return;
+    var nonEmpty = sides.filter(function(side){ return slotsFor(round, side).length; });
+    if (!nonEmpty.length) return;
     html += '<div class="admin-round-hdr">' + ROUND_LABELS[round] + '</div>';
-    sides.forEach(function(side){
-      var defs = SLOT_DEFS[round][side] || [];
-      if (!defs.length) return;
+    nonEmpty.forEach(function(side){
       if (sides.length > 1) {
         html += '<div class="sched-side-label">'
           + (side==='L' ? getSetting('leftLabel')
            : side==='R' ? getSetting('rightLabel')
            : side) + '</div>';
       }
-      defs.forEach(function(n){
+      slotsFor(round, side).forEach(function(n){
         var sid = round + '.' + side + '.' + n;
         html += GAMES[sid] ? occupiedCard(sid) : emptyCard(sid);
       });
     });
   });
+  if (!html) {
+    html = '<div class="bld-muted" style="padding:1em">No games yet. Use the Builder to generate '
+      + 'a schedule, or turn on "Show unused slots" above to add games by hand.</div>';
+  }
   wrap.innerHTML = html;
 }
 
@@ -2613,4 +2632,6 @@ Object.assign(TT_ACTIONS, {
     if (panel) panel.style.display = this.checked ? '' : 'none';
     if (this.checked) renderThemeSection();
   });
+  var est = document.getElementById('showEmptySlotsChk');
+  if (est) est.addEventListener('change', function() { setShowEmptySlots(this.checked); });
 })();

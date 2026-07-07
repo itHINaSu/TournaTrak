@@ -184,7 +184,11 @@
     </div>
     <div id="schedEditorPanel">
       <div class="admin-subtitle">Edit game labels, times, team names, slot positions, and team sources.
-        Empty slots can be filled to create new games. Save All writes to schedule.json — public page picks up on reload.</div>
+        Turn on "Show unused slots" to add games in empty bracket positions. Save All publishes immediately.</div>
+      <label class="bld-check sched-empty-toggle">
+        <input type="checkbox" id="showEmptySlotsChk">
+        Show unused slots <span class="bld-muted">(fill an empty slot to add a game manually)</span>
+      </label>
       <div id="scheduleEditor"></div>
     </div>
     <div id="schedBuilderPanel" style="display:none">
