@@ -979,8 +979,9 @@ function validatePlayingDays(days) {
 }
 
 // Generate a schedule for `formatId`.
-// opts: { teams:[...], seedMode?, byeTeams?, shuffle?, startDate?, playingDays? }
-//   seedMode: 'random' (default) | 'order' | 'manual'
+// opts: { teams:[...], seedMode?, seedCount?, byeTeams?, shuffle?, startDate?, playingDays? }
+//   seedMode: 'random' (default) | 'order' | 'partial' | 'manual'
+//   seedCount: for 'partial' — first K input lines are seeds 1..K, rest shuffled
 //   byeTeams: required when seedMode==='manual' — exactly (nextPow2(N)-N) names
 //   shuffle:  legacy flag; shuffle===false is treated as seedMode 'order'
 //   Scheduling: pass a playingDays plan for explicit calendar control, or a
@@ -1023,7 +1024,7 @@ function generateSchedule(formatId, opts) {
   // Seeding mode (back-compat: shuffle===false means seed by input order).
   let seedMode = opts.seedMode;
   if (!seedMode) seedMode = opts.shuffle === false ? 'order' : 'random';
-  if (!['random', 'order', 'manual'].includes(seedMode)) {
+  if (!['random', 'order', 'partial', 'manual'].includes(seedMode)) {
     throw new Error('Invalid seeding mode: ' + seedMode);
   }
 
@@ -1041,9 +1042,12 @@ function generateSchedule(formatId, opts) {
     }
   }
 
-  const seededTeams = resolveSeeding({ teams: clean, seedMode, byeTeams });
+  // Resolve seeding exactly once and hand the generator the final order.
+  // Random modes must not resolve twice — the returned seededTeams (shown to
+  // the public as the seed list) has to match the bracket that was built.
+  const seededTeams = resolveSeeding({ teams: clean, seedMode, byeTeams, seedCount: opts.seedCount });
   const schedule = fmt.generate({
-    startDate: opts.startDate, teams: clean, seedMode, byeTeams, playingDays,
+    startDate: opts.startDate, teams: seededTeams, seedMode: 'order', playingDays,
     ifNecessary: opts.ifNecessary, thirdPlace: !!opts.thirdPlace, gamePrefix: opts.gamePrefix,
   });
   return { schedule, seededTeams };
