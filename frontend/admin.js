@@ -282,6 +282,11 @@ function gameLabel(sid) {
 function roundDisplayName(round) {
   return getSetting('roundName' + round) || ROUND_LABELS[round];
 }
+// Admin-side tier bracket display name: the TD's custom name if set, else
+// the built-in 'A Bracket' / 'B Bracket' label.
+function bracketDisplayName(tier) {
+  return getSetting('bracketName' + tier) || (tier + ' Bracket');
+}
 // esc() comes from tt-common.js
 
 
@@ -544,8 +549,8 @@ function sourceDropdown(idBase, currentType, currentSlot) {
     slotOptgroup(roundDisplayName(round), sids);
   });
 
-  slotOptgroup('A Bracket', Object.keys(GAMES).filter(function(s){ return GAMES[s].tier==='A'; }));
-  slotOptgroup('B Bracket', Object.keys(GAMES).filter(function(s){ return GAMES[s].tier==='B'; }));
+  slotOptgroup(bracketDisplayName('A'), Object.keys(GAMES).filter(function(s){ return GAMES[s].tier==='A'; }));
+  slotOptgroup(bracketDisplayName('B'), Object.keys(GAMES).filter(function(s){ return GAMES[s].tier==='B'; }));
 
   return '<div class="source-dropdown-row">'
     + '<select class="admin-winner-sel" id="' + idBase + '-type" style="min-width:5.5em">' + typeOpts + '</select>'
@@ -730,36 +735,65 @@ function renderScheduleEditor() {
   });
 
   // R0 holds the drop-bracket games: L side is the A bracket, R side is B.
-  // Rendered as labeled tier sections instead of a generic "Round 0".
-  function tierSection(side, label) {
+  // Rendered as labeled tier sections broken into rounds (tierGameRound),
+  // instead of a generic "Round 0" or one flat list.
+  function tierSection(side, tier, label) {
     var defs = SLOT_DEFS.R0[side] || [];
-    var shown = [];
-    var nextAvail = null;
+    var shown = [];       // slot nums with a card (occupied or revealed)
+    var freeByRound = {}; // round -> lowest free (unoccupied, unrevealed) slot num in that band
     defs.forEach(function(n){
       var sid = 'R0.' + side + '.' + n;
-      if (GAMES[sid] || _revealedSlots[sid]) shown.push(n);
-      else if (nextAvail === null) nextAvail = n;
+      if (GAMES[sid] || _revealedSlots[sid]) {
+        shown.push(n);
+      } else {
+        // No GAMES entry → tierGameRound returns the slot's pure band.
+        var band = tierGameRound(sid);
+        if (freeByRound[band] === undefined) freeByRound[band] = n;
+      }
     });
 
     if (!shown.length) {
-      if (nextAvail !== null) {
+      if (Object.keys(freeByRound).length) {
         hiddenOptions.push({ value: 'R0.' + side, label: label });
       }
       return;
     }
 
-    html += '<div class="admin-round-hdr"><span class="round-hdr-name">' + esc(label) + '</span></div>';
+    html += '<div class="admin-round-hdr" id="thdr-' + esc(tier) + '">'
+      + '<span class="round-hdr-name">' + esc(label) + '</span>'
+      + '<button class="round-rename-btn" data-action="editBracketName" data-arg="' + esc(tier) + '" title="Rename this bracket">✎</button>'
+      + '</div>';
+
+    var byRound = {};
     shown.forEach(function(n){
-      var sid = 'R0.' + side + '.' + n;
-      html += GAMES[sid] ? occupiedCard(sid) : emptyCard(sid);
+      var r = tierGameRound('R0.' + side + '.' + n);
+      (byRound[r] = byRound[r] || []).push(n);
     });
-    if (nextAvail !== null) {
+    var roundKeys = Object.keys(byRound).map(Number).sort(function(a,b){ return a - b; });
+
+    var lastRound = roundKeys[roundKeys.length - 1];
+    roundKeys.forEach(function(r){
+      html += '<div class="sched-tier-round-hdr">Round ' + (r + 1) + '</div>';
+      byRound[r].sort(function(a,b){ return a - b; }).forEach(function(n){
+        var sid = 'R0.' + side + '.' + n;
+        html += GAMES[sid] ? occupiedCard(sid) : emptyCard(sid);
+      });
+      // Per-round "+ Add game": only if this round's band still has a free slot.
+      if (freeByRound[r] !== undefined) {
+        html += '<button class="sched-add-slot-btn" data-action="revealSlot" data-arg="'
+          + esc('R0.' + side + '.' + freeByRound[r]) + '">+ Add game</button>';
+      }
+    });
+
+    // "+ Add round": the next band beyond the last rendered round, if it has a free slot.
+    var nextBand = lastRound + 1;
+    if (nextBand <= 3 && freeByRound[nextBand] !== undefined) {
       html += '<button class="sched-add-slot-btn" data-action="revealSlot" data-arg="'
-        + esc('R0.' + side + '.' + nextAvail) + '">+ Add game</button>';
+        + esc('R0.' + side + '.' + freeByRound[nextBand]) + '">+ Add round</button>';
     }
   }
-  tierSection('L', 'A Bracket');
-  tierSection('R', 'B Bracket');
+  tierSection('L', 'A', bracketDisplayName('A'));
+  tierSection('R', 'B', bracketDisplayName('B'));
 
   var fallbackRow = '';
   if (hiddenOptions.length) {
@@ -914,6 +948,43 @@ async function saveRoundName(round) {
     if (!r) return;
     if (!r.ok) throw new Error();
     showToast(value ? 'Round renamed' : 'Round name reset');
+    renderScheduleEditor();
+  } catch(e) {
+    showToast('Save failed', true);
+  }
+}
+
+// editBracketName: swap a tier bracket header's contents for an inline rename input.
+// Mirrors editRoundName/saveRoundName/cancelRoundName above.
+function editBracketName(tier) {
+  var hdr = document.getElementById('thdr-' + tier);
+  if (!hdr) return;
+  var current = getSetting('bracketName' + tier) || '';
+  hdr.innerHTML = '<input type="text" class="round-rename-inp" id="tname-' + esc(tier) + '" value="' + esc(current) + '" placeholder="' + esc(tier + ' Bracket') + '" maxlength="40"> '
+    + '<button class="sched-save-btn sched-game-save-btn" data-action="saveBracketName" data-arg="' + esc(tier) + '">Save</button> '
+    + '<button class="admin-clear-btn" data-action="cancelBracketName">Cancel</button>';
+  var inp = document.getElementById('tname-' + tier);
+  if (inp) inp.focus();
+}
+
+function cancelBracketName() {
+  renderScheduleEditor();
+}
+
+async function saveBracketName(tier) {
+  var inp = document.getElementById('tname-' + tier);
+  var value = inp ? inp.value.trim() : '';
+  if (value === tier + ' Bracket') value = '';
+  settings = Object.assign({}, settings);
+  settings['bracketName' + tier] = value;
+  try {
+    var r = await apiFetch('/api/settings', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(settings)
+    });
+    if (!r) return;
+    if (!r.ok) throw new Error();
+    showToast(value ? 'Bracket renamed' : 'Bracket name reset');
     renderScheduleEditor();
   } catch(e) {
     showToast('Save failed', true);
@@ -2697,6 +2768,9 @@ Object.assign(TT_ACTIONS, {
   editRoundName:       function(arg) { editRoundName(arg); },
   saveRoundName:       function(arg) { saveRoundName(arg); },
   cancelRoundName:     function() { cancelRoundName(); },
+  editBracketName:     function(arg) { editBracketName(arg); },
+  saveBracketName:     function(arg) { saveBracketName(arg); },
+  cancelBracketName:   function() { cancelBracketName(); },
   saveTeams:           function() { saveTeams(); },
   namesReplaceAll:     function() { namesReplaceAll(); },
   saveGameNames:       function() { saveGameNames(); },

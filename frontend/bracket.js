@@ -1125,30 +1125,25 @@ function renderBracket(){
   }
 }
 
-// Group a flight's (tier A or B) games into columns by depth: column 0 is fed
-// only by Open losers; each later column is fed by the previous one's winners.
+// Public-page tier bracket display name: the TD's custom name if set, else
+// the built-in 'A Bracket' / 'B Bracket' label. Mirrors admin.js's
+// bracketDisplayName — kept as a separate small helper since the two files
+// share no module besides bracket-data.js, and this only needs getSetting.
+function bracketDisplayName(tier) {
+  return getSetting('bracketName' + tier) || (tier + ' Bracket');
+}
+
+// Group a flight's (tier A or B) games into columns by round: column N holds
+// every game whose tierGameRound() is N (band index, or deeper if a game is
+// hand-wired to feed from later in the same tier). Cycle guard lives inside
+// tierGameRound itself.
 function flightColumns(tier) {
   var games = Object.keys(GAMES).filter(function(g){ return GAMES[g].tier === tier; });
-  var colOf = {};
-  function col(gid) {
-    if (colOf[gid] !== undefined) return colOf[gid];
-    colOf[gid] = 0;  // guard against cycles (shouldn't happen)
-    var g = GAMES[gid];
-    var feeders = [g.t1, g.t2].filter(function(s){
-      return s && s.slot && GAMES[s.slot] && GAMES[s.slot].tier === tier;
-    });
-    var c = feeders.length
-      ? 1 + Math.max.apply(null, feeders.map(function(s){ return col(s.slot); }))
-      : 0;
-    colOf[gid] = c;
-    return c;
-  }
-  games.forEach(col);
   if (!games.length) return [];
-  var maxCol = Math.max.apply(null, games.map(function(g){ return colOf[g]; }));
+  var maxCol = Math.max.apply(null, games.map(function(g){ return tierGameRound(g); }));
   var cols = [];
   for (var i = 0; i <= maxCol; i++) cols.push([]);
-  games.forEach(function(g){ cols[colOf[g]].push(g); });
+  games.forEach(function(g){ cols[tierGameRound(g)].push(g); });
   cols.forEach(function(c){ c.sort(function(a,b){ return parseSlotId(a).num - parseSlotId(b).num; }); });
   return cols;
 }
@@ -1158,7 +1153,7 @@ function flightColumns(tier) {
 function renderFlightBracket(root, tier) {
   var cols = flightColumns(tier);
   if (!cols.length) {
-    root.innerHTML = '<div class="flight-empty">No ' + esc(tier) + ' bracket games yet.</div>';
+    root.innerHTML = '<div class="flight-empty">No ' + esc(bracketDisplayName(tier)) + ' games yet.</div>';
     return;
   }
   var html = '<div class="flight-bracket">';
@@ -1192,8 +1187,8 @@ function updateFlightTabs() {
   row.style.display = '';
   var aPill = row.querySelector('[data-arg="A"]');
   var bPill = row.querySelector('[data-arg="B"]');
-  if (aPill) aPill.style.display = hasA ? '' : 'none';
-  if (bPill) bPill.style.display = hasB ? '' : 'none';
+  if (aPill) { aPill.style.display = hasA ? '' : 'none'; aPill.textContent = bracketDisplayName('A'); }
+  if (bPill) { bPill.style.display = hasB ? '' : 'none'; bPill.textContent = bracketDisplayName('B'); }
   // Three-game format (B drop bracket, no A tier): the main tree IS the
   // "A" bracket, so label its pill accordingly; tiered keeps "Open".
   var mainPill = row.querySelector('[data-arg="open"]');
@@ -1231,8 +1226,8 @@ function updateScheduleFlightTabs() {
   row.style.display = '';
   var aPill = row.querySelector('[data-arg="A"]');
   var bPill = row.querySelector('[data-arg="B"]');
-  if (aPill) aPill.style.display = hasA ? '' : 'none';
-  if (bPill) bPill.style.display = hasB ? '' : 'none';
+  if (aPill) { aPill.style.display = hasA ? '' : 'none'; aPill.textContent = bracketDisplayName('A'); }
+  if (bPill) { bPill.style.display = hasB ? '' : 'none'; bPill.textContent = bracketDisplayName('B'); }
   // Three-game format (B drop bracket, no A tier): the main tree IS the
   // "A" bracket, so label its pill accordingly; tiered keeps "Open".
   var mainPill = row.querySelector('[data-arg="open"]');
@@ -2504,7 +2499,7 @@ function renderScheduleView() {
     // storage round (R0) is meaningless to readers.
     ['A','B'].forEach(function(tier) {
       var sids = allSids.filter(function(s) { return GAMES[s].tier === tier; });
-      if (sids.length) groups.push({ id: 'tier' + tier, label: tier + ' Bracket', sids: sids });
+      if (sids.length) groups.push({ id: 'tier' + tier, label: bracketDisplayName(tier), sids: sids });
     });
   } else { // field
     var byField = {}, fieldKeys = [];

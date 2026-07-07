@@ -100,6 +100,7 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .round-rename-btn { background: none; border: none; color: var(--text-mute); cursor: pointer; font-size: 0.9em; padding: 0.1em 0.35em; }
 .round-rename-btn:hover { color: var(--text); }
 .round-rename-inp { font-family: 'Barlow', sans-serif; font-size: 0.85rem; padding: 0.25em 0.5em; background: var(--surface2); color: var(--text); border: 0.07em solid var(--border); border-radius: var(--radius-xs); min-width: 12em; }
+.sched-tier-round-hdr { font-family: 'Oswald', sans-serif; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-mute); padding: 0.45em 0 0.2em; }
 .sched-add-slot-btn { display: block; width: 100%; margin: 0.5em 0; padding: 0.45em; font-family: 'Barlow', sans-serif; font-size: 0.78rem; color: var(--text-mute); background: none; border: 0.09em dashed var(--border); border-radius: var(--radius-sm); cursor: pointer; }
 .sched-add-slot-btn:hover { color: var(--text); border-color: var(--text-dim); }
 .sched-add-round-row { display: flex; align-items: center; gap: 0.6em; margin-top: 1.2em; }

@@ -37,6 +37,9 @@ const SETTINGS_DEFAULTS = {
   roundNameSF2:    '',
   roundNameCHAMP:  '',
   roundNameCHAMP2: '',
+  // Custom display names for the two extra/drop brackets; '' = "A Bracket"/"B Bracket".
+  bracketNameA: '',
+  bracketNameB: '',
 };
 
 if (typeof module !== 'undefined') {
