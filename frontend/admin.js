@@ -595,7 +595,7 @@ function emptyCard(sid) {
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
     + '</div>';
   h += '<div class="sched-game-body" id="sbody-' + sid + '">';
-  h += '<div class="empty-slot-instructions">Fill this slot to create a new game. Give it a label and both teams, then Create Game (or Save All).</div>';
+  h += '<div class="empty-slot-instructions">Fill this slot to create a new game. Give it a label and both teams, then Create Game.</div>';
   h += '<div class="sched-field"><label>Game Label</label>'
     + '<input type="text" id="slabel-' + sid + '" value="' + esc(over.label||'') + '" placeholder="e.g. G7"></div>';
   h += '<div class="sched-field"><label>Field</label>'
@@ -690,75 +690,6 @@ function toggleSched(sid) {
   if (!body) return;
   body.classList.toggle('open');
   arrow.textContent = body.classList.contains('open') ? '▲' : '▼';
-}
-
-async function saveAllSchedule() {
-  var btn    = document.getElementById('schedSaveBtn');
-  var status = document.getElementById('schedStatus');
-  btn.disabled = true;
-  var out = {};
-
-  Object.keys(schedule).forEach(function(sid){
-    if (schedule[sid] && schedule[sid].clear) out[sid] = { clear: true };
-  });
-
-  allSlotIds().forEach(function(sid){
-    var labelEl   = document.getElementById('slabel-' + sid);
-    var slotEl    = document.getElementById('sslot-'  + sid);
-    var t1El      = document.getElementById('st1-'    + sid);
-    var t2El      = document.getElementById('st2-'    + sid);
-    var st1typeEl = document.getElementById('st1-' + sid + '-type');
-    var st1srcEl  = document.getElementById('st1-' + sid + '-slot');
-    var st2typeEl = document.getElementById('st2-' + sid + '-type');
-    var st2srcEl  = document.getElementById('st2-' + sid + '-slot');
-    var newLabel  = labelEl ? labelEl.value.trim() : '';
-
-    if (schedule[sid] && schedule[sid].clear && !newLabel) return;
-
-    var entry  = {};
-    var timeVal  = readDatetime('stime-' + sid);
-    var fieldEl  = document.getElementById('sfield-' + sid);
-    var fieldVal = fieldEl ? fieldEl.value.trim() : '';
-    if (newLabel)                  entry.label  = newLabel;
-    if (fieldVal)                  entry.field  = fieldVal;
-    if (timeVal)                   entry.time   = timeVal;
-    if (slotEl && slotEl.value)    entry.num    = parseInt(slotEl.value);
-    if (t1El && t1El.value.trim()) entry.t1name = t1El.value.trim();
-    if (t2El && t2El.value.trim()) entry.t2name = t2El.value.trim();
-    if (st1typeEl && st1srcEl && st1srcEl.value) {
-      entry.t1type = st1typeEl.value;
-      entry.t1slot = st1srcEl.value;
-    }
-    if (st2typeEl && st2srcEl && st2srcEl.value) {
-      entry.t2type = st2typeEl.value;
-      entry.t2slot = st2srcEl.value;
-    }
-
-    var hasRealData = entry.label || entry.time || entry.t1name || entry.t2name || entry.t1slot || entry.t2slot;
-    if (hasRealData) out[sid] = entry;
-  });
-
-  try {
-    var r = await apiFetch('/api/schedule', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(out)
-    });
-    if (!r) { btn.disabled = false; return; }
-    if (!r.ok) throw new Error();
-    schedule = out;
-    if (typeof applySchedule === 'function') applySchedule(schedule);
-    showToast('Schedule saved');
-    status.textContent = '✓ Saved';
-    setTimeout(function(){
-      status.textContent = '';
-    }, 3000);
-    renderAdmin();
-    renderScheduleEditor();
-  } catch(e) {
-    showToast('Save failed', true);
-    status.textContent = '✗ Error';
-  }
-  btn.disabled = false;
 }
 
 async function saveOneGame(sid) {
@@ -2588,7 +2519,6 @@ Object.assign(TT_ACTIONS, {
   toggleSched:         function(arg) { toggleSched(arg); },
   clearSlot:           function(arg) { clearSlot(arg); },
   saveOneGame:         function(arg) { saveOneGame(arg); },
-  saveAllSchedule:     function() { saveAllSchedule(); },
   saveTeams:           function() { saveTeams(); },
   namesReplaceAll:     function() { namesReplaceAll(); },
   saveGameNames:       function() { saveGameNames(); },
