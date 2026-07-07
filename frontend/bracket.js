@@ -1095,6 +1095,11 @@ function buildConnPcts(srcCol, dstCol, slotVh, posMap) {
 // and never see the pill row.
 var _bracketFlight = 'open';
 
+// Which flight the Schedule tab's game list is filtered to: 'open' (untagged
+// games) or a tier ('A'/'B'). Mirrors _bracketFlight but is independent so
+// switching tabs doesn't clobber the other's selection.
+var _schedFlight = 'open';
+
 function renderBracket(){
   var root=document.getElementById('bracketRoot');
   // A/B flights render as their own simple single-elim column layout (they
@@ -1202,6 +1207,45 @@ function setBracketFlight(f) {
     p.classList.toggle('active', p.dataset.arg === f);
   });
   renderBracket();
+}
+
+// Show the Open/A/B pill row on the Schedule tab only for tiered tournaments;
+// keep the active pill and _schedFlight consistent when a flight has no
+// games (or vanishes after a schedule change). Mirrors updateFlightTabs().
+function updateScheduleFlightTabs() {
+  var row = document.getElementById('scheduleFlights');
+  if (!row) return;
+  var hasA = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'A'; });
+  var hasB = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'B'; });
+  if (!hasA && !hasB) {
+    row.style.display = 'none';
+    _schedFlight = 'open';
+    return;
+  }
+  row.style.display = '';
+  var aPill = row.querySelector('[data-arg="A"]');
+  var bPill = row.querySelector('[data-arg="B"]');
+  if (aPill) aPill.style.display = hasA ? '' : 'none';
+  if (bPill) bPill.style.display = hasB ? '' : 'none';
+  // Three-game format (B drop bracket, no A tier): the main tree IS the
+  // "A" bracket, so label its pill accordingly; tiered keeps "Open".
+  var mainPill = row.querySelector('[data-arg="open"]');
+  if (mainPill) mainPill.textContent = (hasB && !hasA) ? 'A Bracket' : 'Open';
+  // Chosen flight disappeared → fall back to Open.
+  if ((_schedFlight === 'A' && !hasA) || (_schedFlight === 'B' && !hasB)) _schedFlight = 'open';
+  row.querySelectorAll('.flight-pill').forEach(function(p){
+    p.classList.toggle('active', p.dataset.arg === _schedFlight);
+  });
+}
+
+function setSchedFlight(f) {
+  if (f !== 'open' && f !== 'A' && f !== 'B') return;
+  _schedFlight = f;
+  var row = document.getElementById('scheduleFlights');
+  if (row) row.querySelectorAll('.flight-pill').forEach(function(p){
+    p.classList.toggle('active', p.dataset.arg === f);
+  });
+  renderScheduleView();
 }
 
 // True when CHAMP2 holds a single-elim 3rd-place game (fed by semifinal
@@ -2406,6 +2450,8 @@ function scheduleCardHTML(sid) {
 }
 
 function renderScheduleView() {
+  updateScheduleFlightTabs();
+
   // Initialise mode from settings on first render (persists for the session)
   if (scheduleMode === null) scheduleMode = getSetting('defaultScheduleGroup') || 'day';
 
@@ -2421,7 +2467,13 @@ function renderScheduleView() {
 
   // All game IDs sorted by time (TBD games sort to end via parseTimeVal→Infinity).
   // Bye games are excluded — they aren't played, so they never appear in the schedule.
-  var allSids = Object.keys(GAMES).filter(function(s) { return !GAMES[s].bye; }).sort(function(a, b) {
+  // Also filtered to the selected Schedule flight pill (Open/A/B), same tiers
+  // as the Bracket tab's flight switcher.
+  var allSids = Object.keys(GAMES).filter(function(s) {
+    if (GAMES[s].bye) return false;
+    if (_schedFlight === 'open') return !GAMES[s].tier;
+    return GAMES[s].tier === _schedFlight;
+  }).sort(function(a, b) {
     return parseTimeVal(GAMES[a].time) - parseTimeVal(GAMES[b].time);
   });
 
@@ -3096,4 +3148,5 @@ Object.assign(TT_ACTIONS, {
   saveBucketEdit:    function() { saveBucketEdit(); },
   exitBucketEdit:    function() { exitBucketEdit(); },
   setFlight:         function(arg) { setBracketFlight(arg); },
+  setSchedFlight:    function(arg) { setSchedFlight(arg); },
 });

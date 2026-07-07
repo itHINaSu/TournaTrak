@@ -402,6 +402,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   padding: 0.15em 0.4em;
   border-radius: var(--radius-sm);
 }
+.sched-flights { margin: 0.6em auto 0.4em; }
 .flight-pill {
   flex: 1;
   font-family: 'Oswald', sans-serif;

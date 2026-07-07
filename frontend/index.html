@@ -87,6 +87,12 @@
 </div>
 
 <div class="view-panel" id="view-schedule">
+  <!-- Open/A/B flight switcher — shown only for tournaments with drop brackets -->
+  <div class="bracket-flights sched-flights" id="scheduleFlights" style="display:none">
+    <button class="flight-pill active" data-action="setSchedFlight" data-arg="open">Open</button>
+    <button class="flight-pill" data-action="setSchedFlight" data-arg="A">A Bracket</button>
+    <button class="flight-pill" data-action="setSchedFlight" data-arg="B">B Bracket</button>
+  </div>
   <div class="selector-row">
     <div class="selector-inner sched-selector-inner">
       <div class="sched-select-wrap sched-select-wrap--group">
