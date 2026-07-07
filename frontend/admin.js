@@ -541,6 +541,25 @@ function sourceDropdown(idBase, currentType, currentSlot) {
   // prefix up to the first dash (Advanced uses 'st1-SID'/'st2-SID', Quick
   // uses 'qt1s-SID'/'qt2s-SID' — sids themselves never contain a dash).
   var selfSid = idBase.replace(/^[^-]+-/, '');
+  // Which side (1 or 2) of selfSid this dropdown edits, so the taken-map
+  // below can skip this dropdown's own feed instead of excluding itself.
+  var selfSideM = idBase.match(/^[a-z]+([12])s?-/);
+  var selfSide = selfSideM ? selfSideM[1] : '';
+
+  // Taken-map: once some other game already feeds off "winner of G" (or
+  // "loser of G"), G shouldn't clutter other winner (or loser) pickers —
+  // walk every GAMES side and record it, skipping the side this dropdown
+  // itself edits (that's the one feed we're currently choosing).
+  var takenWinner = {}, takenLoser = {};
+  Object.keys(GAMES).forEach(function(gsid){
+    ['1','2'].forEach(function(side){
+      if (gsid === selfSid && side === selfSide) return;
+      var t = GAMES[gsid]['t' + side];
+      if (!t || (t.type !== 'winner' && t.type !== 'loser')) return;
+      (t.type === 'winner' ? takenWinner : takenLoser)[t.slot] = true;
+    });
+  });
+
   // renders one <optgroup> of feeder-game <option>s, sorted by num
   function slotOptgroup(label, sids) {
     sids = sids.filter(function(s){ return s !== selfSid; });
@@ -548,11 +567,18 @@ function sourceDropdown(idBase, currentType, currentSlot) {
     slotOpts += '<optgroup label="' + esc(label) + '">';
     sids.sort(function(a,b){ return GAMES[a].num - GAMES[b].num; });
     sids.forEach(function(s){
-      var g  = GAMES[s];
-      var p1 = resolveSlot(g.t1, results) || slotLabel(g.t1);
-      var p2 = resolveSlot(g.t2, results) || slotLabel(g.t2);
+      var g   = GAMES[s];
+      var p1  = resolveSlot(g.t1, results) || slotLabel(g.t1);
+      var p2  = resolveSlot(g.t2, results) || slotLabel(g.t2);
       var disp = (g.label||s) + ': ' + shortName(p1) + ' / ' + shortName(p2);
-      slotOpts += '<option value="' + s + '"' + (s===currentSlot?' selected':'') + '>' + esc(disp) + '</option>';
+      var cur = s === currentSlot;
+      var tw  = !!takenWinner[s], tl = !!takenLoser[s];
+      // Initial filter: hide+disable if the current TYPE collides with an
+      // already-claimed feed, unless this option is the current selection.
+      var collide = !cur && ((currentType === 'winner' && tw) || (currentType === 'loser' && tl));
+      var attrs = (tw ? ' data-tw="1"' : '') + (tl ? ' data-tl="1"' : '') + (cur ? ' data-cur="1"' : '')
+        + (collide ? ' hidden disabled' : '');
+      slotOpts += '<option value="' + s + '"' + (cur?' selected':'') + attrs + '>' + esc(disp) + '</option>';
     });
     slotOpts += '</optgroup>';
   }
@@ -569,10 +595,44 @@ function sourceDropdown(idBase, currentType, currentSlot) {
   slotOptgroup(bracketDisplayName('B'), Object.keys(GAMES).filter(function(s){ return GAMES[s].tier==='B'; }));
 
   return '<div class="source-dropdown-row">'
-    + '<select class="admin-winner-sel" id="' + idBase + '-type" style="min-width:5.5em">' + typeOpts + '</select>'
+    + '<select class="admin-winner-sel" id="' + idBase + '-type" data-curtype="' + esc(currentType || '') + '" style="min-width:5.5em">' + typeOpts + '</select>'
     + '<span class="source-dropdown-sep">of</span>'
     + '<select class="admin-winner-sel" id="' + idBase + '-slot" style="min-width:12em">' + slotOpts + '</select>'
     + '</div>';
+}
+
+// bindSourceFilters: live companion to sourceDropdown's inline filter — when
+// the TYPE select flips, re-hide/disable the sibling slot select's options
+// per the data-tw/data-tl taken-map (data-cur is always exempt). If the
+// slot select's current pick just got hidden, fall back to the blank option.
+function bindSourceFilters(container) {
+  if (!container) return;
+  container.querySelectorAll('.source-dropdown-row').forEach(function(row){
+    var typeSel = row.querySelector('select[id$="-type"]');
+    var slotSel = row.querySelector('select[id$="-slot"]');
+    if (!typeSel || !slotSel) return;
+    typeSel.addEventListener('change', function(){
+      var t = typeSel.value;
+      // The stored pick is exempt only under its own stored type — after a
+      // winner/loser flip it competes like any other option, so a feed
+      // already claimed under the new type can't be double-booked.
+      var curExempt = t === typeSel.dataset.curtype;
+      Array.prototype.forEach.call(slotSel.options, function(opt){
+        if (!opt.value) return;
+        if (opt.dataset.cur && curExempt) { opt.hidden = false; opt.disabled = false; return; }
+        var hide = (t === 'winner' && opt.dataset.tw) || (t === 'loser' && opt.dataset.tl);
+        opt.hidden = !!hide;
+        opt.disabled = !!hide;
+      });
+      // optional: hide optgroups left with nothing selectable in them
+      slotSel.querySelectorAll('optgroup').forEach(function(og){
+        var kids = Array.prototype.slice.call(og.children);
+        og.hidden = kids.length > 0 && kids.every(function(o){ return o.hidden; });
+      });
+      var picked = slotSel.options[slotSel.selectedIndex];
+      if (picked && picked.hidden) slotSel.value = '';
+    });
+  });
 }
 
 function occupiedCard(sid) {
@@ -831,6 +891,7 @@ function renderScheduleEditor() {
   }
 
   wrap.innerHTML = html;
+  bindSourceFilters(wrap);
 }
 
 // revealSlot: show one empty slot and open it for editing.
@@ -2673,6 +2734,8 @@ function renderQuickEditor() {
       }
     });
   });
+
+  bindSourceFilters(list);
 }
 
 function quickReplaceAll() {
