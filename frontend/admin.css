@@ -95,8 +95,15 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .admin-title { font-family: 'Oswald', sans-serif; font-size: 1.25rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold-lt); margin-bottom: 0.25em; }
 .admin-subtitle { font-size: 0.78em; color: var(--text-mute); margin-bottom: 1.2em; }
 .admin-section-hdr { font-family: 'Oswald', sans-serif; font-size: 0.95em; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--gold); padding: 0.6em 0 0.35em; border-bottom: 0.13em solid var(--gold); margin: 1.7em 0 0.85em; }
-.admin-round-hdr { font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); padding: 0.5em 0; border-bottom: 0.07em solid var(--border); margin: 1.2em 0 0.6em; }
-.sched-empty-toggle { margin: -0.6em 0 1em; font-size: 0.85em; }
+.admin-round-hdr { font-family: 'Oswald', sans-serif; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; color: var(--text-dim); padding: 0.5em 0; border-bottom: 0.07em solid var(--border); margin: 1.2em 0 0.6em; display: flex; align-items: center; gap: 0.5em; }
+.round-hdr-name { flex: 0 1 auto; }
+.round-rename-btn { background: none; border: none; color: var(--text-mute); cursor: pointer; font-size: 0.9em; padding: 0.1em 0.35em; }
+.round-rename-btn:hover { color: var(--text); }
+.round-rename-inp { font-family: 'Barlow', sans-serif; font-size: 0.85rem; padding: 0.25em 0.5em; background: var(--surface2); color: var(--text); border: 0.07em solid var(--border); border-radius: var(--radius-xs); min-width: 12em; }
+.sched-add-slot-btn { display: block; width: 100%; margin: 0.5em 0; padding: 0.45em; font-family: 'Barlow', sans-serif; font-size: 0.78rem; color: var(--text-mute); background: none; border: 0.09em dashed var(--border); border-radius: var(--radius-sm); cursor: pointer; }
+.sched-add-slot-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.sched-add-round-row { display: flex; align-items: center; gap: 0.6em; margin-top: 1.2em; }
+.sched-add-round-row .sched-add-slot-btn { width: auto; margin: 0; padding: 0.45em 1em; }
 /* Legacy selectors kept for schedule editor compatibility */
 .admin-game-id { font-family: 'Oswald', sans-serif; font-size: var(--text-sm); font-weight: 600; letter-spacing: 0.07em; color: var(--blue-lt); flex-shrink: 0; }
 .admin-winner-sel { font-family: 'Barlow', sans-serif; font-size: max(1rem, 16px); padding: 0.3em 0.5em; border-radius: var(--radius-xs); border: 0.07em solid var(--border); background: var(--surface2); color: var(--text); cursor: pointer; min-width: 9.4em; }

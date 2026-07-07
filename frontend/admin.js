@@ -258,7 +258,7 @@ async function saveSettings() {
       apiFetch('/api/field-colors', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(fieldColors) }),
     ]);
     if (!r || !r.ok || !r1 || !r1.ok || !r2 || !r2.ok) throw new Error();
-    settings = out;
+    settings = Object.assign({}, settings, out);
     _themeColors = themeColors;
     _fieldColors = fieldColors;
     applyThemeColors();
@@ -275,6 +275,12 @@ async function saveSettings() {
 // ── Helpers ────────────────────────────────────────────────────────────
 function gameLabel(sid) {
   return (GAMES[sid] && GAMES[sid].label) ? GAMES[sid].label : sid;
+}
+// Admin-side round display name: the TD's custom name if set, else the
+// static ROUND_LABELS (the admin editor shows every defined round, not just
+// populated ones, so it doesn't use the public roundLabel() numbering).
+function roundDisplayName(round) {
+  return getSetting('roundName' + round) || ROUND_LABELS[round];
 }
 // esc() comes from tt-common.js
 
@@ -516,7 +522,7 @@ function sourceDropdown(idBase, currentType, currentSlot) {
       .filter(function(s){ return GAMES[s].round===round; })
       .sort(function(a,b){ return GAMES[a].num - GAMES[b].num; });
     if (!sids.length) return;
-    slotOpts += '<optgroup label="' + ROUND_LABELS[round] + '">';
+    slotOpts += '<optgroup label="' + esc(roundDisplayName(round)) + '">';
     sids.forEach(function(s){
       var g  = GAMES[s];
       var p1 = resolveSlot(g.t1, results) || slotLabel(g.t1);
@@ -613,6 +619,7 @@ function emptyCard(sid) {
   h += '<div class="sched-game-footer">'
     + '<button class="sched-save-btn sched-game-save-btn" data-action="saveOneGame" data-arg="' + esc(sid) + '">Create Game</button>'
     + '<span class="sched-status" id="sgstatus-' + sid + '"></span>'
+    + '<button class="admin-clear-btn" data-action="hideEmptySlot" data-arg="' + esc(sid) + '">Hide</button>'
     + '</div>';
   h += '</div></div>';
   return h;
@@ -637,51 +644,122 @@ async function clearSlot(sid) {
 }
 
 // The slot grid (SLOT_DEFS) is the fixed maximum bracket structure, so most
-// tournaments use a fraction of it. Hide the unused slots by default and let
-// the "Show unused slots" toggle reveal them for adding games manually.
-var _showEmptySlots = (function(){
-  try { return localStorage.getItem('ttShowEmptySlots') === '1'; } catch(e) { return false; }
-})();
-
-function setShowEmptySlots(on) {
-  _showEmptySlots = !!on;
-  try { localStorage.setItem('ttShowEmptySlots', on ? '1' : '0'); } catch(e) {}
-  renderScheduleEditor();
-}
+// tournaments use a fraction of it. Occupied slots always show; empty slots
+// stay hidden until revealed one at a time via the "+ Add game" buttons.
+var _revealedSlots = {}; // sid -> true, for empty slots manually revealed
 
 function renderScheduleEditor() {
   var wrap = document.getElementById('scheduleEditor');
-  var chk = document.getElementById('showEmptySlotsChk');
-  if (chk) chk.checked = _showEmptySlots;
-  var slotsFor = function(round, side){
-    var defs = SLOT_DEFS[round][side] || [];
-    if (_showEmptySlots) return defs;
-    return defs.filter(function(n){ return GAMES[round + '.' + side + '.' + n]; });
-  };
+  // A revealed slot that now has a real game no longer needs tracking.
+  Object.keys(_revealedSlots).forEach(function(sid){
+    if (GAMES[sid]) delete _revealedSlots[sid];
+  });
+
   var html = '';
+  var hiddenOptions = []; // {value:'ROUND.SIDE', label} for rounds/sides not shown
+
   ROUND_ORDER.forEach(function(round){
     var sides = Object.keys(SLOT_DEFS[round]||{}).sort();
-    var nonEmpty = sides.filter(function(side){ return slotsFor(round, side).length; });
-    if (!nonEmpty.length) return;
-    html += '<div class="admin-round-hdr">' + ROUND_LABELS[round] + '</div>';
-    nonEmpty.forEach(function(side){
+    var roundHtml = '';
+    var roundHasShown = false;
+
+    sides.forEach(function(side){
+      var defs = SLOT_DEFS[round][side] || [];
+      var shown = [];
+      var nextAvail = null;
+      defs.forEach(function(n){
+        var sid = round + '.' + side + '.' + n;
+        if (GAMES[sid] || _revealedSlots[sid]) shown.push(n);
+        else if (nextAvail === null) nextAvail = n;
+      });
+
+      if (!shown.length) {
+        if (nextAvail !== null) {
+          hiddenOptions.push({
+            value: round + '.' + side,
+            label: roundDisplayName(round) + (sides.length > 1
+              ? ' — ' + (side==='L' ? getSetting('leftLabel')
+                       : side==='R' ? getSetting('rightLabel')
+                       : side)
+              : '')
+          });
+        }
+        return;
+      }
+
+      roundHasShown = true;
       if (sides.length > 1) {
-        html += '<div class="sched-side-label">'
+        roundHtml += '<div class="sched-side-label">'
           + (side==='L' ? getSetting('leftLabel')
            : side==='R' ? getSetting('rightLabel')
            : side) + '</div>';
       }
-      slotsFor(round, side).forEach(function(n){
+      shown.forEach(function(n){
         var sid = round + '.' + side + '.' + n;
-        html += GAMES[sid] ? occupiedCard(sid) : emptyCard(sid);
+        roundHtml += GAMES[sid] ? occupiedCard(sid) : emptyCard(sid);
       });
+      if (nextAvail !== null) {
+        roundHtml += '<button class="sched-add-slot-btn" data-action="revealSlot" data-arg="'
+          + esc(round + '.' + side + '.' + nextAvail) + '">+ Add game</button>';
+      }
     });
+
+    if (roundHasShown) {
+      html += '<div class="admin-round-hdr" id="rhdr-' + round + '">'
+        + '<span class="round-hdr-name">' + esc(roundDisplayName(round)) + '</span>'
+        + '<button class="round-rename-btn" data-action="editRoundName" data-arg="' + esc(round) + '" title="Rename this round">✎</button>'
+        + '</div>' + roundHtml;
+    }
   });
+
+  var fallbackRow = '';
+  if (hiddenOptions.length) {
+    var opts = hiddenOptions.map(function(o){
+      return '<option value="' + esc(o.value) + '">' + esc(o.label) + '</option>';
+    }).join('');
+    fallbackRow = '<div class="sched-add-round-row">'
+      + '<select class="admin-winner-sel" id="addRoundSel">' + opts + '</select>'
+      + '<button class="sched-add-slot-btn" data-action="revealSlotFromSelect">+ Add game</button>'
+      + '</div>';
+  }
+
   if (!html) {
     html = '<div class="bld-muted" style="padding:1em">No games yet. Use the Builder to generate '
-      + 'a schedule, or turn on "Show unused slots" above to add games by hand.</div>';
+      + 'a schedule, or add games below.</div>' + fallbackRow;
+  } else {
+    html += fallbackRow;
   }
+
   wrap.innerHTML = html;
+}
+
+// revealSlot: show one empty slot and open it for editing.
+function revealSlot(sid) {
+  _revealedSlots[sid] = true;
+  renderScheduleEditor();
+  toggleSched(sid);
+}
+
+// revealSlotFromSelect: fallback control for rounds/sides with no games at
+// all — reveals the first free slot in the chosen ROUND.SIDE.
+function revealSlotFromSelect() {
+  var sel = document.getElementById('addRoundSel');
+  if (!sel || !sel.value) return;
+  var parts = sel.value.split('.');
+  var round = parts[0], side = parts[1];
+  var defs = SLOT_DEFS[round][side] || [];
+  var n = null;
+  for (var i = 0; i < defs.length; i++) {
+    var sid = round + '.' + side + '.' + defs[i];
+    if (!GAMES[sid] && !_revealedSlots[sid]) { n = defs[i]; break; }
+  }
+  if (n === null) return;
+  revealSlot(round + '.' + side + '.' + n);
+}
+
+function hideEmptySlot(sid) {
+  delete _revealedSlots[sid];
+  renderScheduleEditor();
 }
 
 function toggleSched(sid) {
@@ -745,6 +823,42 @@ async function saveOneGame(sid) {
   } catch(e) {
     showToast('Save failed', true);
     if (status) { status.textContent = '✗ Error'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+  }
+}
+
+// editRoundName: swap a round header's contents for an inline rename input.
+function editRoundName(round) {
+  var hdr = document.getElementById('rhdr-' + round);
+  if (!hdr) return;
+  var current = getSetting('roundName' + round) || '';
+  hdr.innerHTML = '<input type="text" class="round-rename-inp" id="rname-' + esc(round) + '" value="' + esc(current) + '" placeholder="' + esc(ROUND_LABELS[round]) + '" maxlength="40"> '
+    + '<button class="sched-save-btn sched-game-save-btn" data-action="saveRoundName" data-arg="' + esc(round) + '">Save</button> '
+    + '<button class="admin-clear-btn" data-action="cancelRoundName">Cancel</button>';
+  var inp = document.getElementById('rname-' + round);
+  if (inp) inp.focus();
+}
+
+function cancelRoundName() {
+  renderScheduleEditor();
+}
+
+async function saveRoundName(round) {
+  var inp = document.getElementById('rname-' + round);
+  var value = inp ? inp.value.trim() : '';
+  if (value === ROUND_LABELS[round]) value = '';
+  settings = Object.assign({}, settings);
+  settings['roundName' + round] = value;
+  try {
+    var r = await apiFetch('/api/settings', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(settings)
+    });
+    if (!r) return;
+    if (!r.ok) throw new Error();
+    showToast(value ? 'Round renamed' : 'Round name reset');
+    renderScheduleEditor();
+  } catch(e) {
+    showToast('Save failed', true);
   }
 }
 
@@ -2319,7 +2433,7 @@ function renderNamesEditor() {
       });
     });
     if (!gidsInRound.length) return;
-    html += '<div class="names-round-hdr">' + ROUND_LABELS[round] + '</div>';
+    html += '<div class="names-round-hdr">' + esc(roundDisplayName(round)) + '</div>';
     gidsInRound.forEach(function(sid) {
       var g = GAMES[sid];
       html += '<div class="names-row">'
@@ -2519,6 +2633,12 @@ Object.assign(TT_ACTIONS, {
   toggleSched:         function(arg) { toggleSched(arg); },
   clearSlot:           function(arg) { clearSlot(arg); },
   saveOneGame:         function(arg) { saveOneGame(arg); },
+  revealSlot:          function(arg) { revealSlot(arg); },
+  revealSlotFromSelect:function() { revealSlotFromSelect(); },
+  hideEmptySlot:       function(arg) { hideEmptySlot(arg); },
+  editRoundName:       function(arg) { editRoundName(arg); },
+  saveRoundName:       function(arg) { saveRoundName(arg); },
+  cancelRoundName:     function() { cancelRoundName(); },
   saveTeams:           function() { saveTeams(); },
   namesReplaceAll:     function() { namesReplaceAll(); },
   saveGameNames:       function() { saveGameNames(); },
@@ -2574,6 +2694,4 @@ Object.assign(TT_ACTIONS, {
     if (panel) panel.style.display = this.checked ? '' : 'none';
     if (this.checked) renderThemeSection();
   });
-  var est = document.getElementById('showEmptySlotsChk');
-  if (est) est.addEventListener('change', function() { setShowEmptySlots(this.checked); });
 })();

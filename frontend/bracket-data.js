@@ -35,6 +35,10 @@ const ROUND_LABELS = {
 // NOTE: intended for the public bracket, which renders only populated rounds.
 // The admin editor shows every defined round and keeps the static labels.
 function roundLabel(round) {
+  // A TD's custom name always wins, even over the automatic CHAMP2 '3rd
+  // Place' relabel below.
+  var custom = (typeof getSetting === 'function') ? getSetting('roundName' + round) : '';
+  if (custom) return custom;
   if (round === 'CHAMP')  return ROUND_LABELS.CHAMP;
   if (round === 'CHAMP2') {
     // CHAMP2 is the double-elim "if necessary" reset, EXCEPT when its feeds

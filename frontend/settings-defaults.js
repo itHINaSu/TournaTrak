@@ -26,6 +26,17 @@ const SETTINGS_DEFAULTS = {
   defaultTab:           'bracket',
   defaultTabScope:      'both',
   defaultScheduleGroup: 'day',
+  // Custom display names for storage rounds; '' = use the built-in label.
+  roundNameR0:     '',
+  roundNameR1:     '',
+  roundNameR2:     '',
+  roundNameQF:     '',
+  roundNameQF2:    '',
+  roundNameSF:     '',
+  roundNameSF3:    '',
+  roundNameSF2:    '',
+  roundNameCHAMP:  '',
+  roundNameCHAMP2: '',
 };
 
 if (typeof module !== 'undefined') {

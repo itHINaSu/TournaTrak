@@ -931,7 +931,11 @@ api.post('/settings', requireAdmin, ah(async (req, res) => {
   Object.keys(SETTINGS_DEFAULTS).forEach(k => {
     if (incoming[k] !== undefined) clean[k] = String(incoming[k]).slice(0, 500);
   });
-  await store.put(req.tid, 'settings', clean);
+  // Merge over the existing stored settings so a partial save (e.g. the
+  // round-name editor posting just one key) can't wipe unrelated settings.
+  const current = (await store.get(req.tid, 'settings')) || {};
+  const merged = Object.assign({}, current, clean);
+  await store.put(req.tid, 'settings', merged);
   invalidateIndexCache(req.tid);
   res.json({ ok: true });
 }));
