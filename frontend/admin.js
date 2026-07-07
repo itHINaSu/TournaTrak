@@ -517,12 +517,11 @@ function sourceDropdown(idBase, currentType, currentSlot) {
   }).join('');
 
   var slotOpts = '<option value="">— select —</option>';
-  ROUND_ORDER.forEach(function(round){
-    var sids = Object.keys(GAMES)
-      .filter(function(s){ return GAMES[s].round===round; })
-      .sort(function(a,b){ return GAMES[a].num - GAMES[b].num; });
+  // renders one <optgroup> of feeder-game <option>s, sorted by num
+  function slotOptgroup(label, sids) {
     if (!sids.length) return;
-    slotOpts += '<optgroup label="' + esc(roundDisplayName(round)) + '">';
+    slotOpts += '<optgroup label="' + esc(label) + '">';
+    sids.sort(function(a,b){ return GAMES[a].num - GAMES[b].num; });
     sids.forEach(function(s){
       var g  = GAMES[s];
       var p1 = resolveSlot(g.t1, results) || slotLabel(g.t1);
@@ -531,7 +530,18 @@ function sourceDropdown(idBase, currentType, currentSlot) {
       slotOpts += '<option value="' + s + '"' + (s===currentSlot?' selected':'') + '>' + esc(disp) + '</option>';
     });
     slotOpts += '</optgroup>';
+  }
+
+  ROUND_ORDER.forEach(function(round){
+    // Tiered A/B games live in R0 but are grouped separately below, not
+    // under a meaningless "Round 0" optgroup.
+    var sids = Object.keys(GAMES)
+      .filter(function(s){ return GAMES[s].round===round && !GAMES[s].tier; });
+    slotOptgroup(roundDisplayName(round), sids);
   });
+
+  slotOptgroup('A Bracket', Object.keys(GAMES).filter(function(s){ return GAMES[s].tier==='A'; }));
+  slotOptgroup('B Bracket', Object.keys(GAMES).filter(function(s){ return GAMES[s].tier==='B'; }));
 
   return '<div class="source-dropdown-row">'
     + '<select class="admin-winner-sel" id="' + idBase + '-type" style="min-width:5.5em">' + typeOpts + '</select>'
@@ -659,6 +669,9 @@ function renderScheduleEditor() {
   var hiddenOptions = []; // {value:'ROUND.SIDE', label} for rounds/sides not shown
 
   ROUND_ORDER.forEach(function(round){
+    // R0 is drop-bracket storage (A/B tiers), rendered separately below —
+    // not a real round in the tree.
+    if (round === 'R0') return;
     var sides = Object.keys(SLOT_DEFS[round]||{}).sort();
     var roundHtml = '';
     var roundHasShown = false;
@@ -711,6 +724,38 @@ function renderScheduleEditor() {
         + '</div>' + roundHtml;
     }
   });
+
+  // R0 holds the drop-bracket games: L side is the A bracket, R side is B.
+  // Rendered as labeled tier sections instead of a generic "Round 0".
+  function tierSection(side, label) {
+    var defs = SLOT_DEFS.R0[side] || [];
+    var shown = [];
+    var nextAvail = null;
+    defs.forEach(function(n){
+      var sid = 'R0.' + side + '.' + n;
+      if (GAMES[sid] || _revealedSlots[sid]) shown.push(n);
+      else if (nextAvail === null) nextAvail = n;
+    });
+
+    if (!shown.length) {
+      if (nextAvail !== null) {
+        hiddenOptions.push({ value: 'R0.' + side, label: label });
+      }
+      return;
+    }
+
+    html += '<div class="admin-round-hdr"><span class="round-hdr-name">' + esc(label) + '</span></div>';
+    shown.forEach(function(n){
+      var sid = 'R0.' + side + '.' + n;
+      html += GAMES[sid] ? occupiedCard(sid) : emptyCard(sid);
+    });
+    if (nextAvail !== null) {
+      html += '<button class="sched-add-slot-btn" data-action="revealSlot" data-arg="'
+        + esc('R0.' + side + '.' + nextAvail) + '">+ Add game</button>';
+    }
+  }
+  tierSection('L', 'A Bracket');
+  tierSection('R', 'B Bracket');
 
   var fallbackRow = '';
   if (hiddenOptions.length) {
@@ -799,6 +844,11 @@ async function saveOneGame(sid) {
     entry.t2type = st2typeEl.value;
     entry.t2slot = st2srcEl.value;
   }
+  // R0 is the drop-bracket storage round: L holds the A bracket, R holds B.
+  // Stamping from the slot keeps hand-made games in the right flight and
+  // stops edits from dropping the generator's tier field.
+  if (/^R0\.R\./.test(sid)) entry.tier = 'B';
+  else if (/^R0\.L\./.test(sid)) entry.tier = 'A';
   // Creating a game in an empty slot needs actual content — don't write a
   // blank entry into the schedule.
   var hasRealData = entry.label || entry.time || entry.t1name || entry.t2name || entry.t1slot || entry.t2slot;
