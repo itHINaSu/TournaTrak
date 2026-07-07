@@ -9,6 +9,14 @@ var _sessionRole = null;
 var _bucketEditMode = false;
 var _bracketEditMode = false;
 var scheduleMode = null; // null = uninitialised; set from settings on first render
+
+// "Project winners" — public, device-local bracket picks. Plain in-memory
+// state only: never localStorage, never POSTed. A hard refresh clears it;
+// the 20s auto-refresh (fetchAll/pollLive) never touches these two vars, so
+// picks survive polling for free. _projected maps gid -> the team name
+// picked to win that game, for games with no real result yet.
+var _projecting = false;
+var _projected = {};
 // esc() comes from tt-common.js
 
 // SETTINGS_DEFAULTS comes from settings-defaults.js; getSetting from tt-common.js
@@ -245,6 +253,9 @@ function renderBucketView() {
 
 function toggleBracketEdit() {
   _bracketEditMode = !_bracketEditMode;
+  // Admin drag-and-drop and the public "project winners" picker both listen
+  // on .bc-team/.bc clicks — never let both be active at once.
+  if (_bracketEditMode) { _projecting = false; updateProjectUI(); }
   var btn = document.getElementById('bracketEditBtn');
   if (btn) { btn.textContent = _bracketEditMode ? 'Done' : 'Edit'; btn.classList.toggle('admin-btn-active', _bracketEditMode); }
   if (_bracketEditMode && activeView() !== 'bracket') {
@@ -429,6 +440,7 @@ async function fetchAll(){
   updateTimestamp();
   updateDelayNotice();
   updateFlightTabs();
+  updateProjectUI();
   populateTeamSelect();
 
   // ?view=X from lineup page tab links — consume once then strip from URL
@@ -564,6 +576,46 @@ function disp(gid,slot){
   var label=team||smartLabel(slot,results);
   var r=results[gid]||{};
   return {name:label, actual:!!team, won:!!(team&&r.winner===team), lost:!!(team&&r.loser===team)};
+}
+
+// ── Project winners: resolution helpers (Bracket-tab tree only) ──────
+// projResolveSlot falls back to a projected pick ONLY when there's no real
+// result, and recurses through winner/loser chains so a projected pick
+// cascades downstream exactly like a real result would (e.g. picking the
+// R1 winner fills in R2's slot as a projection, not a TBD).
+function projResolveSlot(teamSlot) {
+  var real = resolveSlot(teamSlot, results);
+  if (real) return real;
+  if (!teamSlot || teamSlot.type === 'fixed') return null;
+  var srcG = GAMES[teamSlot.slot];
+  if (!srcG) return null;
+  var pw = _projected[teamSlot.slot];
+  if (!pw) return null;
+  if (teamSlot.type === 'winner') return pw;
+  if (teamSlot.type === 'loser') {
+    var p1 = projResolveSlot(srcG.t1), p2 = projResolveSlot(srcG.t2);
+    if (pw === p1) return p2 || null;
+    if (pw === p2) return p1 || null;
+  }
+  return null;
+}
+
+// Projection-aware counterpart to disp(): identical shape plus `projected`
+// (true when the shown name exists only because of a pick, not a real
+// result anywhere in its chain). Behaves exactly like disp() whenever
+// _projected is empty, so cardHTML/champCardHTML/mobileRoundCardHTML can
+// call it unconditionally — Schedule and Team Path keep using disp()/
+// resolveSlot directly and never show projections (v1 scope: Bracket tab).
+function dispProjected(gid,slot){
+  var real=resolveSlot(slot,results);
+  var team=real||projResolveSlot(slot);
+  var label=team||smartLabel(slot,results);
+  var r=results[gid]||{};
+  return {
+    name:label, actual:!!team,
+    won:!!(team&&r.winner===team), lost:!!(team&&r.loser===team),
+    projected:!real&&!!team,
+  };
 }
 
 // ══════════════════════════════════════════════════════════
@@ -848,6 +900,17 @@ function trophySVG() {
     + '</svg>';
 }
 
+// ── Project winners: shared markup bits for the Bracket-tab card renderers ─
+// Tapping a team name records a pick — only wired while _projecting is on,
+// the game has no real result yet, and the team itself is known (real or
+// itself a projection).
+function pickAttrHTML(gid, teamName, pickable) {
+  return pickable ? ' data-action="pickProjected" data-arg="'+esc(gid)+'" data-arg2="'+esc(teamName)+'"' : '';
+}
+function projChipHTML(t) {
+  return t.projected ? '<span class="bc-proj-chip">projected</span>' : '';
+}
+
 // ══════════════════════════════════════════════════════════
 // CARD HTML
 // ══════════════════════════════════════════════════════════
@@ -855,7 +918,7 @@ function cardHTML(gid){
   var g=GAMES[gid];
   if(!g) return '<div class="bc-hdr"><span class="bc-id">'+esc(gid)+'</span></div>'
     +'<div class="bc-team tbd">TBD</div><div class="bc-team tbd">TBD</div>';
-  var t1=disp(gid,g.t1), t2=disp(gid,g.t2), r=results[gid]||{};
+  var t1=dispProjected(gid,g.t1), t2=dispProjected(gid,g.t2), r=results[gid]||{};
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
   if(g.bye){ c1=''; c2='bye'; }   // lone team advances; opponent is the BYE slot
@@ -864,16 +927,18 @@ function cardHTML(gid){
   var offHTML = (offMin !== null && offMin !== 0)
     ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
     : '';
+  var pick1 = _projecting && !g.bye && !r.winner && t1.actual;
+  var pick2 = _projecting && !g.bye && !r.winner && t2.actual;
   return '<div class="bc-hdr">'+(g.bye?'<span class="bc-id" style="visibility:hidden">x</span>':'<span class="bc-id">'+esc(gameLabel(gid))+'</span>')
     +fieldTagHTML(gid)
     +(gameIsLive(gid)
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
         : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'+offHTML))
     +'</div>'
-    +'<div class="bc-team '+c1+'">'+seedChip(t1.name)+'<span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
+    +'<div class="bc-team '+c1+(t1.projected?' proj':'')+(pick1?' pickable':'')+'"'+pickAttrHTML(gid,t1.name,pick1)+'>'+seedChip(t1.name)+'<span class="bc-name">'+esc(t1.name)+'</span>'+projChipHTML(t1)+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
     +(g.bye
       ? '<div class="bc-team bye"><span class="bc-bye-label">— BYE —</span></div>'
-      : '<div class="bc-team '+c2+'">'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
+      : '<div class="bc-team '+c2+(t2.projected?' proj':'')+(pick2?' pickable':'')+'"'+pickAttrHTML(gid,t2.name,pick2)+'>'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+projChipHTML(t2)+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1200,6 +1265,26 @@ function updateFlightTabs() {
   });
 }
 
+// Reflects _projecting/_projected onto the toggle row: button label/active
+// state, and the "Clear projections" button only when there's something to
+// clear. Also drops projections for games that have since gone final —
+// dispProjected already prefers real results, but pruning keeps the "Clear"
+// button (and the have-picks check) honest.
+function updateProjectUI() {
+  Object.keys(_projected).forEach(function(gid) {
+    var r = results[gid];
+    if (r && r.winner) delete _projected[gid];
+  });
+  var btn = document.getElementById('projectToggleBtn');
+  if (btn) {
+    btn.classList.toggle('active', _projecting);
+    btn.textContent = _projecting ? 'Done projecting' : 'Project winners';
+    btn.disabled = _bracketEditMode;
+  }
+  var clearBtn = document.getElementById('projectClearBtn');
+  if (clearBtn) clearBtn.style.display = Object.keys(_projected).length ? '' : 'none';
+}
+
 function setBracketFlight(f) {
   if (f !== 'open' && f !== 'A' && f !== 'B') return;
   _bracketFlight = f;
@@ -1400,10 +1485,12 @@ function renderDesktopBracket(root,dims){
 function champCardHTML(gid) {
   var g = GAMES[gid];
   if (!g) return '';
-  var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
+  var t1 = dispProjected(gid, g.t1), t2 = dispProjected(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
   var ft = formatTime(g.time);
+  var pick1 = _projecting && !r.winner && t1.actual;
+  var pick2 = _projecting && !r.winner && t2.actual;
   return '<div class="mbc-champ-card">'
     + '<div class="mbc-champ-top">'
     +   '<div class="mbc-champ-trophy">'+trophySVG()+'</div>'
@@ -1414,13 +1501,13 @@ function champCardHTML(gid) {
     + '</div>'
     + '<div class="mbc-champ-sep"></div>'
     + '<div class="mbc-champ-teams">'
-    +   '<div class="mbc-champ-team ' + c1 + '">'
-    +     '<span class="mbc-champ-name">' + esc(t1.name) + '</span>'
+    +   '<div class="mbc-champ-team ' + c1 + (t1.projected?' proj':'') + (pick1?' pickable':'') + '"' + pickAttrHTML(gid,t1.name,pick1) + '>'
+    +     '<span class="mbc-champ-name">' + esc(t1.name) + '</span>' + projChipHTML(t1)
     +     (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     +   '</div>'
     +   '<div class="mbc-champ-vs">vs</div>'
-    +   '<div class="mbc-champ-team ' + c2 + '">'
-    +     '<span class="mbc-champ-name">' + esc(t2.name) + '</span>'
+    +   '<div class="mbc-champ-team ' + c2 + (t2.projected?' proj':'') + (pick2?' pickable':'') + '"' + pickAttrHTML(gid,t2.name,pick2) + '>'
+    +     '<span class="mbc-champ-name">' + esc(t2.name) + '</span>' + projChipHTML(t2)
     +     (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     +   '</div>'
     + '</div>'
@@ -1432,7 +1519,7 @@ function champCardHTML(gid) {
 function mobileRoundCardHTML(gid) {
   var g = GAMES[gid];
   if (!g) return '<div class="mbc-game-card"><div class="mbc-game-mid"><span class="mbc-game-lbl">' + esc(gid) + '</span></div></div>';
-  var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
+  var t1 = dispProjected(gid, g.t1), t2 = dispProjected(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
   if (g.bye) { c1 = 'won'; c2 = 'bye'; }   // lone team advances; opponent is a greyed BYE
@@ -1441,6 +1528,8 @@ function mobileRoundCardHTML(gid) {
   if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
   var fd = fmtDate(dateStr), fw = fmtDow(dowStr);
   var upcoming = !r.winner ? ' upcoming' : '';
+  var pick1 = _projecting && !g.bye && !r.winner && t1.actual;
+  var pick2 = _projecting && !g.bye && !r.winner && t2.actual;
   // Header (top 25%), team 1 (37.5%), team 2 (37.5%)
   return '<div class="mbc-game-card' + upcoming + '">'
     + '<div class="mbc-game-mid">'
@@ -1454,12 +1543,12 @@ function mobileRoundCardHTML(gid) {
             + (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
             + '</span>')
     + '</div>'
-    + '<div class="mbc-game-team ' + c1 + '">'
-    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
+    + '<div class="mbc-game-team ' + c1 + (t1.projected?' proj':'') + (pick1?' pickable':'') + '"' + pickAttrHTML(gid,t1.name,pick1) + '>'
+    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(t1.name) + '</span>' + projChipHTML(t1)
     +   (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     + '</div>'
-    + '<div class="mbc-game-team ' + c2 + '">'
-    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
+    + '<div class="mbc-game-team ' + c2 + (t2.projected?' proj':'') + (pick2?' pickable':'') + '"' + pickAttrHTML(gid,t2.name,pick2) + '>'
+    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(t2.name) + '</span>' + projChipHTML(t2)
     +   (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     + '</div>'
     + '</div>';
@@ -3146,6 +3235,7 @@ async function pollLive() {
       schedule = JSON.parse(st);
       if (typeof applySchedule === 'function') applySchedule(schedule);
     }
+    updateProjectUI();
     renderActiveNoScroll();
   } catch (e) { setOffline(true); }
 }
@@ -3162,4 +3252,13 @@ Object.assign(TT_ACTIONS, {
   exitBucketEdit:    function() { exitBucketEdit(); },
   setFlight:         function(arg) { setBracketFlight(arg); },
   setSchedFlight:    function(arg) { setSchedFlight(arg); },
+  toggleProjecting:  function() { _projecting = !_projecting; updateProjectUI(); renderBracket(); },
+  clearProjections:  function() { _projected = {}; updateProjectUI(); renderBracket(); },
+  pickProjected:     function(gid, el) {
+    var team = el.dataset.arg2;
+    if (!gid || !team || (results[gid] && results[gid].winner)) return;
+    if (_projected[gid] === team) delete _projected[gid]; else _projected[gid] = team;
+    updateProjectUI();
+    renderBracket();
+  },
 });

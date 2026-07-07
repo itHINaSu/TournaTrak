@@ -70,38 +70,46 @@ owner can commit their exact instance for debugging (dump includes password
 hashes — strip before open-sourcing). POST /settings now MERGES (partial
 saves can't wipe other settings). SW cache at v2.74.
 
-**Next up — owner-requested, specced but NOT built (ran out of session)**
-0a. ⬜ **"Project winners" (public, device-local).** Viewers step through the
-    bracket picking who they think wins each game. Constraints from owner:
-    never synced to the server; must NOT survive a hard refresh; MUST survive
-    the auto-refresh. That means plain in-memory state — `var _projected =
-    {}` (slot → winner name) in bracket.js, NO localStorage, nothing POSTed.
-    Design: a "Project winners" toggle on the public Bracket tab (pill/button
-    near `#bracketFlights`); while active, tapping a team name in a game with
-    no REAL result records the projection. Rendering: resolve display through
-    a merged view — real `results[slot]` wins; else `_projected[slot]` — so
-    downstream "Winner of…" slots fill in with projected teams; style
-    projected picks distinctly (italic/tinted + a small "projected" chip) and
-    add a "Clear projections" action. The 20s `pollLive` and `fetchAll` only
-    rebuild results/schedule/GAMES, so `_projected` survives auto-refresh for
-    free; renders must apply the overlay AFTER real results (a projection for
-    a game that has since gone final is simply ignored/dropped). Watch out:
-    bracket-card clicks are also used by admin bracket-edit mode — gate the
-    projection handler on the toggle being active and `_sessionRole` not
-    mid-edit. Team Path/Schedule overlays are optional v2. Files: bracket.js,
-    bracket.css, index.html (+ SW bump).
-0b. ⬜ **Builder keeps its form state after generating.** Owner wants to
-    regenerate with slightly different settings without re-entering
-    everything. Today the form state actually lives per page-load
-    (builderInit runs once), so the work is: verify nothing clears
-    `teamsInput`/format/seeding/days on success, make the done overlay
-    dismissible back to the intact form (add a "Back to builder" button next
-    to the existing done actions if there isn't one), and re-check the
-    playing-days calendar/day rows survive (playingDays array is module
-    state — it does, but the auto-seeded simpleDate day logic runs on
-    advanced-toggle only when playingDays is empty, so it won't stomp).
-    Files: builder.js + the done-overlay markup in BOTH builder.html and
-    admin.html (duplication hazard, see item 3).
+**Shipped 2026-07-07 (later this session, on `claude/handoff-continuation-9elo3q`)**
+0a. ✅ **"Project winners" (public, device-local).** Toggle pill row
+    (`#bracketProjectRow`, next to `#bracketFlights`) on the public Bracket
+    tab: "Project winners" / "Done projecting" + a "Clear projections"
+    button that only appears once there's something to clear. State is
+    `var _projecting` (bool) + `var _projected = {}` (gid → picked winner
+    name) in bracket.js — plain module vars, never localStorage, never
+    POSTed, so a hard refresh clears them but the 20s `fetchAll`/`pollLive`
+    never touch either var (picks survive auto-refresh for free).
+    `projResolveSlot()` mirrors `resolveSlot()` but falls back to a pick
+    only when there's no real result, recursing through winner/loser chains
+    so a pick cascades downstream exactly like a real result (picking a
+    quarterfinal winner fills in the semifinal slot as a projection, not
+    TBD). `dispProjected()` is disp()'s projection-aware twin — identical
+    output whenever `_projected` is empty, so `cardHTML`/`champCardHTML`/
+    `mobileRoundCardHTML` (the three Bracket-tab renderers) call it
+    unconditionally; `roundCardHTML`/`scheduleCardHTML` (Schedule/Team Path)
+    were deliberately left on plain `disp()`/`resolveSlot()`, so projections
+    never leak into those tabs (v1 scope, per spec — confirmed by
+    Playwright: 0 projection markers in Schedule or Team Path after picking
+    a full bracket through to champion). Tapping a resolved team name while
+    projecting and the game has no real result records/toggles the pick
+    (`data-action="pickProjected"`); projected names get italic + a small
+    "projected" chip (`--blue-lt`, not the reserved win/lose colors).
+    Bracket-edit mode and projecting are mutually exclusive (entering admin
+    edit mode force-disables + disables the toggle) since both listen on
+    `.bc-team`/`.bc` clicks. Verified end-to-end with Playwright: toggle,
+    single pick + cascade, full pick chain to champion, unpick (tap the same
+    team again), real results are never pickable and immediately stop a
+    game from accepting picks, Clear projections, and that a hard refresh
+    wipes everything while a live-poll round-trip does not. Files:
+    bracket.js, bracket.css, index.html. SW bumped to v2.75.
+0b. ✅ **Builder keeps its form state after generating.** Confirmed nothing
+    in `doGenerate()` ever clears `teamsInput`/format/seeding/playingDays on
+    success (state already lives per page-load, not per generate) — the
+    only missing piece was a way back to the intact form. Added a "Back to
+    builder" button (`#doneBackBtn`) to the done overlay in both
+    builder.html and admin.html, wired in builder.js to just hide the
+    overlay. Playwright-verified: generate a bracket, click Back, the teams
+    textarea (and everything else) is still exactly as typed.
 
 **Bracket builder & tiered Open/A/B format**
 1. ✅ **Double-elim WITH BYES** — done 2026-07-07. `double-elim` is now 4–32
@@ -335,7 +343,7 @@ fields use `class="styled"` (the `admin-winner-sel` inline-style inconsistency i
 - Theme toggle: admin.js claims it via `window.__ttThemeManaged = true`.
 - Mobile inputs: `inputmode="numeric" pattern="[0-9]*"` + `onfocus="this.select()"`.
 - `.admin-res-footer button` uses fixed `height` for even boxes.
-- **Bump `sw.js` `CACHE` whenever a precached asset changes.** Currently `tournatrak-v2.58`.
+- **Bump `sw.js` `CACHE` whenever a precached asset changes.** Currently `tournatrak-v2.75`.
   Precached: `/`, `index.html`, `fonts.css`, `base.css`, `bracket.css`, `bracket-data.js`,
   `bracket.js`, `/lineup`, `lineup.html`, `lineup.css`, `lineup.js`.
   `admin.*` / `admin-sw.js` are NOT in `sw.js` precache (they have their own `admin-sw.js`).

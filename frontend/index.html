@@ -83,6 +83,11 @@
     <button class="flight-pill" data-action="setFlight" data-arg="A">A Bracket</button>
     <button class="flight-pill" data-action="setFlight" data-arg="B">B Bracket</button>
   </div>
+  <!-- Project winners: device-local picks, never synced. See bracket.js _projected. -->
+  <div class="bracket-flights bracket-project-row" id="bracketProjectRow">
+    <button class="flight-pill" id="projectToggleBtn" data-action="toggleProjecting">Project winners</button>
+    <button class="flight-pill bracket-project-clear" id="projectClearBtn" data-action="clearProjections" style="display:none">Clear projections</button>
+  </div>
   <div id="bracketRoot"></div>
 </div>
 

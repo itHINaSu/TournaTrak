@@ -421,6 +421,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .flight-pill.active { background: var(--blue); border-color: var(--blue); color: #fff; }
 .flight-pill:hover:not(.active) { color: var(--text); border-color: var(--text-dim); }
+.flight-pill:disabled { opacity: 0.4; cursor: default; }
 @media (pointer: coarse) { .flight-pill { min-height: 44px; } }
 
 /* A/B flights: simple left-to-right round columns (their own single-elim
@@ -637,6 +638,28 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
 .bc-team.won  { color: var(--win-color); }
 .bc-team.lost { color: var(--lose-color); }
+
+/* ── Project winners (public, device-local picks — bracket.js _projected) ── */
+.bracket-project-row { max-width: 17em; }
+.bracket-project-clear { flex: none; color: var(--text-dim); }
+.bc-team.proj, .mbc-champ-team.proj, .mbc-game-team.proj { font-style: italic; }
+.bc-proj-chip {
+  flex: none;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--blue-lt);
+  border: 0.07em solid var(--blue-lt);
+  border-radius: var(--radius-xs);
+  padding: 0.05em 0.35em;
+  white-space: nowrap;
+}
+.bc-team.pickable, .mbc-champ-team.pickable, .mbc-game-team.pickable { cursor: pointer; }
+.bc-team.pickable:hover, .mbc-champ-team.pickable:hover, .mbc-game-team.pickable:hover {
+  background: rgba(74,144,217,0.12);
+}
 
 /* ── Admin drag-and-drop ── */
 .bc-dragging    { opacity: 0.3; pointer-events: none; }
