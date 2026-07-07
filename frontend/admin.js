@@ -595,7 +595,7 @@ function emptyCard(sid) {
     + '<span class="sched-game-hdr-arrow" id="sarrow-' + sid + '">▼</span>'
     + '</div>';
   h += '<div class="sched-game-body" id="sbody-' + sid + '">';
-  h += '<div class="empty-slot-instructions">Fill this slot to create a new game. Requires a label and both teams. Save All to apply.</div>';
+  h += '<div class="empty-slot-instructions">Fill this slot to create a new game. Give it a label and both teams, then Create Game (or Save All).</div>';
   h += '<div class="sched-field"><label>Game Label</label>'
     + '<input type="text" id="slabel-' + sid + '" value="' + esc(over.label||'') + '" placeholder="e.g. G7"></div>';
   h += '<div class="sched-field"><label>Field</label>'
@@ -610,6 +610,10 @@ function emptyCard(sid) {
     + '<input type="text" id="st2-' + sid + '" value="' + esc(over.t2name||'') + '" placeholder="Team name"></div>';
   h += '<div class="sched-field"><label>Team 2 Source (if not fixed)</label>'
     + sourceDropdown('st2-'+sid, over.t2type||'winner', over.t2slot||'') + '</div>';
+  h += '<div class="sched-game-footer">'
+    + '<button class="sched-save-btn sched-game-save-btn" data-action="saveOneGame" data-arg="' + esc(sid) + '">Create Game</button>'
+    + '<span class="sched-status" id="sgstatus-' + sid + '"></span>'
+    + '</div>';
   h += '</div></div>';
   return h;
 }
@@ -785,6 +789,13 @@ async function saveOneGame(sid) {
   if (st2typeEl && st2srcEl && st2srcEl.value) {
     entry.t2type = st2typeEl.value;
     entry.t2slot = st2srcEl.value;
+  }
+  // Creating a game in an empty slot needs actual content — don't write a
+  // blank entry into the schedule.
+  var hasRealData = entry.label || entry.time || entry.t1name || entry.t2name || entry.t1slot || entry.t2slot;
+  if (!GAMES[sid] && !hasRealData) {
+    showToast('Give the game a label and teams first', true);
+    return;
   }
   var out = Object.assign({}, schedule);
   out[sid] = entry;
@@ -2577,6 +2588,7 @@ Object.assign(TT_ACTIONS, {
   toggleSched:         function(arg) { toggleSched(arg); },
   clearSlot:           function(arg) { clearSlot(arg); },
   saveOneGame:         function(arg) { saveOneGame(arg); },
+  saveAllSchedule:     function() { saveAllSchedule(); },
   saveTeams:           function() { saveTeams(); },
   namesReplaceAll:     function() { namesReplaceAll(); },
   saveGameNames:       function() { saveGameNames(); },
