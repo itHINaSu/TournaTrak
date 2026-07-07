@@ -404,7 +404,12 @@ async function fetchAll(){
     _teamsData = tmr.ok ? await tmr.json() : { showSeeds: false, teams: [] };
     _seedMap = {};
     if (_teamsData.showSeeds && Array.isArray(_teamsData.teams)) {
-      _teamsData.teams.forEach(function(t, i) { if (t && t.name) _seedMap[t.name] = i + 1; });
+      // Partial seeding: only the first seedCount teams hold real seeds —
+      // the rest were placed randomly and get no number.
+      var seedCap = parseInt(_teamsData.seedCount, 10) || 0;
+      _teamsData.teams.forEach(function(t, i) {
+        if (t && t.name && (!seedCap || i < seedCap)) _seedMap[t.name] = i + 1;
+      });
     }
     _themeColors=tc.ok ? await tc.json() : {};
     if(typeof applySchedule==='function') applySchedule(schedule);

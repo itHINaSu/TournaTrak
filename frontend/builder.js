@@ -374,13 +374,27 @@ function dayIndex(date) {
 }
 function hasDay(date) { return dayIndex(date) !== -1; }
 
+function defStartTime() { var el = $('defStartTime'); return (el && el.value) || '09:00'; }
+function defGames()     { var el = $('defGames');     return el ? (parseInt(el.value, 10) || 0) : 0; }  // 0 = unset
+function defInterval()  { var el = $('defInterval');  return el ? (parseInt(el.value, 10) || 60) : 60; }
+
 function addDayByDate(date) {
   if (hasDay(date)) return;
-  playingDays.push({ date: date, startTime: '09:00', games: realGamesNeeded() || 4, interval: 60, fields: fieldNames.slice() });
+  playingDays.push({ date: date, startTime: defStartTime(), games: defGames() || realGamesNeeded() || 4, interval: defInterval(), fields: fieldNames.slice() });
   sortDays();
 }
 function sortDays() {
   playingDays.sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+}
+
+function applyDefaultsToAllDays() {
+  var g = defGames();
+  playingDays.forEach(function (d) {
+    d.startTime = defStartTime();
+    d.interval = defInterval();
+    if (g > 0) d.games = g;
+  });
+  renderDays();
 }
 
 function toggleDay(date) {
@@ -654,7 +668,7 @@ async function doGenerate() {
     if (currentFormat.supportsIfNecessary) body.ifNecessary = ifNecessaryOn();
     if (currentFormat.supportsThirdPlace) body.thirdPlace = thirdPlaceOn();
     var mode = $('seedMode').value;
-    if (mode === 'order' || mode === 'manual') body.showSeeds = $('showSeedsChk').checked;
+    if (mode === 'order' || mode === 'partial' || mode === 'manual') body.showSeeds = $('showSeedsChk').checked;
     var prefixEl = $('gamePrefixInput');
     if (prefixEl && prefixEl.value.trim()) body.gamePrefix = prefixEl.value.trim();
     var r = await fetch(builderApiBase() + '/schedule/generate', {
@@ -688,6 +702,8 @@ function wireEvents() {
   var ifNec = $('ifNecChk'); if (ifNec) ifNec.addEventListener('change', refresh);
   var thirdP = $('thirdPlaceChk'); if (thirdP) thirdP.addEventListener('change', refresh);
   $('advSchedChk').addEventListener('change', onAdvToggle);
+  var applyDefaults = $('applyDefaultsBtn');
+  if (applyDefaults) applyDefaults.addEventListener('click', applyDefaultsToAllDays);
   $('generateBtn').addEventListener('click', onGenerate);
   $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').style.display = 'none'; });
   $('confirmBtn').addEventListener('click', doGenerate);

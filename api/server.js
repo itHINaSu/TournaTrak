@@ -913,13 +913,22 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
   }
 
   // If the TD opted into seeded display, record the seeded team order.
+  // Partial seeding also records how many teams were actually seeded, so the
+  // public page numbers only those — the shuffled remainder never earned a
+  // seed and shouldn't display one.
   if (showSeeds && seededTeams && seededTeams.length) {
     const existing = await store.get(req.tid, 'teams');
-    await store.put(req.tid, 'teams', {
+    const teamsOut = {
       ...existing,
       showSeeds: true,
       teams: seededTeams.map(name => ({ name })),
-    });
+    };
+    if (seedMode === 'partial') {
+      teamsOut.seedCount = Math.max(0, Math.min(seededTeams.length, parseInt(seedCount, 10) || 0));
+    } else {
+      delete teamsOut.seedCount;
+    }
+    await store.put(req.tid, 'teams', teamsOut);
   }
 
   res.json({ ok: true, games: Object.keys(schedule).length });
@@ -990,7 +999,10 @@ api.get('/teams', ah(async (req, res) => {
     teams = saved;
   }
 
-  res.json({ showSeeds: !!data.showSeeds, teams });
+  // seedCount: with partial seeding only the first N teams hold real seeds —
+  // the public page numbers just those.
+  const seedCount = parseInt(data.seedCount, 10) || 0;
+  res.json({ showSeeds: !!data.showSeeds, ...(seedCount ? { seedCount } : {}), teams });
 }));
 
 api.post('/teams', requireAdmin, ah(async (req, res) => {
