@@ -288,16 +288,6 @@ function resolveSeeding(opts) {
   }
 }
 
-// Write one side of a double-elim game: a fixed name, or a winner/loser feed.
-function deSide(entry, n, spec) {
-  if (spec.name != null) {
-    entry['t' + n + 'name'] = spec.name;
-  } else {
-    entry['t' + n + 'slot'] = spec.slot;
-    entry['t' + n + 'type'] = spec.type;   // 'winner' | 'loser'
-  }
-}
-
 // Fallback timing when no playing-days plan is given: lay games out
 // sequentially, eight per day, an hour apart from 09:00. Returns { time, field }
 // slots (field blank — no field plan without a playing-days configuration) to
@@ -454,30 +444,50 @@ function doubleElimSpecs(B, pos, ifNecessary) {
   return specs;
 }
 
-// ── Format: double elimination, 4/8/16/32 teams ───────────────────────────
+// ── Double elimination with byes ──────────────────────────────────────────
+// doubleElimSpecs only knows the full power-of-two layouts, so team counts
+// in between are handled by simplification: byes are null positions, and any
+// game with an empty side is dropped — its real side (if any) passes through
+// to wherever the dropped game's winner was headed, while a reference to the
+// dropped game's loser resolves to nothing (no one lost) and cascades the
+// simplification into the losers bracket.
+//
+// Each surviving game also gets `minExit`: the minimum number of games its
+// loser could have played, counting this one (for a full field this is 2 for
+// LB round 1, 3 for LB round 2, and so on — byes lower it on some paths).
+// The tiered and three-game formats key their drop brackets off it, since
+// "went 0-2" style rules are really about how early a team can be knocked
+// out. `lb` marks losers-bracket slots — the only games whose losers leave
+// the tournament and can feed a drop bracket.
+function simplifyDoubleElim(B, pos, ifNecessary) {
+  const raw = doubleElimSpecs(B, pos, ifNecessary);
+  const state = {};   // slot -> { dropped, survivor } | { dropped:false, min }
+  // Resolve one raw side to { side, min } (emit-ready side + minimum games
+  // its team has played before this game) or null for a bye.
+  const resolveSide = (s) => {
+    if (s.slot === undefined) return s.name == null ? null : { side: { name: s.name }, min: 0 };
+    const st = state[s.slot];
+    if (st.dropped) return s.type === 'winner' ? st.survivor : null;
+    return { side: { slot: s.slot, type: s.type }, min: st.min };
+  };
+  const out = [];
+  for (const sp of raw) {
+    const a = resolveSide(sp.t1), b = resolveSide(sp.t2);
+    if (!a || !b) { state[sp.slot] = { dropped: true, survivor: a || b }; continue; }
+    const m = Math.min(a.min, b.min) + 1;
+    state[sp.slot] = { dropped: false, min: m };
+    out.push({ slot: sp.slot, t1: a.side, t2: b.side, minExit: m, lb: sp.slot.split('.')[1] === 'R' });
+  }
+  return out;
+}
+
+// ── Format: double elimination, 4–32 teams ────────────────────────────────
 function generateDoubleElim(opts) {
   const teams = resolveSeeding(opts);
   const B = nextPow2(teams.length);
-  if (![4, 8, 16, 32].includes(B)) {
-    throw new Error('Double elimination requires exactly 4, 8, 16, or 32 teams');
-  }
-  const pos = seedOrder(B).map(s => teams[s - 1]);
-  const specs = doubleElimSpecs(B, pos, opts.ifNecessary);
-
-  const slotTimes = (opts.playingDays && opts.playingDays.length)
-    ? buildSlotTimes(opts.playingDays)
-    : defaultSequentialTimes(opts.startDate, specs.length);
-
-  const schedule = {};
-  specs.forEach((sp, i) => {
-    const st = slotTimes[i] || {};
-    const entry = { label: expandPrefix(opts.gamePrefix, sp.slot) + (i + 1), num: i + 1, time: st.time || '' };
-    if (st.field) entry.field = st.field;
-    deSide(entry, 1, sp.t1);
-    deSide(entry, 2, sp.t2);
-    schedule[sp.slot] = entry;
-  });
-  return schedule;
+  if (B < 4 || B > 32) throw new Error('Double elimination supports 4-32 teams');
+  const pos = seedOrder(B).map(s => (s <= teams.length ? teams[s - 1] : null));
+  return emitSpecs(simplifyDoubleElim(B, pos, opts.ifNecessary), opts);
 }
 
 // ── Generic feed bracket ───────────────────────────────────────────────
@@ -752,37 +762,43 @@ function generatePools(opts) {
 // bracket tree shows the Open only; tiers appear in the Schedule (labelled
 // "· A Bracket") and in each team's Team Path via the loser feeds.
 //
-// Sizes are 8/16/32 (powers of two → no Open byes). The reference bracket
-// ran 23 teams with Open byes "slotted as needed"; supporting arbitrary
-// counts needs double-elim-with-byes (doubleElimSpecs is power-of-two only)
-// — tracked as a follow-up. At 8 teams B holds one team and is skipped.
+// Sizes are 8–32; counts that aren't a power of two give Open byes to the
+// top seeds (the reference bracket itself ran 23 teams with byes "slotted as
+// needed"). With byes, "0-2" and "1-2" generalize to how EARLY a team can be
+// knocked out: the flights are fed from surviving Open LB games by minExit —
+// 2 (earliest possible eliminations, B-eligible) and 3 (won a game first).
+// For power-of-two fields those are exactly the LB round-1 and round-2
+// losers. At 8 teams B holds one team and is skipped.
 function generateTiered(opts) {
   const teams = resolveSeeding(opts);
   const B = nextPow2(teams.length);
-  const pos = seedOrder(B).map(s => teams[s - 1]);
-  const openSpecs = doubleElimSpecs(B, pos, opts.ifNecessary)
+  const pos = seedOrder(B).map(s => (s <= teams.length ? teams[s - 1] : null));
+  const openSpecs = simplifyDoubleElim(B, pos, opts.ifNecessary)
     .map((s, i) => ({ ...s, key: i }));
   const openMaxKey = openSpecs.length - 1;
 
-  // Open LB round 1 (R1.R.1..q) pairs two WB-openers-losers → its losers are
-  // the 0-2 teams. LB round 2 (R2.R.1..q) losers are the 1-2 teams (they won
-  // an LB game first). q of each; both feed A.
-  const q = B / 4;
-  const zeroTwo = Array.from({ length: q }, (_, i) => ({ slot: `R1.R.${i + 1}`, type: 'loser' }));
-  const oneTwo  = Array.from({ length: q }, (_, i) => ({ slot: `R2.R.${i + 1}`, type: 'loser' }));
+  const dropFeed = m => openSpecs
+    .filter(s => s.lb && s.minExit === m)
+    .map(s => ({ slot: s.slot, type: 'loser' }));
+  const zeroTwo = dropFeed(2);
+  const oneTwo  = dropFeed(3);
 
   // 0-2 teams first so buildFeedBracket pairs them together in A round 1
   // (0-2 vs 0-2), then 1-2 vs 1-2. Only the 0-2 games' losers are B-eligible.
   const aEntrants = zeroTwo.concat(oneTwo);
-  const aDepth = Math.round(Math.log2(nextPow2(aEntrants.length)));
-  const A_CHAIN = [['R0','L',0], ['R0','L',8], ['R0','L',12], ['R0','L',14]].slice(0, aDepth);
-  const aSpecs = buildFeedBracket(aEntrants, A_CHAIN, false).map(s => ({
-    ...s, tier: 'A', labelSuffix: ' · A Bracket', key: openMaxKey + 0.5 + s.col,
-  }));
+  let aSpecs = [];
+  if (aEntrants.length >= 2) {
+    const aDepth = Math.round(Math.log2(nextPow2(aEntrants.length)));
+    const A_CHAIN = [['R0','L',0], ['R0','L',8], ['R0','L',12], ['R0','L',14]].slice(0, aDepth);
+    aSpecs = buildFeedBracket(aEntrants, A_CHAIN, false).map(s => ({
+      ...s, tier: 'A', labelSuffix: ' · A Bracket', key: openMaxKey + 0.5 + s.col,
+    }));
+  }
 
-  // B: losers of the 0-2-vs-0-2 A round-1 games only (the first q/2 col-0
-  // games). 1-2 teams' A losses go nowhere — they're out at that point.
-  const zeroTwoGames = q / 2;
+  // B: losers of the 0-2-vs-0-2 A round-1 games only (an odd 0-2 count makes
+  // the last col-0 game mixed — its loser might be a 1-2 team, so it doesn't
+  // feed B). 1-2 teams' A losses go nowhere — they're out at that point.
+  const zeroTwoGames = Math.floor(zeroTwo.length / 2);
   const bEntrants = aSpecs
     .filter(s => s.col === 0)
     .slice(0, zeroTwoGames)
@@ -803,46 +819,51 @@ function generateTiered(opts) {
 }
 
 // ── Format: double elim + B bracket (3-game guarantee, A/B only) ─────────
-// The main bracket ("A") is true double elimination — every team plays at
-// least twice. Teams that go 0-2 (losers of the A losers-bracket's first
-// round, R1.R.*) drop into a single-elim B bracket for a guaranteed third
-// game. Everyone else eliminated from A already has 3+ games (a 1-2 exit is
-// three games by definition). Unlike the tiered Open/A/B format there is no
-// middle flight: A is the championship, B is the one drop bracket.
+// The main bracket ("A") is true double elimination. A team eliminated from
+// it at the earliest possible point has played 2 games, so the B bracket
+// collects the losers of every surviving LB game whose minExit is 2 — for a
+// power-of-two field that's exactly the LB round-1 losers (the 0-2 teams),
+// and with byes it follows wherever the sub-3-game exits moved to, keeping
+// the 3-game guarantee for every team (some 3-game teams may share a routed
+// slot and get a bonus B game — over-delivering, never under). Unlike the
+// tiered Open/A/B format there is no middle flight: A is the championship,
+// B is the one drop bracket.
 function generateThreeGame(opts) {
   const teams = resolveSeeding(opts);
   const B = nextPow2(teams.length);
-  const pos = seedOrder(B).map(s => teams[s - 1]);
-  const mainSpecs = doubleElimSpecs(B, pos, opts.ifNecessary)
+  const pos = seedOrder(B).map(s => (s <= teams.length ? teams[s - 1] : null));
+  const mainSpecs = simplifyDoubleElim(B, pos, opts.ifNecessary)
     .map((s, i) => ({ ...s, key: i }));
   const mainMaxKey = mainSpecs.length - 1;
 
-  // A's LB round 1 (R1.R.1..q) pairs the WB round-1 losers; its losers are
-  // the 0-2 teams and every one of them enters B.
-  const q = B / 4;
-  const bEntrants = Array.from({ length: q }, (_, i) => ({ slot: `R1.R.${i + 1}`, type: 'loser' }));
-  const bDepth = Math.round(Math.log2(nextPow2(bEntrants.length)));
-  const B_CHAIN = [['R0','R',0], ['R0','R',8], ['R0','R',12]].slice(0, bDepth);
-  const bSpecs = buildFeedBracket(bEntrants, B_CHAIN, false).map(sp => ({
-    ...sp, tier: 'B', labelSuffix: ' · B Bracket', key: mainMaxKey + 0.5 + sp.col,
-  }));
+  const bEntrants = mainSpecs
+    .filter(s => s.lb && s.minExit === 2)
+    .map(s => ({ slot: s.slot, type: 'loser' }));
+  let bSpecs = [];
+  if (bEntrants.length >= 2) {
+    const bDepth = Math.round(Math.log2(nextPow2(bEntrants.length)));
+    const B_CHAIN = [['R0','R',0], ['R0','R',8], ['R0','R',12], ['R0','R',14]].slice(0, bDepth);
+    bSpecs = buildFeedBracket(bEntrants, B_CHAIN, false).map(sp => ({
+      ...sp, tier: 'B', labelSuffix: ' · B Bracket', key: mainMaxKey + 0.5 + sp.col,
+    }));
+  }
 
   const all = mainSpecs.concat(bSpecs).sort((a, b) => a.key - b.key);
   return emitSpecs(all, opts);
 }
 
-function threeGameGames(n) {
-  const mainGames = 2 * n - 2;   // double elim without the reset
-  const bTeams = n / 4;          // LB round-1 losers (the 0-2 teams)
-  return mainGames + (bTeams >= 2 ? bTeams - 1 : 0);
-}
-
-function tieredGames(n) {
-  const openGames = 2 * n - 2;    // double elim without the reset
-  const aGames = n / 2 - 1;       // A is a (n/2)-team single elim
-  const bSeeds = n / 8;           // 0-2-vs-0-2 A round-1 games
-  const bGames = bSeeds >= 2 ? bSeeds - 1 : 0;
-  return openGames + aGames + bGames;
+// Exact per-count game totals for the formats whose drop brackets depend on
+// bye structure — generate a throwaway schedule and count. Deterministic
+// ('order' seeding) and cheap; keeps the formats API's day-sizing exact.
+function exactGames(generate) {
+  return (n, o) => {
+    const teams = Array.from({ length: n }, (_, i) => 'T' + (i + 1));
+    const sched = generate({
+      teams, seedMode: 'order', startDate: '2000-01-01',
+      ifNecessary: !(o && o.ifNecessary === false),
+    });
+    return Object.values(sched).filter(g => !g.bye).length;
+  };
 }
 
 // Total real games for N teams under each format (exposed via the formats
@@ -873,11 +894,14 @@ const FORMATS = {
   'double-elim': {
     id: 'double-elim',
     label: 'Double Elimination',
-    description: 'Winners and losers brackets — a team is out after two losses. Supports 4, 8, 16, or 32 teams. Optionally include the "if necessary" final (bracket reset).',
-    validCounts: [4, 8, 16, 32],
+    description: 'Winners and losers brackets — a team is out after two losses. 4–32 teams; counts that aren\'t a power of two give first-round byes to the top seeds. Optionally include the "if necessary" final (bracket reset).',
+    minTeams: 4,
+    maxTeams: 32,
     doubleElim: true,
     supportsIfNecessary: true,
     sideLabels: ['Winners Bracket', 'Losers Bracket'],
+    // Exact for any count: every non-champion loses exactly twice, so byes
+    // don't change the total.
     estimateGames: (n, o) => (2 * n - 2) + (o && o.ifNecessary !== false ? 1 : 0),
     generate: generateDoubleElim,
   },
@@ -916,23 +940,25 @@ const FORMATS = {
   'tiered': {
     id: 'tiered',
     label: 'Open / A / B (tiered flights)',
-    description: 'A competitive flight structure (ISSA-style): the Open runs as double elimination. Go 0-2 in the Open and you drop into a single-elim A bracket, still eligible for B; win a losers-bracket game before being knocked out (1-2) and you also drop to A but can no longer reach B. Lose your first B-eligible A game and you drop to a single-elim B bracket. Each flight crowns its own champion. This is a separate concept from the game-guarantee formats — it stratifies teams by strength. All drops fill in automatically. 8, 16, or 32 teams (at 8, B can\'t form; arbitrary counts with Open byes are a follow-up). The main bracket shows the Open; A/B games appear in the Schedule and each team\'s Team Path.',
-    validCounts: [8, 16, 32],
+    description: 'A competitive flight structure (ISSA-style): the Open runs as double elimination. Go 0-2 in the Open and you drop into a single-elim A bracket, still eligible for B; win a losers-bracket game before being knocked out (1-2) and you also drop to A but can no longer reach B. Lose your first B-eligible A game and you drop to a single-elim B bracket. Each flight crowns its own champion. This is a separate concept from the game-guarantee formats — it stratifies teams by strength. All drops fill in automatically. 8–32 teams; counts that aren\'t a power of two give Open byes to the top seeds (at 8 teams, B can\'t form). The main bracket shows the Open; A/B games appear in the Schedule and each team\'s Team Path.',
+    minTeams: 8,
+    maxTeams: 32,
     doubleElim: true,
     supportsIfNecessary: true,
     sideLabels: ['Open · Winners Side', 'Open · Losers Side'],
-    estimateGames: (n, o) => tieredGames(n) + (o && o.ifNecessary !== false ? 1 : 0),
+    estimateGames: exactGames(generateTiered),
     generate: generateTiered,
   },
   'three-game': {
     id: 'three-game',
     label: 'Double Elim + B Bracket (3-game guarantee)',
-    description: 'The main "A" bracket runs as true double elimination — everyone plays at least twice. Go 0-2 and you drop into a single-elimination B bracket for a guaranteed third game; every other exit from A already means three or more games played. Two champions: A (the tournament) and B. 8, 16, or 32 teams. The bracket tab shows A, with a pill to flip to the B bracket; B games also appear in the Schedule and Team Path.',
-    validCounts: [8, 16, 32],
+    description: 'The main "A" bracket runs as true double elimination — everyone plays at least twice. Exit it with only two games played and you drop into a single-elimination B bracket for a guaranteed third game. Two champions: A (the tournament) and B. 8–32 teams; counts that aren\'t a power of two give first-round byes to the top seeds, and the B bracket still catches every team that would otherwise finish under three games. The bracket tab shows A, with a pill to flip to the B bracket; B games also appear in the Schedule and Team Path.',
+    minTeams: 8,
+    maxTeams: 32,
     doubleElim: true,
     supportsIfNecessary: true,
     sideLabels: ['A Bracket · Winners Side', 'A Bracket · Losers Side'],
-    estimateGames: (n, o) => threeGameGames(n) + (o && o.ifNecessary !== false ? 1 : 0),
+    estimateGames: exactGames(generateThreeGame),
     generate: generateThreeGame,
   },
   'pools': {

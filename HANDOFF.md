@@ -41,22 +41,27 @@ Commit and push when a change is complete. Do not open PRs unless asked.
   common ancestor with main). Reference-only for the v3 schema. Its committed
   files/users.json contains real leaked secrets — see Security items.
 
-## Outstanding work (what's still needed) — updated 2026-07-05
+## Outstanding work (what's still needed) — updated 2026-07-07
 Consolidated to-do list; each item points at the detailed section. Ordered
 roughly by priority / by what the owner has been driving.
 
 **Bracket builder & tiered Open/A/B format**
-1. ⬜ **Double-elim WITH BYES** — the top open item. Unblocks arbitrary team
-   counts for BOTH the plain `double-elim` format AND the `tiered` Open/A/B
-   format. Right now `doubleElimSpecs` is power-of-two only, so both are
-   locked to 4/8/16/32 — but the owner's real event (2025 ISSA State Major)
-   is **23 teams with byes**. Meaty/risky: bye teams propagate phantom slots
-   through the LOSERS bracket, must collapse cleanly while fitting the fixed
-   SLOT_DEFS grid. Plan: leave the working power-of-two hardcoded tables
-   untouched, add a SEPARATE bye-aware path for non-powers-of-two, verify
-   with scratchpad `formatstest.js` (play-tests every bracket) + a browser
-   render on a real 23-team bracket. See "Bracket format repository" →
-   tiered, "REMAINING".
+1. ✅ **Double-elim WITH BYES** — done 2026-07-07. `double-elim` is now 4–32
+   teams, `tiered` and `three-game` are 8–32 (owner request: "anywhere in
+   between"). Implementation: the power-of-two `doubleElimSpecs` tables stay
+   untouched; a new `simplifyDoubleElim` pass treats missing seeds as byes
+   and drops any game with an empty side, passing the survivor through and
+   cascading the collapse into the losers bracket. Each surviving game gets
+   `minExit` (minimum games its loser could have played), which generalizes
+   the drop rules: tiered A is fed by LB losers with minExit 2 (0-2 class,
+   B-eligible) and 3 (1-2 class); three-game's B catches every minExit-2
+   loser, so the 3-game guarantee holds at EVERY count (verified by
+   simulating 100 random tournaments at each N in 8–32; power-of-two outputs
+   are byte-identical to before). Browser-verified with a 23-team tiered
+   (the 2025 ISSA State Major case) and a 20-team three-game. Generating a
+   schedule now also clears results/live/offsets (stale scores used to bleed
+   into the new bracket). Play-test suites live in the session scratchpad
+   (`test-byes.js`, `test-threegame.js`).
 2. ⬜ **Tiered B-feed policy — owner decision pending.** Current build honors
    the owner's "1-2 teams get no B" rule → B ≈ 4 teams for a 32 Open. The
    ISSA banner instead appears to feed EVERY A round-1 loser to B (≈7). If
