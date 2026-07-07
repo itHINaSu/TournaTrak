@@ -517,8 +517,12 @@ function sourceDropdown(idBase, currentType, currentSlot) {
   }).join('');
 
   var slotOpts = '<option value="">— select —</option>';
+  // The game being edited can't feed from its own result — offering it in
+  // the list was an easy way to build an unresolvable bracket.
+  var selfSid = idBase.replace(/^st[12]-/, '');
   // renders one <optgroup> of feeder-game <option>s, sorted by num
   function slotOptgroup(label, sids) {
+    sids = sids.filter(function(s){ return s !== selfSid; });
     if (!sids.length) return;
     slotOpts += '<optgroup label="' + esc(label) + '">';
     sids.sort(function(a,b){ return GAMES[a].num - GAMES[b].num; });
@@ -854,6 +858,10 @@ async function saveOneGame(sid) {
   var hasRealData = entry.label || entry.time || entry.t1name || entry.t2name || entry.t1slot || entry.t2slot;
   if (!GAMES[sid] && !hasRealData) {
     showToast('Give the game a label and teams first', true);
+    return;
+  }
+  if (entry.t1slot === sid || entry.t2slot === sid) {
+    showToast('A game can\'t take a team from its own result', true);
     return;
   }
   var out = Object.assign({}, schedule);

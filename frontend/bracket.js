@@ -415,6 +415,7 @@ async function fetchAll(){
     if(typeof applySchedule==='function') applySchedule(schedule);
     _rebuildFieldDefaultColors();
     _lastResultsJson = rawTexts[0];
+    _lastSchedJson   = rawTexts[1];
     _lastLiveJson    = rawTexts[4];
     setOffline(false);
   }catch(e){
@@ -3115,7 +3116,7 @@ fetchAll();
 // tab becomes visible again (phone unlock, app switch). Renders only when
 // the payload actually changed, and never auto-scrolls.
 var LIVE_POLL_MS = 20000;
-var _lastLiveJson = null, _lastResultsJson = null;
+var _lastLiveJson = null, _lastResultsJson = null, _lastSchedJson = null;
 
 function renderActiveNoScroll() {
   var v = activeView();
@@ -3129,15 +3130,27 @@ function renderActiveNoScroll() {
 async function pollLive() {
   if (document.visibilityState !== 'visible') return;
   try {
-    var [lr, rr] = await Promise.all([fetch(apiBase() + '/live'), fetch(apiBase() + '/results')]);
-    if (!lr.ok || !rr.ok) return;
-    var lt = await lr.text(), rt = await rr.text();
-    var changed = (lt !== _lastLiveJson) || (rt !== _lastResultsJson);
-    _lastLiveJson = lt; _lastResultsJson = rt;
+    var [lr, rr, sr] = await Promise.all([
+      fetch(apiBase() + '/live'),
+      fetch(apiBase() + '/results'),
+      fetch(apiBase() + '/schedule'),
+    ]);
+    if (!lr.ok || !rr.ok || !sr.ok) return;
+    var lt = await lr.text(), rt = await rr.text(), st = await sr.text();
+    // Schedule edits (admin moving games, rebuilding a drop bracket) must
+    // reach pages that never go hidden — a second monitor showing the public
+    // bracket would otherwise display the old topology until a manual reload.
+    var schedChanged = (_lastSchedJson !== null && st !== _lastSchedJson);
+    var changed = (lt !== _lastLiveJson) || (rt !== _lastResultsJson) || schedChanged;
+    _lastLiveJson = lt; _lastResultsJson = rt; _lastSchedJson = st;
     setOffline(false);
     if (!changed) return;
     liveScores = JSON.parse(lt);
     results    = JSON.parse(rt);
+    if (schedChanged) {
+      schedule = JSON.parse(st);
+      if (typeof applySchedule === 'function') applySchedule(schedule);
+    }
     renderActiveNoScroll();
   } catch (e) { setOffline(true); }
 }
