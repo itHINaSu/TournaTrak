@@ -710,6 +710,8 @@ function wireEvents() {
   // The form's state is module-level and nothing on the success path clears
   // it, so dismissing the overlay drops the TD back on their intact settings
   // to tweak and regenerate.
+  ttRegisterOverlay($('confirmOverlay'), function () { $('confirmOverlay').style.display = 'none'; });
+  ttRegisterOverlay($('doneOverlay'), function () { $('doneOverlay').style.display = 'none'; });
   var doneBack = $('doneBackBtn');
   if (doneBack) {
     doneBack.addEventListener('click', function () {

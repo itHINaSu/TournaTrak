@@ -360,6 +360,10 @@ function updateSubButtons(readOnly) {
   }
 }
 
+ttRegisterOverlay(document.getElementById('lineupImportOverlay'), function () {
+  document.getElementById('lineupImportOverlay').style.display = 'none';
+});
+
 function showStatus(msg, err) {
   var el = document.getElementById('lineupStatus');
   if (!el) return;

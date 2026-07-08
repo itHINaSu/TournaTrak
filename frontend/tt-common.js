@@ -235,3 +235,57 @@ function ttConfirm(message, opts) {
 function ttPrompt(message, initial, opts) {
   return ttDialog(Object.assign({ message: message, input: initial == null ? '' : initial }, opts || {}));
 }
+
+// ── Overlay focus management ─────────────────────────────────────────────
+// Register page overlays once; a single capture-phase keydown handler traps
+// Tab inside whichever registered overlay is currently visible (topmost
+// wins) and lets Escape close it. Overlays keep their existing show/hide
+// code — visibility is read live, so there's nothing to hook.
+var _ttOverlays = [];
+function ttRegisterOverlay(el, closeFn, isOpenFn) {
+  if (el) _ttOverlays.push({
+    el: el,
+    close: closeFn,
+    isOpen: isOpenFn || function () { return getComputedStyle(el).display !== 'none'; },
+  });
+}
+function _ttVisibleOverlay() {
+  for (var i = _ttOverlays.length - 1; i >= 0; i--) {
+    if (_ttOverlays[i].isOpen()) return _ttOverlays[i];
+  }
+  return null;
+}
+var _TT_FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), ' +
+  'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Tab' && e.key !== 'Escape') return;
+  // tt-dialogs manage their own trap; don't double-handle.
+  if (document.querySelector('.tt-dialog-overlay')) return;
+  var o = _ttVisibleOverlay();
+  if (!o) return;
+  if (e.key === 'Escape') {
+    if (o.close) { e.preventDefault(); o.close(); }
+    return;
+  }
+  var f = Array.prototype.filter.call(
+    o.el.querySelectorAll(_TT_FOCUSABLE),
+    function (el) { return el.offsetParent !== null; }
+  );
+  if (!f.length) return;
+  var i = f.indexOf(document.activeElement);
+  if (i === -1) { e.preventDefault(); f[0].focus(); return; }
+  if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+  else if (e.shiftKey && i === 0) { e.preventDefault(); f[f.length - 1].focus(); }
+}, true);
+
+// ── Keyboard activation for role="button" elements ──────────────────────
+// Generated markup uses role="button" spans/divs for in-page navigation
+// chips; give them the native button keyboard contract (Enter + Space).
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  var t = e.target;
+  if (!t || t.getAttribute == null || t.getAttribute('role') !== 'button') return;
+  if (t.tagName === 'BUTTON' || t.tagName === 'A' || t.tagName === 'INPUT') return;
+  e.preventDefault();
+  t.click();
+});

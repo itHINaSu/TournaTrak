@@ -136,6 +136,11 @@ function closeSettingsSidebar() {
   if (backdrop) backdrop.classList.remove('open');
 }
 
+ttRegisterOverlay(document.getElementById('settingsSidebar'), closeSettingsSidebar, function () {
+  var el = document.getElementById('settingsSidebar');
+  return !!el && el.classList.contains('open');
+});
+
 function toggleSettingsSidebar() {
   var sidebar = document.getElementById('settingsSidebar');
   if (sidebar && sidebar.classList.contains('open')) {

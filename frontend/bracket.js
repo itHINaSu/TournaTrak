@@ -2812,7 +2812,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       var lbl = smartLabel(slot, results);
       var srcGid = slot && slot.type !== 'fixed' ? slot.slot : null;
       if (srcGid && GAMES[srcGid]) {
-        return '<span class="tp-opp-chip" role="button" title="View this game in the bracket"'
+        return '<span class="tp-opp-chip" role="button" tabindex="0" title="View this game in the bracket"'
           + ' data-opp-gid="' + esc(srcGid) + '">'
           + esc(lbl) + '<span class="tp-opp-chevron">&#8250;</span></span>';
       }
@@ -2840,7 +2840,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       var canNav = !champElim && ln;
       var destText = canNav ? gameLabel(ln) : 'OUT';
       loseSide = '<div class="round-lose-side"'
-        + (canNav ? ' data-lose-anchor="tp-lose-' + esc(gid) + '" role="button" title="Jump to this path"' : '')
+        + (canNav ? ' data-lose-anchor="tp-lose-' + esc(gid) + '" role="button" tabindex="0" title="Jump to this path"' : '')
         + '>'
         + '<span class="round-lose-tag">LOSS</span>'
         + '<span class="round-lose-arrow">↓</span>'
@@ -2854,7 +2854,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
     } else if (teamLost) {
       var ln = findNextSlot(gid, 'loser');
       if (ln && !champElim) {
-        loseSide = '<div class="round-lose-side" data-lose-anchor="tp-lose-' + esc(gid) + '" role="button" title="Jump to this path">'
+        loseSide = '<div class="round-lose-side" data-lose-anchor="tp-lose-' + esc(gid) + '" role="button" tabindex="0" title="Jump to this path">'
           + '<span class="round-lose-tag">Lost</span>'
           + '<span class="round-lose-arrow round-lose-arrow--cont">↓</span>'
           + '<span class="round-lose-dest">' + esc(gameLabel(ln)) + '</span>'
