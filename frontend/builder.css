@@ -352,7 +352,7 @@
   font-size: var(--btn-font-size);
   font-weight: 600;
   letter-spacing: 0.03em;
-  padding: 0.7em 1.2em;
+  padding: var(--btn-pad-v) 1.2em;  /* wider than --btn-pad-h: main CTA */
   border: 0.07em solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface2);

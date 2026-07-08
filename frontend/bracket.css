@@ -344,7 +344,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: var(--btn-pad-v) 0.88em;
+  padding: var(--btn-pad-v) var(--btn-pad-h);
   border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;

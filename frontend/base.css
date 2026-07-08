@@ -55,6 +55,11 @@
   /* Button sizing tokens — change here to resize all buttons at once */
   --btn-font-size: var(--text-sm);
   --btn-pad-v:     0.55em;
+  /* Horizontal padding tiers: standard for full buttons, compact for
+     dense toolbars (mode switchers, inline clears). Anything else is a
+     deliberate one-off and should say why. */
+  --btn-pad-h:         1.1em;
+  --btn-pad-h-compact: 0.6em;
   --btn-h:         1.8rem;
 
   /* Bracket slot sizing — set by JS via setProperty */
@@ -221,7 +226,7 @@ select:focus-visible,
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: var(--btn-pad-v) 1.1em;
+  padding: var(--btn-pad-v) var(--btn-pad-h);
   border-radius: var(--radius-xs);
   background: var(--blue);
   color: #fff;
@@ -301,7 +306,7 @@ select:focus-visible,
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: var(--btn-pad-v) 1.1em;
+  padding: var(--btn-pad-v) var(--btn-pad-h);
   border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;

@@ -111,7 +111,7 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .admin-winner-sel:focus { outline: 0.13em solid var(--blue-lt); }
 .admin-save-btn { white-space: nowrap; }
 .admin-locked { font-size: 0.74rem; color: var(--text-mute); font-style: italic; }
-.admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) 0.62em; border-radius: var(--radius-xs); border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
+.admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) var(--btn-pad-h-compact); border-radius: var(--radius-xs); border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
 .admin-clear-btn:hover,
 .admin-clear-btn:active { background: color-mix(in srgb, var(--lose-color) 10%, transparent); }
 
@@ -270,7 +270,7 @@ input, select, textarea { font-size: max(1rem, 16px); }
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: var(--btn-pad-v) 0.5em;
+  padding: var(--btn-pad-v) var(--btn-pad-h-compact);
   border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;
