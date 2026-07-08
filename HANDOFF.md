@@ -70,8 +70,26 @@ owner can commit their exact instance for debugging (dump includes password
 hashes — strip before open-sourcing). POST /settings now MERGES (partial
 saves can't wipe other settings). SW cache at v2.74.
 
-**Next up — owner-requested, specced but NOT built (ran out of session)**
-0a. ⬜ **"Project winners" (public, device-local).** Viewers step through the
+**Shipped 2026-07-08 (owner: "do all of it")** — on the buildout branch:
+project-winners mode (0a below, built per spec + verified); builder keeps
+form state with a "Back to builder" done-overlay button (0b); in-app
+ttConfirm/ttPrompt dialogs replace every window.confirm/prompt; icon-only
+theme toggle with accessible action label; 720px breakpoint unification;
+public STANDINGS table (W/L/RF/RA/diff) for round-robin/pools/swiss +
+Team Path record bar; print stylesheet (paper palette via token override,
+landscape bracket sheet); overlay focus traps + Escape-to-close + keyboard
+role=button chips; builder markup single-sourced into builder-form.js
+(item 3 ✅); button metrics on shared tokens; **CSP style-src 'unsafe-inline'
+REMOVED** (item 6 ✅ — hidden attribute + data-css observer + constructable
+theme stylesheet); **SWISS format** (item 4 partially ✅ — dynamic per-round
+pairing via POST /schedule/swiss-next-round + admin "Pair next round" bar);
+GET /schedule no longer browser-cached (stale reads after edits);
+generate resets defaultTab when leaving schedule-first formats; theme-tint
+rgba()→color-mix migration (item 9 ✅); iOS zoom + touch-target fixes.
+SW cache at v2.83. NOT done: tiered B-feed policy (item 2, owner call),
+Swiss odd-counts/byes, 17–20-team pools.
+
+0a. ✅ **"Project winners" (public, device-local).** Viewers step through the
     bracket picking who they think wins each game. Constraints from owner:
     never synced to the server; must NOT survive a hard refresh; MUST survive
     the auto-refresh. That means plain in-memory state — `var _projected =
@@ -90,7 +108,7 @@ saves can't wipe other settings). SW cache at v2.74.
     projection handler on the toggle being active and `_sessionRole` not
     mid-edit. Team Path/Schedule overlays are optional v2. Files: bracket.js,
     bracket.css, index.html (+ SW bump).
-0b. ⬜ **Builder keeps its form state after generating.** Owner wants to
+0b. ✅ **Builder keeps its form state after generating.** (done 2026-07-08) Owner wants to
     regenerate with slightly different settings without re-entering
     everything. Today the form state actually lives per page-load
     (builderInit runs once), so the work is: verify nothing clears
@@ -125,14 +143,14 @@ saves can't wipe other settings). SW cache at v2.74.
    ISSA banner instead appears to feed EVERY A round-1 loser to B (≈7). If
    the owner wants banner behavior, it's a one-line change (drop the
    `.slice(0, zeroTwoGames)` in `generateTiered`). See tiered section.
-3. ⬜ **Single-source the builder markup.** `builder.html` (standalone) and
+3. ✅ **Single-source the builder markup.** (done 2026-07-08 — builder-form.js) `builder.html` (standalone) and
    `admin.html` (embedded) duplicate the entire builder form. This drift
    caused the "builder stuck loading" bug (fixed 2026-07-05 by adding the
    missing element + null-guards, but the duplication remains). Any new
    builder field must be added to BOTH files. Worth extracting to one shared
    fragment/template.
-4. ⬜ **Deferred format ideas** (lower priority): Swiss (needs dynamic
-   per-round pairing — doesn't fit static topology), 17–20 team pools (a pool
+4. ⬜ **Deferred format ideas** (lower priority): Swiss ✅ DONE 2026-07-08
+   (even counts 4–32; odd-count byes still open), 17–20 team pools (a pool
    of 5 needs a second slot column), round-robin STANDINGS table (public
    view; results are per-game today). See "Bracket format repository" tail.
 
@@ -142,7 +160,7 @@ saves can't wipe other settings). SW cache at v2.74.
    plaintext team accessToken. OWNER ACTION: rotate that token, decide on
    history/branch cleanup. NOT remediated. (Token hashing at rest is ✅ done,
    but the old plaintext is still in history.)
-6. ⬜ **CSP `style-src 'unsafe-inline'`** still present (script-src is already
+6. ✅ **CSP `style-src 'unsafe-inline'`** REMOVED 2026-07-08 (was: still present (script-src is already
    locked to 'self'). Removing it means moving generated inline `style="…"`
    attributes to classes — a real refactor. Tracked follow-up.
 
@@ -153,10 +171,10 @@ saves can't wipe other settings). SW cache at v2.74.
    fresh + upgrade-from-JSON) should be run once.
 
 **Polish / deferred batches** (from ROADMAP v2 backlog — none blocking)
-8. ⬜ Accessibility: focus-trapping on overlays, keyboard activation for
-   `role="button"` elements. (Touch targets largely done.)
-9. ⬜ CSS `rgba()` → `color-mix()` migration (~15 literals that don't adapt
-   to light mode).
+8. ✅ Accessibility: focus-trapping on overlays + Escape-to-close, keyboard
+   activation for `role="button"` elements — done 2026-07-08.
+9. ✅ CSS `rgba()` → `color-mix()` migration — done 2026-07-08 (neutral
+   black shadows/scrims intentionally kept).
 10. ⬜ Sales site: real demo URL + contact email (placeholders in
     `sales-site/index.html`).
 11. ⬜ **Mobile double-elim round combining** — parked; needs owner to confirm
