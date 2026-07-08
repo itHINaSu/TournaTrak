@@ -1788,12 +1788,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   }
 }
 
-@media print {
-  .site-header, .view-tabs, .header-controls, .theme-toggle, .selector-row { display: none; }
-  body { background: #fff; color: #000; }
-  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-}
-
 /* ── Field badge: which field a game is played on (admin "Field" input) ── */
 .game-field-tag {
   font-family: 'Oswald', sans-serif;
@@ -1943,4 +1937,30 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   font-weight: 500;
   color: var(--text-dim);
   letter-spacing: 0.06em;
+}
+
+/* ── Print: paper bracket sheet ──────────────────────────────────────────
+   TDs tape paper brackets to the fence. Print whichever tab is active with
+   the interactive chrome stripped; the palette flips to paper via the token
+   override in base.css. Landscape suits the bracket tree. */
+@page { size: landscape; margin: 10mm; }
+@media print {
+  .header-controls,
+  .view-tabs,
+  .selector-row,
+  .update-bar,
+  .offline-notice,
+  .bracket-flights,
+  .toast,
+  .mbc-arrow,
+  .team-share-btn,
+  .admin-quick-bar { display: none !important; }
+  .site-header,
+  .bucket-frozen { position: static !important; }
+  .site-header { border-bottom: 0.15em solid #000; }
+  .bracket-outer,
+  .bracket-scroller,
+  .mbc-scroll { overflow: visible !important; }
+  .round-panel,
+  .team-panel { overflow: visible !important; max-height: none !important; }
 }

@@ -910,6 +910,11 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
     if (fmt.scheduleFirst) {
       settings.defaultTab = 'schedule';
       settings.defaultTabScope = 'both';
+    } else if (settings.defaultTab === 'schedule') {
+      // A previous schedule-first tournament (round robin/pools) set the
+      // landing tab; a bracket format should land on the bracket again.
+      delete settings.defaultTab;
+      delete settings.defaultTabScope;
     }
     await store.put(req.tid, 'settings', settings);
     invalidateIndexCache(req.tid);

@@ -320,3 +320,31 @@ select:focus-visible,
   border-color: var(--lose-color);
 }
 @media (pointer: coarse) { .tt-dialog-btn { min-height: 44px; } }
+
+/* ── Print: force a white-paper palette ──────────────────────────────────
+   Everything derives from the tokens, so overriding them (at body AND
+   body.light specificity, after the theme blocks, so print wins in either
+   theme) restyles the whole app for paper. */
+@media print {
+  body, body.light {
+    color-scheme: light;
+    --bg:        #ffffff;
+    --surface:   #ffffff;
+    --surface2:  #f2f2f2;
+    --border:    #999999;
+    --blue:      #1a4a8a;
+    --blue-lt:   #1a4a8a;
+    --gold:      #7a5800;
+    --gold-lt:   #7a5800;
+    --text:      #000000;
+    --text-dim:  #333333;
+    --text-mute: #555555;
+    --win-color: #2a6a18;
+    --lose-color:#8a2a2a;
+    --line-color:#666666;
+    --live-color:#c81e1e;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  * { box-shadow: none !important; text-shadow: none !important; }
+}
