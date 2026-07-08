@@ -1964,3 +1964,60 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   .round-panel,
   .team-panel { overflow: visible !important; max-height: none !important; }
 }
+
+/* ── Project-winners mode ── */
+.project-bar {
+  display: flex;
+  gap: 0.6em;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 0.55em 1em 0;
+}
+.project-toggle, .project-clear {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.45em 0.9em;
+  border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.project-toggle:hover, .project-clear:hover { color: var(--text); border-color: var(--text-dim); }
+.project-toggle--on {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.project-toggle--on:hover { color: #fff; }
+.project-clear { color: var(--lose-color); border-color: var(--lose-color); }
+.project-hint {
+  flex-basis: 100%;
+  text-align: center;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  color: var(--text-mute);
+  padding-bottom: 0.2em;
+}
+@media (pointer: coarse) { .project-toggle, .project-clear { min-height: 44px; } }
+@media print { .project-bar { display: none !important; } }
+
+/* Projected picks: tinted blue + italic, distinct from a real (green) win */
+.bc-team.won.projected { color: var(--blue-lt); }
+.bc-team.won.projected .bc-name { font-style: italic; }
+.bc-proj-chip {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.52rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--blue-lt);
+  border: 0.09em solid color-mix(in srgb, var(--blue-lt) 55%, transparent);
+  border-radius: 0.25em;
+  padding: 0.05em 0.35em;
+  margin-left: 0.35em;
+}

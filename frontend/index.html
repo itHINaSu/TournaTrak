@@ -83,6 +83,12 @@
     <button class="flight-pill" data-action="setFlight" data-arg="A">A Bracket</button>
     <button class="flight-pill" data-action="setFlight" data-arg="B">B Bracket</button>
   </div>
+  <!-- Project winners: viewer-local what-if picks; nothing is saved or sent -->
+  <div class="project-bar" id="projectBar">
+    <button class="project-toggle" id="projectToggleBtn" type="button" data-action="toggleProject">Project winners</button>
+    <button class="project-clear" id="projectClearBtn" type="button" data-action="clearProjections" hidden>Clear picks</button>
+    <span class="project-hint" id="projectHint" hidden>Tap a team to pick a winner — picks are only on this device and reset on reload</span>
+  </div>
   <div id="bracketRoot"></div>
 </div>
 

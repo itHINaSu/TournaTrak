@@ -8,6 +8,13 @@ var _seedMap = {};   // { teamName: seedNumber (1-based) }
 var _sessionRole = null;
 var _bucketEditMode = false;
 var _bracketEditMode = false;
+
+// ── Project-winners mode (owner spec): viewers step through the bracket
+// picking hypothetical winners. Deliberately in-memory ONLY — never synced,
+// never in localStorage — so picks survive the 20s live poll (which only
+// rebuilds results/schedule) but NOT a hard refresh.
+var _projectMode = false;
+var _projected = {};   // slot id -> picked winner name
 var scheduleMode = null; // null = uninitialised; set from settings on first render
 // esc() comes from tt-common.js
 
@@ -245,6 +252,7 @@ function renderBucketView() {
 
 function toggleBracketEdit() {
   _bracketEditMode = !_bracketEditMode;
+  if (_bracketEditMode && _projectMode) { _projectMode = false; updateProjectBar(); }
   var btn = document.getElementById('bracketEditBtn');
   if (btn) { btn.textContent = _bracketEditMode ? 'Done' : 'Edit'; btn.classList.toggle('admin-btn-active', _bracketEditMode); }
   if (_bracketEditMode && activeView() !== 'bracket') {
@@ -858,6 +866,7 @@ function cardHTML(gid){
   var t1=disp(gid,g.t1), t2=disp(gid,g.t2), r=results[gid]||{};
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
+  if(r.projected){ if(t1.won) c1+=' projected'; if(t2.won) c2+=' projected'; }
   if(g.bye){ c1=''; c2='bye'; }   // lone team advances; opponent is the BYE slot
   var isChampSlot = gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
   var offMin = getGameOffset(gid);
@@ -865,6 +874,7 @@ function cardHTML(gid){
     ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
     : '';
   return '<div class="bc-hdr">'+(g.bye?'<span class="bc-id" style="visibility:hidden">x</span>':'<span class="bc-id">'+esc(gameLabel(gid))+'</span>')
+    +(r.projected?'<span class="bc-proj-chip">pick</span>':'')
     +fieldTagHTML(gid)
     +(gameIsLive(gid)
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
@@ -1106,7 +1116,71 @@ var _bracketFlight = 'open';
 // switching tabs doesn't clobber the other's selection.
 var _schedFlight = 'open';
 
+// Overlay projections onto real results. Real results always win; a pick
+// for a game that has gone final, or whose projected team no longer reaches
+// that game (an upstream pick changed), is dropped. Processing in play order
+// lets picks cascade down "Winner of ..." feeds.
+function mergedResults(){
+  if (!Object.keys(_projected).length) return results;
+  var merged = {};
+  Object.keys(results).forEach(function(k){ merged[k] = results[k]; });
+  Object.keys(GAMES)
+    .sort(function(a, b){ return (GAMES[a].num || 0) - (GAMES[b].num || 0); })
+    .forEach(function(sid){
+      var pick = _projected[sid];
+      if (merged[sid] && merged[sid].winner) { if (pick) delete _projected[sid]; return; }
+      if (!pick) return;
+      var g = GAMES[sid];
+      if (!g || g.bye) { delete _projected[sid]; return; }
+      var p1 = resolveSlot(g.t1, merged), p2 = resolveSlot(g.t2, merged);
+      if (pick !== p1 && pick !== p2) { delete _projected[sid]; return; }
+      merged[sid] = { winner: pick, loser: pick === p1 ? p2 : p1, projected: true };
+    });
+  return merged;
+}
+
+function updateProjectBar(){
+  var t = document.getElementById('projectToggleBtn');
+  if (!t) return;
+  var c = document.getElementById('projectClearBtn');
+  var h = document.getElementById('projectHint');
+  t.classList.toggle('project-toggle--on', _projectMode);
+  t.textContent = _projectMode ? 'Done picking' : 'Project winners';
+  var n = Object.keys(_projected).length;
+  if (c) { c.hidden = !n; c.textContent = 'Clear picks (' + n + ')'; }
+  if (h) h.hidden = !_projectMode;
+}
+
+function onProjectTap(e){
+  if (!_projectMode || _bracketEditMode) return;
+  var teamEl = e.target.closest('.bc-team');
+  if (!teamEl) return;
+  var card = e.target.closest('.bc');
+  var gid = card && card.getAttribute('data-gid');
+  if (!gid || !GAMES[gid] || GAMES[gid].bye) return;
+  if (results[gid] && results[gid].winner) return;   // real result — locked
+  var nameEl = teamEl.querySelector('.bc-name');
+  var name = nameEl && nameEl.textContent;
+  var merged = mergedResults();
+  var g = GAMES[gid];
+  var p1 = resolveSlot(g.t1, merged), p2 = resolveSlot(g.t2, merged);
+  if (name !== p1 && name !== p2) return;            // placeholder, not a team yet
+  if (_projected[gid] === name) delete _projected[gid];
+  else _projected[gid] = name;
+  renderBracket();
+  updateProjectBar();
+}
+
+// renderBracket swaps the results global for the merged projection view for
+// the duration of the (synchronous) render, so every card/connector helper
+// sees projected winners without threading a parameter through all of them.
 function renderBracket(){
+  var _real = results;
+  results = mergedResults();
+  try { renderBracketInner(); } finally { results = _real; }
+}
+
+function renderBracketInner(){
   var root=document.getElementById('bracketRoot');
   // A/B flights render as their own simple single-elim column layout (they
   // live in R0 storage slots, outside the Open tree). Open uses the full
@@ -3249,12 +3323,26 @@ async function pollLive() {
   } catch (e) { setOffline(true); }
 }
 setInterval(pollLive, LIVE_POLL_MS);
+
+var _bracketRootEl = document.getElementById('bracketRoot');
+if (_bracketRootEl) _bracketRootEl.addEventListener('click', onProjectTap);
+updateProjectBar();
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible') fetchAll();
 });
 
 // ── Delegated actions (see tt-common.js) ──────────────────────────────
 Object.assign(TT_ACTIONS, {
+  toggleProject: function() {
+    _projectMode = !_projectMode;
+    if (_projectMode && _bracketEditMode) toggleBracketEdit();  // mutually exclusive
+    updateProjectBar();
+  },
+  clearProjections: function() {
+    _projected = {};
+    renderBracket();
+    updateProjectBar();
+  },
   toggleBracketEdit: function() { toggleBracketEdit(); },
   enterBucketEdit:   function() { enterBucketEdit(); },
   saveBucketEdit:    function() { saveBucketEdit(); },
