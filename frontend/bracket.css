@@ -31,8 +31,8 @@
 
 /* ── Weather / delay notice banner ── */
 .delay-notice {
-  background: rgba(196,154,26,0.14);
-  border-bottom: 0.08em solid rgba(196,154,26,0.45);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+  border-bottom: 0.08em solid color-mix(in srgb, var(--gold) 45%, transparent);
   color: var(--gold-lt);
   text-align: center;
   padding: 0.55em 1em;
@@ -80,7 +80,7 @@
 }
 .tab-label { line-height: 1; }
 .view-tab.active { color: var(--blue-lt); border-bottom-color: var(--blue-lt); }
-.view-tab:active { background: rgba(255,255,255,0.04); }
+.view-tab:active { background: color-mix(in srgb, var(--text) 5%, transparent); }
 
 /* ── Panels ── */
 .view-panel { display: none; }
@@ -628,19 +628,18 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   display: block;
   width: 100%;
   text-align: center;
-  color: rgba(255,255,255,0.45);
+  color: color-mix(in srgb, var(--text) 45%, transparent);
   font-style: italic;
   font-weight: 300;
   font-size: 0.72rem;
   letter-spacing: 0.14em;
 }
-body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
 .bc-team.won  { color: var(--win-color); }
 .bc-team.lost { color: var(--lose-color); }
 
 /* ── Admin drag-and-drop ── */
 .bc-dragging    { opacity: 0.3; pointer-events: none; }
-.bc-drop-target { box-shadow: 0 0 0 2px var(--blue), 0 0 12px rgba(60,130,220,0.35); }
+.bc-drop-target { box-shadow: 0 0 0 2px var(--blue), 0 0 12px color-mix(in srgb, var(--blue-lt) 35%, transparent); }
 .bc-empty-slot  {
   border: 2px dashed var(--line-color);
   border-radius: 6px;
@@ -652,7 +651,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
 .bc-empty-slot.bc-drop-target {
   border-color: var(--blue);
   opacity: 0.75;
-  box-shadow: 0 0 0 2px var(--blue), 0 0 12px rgba(60,130,220,0.35);
+  box-shadow: 0 0 0 2px var(--blue), 0 0 12px color-mix(in srgb, var(--blue-lt) 35%, transparent);
 }
 .bc-drag-ghost  {
   opacity: 0.88;
@@ -675,9 +674,9 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   align-items: center;
   justify-content: center;
   padding: 0 0.5em;
-  background: rgba(196,154,26,0.04);
-  border-left: 0.07em solid rgba(196,154,26,0.15);
-  border-right: 0.07em solid rgba(196,154,26,0.15);
+  background: color-mix(in srgb, var(--gold) 4%, transparent);
+  border-left: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
+  border-right: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
   width: var(--col-w);
   height: calc(var(--slot-h) * 8);
 }
@@ -718,9 +717,9 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
      The 0.8vw per side is subtracted from the inline width in
      renderDesktopBracket so the total stays champVw. */
   margin: 0 0.8vw;
-  background: rgba(196,154,26,0.04);
-  border-left: 0.07em solid rgba(196,154,26,0.15);
-  border-right: 0.07em solid rgba(196,154,26,0.15);
+  background: color-mix(in srgb, var(--gold) 4%, transparent);
+  border-left: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
+  border-right: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
 }
 .champ-center--desktop .champ-winner { text-align: center; }
 .champ-center--ifnec {
@@ -909,7 +908,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   justify-content: center;
   gap: 0.3em;
   padding: 0.4em 0.25em;
-  background: rgba(192,80,80,0.06);
+  background: color-mix(in srgb, var(--lose-color) 6%, transparent);
 }
 .round-lose-tag {
   font-family: 'Oswald', sans-serif;
@@ -947,7 +946,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   justify-content: center;
   gap: 0.25em;
   padding: 0.4em 0.2em;
-  background: rgba(60, 160, 80, 0.10);
+  background: color-mix(in srgb, var(--win-color) 10%, transparent);
 }
 .round-win-img {
   width: 100%;
@@ -1094,10 +1093,10 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   gap: 0.5em;
   margin: 0.9em 0 0.5em;
   padding: 0.7em 1.4em;
-  background: linear-gradient(135deg, rgba(196,154,26,0.16), rgba(196,154,26,0.04));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--gold) 16%, transparent), color-mix(in srgb, var(--gold) 4%, transparent));
   border: 0.1em solid var(--gold);
   border-radius: var(--radius-md);
-  box-shadow: 0 0 16px rgba(196,154,26,0.22);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--gold) 22%, transparent);
 }
 .team-path-champion .tpc-pre {
   font-family: 'Oswald', sans-serif;
@@ -1116,7 +1115,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   color: var(--gold-lt);
 }
 .team-path-champion.is-crowned {
-  box-shadow: 0 0 24px rgba(196,154,26,0.4);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--gold) 40%, transparent);
 }
 .team-path-champion.is-crowned .tpc-word { font-size: 1.55rem; }
 
@@ -1238,7 +1237,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
     width: auto;
     flex-shrink: 0;
     padding: 0.6em 0.5em;
-    border-left: 0.07em solid rgba(196,154,26,0.15);
+    border-left: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
     border-right: none;
     border-top: none;
     border-bottom: none;
@@ -1344,7 +1343,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
     height: 2.5rem;
     transform: translateY(-50%);
     border-radius: 50%;
-    background: rgba(20,24,28,0.72);
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
     border: 0.1em solid var(--border);
     color: var(--text-dim);
     font-family: 'Oswald', sans-serif;
@@ -1359,7 +1358,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   }
   .mbc-arrow:hover {
     opacity: 1;
-    background: rgba(30,36,44,0.92);
+    background: color-mix(in srgb, var(--surface2) 92%, transparent);
     color: var(--gold-lt);
     border-color: var(--gold);
   }
@@ -1388,7 +1387,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   background: linear-gradient(170deg, var(--surface2) 0%, #1e2e18 100%);
   border: 0.15em solid var(--gold);
   border-radius: var(--radius-md);
-  box-shadow: 0 0 32px rgba(196,154,26,0.3), inset 0 1px 0 rgba(232,184,42,0.12);
+  box-shadow: 0 0 32px color-mix(in srgb, var(--gold) 30%, transparent), inset 0 1px 0 color-mix(in srgb, var(--gold-lt) 12%, transparent);
   overflow: hidden;
 }
 /* Top info block */
@@ -1403,7 +1402,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
 .mbc-champ-trophy {
   font-size: calc(var(--mbc-card-h, 120px) * 0.22);
   line-height: 1;
-  filter: drop-shadow(0 2px 8px rgba(232,184,42,0.6));
+  filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--gold-lt) 60%, transparent));
 }
 .mbc-champ-label {
   font-family: 'Oswald', sans-serif;
@@ -1471,7 +1470,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   color: var(--gold-lt);
   letter-spacing: 0.1em;
   text-align: center;
-  border-top: 0.07em solid rgba(196,154,26,0.3);
+  border-top: 0.07em solid color-mix(in srgb, var(--gold) 30%, transparent);
 }
 
 /* champ2 state classes on .mbc-card */

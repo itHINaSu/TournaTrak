@@ -299,7 +299,7 @@
   font-size: var(--text-sm);
   padding: 0.15em 0;
 }
-.bld-field-name:focus { outline: none; }
+.bld-field-name:focus-visible { outline: 0.13em solid var(--blue-lt); outline-offset: 0.1em; }
 .bld-field-del {
   border: none;
   background: transparent;
