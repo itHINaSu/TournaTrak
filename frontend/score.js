@@ -208,8 +208,8 @@ async function finalize(sid) {
 }
 
 function showGate() {
-  document.getElementById('scoreGate').style.display = '';
-  document.getElementById('scoreWrap').style.display = 'none';
+  document.getElementById('scoreGate').hidden = false;
+  document.getElementById('scoreWrap').hidden = true;
 }
 
 // ── Sync poll: pick up other scorekeepers' updates every 15 s ─────────
@@ -253,7 +253,7 @@ Object.assign(TT_ACTIONS, {
     showToast('Could not load games — check connection', true);
     return;
   }
-  document.getElementById('scoreWrap').style.display = '';
+  document.getElementById('scoreWrap').hidden = false;
   renderList();
   setInterval(syncPoll, 15000);
 })();

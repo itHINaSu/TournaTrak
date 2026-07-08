@@ -289,3 +289,50 @@ document.addEventListener('keydown', function (e) {
   e.preventDefault();
   t.click();
 });
+
+// ── data-css: CSP-safe dynamic styling for generated markup ─────────────
+// style-src has no 'unsafe-inline', so markup built as HTML strings can't
+// carry style="" attributes. Emit data-css="prop:val;..." instead; this
+// observer transfers it to the element's CSSOM style (which CSP permits)
+// the moment nodes are inserted — as a microtask, before paint.
+function ttApplyDataCss(root) {
+  if (root.querySelectorAll) {
+    var els = root.querySelectorAll('[data-css]');
+    for (var i = 0; i < els.length; i++) {
+      els[i].style.cssText += ';' + els[i].getAttribute('data-css');
+      els[i].removeAttribute('data-css');
+    }
+    if (root.getAttribute && root.getAttribute('data-css')) {
+      root.style.cssText += ';' + root.getAttribute('data-css');
+      root.removeAttribute('data-css');
+    }
+  }
+}
+new MutationObserver(function (muts) {
+  for (var m = 0; m < muts.length; m++) {
+    for (var n = 0; n < muts[m].addedNodes.length; n++) {
+      var node = muts[m].addedNodes[n];
+      if (node.nodeType === 1) ttApplyDataCss(node);
+    }
+  }
+}).observe(document.documentElement, { childList: true, subtree: true });
+
+// ── Theme override stylesheet (white-label per-tournament colors) ────────
+// A dynamic <style> element would be blocked by style-src 'self'; a
+// constructable stylesheet is CSSOM and CSP-exempt. The <style> fallback
+// only runs on browsers without adoptedStyleSheets, where the strict CSP
+// simply drops custom light-mode brand colors (graceful degradation).
+var _ttThemeSheet = null;
+function ttSetThemeOverrideCss(cssText) {
+  try {
+    if (!_ttThemeSheet) {
+      _ttThemeSheet = new CSSStyleSheet();
+      document.adoptedStyleSheets = document.adoptedStyleSheets.concat(_ttThemeSheet);
+    }
+    _ttThemeSheet.replaceSync(cssText);
+  } catch (e) {
+    var el = document.getElementById('tt-theme-overrides');
+    if (!el) { el = document.createElement('style'); el.id = 'tt-theme-overrides'; document.head.appendChild(el); }
+    el.textContent = cssText;
+  }
+}

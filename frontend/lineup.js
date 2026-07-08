@@ -235,7 +235,7 @@ async function openImport() {
   if (!overlay || !sel || !viewedTeamName) return;
 
   sel.innerHTML = '<option value="">Loading…</option>';
-  overlay.style.display = 'flex';
+  overlay.hidden = false;
 
   try {
     var r    = await fetch(lineupApiBase() + '/lineups/by-team/' + encodeURIComponent(viewedTeamName));
@@ -269,7 +269,7 @@ async function openImport() {
 
 function closeImport(e) {
   if (e && e.target !== document.getElementById('lineupImportOverlay')) return;
-  document.getElementById('lineupImportOverlay').style.display = 'none';
+  document.getElementById('lineupImportOverlay').hidden = true;
 }
 
 function hasCurrentData() {
@@ -294,7 +294,7 @@ function confirmImport() {
     lineupRowCount = Math.max(lineupConfig().rows, rows.length);
     document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
     updateSubButtons();
-    document.getElementById('lineupImportOverlay').style.display = 'none';
+    document.getElementById('lineupImportOverlay').hidden = true;
     showStatus('Lineup imported — save to confirm');
   };
 
@@ -344,14 +344,14 @@ function updateSubButtons(readOnly) {
   var hideSubs = ro || !cfg.subs;
   var addBtn = document.getElementById('lineupAddSubBtn');
   var delBtn = document.getElementById('lineupDelSubBtn');
-  if (addBtn) addBtn.style.display = hideSubs ? 'none' : '';
+  if (addBtn) addBtn.hidden = !!(hideSubs);
   if (delBtn) {
-    delBtn.style.display = hideSubs ? 'none' : '';
+    delBtn.hidden = !!(hideSubs);
     delBtn.disabled      = lineupRowCount <= cfg.rows;
   }
   // Tool buttons (Import / Reorder) only shown when editable
   var tools = document.getElementById('lineupTools');
-  if (tools) tools.style.display = ro ? 'none' : '';
+  if (tools) tools.hidden = !!(ro);
   // Reset reorder mode when game changes
   if (ro && isReorderMode) {
     isReorderMode = false;
@@ -361,7 +361,7 @@ function updateSubButtons(readOnly) {
 }
 
 ttRegisterOverlay(document.getElementById('lineupImportOverlay'), function () {
-  document.getElementById('lineupImportOverlay').style.display = 'none';
+  document.getElementById('lineupImportOverlay').hidden = true;
 });
 
 function showStatus(msg, err) {
@@ -414,8 +414,8 @@ function populateGameSelect(teamName) {
 
   var allGames = findTeamGames(teamName);
   if (!allGames.length) {
-    gameSel.style.display = 'none';
-    if (placeholder) { placeholder.textContent = 'No games scheduled'; placeholder.style.display = ''; }
+    gameSel.hidden = true;
+    if (placeholder) { placeholder.textContent = 'No games scheduled'; placeholder.hidden = false; }
     return;
   }
 
@@ -423,8 +423,8 @@ function populateGameSelect(teamName) {
     return '<option value="' + esc(tg.slotId) + '">' + esc(gameOptionLabel(tg.slotId, teamName)) + '</option>';
   }).join('');
 
-  if (placeholder) placeholder.style.display = 'none';
-  gameSel.style.display = '';
+  if (placeholder) placeholder.hidden = true;
+  gameSel.hidden = false;
 
   var nextGame = allGames.find(function(tg) { return !tg.hasResult; });
   var target   = nextGame || allGames[allGames.length - 1];
@@ -453,12 +453,12 @@ async function loadLineupForGame(slotId, teamName, readOnly, readOnlyReason) {
 
   var badge = document.getElementById('lineupReadOnlyBadge');
   if (badge) {
-    badge.style.display = readOnly ? '' : 'none';
+    badge.hidden = !(readOnly);
     if (readOnly && readOnlyReason) badge.textContent = readOnlyReason;
   }
 
   var btn = document.getElementById('lineupSubmitBtn');
-  if (btn) btn.style.display = readOnly ? 'none' : '';
+  if (btn) btn.hidden = !!(readOnly);
 
   var statusEl = document.getElementById('lineupStatus');
   if (statusEl) statusEl.textContent = '';
@@ -563,7 +563,7 @@ function buildNavBar(role) {
     }).join('');
   }
 
-  nav.style.display = '';
+  nav.hidden = false;
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -602,7 +602,7 @@ async function lineupInit() {
   try {
     var sr      = await fetch(lineupApiBase() + '/session');  // scoped: role/teams are per-tournament
     var session = await sr.json();
-    document.getElementById('lineupLoading').style.display = 'none';
+    document.getElementById('lineupLoading').hidden = true;
 
     if (new URLSearchParams(window.location.search).get('invalid')) {
       showLineupGate(session);
@@ -634,7 +634,7 @@ async function lineupInit() {
 
     var teamHeader = document.getElementById('lineupTeamName');
     if (teamHeader) teamHeader.textContent = isAdmin ? 'All Teams' : (currentTeamName || '');
-    document.getElementById('lineupContent').style.display = '';
+    document.getElementById('lineupContent').hidden = false;
 
     var [rr, schedR, settingsR] = await Promise.all([
       fetch(lineupApiBase() + '/results'),
@@ -681,7 +681,7 @@ async function lineupInit() {
       }
     }
 
-    document.getElementById('lineupSelectorsRow').style.display = '';
+    document.getElementById('lineupSelectorsRow').hidden = false;
 
     var selectedTeam = (teamSel && teamSel.value) ? teamSel.value : currentTeamName;
     if (selectedTeam) {
@@ -690,8 +690,8 @@ async function lineupInit() {
       var slotId  = gameSel ? gameSel.value : '';
 
       if (!slotId) {
-        document.getElementById('lineupNoGame').style.display = '';
-        document.getElementById('lineupSubmitBtn').style.display = 'none';
+        document.getElementById('lineupNoGame').hidden = false;
+        document.getElementById('lineupSubmitBtn').hidden = true;
         updateSubButtons(true);
         return;
       }
@@ -699,13 +699,13 @@ async function lineupInit() {
       var ro = !isSlotEditable(slotId, selectedTeam);
       await loadLineupForGame(slotId, selectedTeam, ro, ro ? getReadOnlyReason(slotId, selectedTeam) : '');
     } else {
-      document.getElementById('lineupNoGame').style.display = '';
-      document.getElementById('lineupSubmitBtn').style.display = 'none';
+      document.getElementById('lineupNoGame').hidden = false;
+      document.getElementById('lineupSubmitBtn').hidden = true;
     }
 
   } catch(e) {
-    document.getElementById('lineupLoading').style.display = 'none';
-    document.getElementById('lineupInvalid').style.display = '';
+    document.getElementById('lineupLoading').hidden = true;
+    document.getElementById('lineupInvalid').hidden = false;
   }
 }
 
@@ -725,9 +725,9 @@ function showLineupGate(session) {
     if (t) t.textContent = 'Coach Access';
     if (b) b.textContent = 'Open your team\'s access link, or sign in below if you\'ve set a password.';
   }
-  document.getElementById('lineupInvalid').style.display = '';
+  document.getElementById('lineupInvalid').hidden = false;
   var wrap = document.getElementById('coachLoginWrap');
-  if (wrap) wrap.style.display = '';
+  if (wrap) wrap.hidden = false;
 }
 
 async function doCoachLogin(e) {
@@ -737,7 +737,7 @@ async function doCoachLogin(e) {
   var btn   = document.getElementById('coachLoginBtn');
   var errEl = document.getElementById('coachLoginError');
   btn.disabled = true;
-  errEl.style.display = 'none';
+  errEl.hidden = true;
   try {
     // Login is tournament-agnostic; after the reload lineupInit follows the
     // team grant to the right tournament (the redirect in its gate check).
@@ -754,10 +754,10 @@ async function doCoachLogin(e) {
     }
     var data = await r.json().catch(function(){ return {}; });
     errEl.textContent = data.error || 'Login failed';
-    errEl.style.display = 'block';
+    errEl.hidden = false;
   } catch(err) {
     errEl.textContent = 'Network error — try again';
-    errEl.style.display = 'block';
+    errEl.hidden = false;
   }
   btn.disabled = false;
 }
@@ -766,7 +766,7 @@ function setupCoachAccountBtn(hasPassword) {
   var btn = document.getElementById('coachAccountBtn');
   if (!btn) return;   // embedded in /admin — staff manage passwords in Settings
   btn.textContent = hasPassword ? 'Change Password' : 'Set Password';
-  btn.style.display = '';
+  btn.hidden = false;
   var title = document.getElementById('coachPwTitle');
   if (title) title.textContent = hasPassword ? 'Change Your Password' : 'Set a Password';
 }
@@ -775,30 +775,30 @@ function openCoachPw() {
   document.getElementById('coachPwNew1').value = '';
   document.getElementById('coachPwNew2').value = '';
   var errEl = document.getElementById('coachPwError');
-  errEl.style.display = 'none';
+  errEl.hidden = true;
   errEl.style.color = '';
-  document.getElementById('coachPwOverlay').style.display = '';
+  document.getElementById('coachPwOverlay').hidden = false;
 }
 
 function closeCoachPw(e) {
   if (e && e.target !== document.getElementById('coachPwOverlay')) return;
-  document.getElementById('coachPwOverlay').style.display = 'none';
+  document.getElementById('coachPwOverlay').hidden = true;
 }
 
 async function saveCoachPw() {
   var p1    = document.getElementById('coachPwNew1').value;
   var p2    = document.getElementById('coachPwNew2').value;
   var errEl = document.getElementById('coachPwError');
-  errEl.style.display = 'none';
+  errEl.hidden = true;
   errEl.style.color = '';
   if (p1.length < 8) {
     errEl.textContent = 'Password must be at least 8 characters';
-    errEl.style.display = 'block';
+    errEl.hidden = false;
     return;
   }
   if (p1 !== p2) {
     errEl.textContent = 'Passwords do not match';
-    errEl.style.display = 'block';
+    errEl.hidden = false;
     return;
   }
   var r = await fetch(lineupApiBase() + '/change-password', {
@@ -809,14 +809,14 @@ async function saveCoachPw() {
   var data = await r.json().catch(function(){ return {}; });
   if (!r.ok) {
     errEl.textContent = data.error || 'Failed to save password';
-    errEl.style.display = 'block';
+    errEl.hidden = false;
     return;
   }
   setupCoachAccountBtn(true);
   errEl.textContent = '✓ Password saved — you can now sign in with your username';
   errEl.style.color = 'var(--win-color)';
-  errEl.style.display = 'block';
-  setTimeout(function() { document.getElementById('coachPwOverlay').style.display = 'none'; }, 1600);
+  errEl.hidden = false;
+  setTimeout(function() { document.getElementById('coachPwOverlay').hidden = true; }, 1600);
 }
 
 document.addEventListener('DOMContentLoaded', function() {

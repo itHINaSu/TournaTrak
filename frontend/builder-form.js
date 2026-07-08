@@ -14,12 +14,12 @@ var BUILDER_FORM_INNER = `
     </div>
     <p class="bld-muted" id="formatDesc"></p>
     <!-- Double-elim only: include the bracket-reset final -->
-    <label class="bld-check" id="ifNecField" style="display:none">
+    <label class="bld-check" id="ifNecField" hidden>
       <input type="checkbox" id="ifNecChk" checked>
       Include “if necessary” final (bracket reset — losers-bracket team must win twice)
     </label>
     <!-- Single-elim only: play the semifinal losers off for 3rd -->
-    <label class="bld-check" id="thirdPlaceField" style="display:none">
+    <label class="bld-check" id="thirdPlaceField" hidden>
       <input type="checkbox" id="thirdPlaceChk">
       Include 3rd-place game (semifinal losers play before the final)
     </label>
@@ -54,19 +54,19 @@ var BUILDER_FORM_INNER = `
       </select>
     </div>
     <!-- Seed count — shown only for partial seeding -->
-    <div class="bld-field" id="seedCountField" style="display:none">
+    <div class="bld-field" id="seedCountField" hidden>
       <label for="seedCountInput">How many of the top lines are seeds?</label>
       <input type="number" class="bld-input" id="seedCountInput" min="1" step="1" value="4">
       <p class="bld-muted">Lines 1–N keep their order as seeds 1–N; everyone below is placed randomly.</p>
     </div>
     <!-- Show seeds — visible when seedMode is order, partial, or manual -->
-    <label class="bld-check" id="showSeedsField" style="display:none">
+    <label class="bld-check" id="showSeedsField" hidden>
       <input type="checkbox" id="showSeedsChk">
       Show seed numbers on the bracket <span class="bld-muted">(e.g. (1) Team Name)</span>
     </label>
     <!-- Manual bye picker — shown only for manual mode when byes are needed -->
-    <div id="byePicker" style="display:none">
-      <label class="bld-field" style="display:block">Pick the teams that get a first-round bye
+    <div id="byePicker" hidden>
+      <label class="bld-field bld-field--block">Pick the teams that get a first-round bye
         <span class="bld-count" id="byeCount"></span></label>
       <div class="bld-bye-list" id="byeList"></div>
     </div>
@@ -83,7 +83,7 @@ var BUILDER_FORM_INNER = `
       Set specific playing days (custom dates, times &amp; games per day)
     </label>
     <!-- Optional: calendar-driven multi-day schedule -->
-    <div id="advSched" style="display:none">
+    <div id="advSched" hidden>
       <p class="bld-muted">Tap the days games will be played, then set each day’s start time,
         number of games, and minutes between games. Add a field to run games on more than one
         surface — games then run in concurrent waves so the day finishes sooner, and each day
@@ -113,7 +113,7 @@ var BUILDER_FORM_INNER = `
 
 var BUILDER_OVERLAYS = `
 <!-- Confirm overlay (destructive replace) -->
-<div class="bld-overlay" id="confirmOverlay" style="display:none">
+<div class="bld-overlay" id="confirmOverlay" hidden>
   <div class="bld-modal">
     <div class="bld-modal-title">Replace current schedule?</div>
     <div class="bld-modal-body" id="confirmText"></div>
@@ -125,7 +125,7 @@ var BUILDER_OVERLAYS = `
 </div>
 
 <!-- Success overlay -->
-<div class="bld-overlay" id="doneOverlay" style="display:none">
+<div class="bld-overlay" id="doneOverlay" hidden>
   <div class="bld-modal">
     <div class="bld-modal-title">Bracket created</div>
     <div class="bld-modal-body" id="doneText"></div>

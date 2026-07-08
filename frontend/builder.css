@@ -425,3 +425,4 @@
 .bld-modal-body { font-size: var(--text-sm); color: var(--text-dim); line-height: 1.6; margin-bottom: 1.1em; }
 .bld-modal-actions { display: flex; gap: 0.6em; justify-content: flex-end; flex-wrap: wrap; }
 .bld-warn { color: var(--lose-color); font-style: italic; }
+.bld-field--block { display: block; }

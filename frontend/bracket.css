@@ -2021,3 +2021,24 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   padding: 0.05em 0.35em;
   margin-left: 0.35em;
 }
+
+/* ── CSP refactor: classes replacing generated inline styles ── */
+.u-invisible { visibility: hidden; }
+.u-relative { position: relative; }
+.u-dim30 { opacity: 0.3; }
+.u-push-right { margin-left: auto; flex-shrink: 0; }
+.conn-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible; }
+.bcc-outerflex {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 97vw;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: calc(var(--col-hdr-h)*2.5) 0 1em;
+}
+.bcc-sideflex { position: relative; flex: 0 0 auto; display: flex; }
+.bcc-rowflex { display: flex; flex-direction: row; }
+.bracket-side-label--abs { position: absolute; top: calc(var(--col-hdr-h)*-2.2); }
+.bc.bc--static { position: relative; left: auto; right: auto; }
+.team-path-win-label--loss { color: var(--lose-color); }

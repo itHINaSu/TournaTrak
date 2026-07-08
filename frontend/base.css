@@ -353,3 +353,24 @@ select:focus-visible,
   }
   * { box-shadow: none !important; text-shadow: none !important; }
 }
+
+/* The hidden attribute must always win: JS toggles visibility exclusively
+   via el.hidden (CSP forbids inline style attributes), and several hidden
+   elements carry classes whose display rules would otherwise override the
+   UA default. */
+[hidden] { display: none !important; }
+.u-mx-auto { margin: 0 auto; }
+/* CSP refactor: spacing/visibility utilities replacing one-off inline styles */
+.u-invisible { visibility: hidden; }
+.u-dim-70 { opacity: 0.7; }
+.u-push-right-b { margin-left: auto; }
+.u-flexrow-gap { display: flex; gap: 0.6em; margin-top: 0.5em; }
+.u-mt-05 { margin-top: 0.5em; }
+.u-mt-06 { margin-top: 0.6em; }
+.u-mt-075 { margin-top: 0.75em; }
+.u-mt-09 { margin-top: 0.9em; }
+.u-mt-1 { margin-top: 1em; }
+.u-mt-15 { margin-top: 1.5em; }
+.u-mb-06 { margin-bottom: 0.6em; }
+.u-mb-1 { margin-bottom: 1em; }
+.u-maxw-10 { max-width: 10em; }

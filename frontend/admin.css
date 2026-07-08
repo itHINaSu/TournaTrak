@@ -1085,3 +1085,8 @@ input[type="time"]:focus {
   .coach-team-remove { padding: 0.55em 0.7em; margin: -0.55em -0.35em; }
   .delay-offset-del { min-height: 2.6rem; padding: 0.2em 0.9em; }
 }
+
+/* CSP refactor: classes replacing generated inline styles */
+.bld-muted--pad { padding: 1em; }
+.admin-subtitle--pad { padding: 0.5em 0; }
+.admin-subtitle--flush { margin: 0; }

@@ -54,10 +54,10 @@ function applyThemeColors() {
   if (logoEl) {
     if (tc.logo && /^data:image\/(png|jpeg|webp);base64,/.test(tc.logo)) {
       logoEl.src = tc.logo;
-      logoEl.style.display = '';
+      logoEl.hidden = false;
     } else {
       logoEl.removeAttribute('src');
-      logoEl.style.display = 'none';
+      logoEl.hidden = true;
     }
   }
   var darkMap = { accent: ['--gold','--gold-lt'], interactive: ['--blue','--blue-lt'], winColor: ['--win-color'], loseColor: ['--lose-color'] };
@@ -72,9 +72,7 @@ function applyThemeColors() {
       darkMap[key].forEach(function(prop) { lightRules.push('  ' + prop + ':' + lc + ';'); });
     }
   });
-  var styleEl = document.getElementById('tt-theme-overrides');
-  if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'tt-theme-overrides'; document.head.appendChild(styleEl); }
-  styleEl.textContent = lightRules.length ? 'body.light{' + lightRules.join('') + '}' : '';
+  ttSetThemeOverrideCss(lightRules.length ? 'body.light{' + lightRules.join('') + '}' : '');
 }
 
 function applySettings() {
@@ -84,8 +82,8 @@ function applySettings() {
   document.title = title;
   document.getElementById('siteName').textContent = name;
   var subEl = document.getElementById('siteSubtitle');
-  if (subtitle) { subEl.textContent = subtitle; subEl.style.visibility = 'visible'; subEl.style.display = 'block'; }
-  else { subEl.innerHTML = '&#8203;'; subEl.style.display = 'block'; subEl.style.visibility = 'hidden'; }
+  if (subtitle) { subEl.textContent = subtitle; subEl.style.visibility = 'visible'; subEl.hidden = false; }
+  else { subEl.innerHTML = '&#8203;'; subEl.hidden = false; subEl.style.visibility = 'hidden'; }
 }
 
 // ── Offline banner ────────────────────────────────────────────────────
@@ -93,7 +91,7 @@ function applySettings() {
 // successfully fetched state instead of blanking (field-side Wi-Fi drops).
 function setOffline(on) {
   var el = document.getElementById('offlineNotice');
-  if (el) el.style.display = on ? '' : 'none';
+  if (el) el.hidden = !(on);
 }
 
 // ── Results notification bar ──────────────────────────────────────────
@@ -101,7 +99,7 @@ function updateDelayNotice() {
   var el   = document.getElementById('delayNotice');
   var text = document.getElementById('delayNoticeText');
   var msg  = (_offsets && _offsets.banner) ? _offsets.banner.trim() : '';
-  if (el) el.style.display = msg ? '' : 'none';
+  if (el) el.hidden = !(msg);
   if (text) text.textContent = msg;
 }
 
@@ -115,7 +113,7 @@ function updateTimestamp() {
     var updatedAt = buckets && buckets.updatedAt;
     var hasCounts = updatedAt && Object.keys((buckets && buckets.counts) || {}).length > 0;
     if (!hasCounts) {
-      if (bar) bar.style.display = 'none';
+      if (bar) bar.hidden = true;
       applyStickyOffsets();
       return;
     }
@@ -125,7 +123,7 @@ function updateTimestamp() {
         ? 'Bucket results updated'
         : 'Bucket results updated ' + formatBucketTime(bd);
     }
-    if (bar) bar.style.display = '';
+    if (bar) bar.hidden = false;
     applyStickyOffsets();
     return;
   }
@@ -139,7 +137,7 @@ function updateTimestamp() {
   });
   var hasResults = Object.values(results).some(function(r){ return r && r.winner; });
   if (!hasResults) {
-    if (bar) bar.style.display = 'none';
+    if (bar) bar.hidden = true;
     applyStickyOffsets();
     return;
   }
@@ -151,7 +149,7 @@ function updateTimestamp() {
     timeStr = null;
   }
   if (text) text.textContent = timeStr ? 'Results updated ' + timeStr : 'Results updated';
-  if (bar) bar.style.display = '';
+  if (bar) bar.hidden = false;
   applyStickyOffsets();
 }
 
@@ -559,7 +557,7 @@ function fieldTagHTML(sid){
   var field = g.field;
   var color = (_fieldColors && _fieldColors[field]) || _fieldDefaultColorMap[field];
   if (color) {
-    return '<span class="game-field-tag" style="color:' + esc(color) + ';border-color:' + esc(color) + '">' + esc(field) + '</span>';
+    return '<span class="game-field-tag" data-css="color:' + esc(color) + ';border-color:' + esc(color) + '">' + esc(field) + '</span>';
   }
   return '<span class="game-field-tag">' + esc(field) + '</span>';
 }
@@ -873,7 +871,7 @@ function cardHTML(gid){
   var offHTML = (offMin !== null && offMin !== 0)
     ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
     : '';
-  return '<div class="bc-hdr">'+(g.bye?'<span class="bc-id" style="visibility:hidden">x</span>':'<span class="bc-id">'+esc(gameLabel(gid))+'</span>')
+  return '<div class="bc-hdr">'+(g.bye?'<span class="bc-id u-invisible">x</span>':'<span class="bc-id">'+esc(gameLabel(gid))+'</span>')
     +(r.projected?'<span class="bc-proj-chip">pick</span>':'')
     +fieldTagHTML(gid)
     +(gameIsLive(gid)
@@ -892,7 +890,7 @@ function cardHTML(gid){
 function connLines(conns,wVw,hVh,lc,mirror){
   if(!conns.length) return '';
   var s='<svg viewBox="0 0 100 100" preserveAspectRatio="none" '
-    +'style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible">';
+    +'class="conn-svg">';
   var lw='0.5';
   function fx(x){ return mirror?(100-x):x; }
   var byDest={};
@@ -1254,15 +1252,15 @@ function updateFlightTabs() {
   var hasA = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'A'; });
   var hasB = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'B'; });
   if (!hasA && !hasB) {
-    row.style.display = 'none';
+    row.hidden = true;
     _bracketFlight = 'open';
     return;
   }
-  row.style.display = '';
+  row.hidden = false;
   var aPill = row.querySelector('[data-arg="A"]');
   var bPill = row.querySelector('[data-arg="B"]');
-  if (aPill) { aPill.style.display = hasA ? '' : 'none'; aPill.textContent = bracketDisplayName('A'); }
-  if (bPill) { bPill.style.display = hasB ? '' : 'none'; bPill.textContent = bracketDisplayName('B'); }
+  if (aPill) { aPill.hidden = !(hasA); aPill.textContent = bracketDisplayName('A'); }
+  if (bPill) { bPill.hidden = !(hasB); bPill.textContent = bracketDisplayName('B'); }
   // Three-game format (B drop bracket, no A tier): the main tree IS the
   // "A" bracket, so label its pill accordingly; tiered keeps "Open".
   var mainPill = row.querySelector('[data-arg="open"]');
@@ -1293,15 +1291,15 @@ function updateScheduleFlightTabs() {
   var hasA = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'A'; });
   var hasB = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'B'; });
   if (!hasA && !hasB) {
-    row.style.display = 'none';
+    row.hidden = true;
     _schedFlight = 'open';
     return;
   }
-  row.style.display = '';
+  row.hidden = false;
   var aPill = row.querySelector('[data-arg="A"]');
   var bPill = row.querySelector('[data-arg="B"]');
-  if (aPill) { aPill.style.display = hasA ? '' : 'none'; aPill.textContent = bracketDisplayName('A'); }
-  if (bPill) { bPill.style.display = hasB ? '' : 'none'; bPill.textContent = bracketDisplayName('B'); }
+  if (aPill) { aPill.hidden = !(hasA); aPill.textContent = bracketDisplayName('A'); }
+  if (bPill) { bPill.hidden = !(hasB); bPill.textContent = bracketDisplayName('B'); }
   // Three-game format (B drop bracket, no A tier): the main tree IS the
   // "A" bracket, so label its pill accordingly; tiered keeps "Open".
   var mainPill = row.querySelector('[data-arg="open"]');
@@ -1377,7 +1375,7 @@ function renderDesktopBracket(root,dims){
         var topVh = isRight && lbPosMap[entry.gid] !== undefined
           ? lbPosMap[entry.gid]
           : slotTopVh(col.round,entry.slot,slotVh,col.side);
-        cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" style="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
+        cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" data-css="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
       });
       if (_bracketEditMode) {
         var usedSlots = {};
@@ -1387,25 +1385,25 @@ function renderDesktopBracket(root,dims){
           if (usedSlots[sn]) return;
           var slotId = col.round + '.' + col.side + '.' + sn;
           var topVh = slotTopVh(col.round, sn, slotVh, col.side);
-          cardsHTML += '<div class="bc bc-empty-slot" data-slot="'+esc(slotId)+'" style="top:'+topVh+'vh"></div>';
+          cardsHTML += '<div class="bc bc-empty-slot" data-slot="'+esc(slotId)+'" data-css="top:'+topVh+'vh"></div>';
         });
       }
-      html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
+      html+='<div class="round-col" data-css="width:'+colVw+'vw;height:'+totalVh+'vh">'
         +'<div class="round-col-hdr">'+roundLabel(col.round)+'</div>'+cardsHTML+'</div>';
       if(ci<ordCols.length-1){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
-        html+='<div style="position:relative;flex-shrink:0;width:'+gapVw+'vw;height:'+totalVh+'vh">'
+        html+='<div class="u-relative" data-css="flex-shrink:0;width:'+gapVw+'vw;height:'+totalVh+'vh">'
           +connLines(buildConnPcts(srcCol,dstCol,slotVh,isRight?lbPosMap:null),gapVw,totalVh,lc,isRight)+'</div>';
       }
     }
     var labelAlign=isRight?'right:0':'left:0';
     // Each side takes its natural width; the outer flex row centers the
     // whole bracket so the champ column sits at the seam between sides.
-    return '<div style="position:relative;flex:0 0 auto;display:flex">'
-      +'<div style="position:relative">'
-      +'<div class="bracket-side-label" style="position:absolute;top:calc(var(--col-hdr-h)*-2.2);'+labelAlign+'">'+esc(label)+'</div>'
-      +'<div style="display:flex;flex-direction:row;margin-top:'+hdrVh+'vh">'+html+'</div>'
+    return '<div class="bcc-sideflex">'
+      +'<div class="u-relative">'
+      +'<div class="bracket-side-label bracket-side-label--abs" data-css="'+labelAlign+'">'+esc(label)+'</div>'
+      +'<div class="bcc-rowflex" data-css="margin-top:'+hdrVh+'vh">'+html+'</div>'
       +'</div></div>';
   }
 
@@ -1413,8 +1411,8 @@ function renderDesktopBracket(root,dims){
   var champ2G=GAMES['CHAMP2.C.1'], cr2=results['CHAMP2.C.1']||{};
   var champHTML;
   if(!champG){
-    champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
-      +'<div class="champ-inner" style="opacity:0.3">'
+    champHTML='<div class="champ-center--desktop" data-css="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
+      +'<div class="champ-inner u-dim30">'
       +'<div class="champ-trophy">'+trophySVG()+'</div>'
       +'<div class="champ-title">Championship</div>'
       +'</div></div>';
@@ -1433,26 +1431,25 @@ function renderDesktopBracket(root,dims){
           +'<div class="champ-ifnec-label">' + (c2s === 'third-place' ? '3rd Place' : 'If Necessary') + '</div>'
           + c2Note
           +(champ2G.time?'<div class="champ-gametime">'+esc(formatTime(champ2G.time))+'</div>':'')
-          +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" data-gid="CHAMP2.C.1" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP2.C.1')+'</div></div>'
+          +'<div class="champ-bc" data-css="height:'+cardVh+'vh"><div class="bc bc--static" data-gid="CHAMP2.C.1" data-css="height:'+cardVh+'vh">'+cardHTML('CHAMP2.C.1')+'</div></div>'
           +(cr2.winner?'<div class="champ-winner">'+esc(cr2.winner)+'</div>':'')
           +'</div>';
       }
     }
     var showChampWinner = cr.winner && champ2State() !== 'needed';
-    champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
-      +'<div class="champ-inner" style="margin-top:'+(3.5*slotVh)+'vh">'
+    champHTML='<div class="champ-center--desktop" data-css="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
+      +'<div class="champ-inner" data-css="margin-top:'+(3.5*slotVh)+'vh">'
       +'<div class="champ-trophy">'+trophySVG()+'</div>'
       +'<div class="champ-title">Championship</div>'
       +'<div class="champ-gametime">'+esc(formatTime(champG.time))+'</div>'
       +'</div>'
-      +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" data-gid="CHAMP.C.1" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP.C.1')+'</div></div>'
+      +'<div class="champ-bc" data-css="height:'+cardVh+'vh"><div class="bc bc--static" data-gid="CHAMP.C.1" data-css="height:'+cardVh+'vh">'+cardHTML('CHAMP.C.1')+'</div></div>'
       +(showChampWinner?'<div class="champ-winner">'+esc(cr.winner)+'</div>':'')
       +ifNecHTML
       +'</div>';
   }
 
-  root.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:center;width:97vw;margin:0 auto;'
-    +'box-sizing:border-box;padding:calc(var(--col-hdr-h)*2.5) 0 1em;">'
+  root.innerHTML='<div class="bcc-outerflex">'
     +sideHTML('L',getSetting('leftLabel'),false)
     +champHTML
     +sideHTML('R',getSetting('rightLabel'),true)
@@ -1796,7 +1793,7 @@ function renderMobileBracket(root, dims) {
       // Divider is placed INSIDE the card so it inherits the card's translateY
       // and opacity transitions — it travels and fades with the card automatically.
       var divHTML = divEntry
-        ? '<div class="mbc-playin-divider" data-div-type="' + esc(divEntry.type || '') + '" style="height:' + DIV_H + 'px;top:-' + (DIV_H + GAP) + 'px">'
+        ? '<div class="mbc-playin-divider" data-div-type="' + esc(divEntry.type || '') + '" data-css="height:' + DIV_H + 'px;top:-' + (DIV_H + GAP) + 'px">'
           + '<span class="mbc-playin-line"></span>'
           + '<span class="mbc-playin-label">' + esc(divEntry.label) + '</span>'
           + '<span class="mbc-playin-line"></span>'
@@ -1807,7 +1804,7 @@ function renderMobileBracket(root, dims) {
       var isPlayIn = (col.divs || []).some(function(d) {
         return d.type === 'playin' && d.idx <= gi;
       });
-      return '<div class="mbc-card' + c2cls + '" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0"'
+      return '<div class="mbc-card' + c2cls + '" data-css="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0"'
         + (isPlayIn ? ' data-playin="1"' : '') + '>'
         + divHTML + inner + '</div>';
     }).join('');
@@ -1816,20 +1813,20 @@ function renderMobileBracket(root, dims) {
       return '<span class="mbc-dot' + (i === ri ? ' active' : '') + '" data-ri="' + i + '"></span>';
     }).join('');
 
-    return '<div class="mbc-col" data-ri="' + ri + '" style="width:' + cWidth + 'px;flex:0 0 ' + cWidth + 'px">'
+    return '<div class="mbc-col" data-ri="' + ri + '" data-css="width:' + cWidth + 'px;flex:0 0 ' + cWidth + 'px">'
       + '<div class="mbc-hdr">'
       +   '<span class="mbc-hdr-label">' + esc(col.label) + '</span>'
       +   '<span class="mbc-dots">' + dots + '</span>'
       + '</div>'
       + '<div class="mbc-scroll">'
-      +   '<div class="mbc-inner" style="height:' + viewH + 'px;width:' + cCardW + 'px">'
+      +   '<div class="mbc-inner" data-css="height:' + viewH + 'px;width:' + cCardW + 'px">'
       +     cardsHTML
       +   '</div>'
       + '</div>'
       + '</div>';
   }).join('');
 
-  root.innerHTML = '<div class="mbc-outer" id="mbcOuter" style="height:' + viewH + 'px">'
+  root.innerHTML = '<div class="mbc-outer" id="mbcOuter" data-css="height:' + viewH + 'px">'
     + colsHTML + '</div>';
 
   var outer  = document.getElementById('mbcOuter');
@@ -2228,8 +2225,8 @@ function renderMobileBracket(root, dims) {
   root.appendChild(nextArrowEl);
 
   function updateArrows() {
-    prevArrowEl.style.display = activeIdx <= 0 ? 'none' : '';
-    nextArrowEl.style.display = activeIdx >= colEls.length - 1 ? 'none' : '';
+    prevArrowEl.hidden = !!(activeIdx <= 0);
+    nextArrowEl.hidden = !!(activeIdx >= colEls.length - 1);
   }
   updateArrows();
 
@@ -2710,7 +2707,7 @@ var _shareBtn = document.getElementById('teamShareBtn');
 function updateShareBtn() {
   if (!_shareBtn) return;
   var team = teamSel ? teamSel.value : '';
-  _shareBtn.style.display = team ? '' : 'none';
+  _shareBtn.hidden = !(team);
 }
 if (_shareBtn) {
   _shareBtn.addEventListener('click', function() {
@@ -2866,12 +2863,12 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       }
     }
 
-    html += '<div class="round-game-card" style="border-color:' + borderColor + '"'
+    html += '<div class="round-game-card" data-css="border-color:' + borderColor + '"'
       + ' data-jump-gid="' + esc(gid) + '">'
       + '<div class="round-game-main">'
       + '<div class="round-game-header">'
       + timeOrLiveHTML(gid, dt2, dw2, tm2)
-      + '<span class="round-game-id" style="margin-left:auto;flex-shrink:0">' + esc(gameLabel(gid)) + '</span>'
+      + '<span class="round-game-id u-push-right">' + esc(gameLabel(gid)) + '</span>'
       + '</div>'
       + '<div class="round-team-row">'
       + '<span class="round-team-name ' + c1 + '">' + t1html + '</span>'
@@ -3059,7 +3056,7 @@ function renderTeamView(){
             +'<div class="team-path-connector-track">'
             +'<div class="team-path-connector-line lose"></div>'
             +'</div>'
-            +'<span class="team-path-win-label" style="color:var(--lose-color)">LOSS</span>'
+            +'<span class="team-path-win-label team-path-win-label--loss">LOSS</span>'
             +'</div>';
         }
         html+=makeVerticalChain(buildWinChain(ln),team,true,true,gid);
@@ -3203,9 +3200,9 @@ function initBracketDrag(root) {
     ghost.style.top  = (e.clientY - dragState.offY) + 'px';
 
     // Briefly hide ghost so elementsFromPoint can see what's underneath.
-    ghost.style.display = 'none';
+    ghost.hidden = true;
     var els = document.elementsFromPoint(e.clientX, e.clientY);
-    ghost.style.display = '';
+    ghost.hidden = false;
 
     var target = null;
     for (var i = 0; i < els.length; i++) {
@@ -3266,10 +3263,10 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   var lineupBtn      = document.getElementById('lineupPortalBtn');
   var editBtn        = document.getElementById('bucketEditBtn');
   var bracketEditBtn = document.getElementById('bracketEditBtn');
-  if (adminBtn)       adminBtn.style.display       = (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
-  if (lineupBtn)      lineupBtn.style.display      = (_sessionRole === 'team') ? '' : 'none';
-  if (editBtn)        editBtn.style.display        = (_sessionRole === 'buckets') ? '' : 'none';
-  if (bracketEditBtn) bracketEditBtn.style.display = (_sessionRole === 'admin') ? '' : 'none';
+  if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
+  if (lineupBtn)      lineupBtn.hidden = !((_sessionRole === 'team'));
+  if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
+  if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));
   // PWA home preference: redirect to admin if user prefers it and is in standalone mode
   if (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) {
     var pref; try { pref = localStorage.getItem('ttPwaHome'); } catch(e) {}

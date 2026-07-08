@@ -20,7 +20,7 @@
 </header>
 
 <!-- Auth gate — shown when the visitor isn't an admin -->
-<main class="bld-main" id="authGate" style="display:none">
+<main class="bld-main" id="authGate" hidden>
   <div class="bld-card bld-gate">
     <div class="bld-gate-msg" id="authGateMsg">Sign in as an administrator to build a bracket.</div>
     <a class="bld-btn bld-btn--primary" href="/admin">Go to Admin Login</a>
@@ -33,7 +33,7 @@
 </main>
 
 <!-- Builder — shown once an admin session is confirmed -->
-<main class="bld-main" id="builder" style="display:none">
+<main class="bld-main" id="builder" hidden>
 </main>
 
 <script src="/sw-register.js" data-sw="/admin-sw.js"></script>
