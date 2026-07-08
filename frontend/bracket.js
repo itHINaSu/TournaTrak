@@ -2450,6 +2450,80 @@ function scheduleCardHTML(sid) {
     + '</div></div>';
 }
 
+
+// ── Standings (round robin / pool play) ─────────────────────────────────
+// Formats without elimination live and die by the score table, so the
+// Schedule tab leads with one. A game counts toward standings when both
+// sides are fixed team names; pool play groups by the " · Pool X" label
+// suffix, which the cross-seeded playoff games don't carry — so the playoff
+// never pollutes pool records. Which format generated the schedule is
+// persisted server-side in settings.format.
+function standingsGroups() {
+  var fmt = getSetting('format');
+  if (fmt !== 'round-robin' && fmt !== 'round-robin-double' && fmt !== 'pools') return null;
+  var groups = {}, order = [];
+  Object.keys(GAMES).forEach(function (sid) {
+    var g = GAMES[sid];
+    if (g.bye || !g.t1 || !g.t2 || g.t1.type !== 'fixed' || g.t2.type !== 'fixed') return;
+    var key = '', label = 'Standings';
+    if (fmt === 'pools') {
+      var m = / \u00b7 (Pool [A-Z])$/.exec(g.label || '');
+      if (!m) return;
+      key = m[1]; label = m[1];
+    }
+    if (!groups[key]) { groups[key] = { label: label, teams: {} }; order.push(key); }
+    var t = groups[key].teams;
+    [g.t1.team, g.t2.team].forEach(function (nm) {
+      if (!t[nm]) t[nm] = { name: nm, w: 0, l: 0, rf: 0, ra: 0 };
+    });
+    var r = results[sid];
+    if (!r || !r.winner) return;
+    if (t[r.winner]) t[r.winner].w++;
+    if (t[r.loser])  t[r.loser].l++;
+    var s1 = parseInt(r.t1score, 10), s2 = parseInt(r.t2score, 10);
+    if (!isNaN(s1) && !isNaN(s2)) {
+      t[g.t1.team].rf += s1; t[g.t1.team].ra += s2;
+      t[g.t2.team].rf += s2; t[g.t2.team].ra += s1;
+    }
+  });
+  if (!order.length) return null;
+  order.sort();
+  return order.map(function (k) {
+    var rows = Object.keys(groups[k].teams).map(function (nm) { return groups[k].teams[nm]; });
+    rows.sort(function (a, b) {
+      if (b.w !== a.w) return b.w - a.w;
+      var da = a.rf - a.ra, db = b.rf - b.ra;
+      if (db !== da) return db - da;
+      if (b.rf !== a.rf) return b.rf - a.rf;
+      return a.name < b.name ? -1 : 1;
+    });
+    return { label: groups[k].label, rows: rows };
+  });
+}
+
+function standingsHTML() {
+  var gs = standingsGroups();
+  if (!gs) return '';
+  var html = '<div class="standings-block">';
+  gs.forEach(function (g) {
+    html += '<div class="standings-group">'
+      + '<div class="standings-hdr">' + esc(g.label) + '</div>'
+      + '<div class="standings-card"><table class="standings-table">'
+      + '<thead><tr><th class="standings-team-th">Team</th><th>W</th><th>L</th>'
+      + '<th>RF</th><th>RA</th><th>+/-</th></tr></thead><tbody>';
+    g.rows.forEach(function (r) {
+      var diff = r.rf - r.ra;
+      html += '<tr><td class="standings-team">' + seedChip(r.name) + esc(r.name) + '</td>'
+        + '<td>' + r.w + '</td><td>' + r.l + '</td>'
+        + '<td>' + r.rf + '</td><td>' + r.ra + '</td>'
+        + '<td class="' + (diff > 0 ? 'standings-diff-pos' : diff < 0 ? 'standings-diff-neg' : '') + '">'
+        + (diff > 0 ? '+' : '') + diff + '</td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+  });
+  return html + '</div>';
+}
+
 function renderScheduleView() {
   updateScheduleFlightTabs();
 
@@ -2523,7 +2597,7 @@ function renderScheduleView() {
     html += '</div></div>';
   });
 
-  document.getElementById('roundGames').innerHTML = html;
+  document.getElementById('roundGames').innerHTML = standingsHTML() + html;
   updateSchedViewDropdown(groups);
   setupSchedObserver();
   applyStickyOffsets();
@@ -2829,6 +2903,31 @@ function renderTeamView(){
   // Team name label intentionally omitted — the selector bar always shows
   // which team is being viewed, so a heading here is redundant.
   var html='';
+
+  // Record summary: wins-losses plus run totals where scores were entered.
+  var rec = { gp: 0, w: 0, l: 0, rf: 0, ra: 0, scored: false };
+  Object.keys(GAMES).forEach(function(sid){
+    var g = GAMES[sid];
+    if (g.bye) return;
+    var r = results[sid];
+    if (!r || !r.winner) return;
+    var p1 = resolveSlot(g.t1, results), p2 = resolveSlot(g.t2, results);
+    if (p1 !== team && p2 !== team) return;
+    rec.gp++;
+    if (r.winner === team) rec.w++; else if (r.loser === team) rec.l++;
+    var s1 = parseInt(r.t1score, 10), s2 = parseInt(r.t2score, 10);
+    if (!isNaN(s1) && !isNaN(s2)) {
+      rec.scored = true;
+      rec.rf += (p1 === team ? s1 : s2);
+      rec.ra += (p1 === team ? s2 : s1);
+    }
+  });
+  if (rec.gp) {
+    html += '<div class="team-record-bar">' + rec.w + '\u2013' + rec.l
+      + '<span class="team-record-detail"> \u00b7 ' + rec.gp + ' played'
+      + (rec.scored ? ' \u00b7 ' + rec.rf + ' for / ' + rec.ra + ' against' : '')
+      + '</span></div>';
+  }
 
   var winChain=buildWinChain(firstGid);
   var r0=results[firstGid]||{};

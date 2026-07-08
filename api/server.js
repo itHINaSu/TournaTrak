@@ -898,8 +898,11 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
   // topology-free schedule actually reads. Single-elim leaves labels alone —
   // its two sides are just bracket halves.
   const fmt = FORMATS[format];
-  if (fmt && (fmt.sideLabels || fmt.scheduleFirst)) {
+  {
     const settings = await store.get(req.tid, 'settings');
+    // Persist which format generated this schedule — the public page uses it
+    // to decide whether a standings table applies (round robin / pools).
+    settings.format = format;
     if (fmt.sideLabels) {
       settings.leftLabel = fmt.sideLabels[0];
       settings.rightLabel = fmt.sideLabels[1];
