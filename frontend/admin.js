@@ -2676,10 +2676,35 @@ function quickRowHTML(sid) {
     + '</div>';
 }
 
+async function swissPairNextRound() {
+  var btn = document.getElementById('swissPairBtn');
+  if (btn) btn.disabled = true;
+  try {
+    var r = await apiFetch('/api/schedule/swiss-next-round', { method: 'POST' });
+    if (!r) return;
+    var d = await r.json().catch(function(){ return {}; });
+    if (!r.ok) { showToast(d.error || 'Pairing failed', true); return; }
+    showToast('Round ' + d.round + (d.of ? ' of ' + d.of : '') + ' paired \u2014 ' + d.games + ' games added');
+    await fetchAll();
+    renderQuickEditor();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 function renderQuickEditor() {
   var list = document.getElementById('quickEditorList');
   if (!list) return;
   var html = '';
+
+  // Swiss: rounds beyond the first are drawn from standings on demand.
+  if (settings.format === 'swiss') {
+    html += '<div class="swiss-bar">'
+      + '<button class="admin-save-btn" id="swissPairBtn" type="button" data-action="swissPair">Pair next round</button>'
+      + '<span class="swiss-bar-hint">Enter every result for the current round, then pair the next one from the standings (no rematches). '
+      + esc(String(settings.swissRounds || '')) + ' rounds planned.</span>'
+      + '</div>';
+  }
 
   // Main bracket rounds — plain headers, occupied slots only.
   ROUND_ORDER.forEach(function(round) {
@@ -2961,6 +2986,7 @@ async function saveTeams() {
 // Explicit allowlist replacing the old inline onclick/onchange/onsubmit
 // attributes, so the CSP can drop script-src 'unsafe-inline'.
 Object.assign(TT_ACTIONS, {
+  swissPair: function() { swissPairNextRound(); },
   // header / account
   doLogout:            function() { doLogout(); },
   saveUsername:        function() { saveUsername(); },

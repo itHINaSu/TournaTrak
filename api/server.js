@@ -5,7 +5,7 @@ const fs      = require('fs');
 const crypto  = require('crypto');
 
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
-const { FORMATS, generateSchedule } = require('./schedule-formats');
+const { FORMATS, generateSchedule, pairSwissRound, swissRounds } = require('./schedule-formats');
 const store = require('./store');
 
 // FRONTEND_DIR/DATA_DIR default to the container mount points; overridable so
@@ -682,7 +682,11 @@ api.get('/results', ah(async (req, res) => {
 }));
 
 api.get('/schedule', ah(async (req, res) => {
-  res.setHeader('Cache-Control', 'public, max-age=60');
+  // no-cache (revalidate every time): the quick editor and Swiss pairing
+  // mutate the schedule and immediately re-read it, and the public live
+  // poll promises edits within one 20s cycle — a 60s browser cache made
+  // both read stale copies.
+  res.setHeader('Cache-Control', 'no-cache');
   res.json(await store.get(req.tid, 'schedule'));
 }));
 
@@ -903,6 +907,8 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
     // Persist which format generated this schedule — the public page uses it
     // to decide whether a standings table applies (round robin / pools).
     settings.format = format;
+    if (fmt && fmt.swiss) settings.swissRounds = String(swissRounds((req.body.teams || []).length));
+    else delete settings.swissRounds;
     if (fmt.sideLabels) {
       settings.leftLabel = fmt.sideLabels[0];
       settings.rightLabel = fmt.sideLabels[1];
@@ -940,6 +946,29 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
   }
 
   res.json({ ok: true, games: Object.keys(schedule).length });
+}));
+
+// Swiss: pair the next round from current standings. The generator only
+// emits round 1; each later round exists only after the TD asks for it,
+// because its pairings depend on results (same record, no rematches).
+api.post('/schedule/swiss-next-round', requireAdmin, ah(async (req, res) => {
+  const settings = await store.get(req.tid, 'settings');
+  if (settings.format !== 'swiss') {
+    return res.status(400).json({ error: 'This tournament is not a Swiss format' });
+  }
+  const schedule = await store.get(req.tid, 'schedule');
+  const results = await store.get(req.tid, 'results');
+  let out;
+  try {
+    out = pairSwissRound(schedule, results, parseInt(settings.swissRounds, 10) || 0);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  const merged = Object.assign({}, schedule, out.entries);
+  const verr = validateSchedule(merged);
+  if (verr) return res.status(500).json({ error: 'Paired round failed validation: ' + verr });
+  await store.put(req.tid, 'schedule', merged);
+  res.json({ ok: true, round: out.round, of: parseInt(settings.swissRounds, 10) || 0, games: Object.keys(out.entries).length });
 }));
 
 api.post('/settings', requireAdmin, ah(async (req, res) => {

@@ -2531,7 +2531,7 @@ function scheduleCardHTML(sid) {
 // persisted server-side in settings.format.
 function standingsGroups() {
   var fmt = getSetting('format');
-  if (fmt !== 'round-robin' && fmt !== 'round-robin-double' && fmt !== 'pools') return null;
+  if (fmt !== 'round-robin' && fmt !== 'round-robin-double' && fmt !== 'pools' && fmt !== 'swiss') return null;
   var groups = {}, order = [];
   Object.keys(GAMES).forEach(function (sid) {
     var g = GAMES[sid];

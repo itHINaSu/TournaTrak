@@ -1090,3 +1090,21 @@ input[type="time"]:focus {
 .bld-muted--pad { padding: 1em; }
 .admin-subtitle--pad { padding: 0.5em 0; }
 .admin-subtitle--flush { margin: 0; }
+
+/* ── Swiss pairing bar (quick editor, swiss format only) ── */
+.swiss-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  flex-wrap: wrap;
+  padding: 0.7em 0;
+  border-bottom: 0.07em solid var(--border);
+  margin-bottom: 0.6em;
+}
+.swiss-bar-hint {
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  flex: 1;
+  min-width: 14em;
+}
