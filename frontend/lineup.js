@@ -298,7 +298,11 @@ function confirmImport() {
     showStatus('Lineup imported — save to confirm');
   };
 
-  if (hasCurrentData() && !window.confirm('Replace the current lineup with the imported one?')) return;
+  if (hasCurrentData()) {
+    ttConfirm('Replace the current lineup with the imported one?', { okLabel: 'Replace' })
+      .then(function (ok) { if (ok) doImport(); });
+    return;
+  }
   doImport();
 }
 

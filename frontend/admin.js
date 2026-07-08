@@ -1485,7 +1485,7 @@ function fallbackCopy(text) {
 }
 
 async function regenerateToken(username) {
-  if (!confirm('Regenerate access link for "' + username + '"?\nThe old link will stop working immediately.')) return;
+  if (!await ttConfirm('Regenerate access link for "' + username + '"?\nThe old link will stop working immediately.', { okLabel: 'Regenerate', danger: true })) return;
   var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/regenerate-token', { method: 'POST' });
   if (!r) return;
   var data = await r.json().catch(function(){ return {}; });
@@ -1554,7 +1554,7 @@ async function deleteUser(username, el) {
   var prompt = revokeOnly
     ? 'Remove "' + username + '" from this tournament? Their account and access to other tournaments are kept.'
     : 'Delete user "' + username + '"? This cannot be undone.';
-  if (!confirm(prompt)) return;
+  if (!await ttConfirm(prompt, { okLabel: revokeOnly ? 'Remove' : 'Delete', danger: true })) return;
   var r = await apiFetch('/api/users/' + encodeURIComponent(username), { method: 'DELETE' });
   if (!r) return;
   if (!r.ok) {
@@ -1628,16 +1628,16 @@ async function createTournament() {
 }
 
 async function renameTournament(slug) {
-  var newName = prompt('New name for this tournament:');
+  var newName = await ttPrompt('New name for this tournament:');
   if (newName === null) return;
   newName = newName.trim();
   if (!newName) return;
-  var newSlug = prompt('New slug (leave unchanged to keep URLs). WARNING: changing the slug breaks existing links and QR codes.', slug);
+  var newSlug = await ttPrompt('New slug (leave unchanged to keep URLs). WARNING: changing the slug breaks existing links and QR codes.', slug);
   if (newSlug === null) return;
   newSlug = newSlug.trim().toLowerCase();
   var body = { name: newName };
   if (newSlug && newSlug !== slug) {
-    if (!confirm('Change the slug from "' + slug + '" to "' + newSlug + '"? Existing /t/' + slug + ' links and QR codes will stop working.')) return;
+    if (!await ttConfirm('Change the slug from "' + slug + '" to "' + newSlug + '"? Existing /t/' + slug + ' links and QR codes will stop working.', { okLabel: 'Change slug', danger: true })) return;
     body.slug = newSlug;
   }
   var r = await apiFetch('/api/tournaments/' + encodeURIComponent(slug), {
@@ -1666,7 +1666,7 @@ async function toggleTournamentPublic(slug, el) {
 }
 
 async function deleteTournamentUI(slug) {
-  if (!confirm('Delete tournament "' + slug + '"? This permanently removes its bracket, schedule, results, lineups, and all data. This cannot be undone.')) return;
+  if (!await ttConfirm('Delete tournament "' + slug + '"? This permanently removes its bracket, schedule, results, lineups, and all data. This cannot be undone.', { okLabel: 'Delete', danger: true })) return;
   var r = await apiFetch('/api/tournaments/' + encodeURIComponent(slug), { method: 'DELETE' });
   if (!r) return;
   var d = await r.json().catch(function(){ return {}; });
@@ -2391,7 +2391,7 @@ async function addBucketTeam() {
 async function deleteBucketTeam(idx) {
   var team = _bucketTeams[idx];
   if (!team || !team.extra) return;
-  if (!confirm('Remove "' + team.name + '" from the bucket challenge?')) return;
+  if (!await ttConfirm('Remove "' + team.name + '" from the bucket challenge?', { okLabel: 'Remove', danger: true })) return;
   var r = await apiFetch('/api/buckets/teams/' + encodeURIComponent(team.name), { method: 'DELETE' });
   if (!r) return;
   if (!r.ok) { var d = await r.json().catch(function(){ return {}; }); showToast(d.error || 'Remove failed', true); return; }
@@ -2502,7 +2502,7 @@ async function addCoachTeam(username) {
 }
 
 async function removeCoachTeam(username, teamName) {
-  if (!confirm('Remove "' + teamName + '" from ' + username + '?')) return;
+  if (!await ttConfirm('Remove "' + teamName + '" from ' + username + '?', { okLabel: 'Remove', danger: true })) return;
   var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/teams/' + encodeURIComponent(teamName), { method: 'DELETE' });
   if (!r) return;
   var data = await r.json().catch(function(){ return {}; });

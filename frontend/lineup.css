@@ -263,7 +263,7 @@
   font-weight: 600;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 720px) {
   .lineup-td-num { width: 3.5em; }
   .lineup-inp--num { padding: 0.4em 0.2em; }
 }
@@ -313,7 +313,7 @@
   font-style: italic;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 720px) {
   .lineup-selectors-row { flex-direction: column; gap: 0.5em; }
 }
 

@@ -707,6 +707,15 @@ function wireEvents() {
   $('generateBtn').addEventListener('click', onGenerate);
   $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').style.display = 'none'; });
   $('confirmBtn').addEventListener('click', doGenerate);
+  // The form's state is module-level and nothing on the success path clears
+  // it, so dismissing the overlay drops the TD back on their intact settings
+  // to tweak and regenerate.
+  var doneBack = $('doneBackBtn');
+  if (doneBack) {
+    doneBack.addEventListener('click', function () {
+      $('doneOverlay').style.display = 'none';
+    });
+  }
   var doneViewPublic = $('doneViewPublicBtn');
   if (doneViewPublic) {
     doneViewPublic.addEventListener('click', function (e) {

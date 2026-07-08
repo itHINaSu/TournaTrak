@@ -129,7 +129,14 @@ document.addEventListener('focusin', function(e) {
   var btn = document.getElementById('themeToggle');
   function applyLight(light) {
     document.body.classList.toggle('light', light);
-    if (btn) btn.textContent = light ? '🌙 Dark' : '☀ Light';
+    // Icon-only: the sun/moon shows the CURRENT theme; the action lives in
+    // the accessible name. A text label reading "Light"/"Dark" was ambiguous
+    // (current state vs switch-to target).
+    if (btn) {
+      btn.textContent = light ? '☀' : '🌙';
+      btn.setAttribute('aria-label', light ? 'Switch to dark theme' : 'Switch to light theme');
+      btn.title = light ? 'Switch to dark theme' : 'Switch to light theme';
+    }
     document.dispatchEvent(new CustomEvent('tt:themechange', { detail: { light: light } }));
   }
   var saved = storageGet(PREF_KEY);
@@ -147,3 +154,84 @@ document.addEventListener('focusin', function(e) {
     btn.addEventListener('touchend', function(e) { e.preventDefault(); toggleTheme(); });
   }
 })();
+
+// ── In-app dialogs (replace window.confirm / window.prompt) ─────────────
+// Native dialogs block the main thread, look foreign, and are hostile on
+// mobile. These build a small modal from elements + classes (CSP-safe, no
+// inline styles), trap focus inside it, close on Escape / backdrop tap, and
+// return focus to the opener. ttConfirm resolves boolean; ttPrompt resolves
+// the entered string or null on cancel.
+function ttDialog(opts) {
+  return new Promise(function (resolve) {
+    var prev = document.activeElement;
+    var overlay = document.createElement('div');
+    overlay.className = 'tt-dialog-overlay';
+    var box = document.createElement('div');
+    box.className = 'tt-dialog';
+    box.setAttribute('role', 'alertdialog');
+    box.setAttribute('aria-modal', 'true');
+    var msg = document.createElement('div');
+    msg.className = 'tt-dialog-msg';
+    msg.textContent = opts.message;
+    box.appendChild(msg);
+    var inp = null;
+    if (opts.input !== undefined) {
+      inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'tt-dialog-input';
+      inp.value = opts.input == null ? '' : String(opts.input);
+      box.appendChild(inp);
+    }
+    var row = document.createElement('div');
+    row.className = 'tt-dialog-actions';
+    var cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'tt-dialog-btn';
+    cancel.textContent = opts.cancelLabel || 'Cancel';
+    var ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'tt-dialog-btn tt-dialog-btn--primary'
+      + (opts.danger ? ' tt-dialog-btn--danger' : '');
+    ok.textContent = opts.okLabel || 'OK';
+    row.appendChild(cancel);
+    row.appendChild(ok);
+    box.appendChild(row);
+    overlay.appendChild(box);
+
+    function close(val) {
+      document.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+      if (prev && prev.focus) { try { prev.focus(); } catch (e) {} }
+      resolve(val);
+    }
+    var cancelVal = inp ? null : false;
+    function submit() { close(inp ? inp.value : true); }
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); close(cancelVal); return; }
+      if (e.key === 'Enter' && (document.activeElement === inp)) {
+        e.preventDefault(); submit(); return;
+      }
+      if (e.key === 'Tab') {
+        // Cycle focus within the dialog only.
+        var f = inp ? [inp, cancel, ok] : [cancel, ok];
+        var i = f.indexOf(document.activeElement);
+        e.preventDefault();
+        var n = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1)
+                           : (i === -1 || i === f.length - 1 ? 0 : i + 1);
+        f[n].focus();
+      }
+    }
+    cancel.addEventListener('click', function () { close(cancelVal); });
+    ok.addEventListener('click', submit);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(cancelVal); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(overlay);
+    if (inp) { inp.focus(); inp.select(); } else { ok.focus(); }
+  });
+}
+function ttConfirm(message, opts) {
+  return ttDialog(Object.assign({ message: message }, opts || {}));
+}
+function ttPrompt(message, initial, opts) {
+  return ttDialog(Object.assign({ message: message, input: initial == null ? '' : initial }, opts || {}));
+}

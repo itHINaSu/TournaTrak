@@ -250,3 +250,73 @@ select:focus-visible,
 /* Per-tournament header logo (white-label). Set via img.src from the
    validated theme-colors logo data URI; hidden when none is configured. */
 .site-logo { height: 2.4em; width: auto; max-width: 6em; object-fit: contain; border-radius: 0.25em; margin-right: 0.15em; align-self: center; }
+
+/* ── tt-dialog: shared in-app confirm/prompt (tt-common.js ttDialog) ── */
+.tt-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1em;
+}
+.tt-dialog {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: 0.5em;
+  padding: 1.3em 1.3em 1.1em;
+  width: min(92vw, 26em);
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+}
+.tt-dialog-msg {
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-md);
+  color: var(--text);
+  line-height: 1.5;
+  white-space: pre-line;   /* messages use \n for emphasis lines */
+}
+.tt-dialog-input {
+  font-family: 'Barlow', sans-serif;
+  font-size: max(1rem, 16px);
+  padding: 0.45em 0.55em;
+  border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+}
+.tt-dialog-input:focus { outline: 0.13em solid var(--blue-lt); border-color: var(--blue-lt); }
+.tt-dialog-actions {
+  display: flex;
+  gap: 0.6em;
+  justify-content: flex-end;
+}
+.tt-dialog-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--btn-font-size);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: var(--btn-pad-v) 1.1em;
+  border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.tt-dialog-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.tt-dialog-btn--primary {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.tt-dialog-btn--primary:hover { opacity: 0.88; color: #fff; }
+.tt-dialog-btn--danger {
+  background: var(--lose-color);
+  border-color: var(--lose-color);
+}
+@media (pointer: coarse) { .tt-dialog-btn { min-height: 44px; } }
