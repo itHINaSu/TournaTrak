@@ -697,7 +697,13 @@ api.get('/offsets', ah(async (req, res) => {
 }));
 
 api.get('/settings', ah(async (req, res) => {
-  res.setHeader('Cache-Control', 'public, max-age=300');
+  // no-cache (revalidate every load), NOT max-age: settings now carry the
+  // landing tab, format, and display names that /schedule/generate rewrites.
+  // A max-age here let browsers (and any shared proxy, via 'public') serve
+  // 5-minute-stale settings right after a TD generated a new bracket — the
+  // public page then landed on the wrong tab with the old format's labels,
+  // reading as "my new bracket doesn't render".
+  res.setHeader('Cache-Control', 'no-cache');
   res.json(Object.assign({}, SETTINGS_DEFAULTS, await store.get(req.tid, 'settings')));
 }));
 
@@ -1013,6 +1019,9 @@ async function teamsFromSchedule(tid) {
 // schedule drop. When the schedule has no fixed team names yet, fall back to
 // the saved list so a manually-curated roster isn't wiped.
 api.get('/teams', ah(async (req, res) => {
+  // Same staleness rule as /settings: generate rewrites the seed display,
+  // so this must revalidate rather than ride the browser's heuristic cache.
+  res.setHeader('Cache-Control', 'no-cache');
   const data = await store.get(req.tid, 'teams');
   const saved = Array.isArray(data.teams) ? data.teams : [];
   const fromSched = await teamsFromSchedule(req.tid);

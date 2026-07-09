@@ -467,6 +467,12 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   padding: 2em 1em;
   font-family: 'Barlow', sans-serif;
 }
+/* "View Schedule" action inside the bracket-tab empty state */
+.bracket-empty-goto {
+  display: inline-block;
+  flex: none;
+  margin-top: 1em;
+}
 
 .round-col {
   position: relative;

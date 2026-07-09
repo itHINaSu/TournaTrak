@@ -1187,6 +1187,24 @@ function renderBracketInner(){
     renderFlightBracket(root, _bracketFlight);
     return;
   }
+  // No games belong to the bracket tree — schedule-first formats (round
+  // robin, pools, Swiss) store their games outside it, and a fresh install
+  // has no games at all. Without this guard the tree renderers silently
+  // produce nothing and the tab is a blank void.
+  var hasTreeGames = Object.keys(GAMES).some(function(gid){
+    return !GAMES[gid].tier && GAMES[gid].round !== 'R0';
+  });
+  if (!hasTreeGames) {
+    var fmt = getSetting('format');
+    var schedFirst = fmt === 'round-robin' || fmt === 'round-robin-double' || fmt === 'pools' || fmt === 'swiss';
+    root.innerHTML = '<div class="flight-empty">'
+      + (schedFirst
+          ? 'This format plays out on the schedule — there is no bracket tree.<br>'
+            + '<button class="flight-pill bracket-empty-goto" data-action="gotoScheduleTab">View Schedule &amp; Standings</button>'
+          : (Object.keys(GAMES).length ? 'No bracket games yet.' : 'No games yet.'))
+      + '</div>';
+    return;
+  }
   var dims=getDims();
   applyCSSVars(dims);
   if(dims.isDesktop){
@@ -3341,6 +3359,10 @@ Object.assign(TT_ACTIONS, {
     updateProjectBar();
   },
   toggleBracketEdit: function() { toggleBracketEdit(); },
+  gotoScheduleTab:   function() {
+    var tab = document.querySelector('.view-tab[data-view="schedule"]');
+    if (tab) tab.click();
+  },
   enterBucketEdit:   function() { enterBucketEdit(); },
   saveBucketEdit:    function() { saveBucketEdit(); },
   exitBucketEdit:    function() { exitBucketEdit(); },
