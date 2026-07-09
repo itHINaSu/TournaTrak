@@ -1187,16 +1187,18 @@ function renderBracketInner(){
     renderFlightBracket(root, _bracketFlight);
     return;
   }
-  // No games belong to the bracket tree — schedule-first formats (round
-  // robin, pools, Swiss) store their games outside it, and a fresh install
-  // has no games at all. Without this guard the tree renderers silently
-  // produce nothing and the tab is a blank void.
+  // Schedule-first formats (round robin, pools, Swiss) have no bracket
+  // topology — their games are laid into R1+ slots purely for STORAGE, so a
+  // structural "any tree games?" test can't distinguish them; gate on the
+  // generating format instead. Without this guard the tree renderers draw
+  // those storage slots as a meaningless bracket. Also cover a tournament
+  // with no games at all (fresh install), which otherwise renders a void.
+  var fmt = getSetting('format');
+  var schedFirst = fmt === 'round-robin' || fmt === 'round-robin-double' || fmt === 'pools' || fmt === 'swiss';
   var hasTreeGames = Object.keys(GAMES).some(function(gid){
     return !GAMES[gid].tier && GAMES[gid].round !== 'R0';
   });
-  if (!hasTreeGames) {
-    var fmt = getSetting('format');
-    var schedFirst = fmt === 'round-robin' || fmt === 'round-robin-double' || fmt === 'pools' || fmt === 'swiss';
+  if (schedFirst || !hasTreeGames) {
     root.innerHTML = '<div class="flight-empty">'
       + (schedFirst
           ? 'This format plays out on the schedule — there is no bracket tree.<br>'
