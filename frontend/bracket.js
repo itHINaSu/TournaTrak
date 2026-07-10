@@ -1275,6 +1275,15 @@ function renderFlightBracket(root, tier) {
   });
   html += '</div>';
   root.innerHTML = html;
+
+  // Cross-view jump hook (Team Path card tap) — same contract as the
+  // desktop/mobile tree renderers install for their layouts.
+  window._bracketJumpToGid = function(gid) {
+    var card = root.querySelector('.bc[data-gid="' + gid + '"]');
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    holdHighlight(card);
+  };
 }
 
 // Show the Open/A/B pill row only for tiered tournaments; keep the active
@@ -3173,12 +3182,18 @@ function renderTeamView(){
 }
 
 // Switch to the Bracket tab and scroll/flash the given game's card.
-// Each bracket renderer (desktop/mobile) installs its own
+// Each bracket renderer (desktop/mobile/flight) installs its own
 // window._bracketJumpToGid so the jump matches the active layout.
 function jumpToBracketGame(gid){
   var tab=document.querySelector('.view-tab[data-view="bracket"]');
   if(!tab) return;
   tab.click(); // reuses the normal tab-switch path (render + cookie)
+  // Tier games (A/B drop brackets) only exist in their flight's view —
+  // switch the flight to match before jumping; a main-tree game likewise
+  // switches back to the Open tree if a flight was showing.
+  var g = GAMES[gid];
+  var wantFlight = (g && (g.tier === 'A' || g.tier === 'B')) ? g.tier : 'open';
+  if (_bracketFlight !== wantFlight) setBracketFlight(wantFlight);
   setTimeout(function(){
     if(typeof window._bracketJumpToGid==='function') window._bracketJumpToGid(gid);
   },80);
