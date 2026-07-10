@@ -640,6 +640,29 @@ function bindSourceFilters(container) {
   });
 }
 
+// One "Team N" field of an occupied card: a fixed-name input and the
+// winner/loser source dropdowns, with a toggle to flip between them. Only
+// the visible control is read on save, so a game already in the bracket can
+// be rewired from a typed name to "winner/loser of game X" (or back).
+function teamFieldHTML(sid, n) {
+  var g    = GAMES[sid];
+  var over = schedule[sid] || {};
+  var side = g['t' + n];
+  var isFixed = side.type === 'fixed';
+  var name    = over['t' + n + 'name'] || (isFixed ? side.team : '');
+  var curType = over['t' + n + 'type'] || (isFixed ? 'winner' : side.type);
+  var curSlot = over['t' + n + 'slot'] || (isFixed ? '' : side.slot);
+  return '<div class="sched-field"><label>Team ' + n
+    + ' <label class="sched-src-toggle"><input type="checkbox" class="sched-src-chk"'
+    + ' data-sid="' + esc(sid) + '" data-side="' + n + '"' + (isFixed ? '' : ' checked') + '>'
+    + 'use game result</label></label>'
+    + '<input type="text" id="st' + n + '-' + sid + '" value="' + esc(name) + '"'
+    + ' placeholder="Team ' + n + ' name"' + (isFixed ? '' : ' hidden') + '>'
+    + '<span id="sfeedwrap-' + n + '-' + esc(sid) + '"' + (isFixed ? ' hidden' : '') + '>'
+    + sourceDropdown('st' + n + '-' + sid, curType, curSlot)
+    + '</span></div>';
+}
+
 function occupiedCard(sid) {
   var g    = GAMES[sid];
   var over = schedule[sid] || {};
@@ -670,17 +693,12 @@ function occupiedCard(sid) {
     + datetimePairHTML('stime-' + sid, time) + '</div>';
   var slotHdr = g.round === 'R0' ? displaySlotId(sid) : (g.round + ' ' + g.side);
   h += '<div class="sched-field"><label>Bracket Slot (' + slotHdr + ')</label>'
-    + slotNumDropdown('sslot-' + sid, g.round, g.side, over.num||g.num) + '</div>';
+    + slotNumDropdown('sslot-' + sid, g.round, g.side, parseSlotId(sid).num)
+    + '<span class="sched-slot-hint">Pick a different slot and Save to move this game there '
+    + '(a game already in that slot swaps into this one).</span></div>';
 
-  h += '<div class="sched-field"><label>Team 1</label>';
-  if (t1f) h += '<input type="text" id="st1-' + sid + '" value="' + esc(over.t1name||g.t1.team) + '" placeholder="Team 1 name">';
-  else h += sourceDropdown('st1-'+sid, over.t1type||g.t1.type, over.t1slot||g.t1.slot);
-  h += '</div>';
-
-  h += '<div class="sched-field"><label>Team 2</label>';
-  if (t2f) h += '<input type="text" id="st2-' + sid + '" value="' + esc(over.t2name||g.t2.team) + '" placeholder="Team 2 name">';
-  else h += sourceDropdown('st2-'+sid, over.t2type||g.t2.type, over.t2slot||g.t2.slot);
-  h += '</div>';
+  h += teamFieldHTML(sid, 1);
+  h += teamFieldHTML(sid, 2);
 
   h += '<div class="sched-game-footer">'
     + '<button class="admin-clear-btn" data-action="clearSlot" data-arg="' + esc(sid) + '">Clear Slot</button>'
@@ -897,6 +915,24 @@ function renderScheduleEditor() {
 
   wrap.innerHTML = html;
   bindSourceFilters(wrap);
+
+  // Fixed-name ⇄ game-result toggle on occupied cards: flips which Team
+  // control is visible; saveOneGame only reads the visible one.
+  wrap.querySelectorAll('.sched-src-chk').forEach(function(chk){
+    chk.addEventListener('change', function(){
+      var sid = chk.dataset.sid, n = chk.dataset.side;
+      var inp  = document.getElementById('st' + n + '-' + sid);
+      var feed = document.getElementById('sfeedwrap-' + n + '-' + sid);
+      if (inp)  inp.hidden  = chk.checked;
+      if (feed) feed.hidden = !chk.checked;
+      if (chk.checked && feed) {
+        var sel = feed.querySelector('select[id$="-slot"]');
+        if (sel) sel.focus();
+      } else if (inp) {
+        inp.focus();
+      }
+    });
+  });
 }
 
 // revealSlot: show one empty slot and open it for editing.
@@ -946,6 +982,7 @@ async function saveOneGame(sid) {
   var st2typeEl = document.getElementById('st2-' + sid + '-type');
   var st2srcEl  = document.getElementById('st2-' + sid + '-slot');
   var status    = document.getElementById('sgstatus-' + sid);
+  var prev      = schedule[sid] || {};
   var entry     = {};
   var newLabel  = labelEl ? labelEl.value.trim() : '';
   var timeVal   = readDatetime('stime-' + sid);
@@ -954,14 +991,26 @@ async function saveOneGame(sid) {
   if (newLabel)                  entry.label  = newLabel;
   if (fieldVal)                  entry.field  = fieldVal;
   if (timeVal)                   entry.time   = timeVal;
-  if (slotEl && slotEl.value)    entry.num    = parseInt(slotEl.value);
-  if (t1El && t1El.value.trim()) entry.t1name = t1El.value.trim();
-  if (t2El && t2El.value.trim()) entry.t2name = t2El.value.trim();
-  if (st1typeEl && st1srcEl && st1srcEl.value) {
+  // The game's sort number is not edited here — carry it through. (The slot
+  // dropdown is a MOVE control now; it used to be written into num, which
+  // silently corrupted the game order instead of moving anything.)
+  if (prev.num != null)   entry.num = prev.num;
+  if (prev.bye === true)  entry.bye = true;
+  // Team sides: the occupied card shows a fixed-name input OR the
+  // winner/loser dropdowns (sched-src-chk toggles which); only the visible
+  // control counts. The empty-slot card shows both with no wrap — there the
+  // fixed name wins when both are filled, as before.
+  var w1 = document.getElementById('sfeedwrap-1-' + sid);
+  var w2 = document.getElementById('sfeedwrap-2-' + sid);
+  var name1 = (t1El && !t1El.hidden) ? t1El.value.trim() : '';
+  var name2 = (t2El && !t2El.hidden) ? t2El.value.trim() : '';
+  if (name1) entry.t1name = name1;
+  if (name2) entry.t2name = name2;
+  if (!name1 && (!w1 || !w1.hidden) && st1typeEl && st1srcEl && st1srcEl.value) {
     entry.t1type = st1typeEl.value;
     entry.t1slot = st1srcEl.value;
   }
-  if (st2typeEl && st2srcEl && st2srcEl.value) {
+  if (!name2 && (!w2 || !w2.hidden) && st2typeEl && st2srcEl && st2srcEl.value) {
     entry.t2type = st2typeEl.value;
     entry.t2slot = st2srcEl.value;
   }
@@ -977,13 +1026,54 @@ async function saveOneGame(sid) {
     showToast('Give the game a label and teams first', true);
     return;
   }
-  if (entry.t1slot === sid || entry.t2slot === sid) {
+
+  // Slot move: the Bracket Slot dropdown picks a position within this
+  // round/side. A different pick means "move this game there" — done via the
+  // same swap endpoint as bracket drag-and-drop (results/live travel with the
+  // games; an occupant of the target slot swaps into this one).
+  var g0 = GAMES[sid];
+  var targetSid = sid;
+  if (g0 && slotEl && slotEl.value) {
+    var targetN = parseInt(slotEl.value, 10);
+    if (!isNaN(targetN) && targetN !== parseSlotId(sid).num) {
+      targetSid = g0.round + '.' + g0.side + '.' + targetN;
+    }
+  }
+  if (entry.t1slot === targetSid || entry.t2slot === targetSid) {
     showToast('A game can\'t take a team from its own result', true);
     return;
   }
-  var out = Object.assign({}, schedule);
-  out[sid] = entry;
+  var moved = targetSid !== sid;
   try {
+    if (moved) {
+      var sr = await apiFetch('/api/schedule/swap', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ slotA: sid, slotB: targetSid })
+      });
+      if (!sr) return;
+      if (!sr.ok) {
+        var sd = await sr.json().catch(function(){ return {}; });
+        showToast(sd.error || 'Move failed', true);
+        return;
+      }
+      // Mirror the server-side swap locally, then save the edits at the new
+      // slot. Anything that was in the target slot now lives at the old sid.
+      var occ = schedule[targetSid];
+      schedule = Object.assign({}, schedule);
+      if (occ !== undefined) schedule[sid] = occ; else delete schedule[sid];
+      delete schedule[targetSid];
+      // Results/live scores travel with the games on the server — keep the
+      // local copies in step so the editor doesn't show a stale score.
+      [results, _liveGames].forEach(function(doc){
+        if (!doc) return;
+        var tmp = doc[sid];
+        if (doc[targetSid] !== undefined) doc[sid] = doc[targetSid]; else delete doc[sid];
+        if (tmp !== undefined) doc[targetSid] = tmp; else delete doc[targetSid];
+      });
+      sid = targetSid;
+    }
+    var out = Object.assign({}, schedule);
+    out[sid] = entry;
     var r = await apiFetch('/api/schedule', {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify(out)
@@ -992,7 +1082,7 @@ async function saveOneGame(sid) {
     if (!r.ok) throw new Error();
     schedule = out;
     if (typeof applySchedule === 'function') applySchedule(schedule);
-    showToast(gameLabel(sid) + ' saved');
+    showToast(gameLabel(sid) + (moved ? ' saved — moved to ' + displaySlotId(sid) : ' saved'));
     if (status) { status.textContent = '✓ Saved'; setTimeout(function(){ status.textContent = ''; }, 3000); }
     renderScheduleEditor();
   } catch(e) {

@@ -839,11 +839,23 @@ api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
     return res.status(400).json({ error: 'invalid slot ID' });
   if (slotA === slotB)
     return res.status(400).json({ error: 'slots must differ' });
+  const swapKeys = (doc) => {
+    const tmp = doc[slotA];
+    if (doc[slotB] !== undefined) doc[slotA] = doc[slotB]; else delete doc[slotA];
+    if (tmp !== undefined) doc[slotB] = tmp; else delete doc[slotB];
+  };
   const sched = await store.get(req.tid, 'schedule');
-  const tmp = sched[slotA];
-  if (sched[slotB] !== undefined) sched[slotA] = sched[slotB]; else delete sched[slotA];
-  if (tmp !== undefined) sched[slotB] = tmp; else delete sched[slotB];
+  swapKeys(sched);
   await store.put(req.tid, 'schedule', sched);
+  // Results and live scores are keyed by slot but belong to the games — they
+  // must travel with a swap, or a final score would jump onto whichever game
+  // lands in the old position.
+  for (const domain of ['results', 'live']) {
+    const doc = await store.get(req.tid, domain);
+    if (doc[slotA] === undefined && doc[slotB] === undefined) continue;
+    swapKeys(doc);
+    await store.put(req.tid, domain, doc);
+  }
   res.json({ ok: true });
 }));
 

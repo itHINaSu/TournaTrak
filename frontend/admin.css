@@ -1043,6 +1043,9 @@ input[type="time"]:focus {
 .quick-team-inp { width: 10em; }
 .quick-vs { color: var(--text-mute); font-size: 0.7rem; }
 .quick-feed-toggle { display: inline-flex; align-items: center; gap: 0.2em; font-size: 0.68rem; color: var(--text-dim); cursor: pointer; }
+/* Advanced-editor variant of the same toggle, sitting inside the field label */
+.sched-src-toggle { display: inline-flex; align-items: center; gap: 0.25em; font-size: 0.85em; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-dim); cursor: pointer; margin-left: 0.7em; }
+.sched-slot-hint { display: block; font-size: 0.72rem; color: var(--text-mute); margin-top: 0.25em; }
 /* Feed side's inline winner/loser + game dropdowns — sized to fit the row */
 .quick-team--feed .source-dropdown-row { display: inline-flex; align-items: center; gap: 0.3em; }
 .quick-team--feed .admin-winner-sel { font-size: 0.78rem; padding: 0.25em 0.4em; min-width: 0; }
