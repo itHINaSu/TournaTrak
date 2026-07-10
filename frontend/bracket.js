@@ -1343,15 +1343,18 @@ function setBracketFlight(f) {
   renderBracket();
 }
 
-// Show the Open/A/B pill row on the Schedule tab only for tiered tournaments;
-// keep the active pill and _schedFlight consistent when a flight has no
+// Show the Open/A/B pill row on the Schedule tab only for tiered tournaments
+// AND only when grouping by Round — Day/Field views list every bracket's
+// games together in one chronological schedule (a day at the park doesn't
+// care which bracket a game belongs to), so the filter doesn't apply there.
+// Keeps the active pill and _schedFlight consistent when a flight has no
 // games (or vanishes after a schedule change). Mirrors updateFlightTabs().
 function updateScheduleFlightTabs() {
   var row = document.getElementById('scheduleFlights');
   if (!row) return;
   var hasA = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'A'; });
   var hasB = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'B'; });
-  if (!hasA && !hasB) {
+  if ((!hasA && !hasB) || scheduleMode !== 'round') {
     row.hidden = true;
     _schedFlight = 'open';
     return;
@@ -2684,8 +2687,6 @@ function standingsHTML() {
 }
 
 function renderScheduleView() {
-  updateScheduleFlightTabs();
-
   // Initialise mode from settings on first render (persists for the session)
   if (scheduleMode === null) scheduleMode = getSetting('defaultScheduleGroup') || 'day';
 
@@ -2695,16 +2696,23 @@ function renderScheduleView() {
   if (fieldOpt) fieldOpt.disabled = !hasFields;
   if (scheduleMode === 'field' && !hasFields) scheduleMode = 'day';
 
+  // Pills read scheduleMode (they only apply to By-Round), so resolve the
+  // mode BEFORE updating them.
+  updateScheduleFlightTabs();
+
   // Sync Group dropdown
   var groupSel = document.getElementById('schedGroup');
   if (groupSel) groupSel.value = scheduleMode;
 
   // All game IDs sorted by time (TBD games sort to end via parseTimeVal→Infinity).
-  // Bye games are excluded — they aren't played, so they never appear in the schedule.
-  // Also filtered to the selected Schedule flight pill (Open/A/B), same tiers
-  // as the Bracket tab's flight switcher.
+  // Bye games are excluded — they aren't played, so they never appear in the
+  // schedule. The Open/A/B flight filter applies ONLY to the By-Round view:
+  // Day and Field are the "what's happening at the park" views, so every
+  // bracket's games list together chronologically.
+  var flightFilter = scheduleMode === 'round';
   var allSids = Object.keys(GAMES).filter(function(s) {
     if (GAMES[s].bye) return false;
+    if (!flightFilter) return true;
     if (_schedFlight === 'open') return !GAMES[s].tier;
     return GAMES[s].tier === _schedFlight;
   }).sort(function(a, b) {
