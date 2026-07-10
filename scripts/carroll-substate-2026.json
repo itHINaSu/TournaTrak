@@ -1,0 +1,368 @@
+{
+  "settings": {
+    "tournamentName": "2026 Carroll Substate",
+    "pageTitle": "2026 Carroll Substate",
+    "subtitle": "July 14–26 · Dedham Softball Field · Dedham, IA",
+    "leftLabel": "Winners Bracket",
+    "rightLabel": "Losers Bracket",
+    "bracketNameB": "B Bracket"
+  },
+  "teams": {
+    "showSeeds": false,
+    "teams": [
+      {
+        "name": "#1 Wasted Grain"
+      },
+      {
+        "name": "#2 Tropics"
+      },
+      {
+        "name": "#3 Kerps / Budweiser"
+      },
+      {
+        "name": "#4 Coors Light / Grit Bar"
+      },
+      {
+        "name": "Hoegemeyer"
+      },
+      {
+        "name": "WPT"
+      },
+      {
+        "name": "Michael's Shoes"
+      },
+      {
+        "name": "Back 80"
+      },
+      {
+        "name": "Curb Appeal"
+      },
+      {
+        "name": "Weitl Auto"
+      },
+      {
+        "name": "Templeton"
+      },
+      {
+        "name": "Dolly's"
+      },
+      {
+        "name": "High Point Roofing"
+      },
+      {
+        "name": "Schreck Bin Red"
+      },
+      {
+        "name": "Brew Crew"
+      }
+    ]
+  },
+  "schedule": {
+    "R1.L.2": {
+      "label": "Game 1",
+      "num": 1,
+      "time": "2026-07-14T18:30",
+      "t1name": "Hoegemeyer",
+      "t2name": "WPT"
+    },
+    "R1.L.3": {
+      "label": "Game 2",
+      "num": 2,
+      "time": "2026-07-14T19:20",
+      "t1name": "Michael's Shoes",
+      "t2name": "Back 80"
+    },
+    "R1.L.4": {
+      "label": "Game 3",
+      "num": 3,
+      "time": "2026-07-14T20:10",
+      "t1name": "#4 Coors Light / Grit Bar",
+      "t2name": "Curb Appeal"
+    },
+    "R1.L.5": {
+      "label": "Game 4",
+      "num": 4,
+      "time": "2026-07-15T18:30",
+      "t1name": "#3 Kerps / Budweiser",
+      "t2name": "Weitl Auto"
+    },
+    "R1.L.6": {
+      "label": "Game 5",
+      "num": 5,
+      "time": "2026-07-14T21:00",
+      "t1name": "Templeton",
+      "t2name": "Dolly's"
+    },
+    "R1.L.7": {
+      "label": "Game 6",
+      "num": 6,
+      "time": "2026-07-15T19:20",
+      "t1name": "High Point Roofing",
+      "t2name": "Schreck Bin Red"
+    },
+    "R1.L.8": {
+      "label": "Game 7",
+      "num": 7,
+      "time": "2026-07-15T20:10",
+      "t1name": "#2 Tropics",
+      "t2name": "Brew Crew"
+    },
+    "R2.L.1": {
+      "label": "Game 8",
+      "num": 8,
+      "time": "2026-07-15T21:00",
+      "t1name": "#1 Wasted Grain",
+      "t2type": "winner",
+      "t2slot": "R1.L.2"
+    },
+    "R2.L.2": {
+      "label": "Game 9",
+      "num": 9,
+      "time": "2026-07-19T14:30",
+      "t1type": "winner",
+      "t1slot": "R1.L.3",
+      "t2type": "winner",
+      "t2slot": "R1.L.4"
+    },
+    "R2.L.3": {
+      "label": "Game 10",
+      "num": 10,
+      "time": "2026-07-19T13:30",
+      "t1type": "winner",
+      "t1slot": "R1.L.5",
+      "t2type": "winner",
+      "t2slot": "R1.L.6"
+    },
+    "R2.L.4": {
+      "label": "Game 11",
+      "num": 11,
+      "time": "2026-07-17T19:20",
+      "t1type": "winner",
+      "t1slot": "R1.L.7",
+      "t2type": "winner",
+      "t2slot": "R1.L.8"
+    },
+    "QF.L.1": {
+      "label": "Game 19",
+      "num": 19,
+      "time": "2026-07-22T20:10",
+      "t1type": "winner",
+      "t1slot": "R2.L.1",
+      "t2type": "winner",
+      "t2slot": "R2.L.2"
+    },
+    "QF.L.2": {
+      "label": "Game 20",
+      "num": 20,
+      "time": "2026-07-22T19:20",
+      "t1type": "winner",
+      "t1slot": "R2.L.3",
+      "t2type": "winner",
+      "t2slot": "R2.L.4"
+    },
+    "QF2.L.1": {
+      "label": "Game 31",
+      "num": 31,
+      "time": "2026-07-24T22:30",
+      "t1type": "winner",
+      "t1slot": "QF.L.1",
+      "t2type": "winner",
+      "t2slot": "QF.L.2"
+    },
+    "R1.R.2": {
+      "label": "Game 12",
+      "num": 12,
+      "time": "2026-07-17T18:30",
+      "t1type": "loser",
+      "t1slot": "R2.L.2",
+      "t2type": "loser",
+      "t2slot": "R1.L.5"
+    },
+    "R1.R.3": {
+      "label": "Game 13",
+      "num": 13,
+      "time": "2026-07-17T21:00",
+      "t1type": "loser",
+      "t1slot": "R1.L.6",
+      "t2type": "loser",
+      "t2slot": "R1.L.7"
+    },
+    "R1.R.4": {
+      "label": "Game 14",
+      "num": 14,
+      "time": "2026-07-17T20:10",
+      "t1type": "loser",
+      "t1slot": "R1.L.2",
+      "t2type": "loser",
+      "t2slot": "R1.L.3"
+    },
+    "R2.R.1": {
+      "label": "Game 15",
+      "num": 15,
+      "time": "2026-07-21T20:10",
+      "t1type": "loser",
+      "t1slot": "R1.L.4",
+      "t2type": "winner",
+      "t2slot": "R1.R.2"
+    },
+    "R2.R.2": {
+      "label": "Game 16",
+      "num": 16,
+      "time": "2026-07-21T21:00",
+      "t1type": "loser",
+      "t1slot": "R2.L.1",
+      "t2type": "winner",
+      "t2slot": "R1.R.3"
+    },
+    "R2.R.3": {
+      "label": "Game 17",
+      "num": 17,
+      "time": "2026-07-19T16:30",
+      "t1type": "loser",
+      "t1slot": "R1.L.8",
+      "t2type": "loser",
+      "t2slot": "R2.L.3"
+    },
+    "R2.R.4": {
+      "label": "Game 18",
+      "num": 18,
+      "time": "2026-07-21T18:30",
+      "t1type": "loser",
+      "t1slot": "R2.L.4",
+      "t2type": "winner",
+      "t2slot": "R1.R.4"
+    },
+    "QF.R.1": {
+      "label": "Game 21",
+      "num": 21,
+      "time": "2026-07-22T18:30",
+      "t1type": "winner",
+      "t1slot": "R2.R.1",
+      "t2type": "winner",
+      "t2slot": "R2.R.2"
+    },
+    "QF.R.2": {
+      "label": "Game 22",
+      "num": 22,
+      "time": "2026-07-22T21:00",
+      "t1type": "winner",
+      "t1slot": "R2.R.3",
+      "t2type": "winner",
+      "t2slot": "R2.R.4"
+    },
+    "QF2.R.1": {
+      "label": "Game 23",
+      "num": 23,
+      "time": "2026-07-24T20:30",
+      "t1type": "loser",
+      "t1slot": "QF.L.2",
+      "t2type": "winner",
+      "t2slot": "QF.R.1"
+    },
+    "QF2.R.2": {
+      "label": "Game 24",
+      "num": 24,
+      "time": "2026-07-24T21:30",
+      "t1type": "loser",
+      "t1slot": "QF.L.1",
+      "t2type": "winner",
+      "t2slot": "QF.R.2"
+    },
+    "SF.R.1": {
+      "label": "Game 26",
+      "num": 26,
+      "time": "2026-07-26T12:30",
+      "t1type": "winner",
+      "t1slot": "QF2.R.1",
+      "t2type": "winner",
+      "t2slot": "QF2.R.2"
+    },
+    "SF.R.2": {
+      "label": "Game 27",
+      "num": 27,
+      "time": "2026-07-26T15:00",
+      "t1type": "loser",
+      "t1slot": "QF2.L.1",
+      "t2type": "winner",
+      "t2slot": "SF.R.1"
+    },
+    "CHAMP.C.1": {
+      "label": "Game 28",
+      "num": 28,
+      "time": "2026-07-26T16:30",
+      "t1type": "winner",
+      "t1slot": "QF2.L.1",
+      "t2type": "winner",
+      "t2slot": "SF.R.2"
+    },
+    "CHAMP2.C.1": {
+      "label": "Game 29",
+      "num": 29,
+      "time": "2026-07-26T17:30",
+      "t1type": "winner",
+      "t1slot": "CHAMP.C.1",
+      "t2type": "loser",
+      "t2slot": "CHAMP.C.1"
+    },
+    "R0.R.1": {
+      "label": "Game B1",
+      "num": 41,
+      "time": "2026-07-19T12:30",
+      "t1type": "loser",
+      "t1slot": "R1.R.2",
+      "t2type": "loser",
+      "t2slot": "R1.R.3",
+      "tier": "B"
+    },
+    "R0.R.2": {
+      "label": "Game B2",
+      "num": 42,
+      "time": "2026-07-19T15:30",
+      "t1type": "loser",
+      "t1slot": "R1.R.4",
+      "t2type": "loser",
+      "t2slot": "R2.R.1",
+      "tier": "B"
+    },
+    "R0.R.3": {
+      "label": "Game B3",
+      "num": 43,
+      "time": "2026-07-21T19:20",
+      "t1type": "loser",
+      "t1slot": "R2.R.2",
+      "t2type": "loser",
+      "t2slot": "R2.R.3",
+      "tier": "B"
+    },
+    "R0.R.9": {
+      "label": "Game B4",
+      "num": 44,
+      "time": "2026-07-24T18:30",
+      "t1type": "winner",
+      "t1slot": "R0.R.1",
+      "t2type": "winner",
+      "t2slot": "R0.R.2",
+      "tier": "B"
+    },
+    "R0.R.10": {
+      "label": "Game B5",
+      "num": 45,
+      "time": "2026-07-24T19:30",
+      "t1type": "winner",
+      "t1slot": "R0.R.3",
+      "t2type": "loser",
+      "t2slot": "R2.R.4",
+      "tier": "B"
+    },
+    "R0.R.13": {
+      "label": "Game B6",
+      "num": 46,
+      "time": "2026-07-26T14:00",
+      "t1type": "winner",
+      "t1slot": "R0.R.9",
+      "t2type": "winner",
+      "t2slot": "R0.R.10",
+      "tier": "B"
+    }
+  }
+}
