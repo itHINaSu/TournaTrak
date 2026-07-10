@@ -1140,13 +1140,17 @@ function mergedResults(){
 function updateProjectBar(){
   var t = document.getElementById('projectToggleBtn');
   if (!t) return;
+  var bar = document.getElementById('projectBar');
   var c = document.getElementById('projectClearBtn');
   var h = document.getElementById('projectHint');
-  t.classList.toggle('project-toggle--on', _projectMode);
+  t.classList.toggle('admin-btn-active', _projectMode);
   t.textContent = _projectMode ? 'Done picking' : 'Project winners';
   var n = Object.keys(_projected).length;
   if (c) { c.hidden = !n; c.textContent = 'Clear picks (' + n + ')'; }
   if (h) h.hidden = !_projectMode;
+  // The bar only carries the hint + clear button now — show it only while
+  // projecting or when picks are still overlaid on the bracket.
+  if (bar) bar.hidden = !(_projectMode || n);
 }
 
 function onProjectTap(e){
@@ -3283,10 +3287,12 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   var lineupBtn      = document.getElementById('lineupPortalBtn');
   var editBtn        = document.getElementById('bucketEditBtn');
   var bracketEditBtn = document.getElementById('bracketEditBtn');
+  var projectBtn     = document.getElementById('projectToggleBtn');
   if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
   if (lineupBtn)      lineupBtn.hidden = !((_sessionRole === 'team'));
   if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
   if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));
+  if (projectBtn)     projectBtn.hidden = !((_sessionRole === 'admin'));
   // PWA home preference: redirect to admin if user prefers it and is in standalone mode
   if (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) {
     var pref; try { pref = localStorage.getItem('ttPwaHome'); } catch(e) {}
@@ -3351,9 +3357,16 @@ document.addEventListener('visibilitychange', function() {
 // ── Delegated actions (see tt-common.js) ──────────────────────────────
 Object.assign(TT_ACTIONS, {
   toggleProject: function() {
+    if (_sessionRole !== 'admin') return;   // admin-only (button is hidden too)
     _projectMode = !_projectMode;
     if (_projectMode && _bracketEditMode) toggleBracketEdit();  // mutually exclusive
     updateProjectBar();
+    // The toggle lives in the header (visible on every tab) but projecting
+    // happens on the bracket — jump there when turning it on, like Edit does.
+    if (_projectMode && activeView() !== 'bracket') {
+      var tab = document.querySelector('.view-tab[data-view="bracket"]');
+      if (tab) tab.click();
+    }
   },
   clearProjections: function() {
     _projected = {};
