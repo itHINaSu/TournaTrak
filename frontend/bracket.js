@@ -1070,7 +1070,17 @@ function computeLBPositions(slotVh) {
       if (!slotDef || slotDef.type !== 'winner') return;
       var fg = GAMES[slotDef.slot];
       if (!fg || fg.side !== 'R') return;
-      posMap[slotDef.slot] = clamp(wbSFMidTop);
+      // Pin only if no sibling in the same column already sits at that
+      // height — when the LB final shares its column with the LB semi
+      // (SF.R.1 + SF.R.2), the semi's feeder-midpoint can land exactly on
+      // the championship row and the pin would stack the two cards.
+      var pinned = clamp(wbSFMidTop);
+      var ci = colIndexOfRound(fg.round);
+      var collides = ci !== -1 && cols[ci].games.some(function(e) {
+        return e.gid !== slotDef.slot && posMap[e.gid] !== undefined
+          && Math.abs(posMap[e.gid] - pinned) < slotVh * CARD_RATIO;
+      });
+      if (!collides) posMap[slotDef.slot] = pinned;
     });
   }
 
@@ -1403,12 +1413,31 @@ function renderDesktopBracket(root,dims){
       });
       if (_bracketEditMode) {
         var usedSlots = {};
-        col.games.forEach(function(e) { usedSlots[e.slot] = true; });
+        var occTops = [];
+        col.games.forEach(function(e) {
+          usedSlots[e.slot] = true;
+          occTops.push(isRight && lbPosMap[e.gid] !== undefined
+            ? lbPosMap[e.gid]
+            : slotTopVh(col.round, e.slot, slotVh, col.side));
+        });
+        // slotTopVh's row grid only counts OCCUPIED slots, so an empty slot
+        // numbered past the grid (SF.R.3 in a 2-row column) would land below
+        // the column, off-screen. Only offer empties that fit the current
+        // grid, and skip any whose row is already covered by an occupied
+        // card (LB columns position occupied games by feeder geometry, not
+        // slot number, so the two can land on the same row). Precise moves
+        // to any slot stay available in the Advanced schedule editor.
+        var colN = Math.max(col.games.length,
+          col.games.reduce(function(mx, e) { return Math.max(mx, e.slot); }, 0)) || 1;
         var slotNums = (SLOT_DEFS[col.round] && SLOT_DEFS[col.round][col.side]) || [];
         slotNums.forEach(function(sn) {
-          if (usedSlots[sn]) return;
-          var slotId = col.round + '.' + col.side + '.' + sn;
+          if (usedSlots[sn] || sn > colN) return;
           var topVh = slotTopVh(col.round, sn, slotVh, col.side);
+          var covered = occTops.some(function(t) {
+            return Math.abs(t - topVh) < slotVh * CARD_RATIO;
+          });
+          if (covered) return;
+          var slotId = col.round + '.' + col.side + '.' + sn;
           cardsHTML += '<div class="bc bc-empty-slot" data-slot="'+esc(slotId)+'" data-css="top:'+topVh+'vh"></div>';
         });
       }
