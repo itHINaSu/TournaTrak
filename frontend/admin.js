@@ -220,6 +220,7 @@ function populateSettingsFields() {
   });
   onLineupPresetChange();
   _logoDataUri = (_themeColors && _themeColors.logo) || null;
+  _logoIconUri = (_themeColors && _themeColors.icon) || null;
   syncLogoUI();
 }
 
@@ -252,6 +253,7 @@ async function saveSettings() {
     if (inp) themeColors[key] = inp.value;
   });
   if (_logoDataUri) themeColors.logo = _logoDataUri;
+  if (_logoIconUri) themeColors.icon = _logoIconUri;
   var fieldColors = {};
   document.querySelectorAll('.field-color-picker:not(.theme-color-picker)').forEach(function(inp) {
     if (inp.dataset.field) fieldColors[inp.dataset.field] = inp.value;
@@ -1785,9 +1787,37 @@ function savePwaHome(val) {
 // tall, so shrinking to a few hundred px loses nothing visible and any
 // photo/export straight off a design tool "just works".
 var _logoDataUri = null;
+var _logoIconUri = null;        // square PNG PWA/home-screen icon derived from the logo
 var LOGO_MAX_URI = 48 * 1024;   // matches the server's LOGO_MAX_CHARS cap
 var LOGO_MAX_H = 144;           // ~3x the rendered header height (retina)
 var LOGO_MAX_W = 288;
+var ICON_MAX_URI = 192 * 1024;  // matches the server's ICON_MAX_CHARS cap
+
+// Render the logo centered on a square white tile for the PWA / home-screen
+// icon. Always PNG — iOS ignores WebP touch icons — and white rather than
+// transparent because iOS composites transparency onto black. Shrinks the
+// tile if a very complex logo overruns the cap. cb(uri) or cb(null).
+function makeLogoIcon(srcUri, cb) {
+  var img = new Image();
+  img.onload = function() {
+    for (var size = 512; size >= 128; size = size / 2) {
+      var canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+      var pad = size * 0.08;
+      var scale = Math.min((size - 2 * pad) / img.width, (size - 2 * pad) / img.height);
+      var w = img.width * scale, h = img.height * scale;
+      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      var out = canvas.toDataURL('image/png');
+      if (out.length <= ICON_MAX_URI) return cb(out);
+    }
+    cb(null);
+  };
+  img.onerror = function() { cb(null); };
+  img.src = srcUri;
+}
 
 // Draw the image onto a shrinking canvas until the encoded data URI fits
 // the server cap. WebP encodes smallest and keeps transparency; browsers
@@ -1815,6 +1845,15 @@ function downscaleLogo(srcUri, cb) {
   img.src = srcUri;
 }
 
+// The branding subset of theme-colors (logo + derived PWA icon) — what a
+// color reset preserves.
+function _logoBrand() {
+  var out = {};
+  if (_logoDataUri) out.logo = _logoDataUri;
+  if (_logoIconUri) out.icon = _logoIconUri;
+  return out;
+}
+
 function syncLogoUI() {
   var img = document.getElementById('logoPreview');
   var rm  = document.getElementById('logoRemoveBtn');
@@ -1834,6 +1873,9 @@ function pickLogo(val, el) {
   var reader = new FileReader();
   reader.onload = function() {
     var uri = reader.result;
+    // The PWA icon renders from the ORIGINAL image (full resolution),
+    // independent of the header-logo downscale.
+    makeLogoIcon(uri, function(icon) { _logoIconUri = icon; });
     if (uri.length <= LOGO_MAX_URI) {
       _logoDataUri = uri;
       syncLogoUI();
@@ -1856,6 +1898,7 @@ function pickLogo(val, el) {
 
 function removeLogo() {
   _logoDataUri = null;
+  _logoIconUri = null;
   var inp = document.getElementById('logoFileInput');
   if (inp) inp.value = '';
   syncLogoUI();
@@ -1991,12 +2034,13 @@ async function resetTheme() {
   var statusEl = document.getElementById('themeResetStatus');
   try {
     var [r1, r2] = await Promise.all([
-      // Reset colors but keep the tournament logo — branding isn't a color default.
-      apiFetch('/api/theme-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(_logoDataUri ? { logo: _logoDataUri } : {}) }),
+      // Reset colors but keep the tournament logo + PWA icon — branding
+      // isn't a color default.
+      apiFetch('/api/theme-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(_logoBrand()) }),
       apiFetch('/api/field-colors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }),
     ]);
     if (!r1 || !r1.ok || !r2 || !r2.ok) throw new Error();
-    _themeColors = _logoDataUri ? { logo: _logoDataUri } : {};
+    _themeColors = _logoBrand();
     _fieldColors = {};
     applyThemeColors();
     renderThemeSection();

@@ -113,6 +113,16 @@ async function buildIndexHtml(tid) {
   const desc    = escHtml(s.subtitle       || '');
   let html = fs.readFileSync(FRONTEND_INDEX, 'utf8');
   html = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
+  // iOS home-screen icon follows the uploaded tournament icon. Only the
+  // default tournament — /pwa-icon.png serves that tournament's branding
+  // and the PWA installs against start_url '/'.
+  if (tid === store.tid) {
+    const tc = await store.get(tid, 'theme_colors');
+    if (tc && tc.icon) {
+      html = html.replace(/<link rel="apple-touch-icon" href="[^"]*">/,
+        '<link rel="apple-touch-icon" href="/pwa-icon.png">');
+    }
+  }
   const meta = [
     `  <meta property="og:title" content="${ogTitle}">`,
     `  <meta property="og:type" content="website">`,
@@ -142,10 +152,10 @@ app.set('trust proxy', 1);
 app.set('etag', false);
 
 // Body parsing — 10 kb is generous for every payload this app sends.
-// Theme-colors is the one route that may carry a small logo data URI, so it
-// gets a larger (still tight) body cap. Runs before the global 10kb parser;
-// once parsed here the global one skips the request.
-app.use(['/api/theme-colors', '/api/t/:slug/theme-colors'], express.json({ limit: '64kb' }));
+// Theme-colors is the one route that may carry logo + PWA-icon data URIs,
+// so it gets a larger (still tight) body cap. Runs before the global 10kb
+// parser; once parsed here the global one skips the request.
+app.use(['/api/theme-colors', '/api/t/:slug/theme-colors'], express.json({ limit: '256kb' }));
 app.use(express.json({ limit: '10kb' }));
 
 // In-memory login rate limiter: max 10 failures per IP per 15 minutes.
@@ -799,10 +809,14 @@ const THEME_COLOR_KEYS = ['accent', 'interactive', 'winColor', 'loseColor'];
 const LOGO_DATAURI_RE = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
 const LOGO_MAGIC = { png: [0x89, 0x50, 0x4e, 0x47], jpeg: [0xff, 0xd8, 0xff], webp: [0x52, 0x49, 0x46, 0x46] };
 const LOGO_MAX_CHARS = 48 * 1024;
-function validLogoDataUri(v) {
-  if (typeof v !== 'string' || !v || v.length > LOGO_MAX_CHARS) return false;
+// The PWA icon is a client-generated 512x512 square PNG of the logo; PNG
+// only (iOS ignores WebP touch icons) and a larger cap to fit 512px art.
+const ICON_MAX_CHARS = 192 * 1024;
+function validLogoDataUri(v, maxChars, pngOnly) {
+  if (typeof v !== 'string' || !v || v.length > (maxChars || LOGO_MAX_CHARS)) return false;
   const m = LOGO_DATAURI_RE.exec(v);
   if (!m) return false;
+  if (pngOnly && m[1] !== 'png') return false;
   let buf;
   try { buf = Buffer.from(m[2], 'base64'); } catch (e) { return false; }
   const magic = LOGO_MAGIC[m[1]];
@@ -822,7 +836,11 @@ api.post('/theme-colors', requireAdmin, ah(async (req, res) => {
     if (typeof val === 'string' && /^#[0-9a-f]{6}$/i.test(val)) clean[key] = val;
   });
   if (validLogoDataUri(incoming.logo)) clean.logo = incoming.logo;
+  if (validLogoDataUri(incoming.icon, ICON_MAX_CHARS, true)) clean.icon = incoming.icon;
   await store.put(req.tid, 'theme_colors', clean);
+  // The served index.html carries an apple-touch-icon link that follows
+  // the uploaded icon — rebuild it on the next request.
+  invalidateIndexCache(req.tid);
   res.json({ ok: true });
 }));
 
@@ -1254,6 +1272,52 @@ app.get(['/lineup', '/lineup.html'], (req, res) => {
     res.status(500).send('Server error');
   }
 });
+
+// ── PWA branding (default tournament) ─────────────────────────────────
+// The public PWA installs against start_url '/', i.e. the default
+// tournament, so its manifest and icon follow that tournament's branding.
+// /pwa-icon.png serves the admin-uploaded square icon (stored alongside
+// the logo in theme_colors), falling back to the stock trophy; the
+// manifest swaps in that icon and the tournament's name when present.
+app.get('/pwa-icon.png', ah(async (req, res) => {
+  const tc = await store.get(store.tid, 'theme_colors') || {};
+  res.setHeader('Cache-Control', 'no-cache');
+  const m = tc.icon && /^data:image\/png;base64,(.+)$/.exec(tc.icon);
+  if (m) {
+    res.setHeader('Content-Type', 'image/png');
+    return res.send(Buffer.from(m[1], 'base64'));
+  }
+  res.sendFile(FRONTEND_DIR + '/icons/trophy-512.png');
+}));
+
+app.get('/manifest.json', ah(async (req, res) => {
+  const manifest = JSON.parse(fs.readFileSync(FRONTEND_DIR + '/manifest.json', 'utf8'));
+  const [tc, s] = await Promise.all([
+    store.get(store.tid, 'theme_colors'),
+    store.get(store.tid, 'settings'),
+  ]);
+  const name = (s && s.tournamentName || '').trim();
+  if (name) {
+    manifest.name = name.slice(0, 45);
+    manifest.short_name = name.slice(0, 12);
+  }
+  if (tc && tc.icon) {
+    // Declare the icon's REAL pixel size (read from the PNG IHDR — width
+    // and height are big-endian at offsets 16/20) so browsers' declared-
+    // vs-actual checks pass. No 'maskable': Android's mask would zoom-crop
+    // a tile that isn't designed for it.
+    let sizes = '512x512';
+    const m = /^data:image\/png;base64,(.+)$/.exec(tc.icon);
+    if (m) {
+      const buf = Buffer.from(m[1], 'base64');
+      if (buf.length > 24) sizes = buf.readUInt32BE(16) + 'x' + buf.readUInt32BE(20);
+    }
+    manifest.icons = [{ src: '/pwa-icon.png', sizes, type: 'image/png' }];
+  }
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json(manifest);
+}));
 
 // Generic error handler — catches any unhandled throw in a route
 app.use((err, req, res, _next) => {
