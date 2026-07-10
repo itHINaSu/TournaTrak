@@ -1262,24 +1262,42 @@ function renderFlightBracket(root, tier) {
     root.innerHTML = '<div class="flight-empty">No ' + esc(bracketDisplayName(tier)) + ' games yet.</div>';
     return;
   }
-  var html = '<div class="flight-bracket">';
-  cols.forEach(function(gids, i) {
-    var label = (i === cols.length - 1) ? 'Final'
+  var isMobile = window.innerWidth < 1280;   // same breakpoint as getDims()
+  function colLabel(i, gids) {
+    return (i === cols.length - 1) ? 'Final'
       : (i === cols.length - 2 && gids.length <= 2) ? 'Semifinal'
       : 'Round ' + (i + 1);
-    html += '<div class="flight-col"><div class="flight-col-hdr">' + esc(label) + '</div>';
-    gids.forEach(function(gid) {
-      html += '<div class="bc flight-bc" data-gid="' + esc(gid) + '">' + cardHTML(gid) + '</div>';
+  }
+  var html;
+  if (isMobile) {
+    // Mobile: one vertical list, round headers between groups, using the
+    // same compact card style as the mobile tree (mbc-game-card).
+    html = '<div class="flight-mobile">';
+    cols.forEach(function(gids, i) {
+      html += '<div class="flight-mob-hdr">' + esc(colLabel(i, gids)) + '</div>';
+      gids.forEach(function(gid) {
+        html += '<div class="flight-mob-card" data-gid="' + esc(gid) + '">' + mobileRoundCardHTML(gid) + '</div>';
+      });
     });
     html += '</div>';
-  });
-  html += '</div>';
+  } else {
+    html = '<div class="flight-bracket">';
+    cols.forEach(function(gids, i) {
+      html += '<div class="flight-col"><div class="flight-col-hdr">' + esc(colLabel(i, gids)) + '</div>';
+      gids.forEach(function(gid) {
+        html += '<div class="bc flight-bc" data-gid="' + esc(gid) + '">' + cardHTML(gid) + '</div>';
+      });
+      html += '</div>';
+    });
+    html += '</div>';
+  }
   root.innerHTML = html;
 
   // Cross-view jump hook (Team Path card tap) — same contract as the
-  // desktop/mobile tree renderers install for their layouts.
+  // desktop/mobile tree renderers install for their layouts. Matches both
+  // the desktop column cards (.bc) and the mobile list cards.
   window._bracketJumpToGid = function(gid) {
-    var card = root.querySelector('.bc[data-gid="' + gid + '"]');
+    var card = root.querySelector('.bc[data-gid="' + gid + '"], .flight-mob-card[data-gid="' + gid + '"]');
     if (!card) return;
     card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     holdHighlight(card);
@@ -1890,6 +1908,14 @@ function renderMobileBracket(root, dims) {
 
   root.innerHTML = '<div class="mbc-outer" id="mbcOuter" data-css="height:' + viewH + 'px">'
     + colsHTML + '</div>';
+
+  // Flush data-css NOW. The MutationObserver applies it in a microtask
+  // AFTER this function returns — but the position pass below writes
+  // card.style.top synchronously, and the deferred data-css payload
+  // (top:0) would then clobber every computed position, stacking all
+  // cards at the top of their columns. Applying synchronously drains the
+  // attributes so the observer has nothing left to overwrite.
+  if (typeof ttApplyDataCss === 'function') ttApplyDataCss(root);
 
   var outer  = document.getElementById('mbcOuter');
   var colEls = Array.prototype.slice.call(outer.querySelectorAll('.mbc-col'));

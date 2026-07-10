@@ -452,6 +452,31 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   color: var(--text-mute);
   margin-bottom: 0.2em;
 }
+/* Mobile flight layout: a vertical list of mbc-style cards grouped under
+   round headers — matches the mobile tree's card look instead of the
+   desktop columns. */
+.flight-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7em;
+  padding: 0.4em 0.75em 1.2em;
+  max-width: 30em;
+  margin: 0 auto;
+}
+.flight-mob-hdr {
+  text-align: center;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gold-lt);
+  margin-top: 0.5em;
+}
+/* mbc-game-card is height:100% of its wrapper (the tree gives .mbc-card an
+   explicit pixel height) — give the list wrapper an equivalent height. */
+.flight-mob-card { height: clamp(96px, 18vh, 150px); }
+.flight-mob-card .mbc-game-card { position: relative; width: 100%; }
 /* Cards in a flight are statically laid out. The double class out-ranks the
    later `.bc { position: absolute }` rule — with equal specificity the
    cascade would let .bc win and stack every flight card at the same spot. */
