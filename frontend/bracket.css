@@ -1745,6 +1745,17 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     overscroll-behavior-y: contain;
     scrollbar-width: none;
   }
+  /* A/B flight list: the mobile tree brings its own fixed scroll overlay,
+     but the flight view is a plain vertical list — the panel (overflow
+     hidden) would otherwise clip it with no way to scroll. Same flex-column
+     + inner-scroller pattern as schedule/teampath above. */
+  #view-bracket.active { display: flex; flex-direction: column; }
+  #view-bracket.active #bracketRoot { flex: 1; min-height: 0; }
+  #view-bracket.active #bracketRoot:has(.flight-mobile) {
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    scrollbar-width: none;
+  }
   #view-schedule.active .round-panel::-webkit-scrollbar,
   #view-teampath.active .team-panel::-webkit-scrollbar { display: none; }
 
