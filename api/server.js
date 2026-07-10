@@ -5,7 +5,7 @@ const fs      = require('fs');
 const crypto  = require('crypto');
 
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
-const { FORMATS, generateSchedule } = require('./schedule-formats');
+const { FORMATS, generateSchedule, pairSwissRound, swissRounds } = require('./schedule-formats');
 const store = require('./store');
 
 // FRONTEND_DIR/DATA_DIR default to the container mount points; overridable so
@@ -682,7 +682,11 @@ api.get('/results', ah(async (req, res) => {
 }));
 
 api.get('/schedule', ah(async (req, res) => {
-  res.setHeader('Cache-Control', 'public, max-age=60');
+  // no-cache (revalidate every time): the quick editor and Swiss pairing
+  // mutate the schedule and immediately re-read it, and the public live
+  // poll promises edits within one 20s cycle — a 60s browser cache made
+  // both read stale copies.
+  res.setHeader('Cache-Control', 'no-cache');
   res.json(await store.get(req.tid, 'schedule'));
 }));
 
@@ -693,7 +697,13 @@ api.get('/offsets', ah(async (req, res) => {
 }));
 
 api.get('/settings', ah(async (req, res) => {
-  res.setHeader('Cache-Control', 'public, max-age=300');
+  // no-cache (revalidate every load), NOT max-age: settings now carry the
+  // landing tab, format, and display names that /schedule/generate rewrites.
+  // A max-age here let browsers (and any shared proxy, via 'public') serve
+  // 5-minute-stale settings right after a TD generated a new bracket — the
+  // public page then landed on the wrong tab with the old format's labels,
+  // reading as "my new bracket doesn't render".
+  res.setHeader('Cache-Control', 'no-cache');
   res.json(Object.assign({}, SETTINGS_DEFAULTS, await store.get(req.tid, 'settings')));
 }));
 
@@ -898,8 +908,13 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
   // topology-free schedule actually reads. Single-elim leaves labels alone —
   // its two sides are just bracket halves.
   const fmt = FORMATS[format];
-  if (fmt && (fmt.sideLabels || fmt.scheduleFirst)) {
+  {
     const settings = await store.get(req.tid, 'settings');
+    // Persist which format generated this schedule — the public page uses it
+    // to decide whether a standings table applies (round robin / pools).
+    settings.format = format;
+    if (fmt && fmt.swiss) settings.swissRounds = String(swissRounds((req.body.teams || []).length));
+    else delete settings.swissRounds;
     if (fmt.sideLabels) {
       settings.leftLabel = fmt.sideLabels[0];
       settings.rightLabel = fmt.sideLabels[1];
@@ -907,6 +922,11 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
     if (fmt.scheduleFirst) {
       settings.defaultTab = 'schedule';
       settings.defaultTabScope = 'both';
+    } else if (settings.defaultTab === 'schedule') {
+      // A previous schedule-first tournament (round robin/pools) set the
+      // landing tab; a bracket format should land on the bracket again.
+      delete settings.defaultTab;
+      delete settings.defaultTabScope;
     }
     await store.put(req.tid, 'settings', settings);
     invalidateIndexCache(req.tid);
@@ -932,6 +952,29 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
   }
 
   res.json({ ok: true, games: Object.keys(schedule).length });
+}));
+
+// Swiss: pair the next round from current standings. The generator only
+// emits round 1; each later round exists only after the TD asks for it,
+// because its pairings depend on results (same record, no rematches).
+api.post('/schedule/swiss-next-round', requireAdmin, ah(async (req, res) => {
+  const settings = await store.get(req.tid, 'settings');
+  if (settings.format !== 'swiss') {
+    return res.status(400).json({ error: 'This tournament is not a Swiss format' });
+  }
+  const schedule = await store.get(req.tid, 'schedule');
+  const results = await store.get(req.tid, 'results');
+  let out;
+  try {
+    out = pairSwissRound(schedule, results, parseInt(settings.swissRounds, 10) || 0);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+  const merged = Object.assign({}, schedule, out.entries);
+  const verr = validateSchedule(merged);
+  if (verr) return res.status(500).json({ error: 'Paired round failed validation: ' + verr });
+  await store.put(req.tid, 'schedule', merged);
+  res.json({ ok: true, round: out.round, of: parseInt(settings.swissRounds, 10) || 0, games: Object.keys(out.entries).length });
 }));
 
 api.post('/settings', requireAdmin, ah(async (req, res) => {
@@ -976,6 +1019,9 @@ async function teamsFromSchedule(tid) {
 // schedule drop. When the schedule has no fixed team names yet, fall back to
 // the saved list so a manually-curated roster isn't wiped.
 api.get('/teams', ah(async (req, res) => {
+  // Same staleness rule as /settings: generate rewrites the seed display,
+  // so this must revalidate rather than ride the browser's heuristic cache.
+  res.setHeader('Cache-Control', 'no-cache');
   const data = await store.get(req.tid, 'teams');
   const saved = Array.isArray(data.teams) ? data.teams : [];
   const fromSched = await teamsFromSchedule(req.tid);

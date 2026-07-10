@@ -129,7 +129,14 @@ document.addEventListener('focusin', function(e) {
   var btn = document.getElementById('themeToggle');
   function applyLight(light) {
     document.body.classList.toggle('light', light);
-    if (btn) btn.textContent = light ? '🌙 Dark' : '☀ Light';
+    // Icon-only: the sun/moon shows the CURRENT theme; the action lives in
+    // the accessible name. A text label reading "Light"/"Dark" was ambiguous
+    // (current state vs switch-to target).
+    if (btn) {
+      btn.textContent = light ? '☀' : '🌙';
+      btn.setAttribute('aria-label', light ? 'Switch to dark theme' : 'Switch to light theme');
+      btn.title = light ? 'Switch to dark theme' : 'Switch to light theme';
+    }
     document.dispatchEvent(new CustomEvent('tt:themechange', { detail: { light: light } }));
   }
   var saved = storageGet(PREF_KEY);
@@ -147,3 +154,185 @@ document.addEventListener('focusin', function(e) {
     btn.addEventListener('touchend', function(e) { e.preventDefault(); toggleTheme(); });
   }
 })();
+
+// ── In-app dialogs (replace window.confirm / window.prompt) ─────────────
+// Native dialogs block the main thread, look foreign, and are hostile on
+// mobile. These build a small modal from elements + classes (CSP-safe, no
+// inline styles), trap focus inside it, close on Escape / backdrop tap, and
+// return focus to the opener. ttConfirm resolves boolean; ttPrompt resolves
+// the entered string or null on cancel.
+function ttDialog(opts) {
+  return new Promise(function (resolve) {
+    var prev = document.activeElement;
+    var overlay = document.createElement('div');
+    overlay.className = 'tt-dialog-overlay';
+    var box = document.createElement('div');
+    box.className = 'tt-dialog';
+    box.setAttribute('role', 'alertdialog');
+    box.setAttribute('aria-modal', 'true');
+    var msg = document.createElement('div');
+    msg.className = 'tt-dialog-msg';
+    msg.textContent = opts.message;
+    box.appendChild(msg);
+    var inp = null;
+    if (opts.input !== undefined) {
+      inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'tt-dialog-input';
+      inp.value = opts.input == null ? '' : String(opts.input);
+      box.appendChild(inp);
+    }
+    var row = document.createElement('div');
+    row.className = 'tt-dialog-actions';
+    var cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'tt-dialog-btn';
+    cancel.textContent = opts.cancelLabel || 'Cancel';
+    var ok = document.createElement('button');
+    ok.type = 'button';
+    ok.className = 'tt-dialog-btn tt-dialog-btn--primary'
+      + (opts.danger ? ' tt-dialog-btn--danger' : '');
+    ok.textContent = opts.okLabel || 'OK';
+    row.appendChild(cancel);
+    row.appendChild(ok);
+    box.appendChild(row);
+    overlay.appendChild(box);
+
+    function close(val) {
+      document.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+      if (prev && prev.focus) { try { prev.focus(); } catch (e) {} }
+      resolve(val);
+    }
+    var cancelVal = inp ? null : false;
+    function submit() { close(inp ? inp.value : true); }
+    function onKey(e) {
+      if (e.key === 'Escape') { e.preventDefault(); close(cancelVal); return; }
+      if (e.key === 'Enter' && (document.activeElement === inp)) {
+        e.preventDefault(); submit(); return;
+      }
+      if (e.key === 'Tab') {
+        // Cycle focus within the dialog only.
+        var f = inp ? [inp, cancel, ok] : [cancel, ok];
+        var i = f.indexOf(document.activeElement);
+        e.preventDefault();
+        var n = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1)
+                           : (i === -1 || i === f.length - 1 ? 0 : i + 1);
+        f[n].focus();
+      }
+    }
+    cancel.addEventListener('click', function () { close(cancelVal); });
+    ok.addEventListener('click', submit);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) close(cancelVal); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(overlay);
+    if (inp) { inp.focus(); inp.select(); } else { ok.focus(); }
+  });
+}
+function ttConfirm(message, opts) {
+  return ttDialog(Object.assign({ message: message }, opts || {}));
+}
+function ttPrompt(message, initial, opts) {
+  return ttDialog(Object.assign({ message: message, input: initial == null ? '' : initial }, opts || {}));
+}
+
+// ── Overlay focus management ─────────────────────────────────────────────
+// Register page overlays once; a single capture-phase keydown handler traps
+// Tab inside whichever registered overlay is currently visible (topmost
+// wins) and lets Escape close it. Overlays keep their existing show/hide
+// code — visibility is read live, so there's nothing to hook.
+var _ttOverlays = [];
+function ttRegisterOverlay(el, closeFn, isOpenFn) {
+  if (el) _ttOverlays.push({
+    el: el,
+    close: closeFn,
+    isOpen: isOpenFn || function () { return getComputedStyle(el).display !== 'none'; },
+  });
+}
+function _ttVisibleOverlay() {
+  for (var i = _ttOverlays.length - 1; i >= 0; i--) {
+    if (_ttOverlays[i].isOpen()) return _ttOverlays[i];
+  }
+  return null;
+}
+var _TT_FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), ' +
+  'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Tab' && e.key !== 'Escape') return;
+  // tt-dialogs manage their own trap; don't double-handle.
+  if (document.querySelector('.tt-dialog-overlay')) return;
+  var o = _ttVisibleOverlay();
+  if (!o) return;
+  if (e.key === 'Escape') {
+    if (o.close) { e.preventDefault(); o.close(); }
+    return;
+  }
+  var f = Array.prototype.filter.call(
+    o.el.querySelectorAll(_TT_FOCUSABLE),
+    function (el) { return el.offsetParent !== null; }
+  );
+  if (!f.length) return;
+  var i = f.indexOf(document.activeElement);
+  if (i === -1) { e.preventDefault(); f[0].focus(); return; }
+  if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0].focus(); }
+  else if (e.shiftKey && i === 0) { e.preventDefault(); f[f.length - 1].focus(); }
+}, true);
+
+// ── Keyboard activation for role="button" elements ──────────────────────
+// Generated markup uses role="button" spans/divs for in-page navigation
+// chips; give them the native button keyboard contract (Enter + Space).
+document.addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  var t = e.target;
+  if (!t || t.getAttribute == null || t.getAttribute('role') !== 'button') return;
+  if (t.tagName === 'BUTTON' || t.tagName === 'A' || t.tagName === 'INPUT') return;
+  e.preventDefault();
+  t.click();
+});
+
+// ── data-css: CSP-safe dynamic styling for generated markup ─────────────
+// style-src has no 'unsafe-inline', so markup built as HTML strings can't
+// carry style="" attributes. Emit data-css="prop:val;..." instead; this
+// observer transfers it to the element's CSSOM style (which CSP permits)
+// the moment nodes are inserted — as a microtask, before paint.
+function ttApplyDataCss(root) {
+  if (root.querySelectorAll) {
+    var els = root.querySelectorAll('[data-css]');
+    for (var i = 0; i < els.length; i++) {
+      els[i].style.cssText += ';' + els[i].getAttribute('data-css');
+      els[i].removeAttribute('data-css');
+    }
+    if (root.getAttribute && root.getAttribute('data-css')) {
+      root.style.cssText += ';' + root.getAttribute('data-css');
+      root.removeAttribute('data-css');
+    }
+  }
+}
+new MutationObserver(function (muts) {
+  for (var m = 0; m < muts.length; m++) {
+    for (var n = 0; n < muts[m].addedNodes.length; n++) {
+      var node = muts[m].addedNodes[n];
+      if (node.nodeType === 1) ttApplyDataCss(node);
+    }
+  }
+}).observe(document.documentElement, { childList: true, subtree: true });
+
+// ── Theme override stylesheet (white-label per-tournament colors) ────────
+// A dynamic <style> element would be blocked by style-src 'self'; a
+// constructable stylesheet is CSSOM and CSP-exempt. The <style> fallback
+// only runs on browsers without adoptedStyleSheets, where the strict CSP
+// simply drops custom light-mode brand colors (graceful degradation).
+var _ttThemeSheet = null;
+function ttSetThemeOverrideCss(cssText) {
+  try {
+    if (!_ttThemeSheet) {
+      _ttThemeSheet = new CSSStyleSheet();
+      document.adoptedStyleSheets = document.adoptedStyleSheets.concat(_ttThemeSheet);
+    }
+    _ttThemeSheet.replaceSync(cssText);
+  } catch (e) {
+    var el = document.getElementById('tt-theme-overrides');
+    if (!el) { el = document.createElement('style'); el.id = 'tt-theme-overrides'; document.head.appendChild(el); }
+    el.textContent = cssText;
+  }
+}

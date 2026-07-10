@@ -8,15 +8,14 @@ var _seedMap = {};   // { teamName: seedNumber (1-based) }
 var _sessionRole = null;
 var _bucketEditMode = false;
 var _bracketEditMode = false;
-var scheduleMode = null; // null = uninitialised; set from settings on first render
 
-// "Project winners" — public, device-local bracket picks. Plain in-memory
-// state only: never localStorage, never POSTed. A hard refresh clears it;
-// the 20s auto-refresh (fetchAll/pollLive) never touches these two vars, so
-// picks survive polling for free. _projected maps gid -> the team name
-// picked to win that game, for games with no real result yet.
-var _projecting = false;
-var _projected = {};
+// ── Project-winners mode (owner spec): viewers step through the bracket
+// picking hypothetical winners. Deliberately in-memory ONLY — never synced,
+// never in localStorage — so picks survive the 20s live poll (which only
+// rebuilds results/schedule) but NOT a hard refresh.
+var _projectMode = false;
+var _projected = {};   // slot id -> picked winner name
+var scheduleMode = null; // null = uninitialised; set from settings on first render
 // esc() comes from tt-common.js
 
 // SETTINGS_DEFAULTS comes from settings-defaults.js; getSetting from tt-common.js
@@ -55,10 +54,10 @@ function applyThemeColors() {
   if (logoEl) {
     if (tc.logo && /^data:image\/(png|jpeg|webp);base64,/.test(tc.logo)) {
       logoEl.src = tc.logo;
-      logoEl.style.display = '';
+      logoEl.hidden = false;
     } else {
       logoEl.removeAttribute('src');
-      logoEl.style.display = 'none';
+      logoEl.hidden = true;
     }
   }
   var darkMap = { accent: ['--gold','--gold-lt'], interactive: ['--blue','--blue-lt'], winColor: ['--win-color'], loseColor: ['--lose-color'] };
@@ -73,9 +72,7 @@ function applyThemeColors() {
       darkMap[key].forEach(function(prop) { lightRules.push('  ' + prop + ':' + lc + ';'); });
     }
   });
-  var styleEl = document.getElementById('tt-theme-overrides');
-  if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'tt-theme-overrides'; document.head.appendChild(styleEl); }
-  styleEl.textContent = lightRules.length ? 'body.light{' + lightRules.join('') + '}' : '';
+  ttSetThemeOverrideCss(lightRules.length ? 'body.light{' + lightRules.join('') + '}' : '');
 }
 
 function applySettings() {
@@ -85,8 +82,8 @@ function applySettings() {
   document.title = title;
   document.getElementById('siteName').textContent = name;
   var subEl = document.getElementById('siteSubtitle');
-  if (subtitle) { subEl.textContent = subtitle; subEl.style.visibility = 'visible'; subEl.style.display = 'block'; }
-  else { subEl.innerHTML = '&#8203;'; subEl.style.display = 'block'; subEl.style.visibility = 'hidden'; }
+  if (subtitle) { subEl.textContent = subtitle; subEl.style.visibility = 'visible'; subEl.hidden = false; }
+  else { subEl.innerHTML = '&#8203;'; subEl.hidden = false; subEl.style.visibility = 'hidden'; }
 }
 
 // ── Offline banner ────────────────────────────────────────────────────
@@ -94,7 +91,7 @@ function applySettings() {
 // successfully fetched state instead of blanking (field-side Wi-Fi drops).
 function setOffline(on) {
   var el = document.getElementById('offlineNotice');
-  if (el) el.style.display = on ? '' : 'none';
+  if (el) el.hidden = !(on);
 }
 
 // ── Results notification bar ──────────────────────────────────────────
@@ -102,7 +99,7 @@ function updateDelayNotice() {
   var el   = document.getElementById('delayNotice');
   var text = document.getElementById('delayNoticeText');
   var msg  = (_offsets && _offsets.banner) ? _offsets.banner.trim() : '';
-  if (el) el.style.display = msg ? '' : 'none';
+  if (el) el.hidden = !(msg);
   if (text) text.textContent = msg;
 }
 
@@ -116,7 +113,7 @@ function updateTimestamp() {
     var updatedAt = buckets && buckets.updatedAt;
     var hasCounts = updatedAt && Object.keys((buckets && buckets.counts) || {}).length > 0;
     if (!hasCounts) {
-      if (bar) bar.style.display = 'none';
+      if (bar) bar.hidden = true;
       applyStickyOffsets();
       return;
     }
@@ -126,7 +123,7 @@ function updateTimestamp() {
         ? 'Bucket results updated'
         : 'Bucket results updated ' + formatBucketTime(bd);
     }
-    if (bar) bar.style.display = '';
+    if (bar) bar.hidden = false;
     applyStickyOffsets();
     return;
   }
@@ -140,7 +137,7 @@ function updateTimestamp() {
   });
   var hasResults = Object.values(results).some(function(r){ return r && r.winner; });
   if (!hasResults) {
-    if (bar) bar.style.display = 'none';
+    if (bar) bar.hidden = true;
     applyStickyOffsets();
     return;
   }
@@ -152,7 +149,7 @@ function updateTimestamp() {
     timeStr = null;
   }
   if (text) text.textContent = timeStr ? 'Results updated ' + timeStr : 'Results updated';
-  if (bar) bar.style.display = '';
+  if (bar) bar.hidden = false;
   applyStickyOffsets();
 }
 
@@ -253,9 +250,7 @@ function renderBucketView() {
 
 function toggleBracketEdit() {
   _bracketEditMode = !_bracketEditMode;
-  // Admin drag-and-drop and the public "project winners" picker both listen
-  // on .bc-team/.bc clicks — never let both be active at once.
-  if (_bracketEditMode) { _projecting = false; updateProjectUI(); }
+  if (_bracketEditMode && _projectMode) { _projectMode = false; updateProjectBar(); }
   var btn = document.getElementById('bracketEditBtn');
   if (btn) { btn.textContent = _bracketEditMode ? 'Done' : 'Edit'; btn.classList.toggle('admin-btn-active', _bracketEditMode); }
   if (_bracketEditMode && activeView() !== 'bracket') {
@@ -440,7 +435,6 @@ async function fetchAll(){
   updateTimestamp();
   updateDelayNotice();
   updateFlightTabs();
-  updateProjectUI();
   populateTeamSelect();
 
   // ?view=X from lineup page tab links — consume once then strip from URL
@@ -563,7 +557,7 @@ function fieldTagHTML(sid){
   var field = g.field;
   var color = (_fieldColors && _fieldColors[field]) || _fieldDefaultColorMap[field];
   if (color) {
-    return '<span class="game-field-tag" style="color:' + esc(color) + ';border-color:' + esc(color) + '">' + esc(field) + '</span>';
+    return '<span class="game-field-tag" data-css="color:' + esc(color) + ';border-color:' + esc(color) + '">' + esc(field) + '</span>';
   }
   return '<span class="game-field-tag">' + esc(field) + '</span>';
 }
@@ -576,46 +570,6 @@ function disp(gid,slot){
   var label=team||smartLabel(slot,results);
   var r=results[gid]||{};
   return {name:label, actual:!!team, won:!!(team&&r.winner===team), lost:!!(team&&r.loser===team)};
-}
-
-// ── Project winners: resolution helpers (Bracket-tab tree only) ──────
-// projResolveSlot falls back to a projected pick ONLY when there's no real
-// result, and recurses through winner/loser chains so a projected pick
-// cascades downstream exactly like a real result would (e.g. picking the
-// R1 winner fills in R2's slot as a projection, not a TBD).
-function projResolveSlot(teamSlot) {
-  var real = resolveSlot(teamSlot, results);
-  if (real) return real;
-  if (!teamSlot || teamSlot.type === 'fixed') return null;
-  var srcG = GAMES[teamSlot.slot];
-  if (!srcG) return null;
-  var pw = _projected[teamSlot.slot];
-  if (!pw) return null;
-  if (teamSlot.type === 'winner') return pw;
-  if (teamSlot.type === 'loser') {
-    var p1 = projResolveSlot(srcG.t1), p2 = projResolveSlot(srcG.t2);
-    if (pw === p1) return p2 || null;
-    if (pw === p2) return p1 || null;
-  }
-  return null;
-}
-
-// Projection-aware counterpart to disp(): identical shape plus `projected`
-// (true when the shown name exists only because of a pick, not a real
-// result anywhere in its chain). Behaves exactly like disp() whenever
-// _projected is empty, so cardHTML/champCardHTML/mobileRoundCardHTML can
-// call it unconditionally — Schedule and Team Path keep using disp()/
-// resolveSlot directly and never show projections (v1 scope: Bracket tab).
-function dispProjected(gid,slot){
-  var real=resolveSlot(slot,results);
-  var team=real||projResolveSlot(slot);
-  var label=team||smartLabel(slot,results);
-  var r=results[gid]||{};
-  return {
-    name:label, actual:!!team,
-    won:!!(team&&r.winner===team), lost:!!(team&&r.loser===team),
-    projected:!real&&!!team,
-  };
 }
 
 // ══════════════════════════════════════════════════════════
@@ -900,17 +854,6 @@ function trophySVG() {
     + '</svg>';
 }
 
-// ── Project winners: shared markup bits for the Bracket-tab card renderers ─
-// Tapping a team name records a pick — only wired while _projecting is on,
-// the game has no real result yet, and the team itself is known (real or
-// itself a projection).
-function pickAttrHTML(gid, teamName, pickable) {
-  return pickable ? ' data-action="pickProjected" data-arg="'+esc(gid)+'" data-arg2="'+esc(teamName)+'"' : '';
-}
-function projChipHTML(t) {
-  return t.projected ? '<span class="bc-proj-chip">projected</span>' : '';
-}
-
 // ══════════════════════════════════════════════════════════
 // CARD HTML
 // ══════════════════════════════════════════════════════════
@@ -918,27 +861,27 @@ function cardHTML(gid){
   var g=GAMES[gid];
   if(!g) return '<div class="bc-hdr"><span class="bc-id">'+esc(gid)+'</span></div>'
     +'<div class="bc-team tbd">TBD</div><div class="bc-team tbd">TBD</div>';
-  var t1=dispProjected(gid,g.t1), t2=dispProjected(gid,g.t2), r=results[gid]||{};
+  var t1=disp(gid,g.t1), t2=disp(gid,g.t2), r=results[gid]||{};
   var c1=!t1.actual?'tbd':t1.won?'won':t1.lost?'lost':'';
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
+  if(r.projected){ if(t1.won) c1+=' projected'; if(t2.won) c2+=' projected'; }
   if(g.bye){ c1=''; c2='bye'; }   // lone team advances; opponent is the BYE slot
   var isChampSlot = gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
   var offMin = getGameOffset(gid);
   var offHTML = (offMin !== null && offMin !== 0)
     ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
     : '';
-  var pick1 = _projecting && !g.bye && !r.winner && t1.actual;
-  var pick2 = _projecting && !g.bye && !r.winner && t2.actual;
-  return '<div class="bc-hdr">'+(g.bye?'<span class="bc-id" style="visibility:hidden">x</span>':'<span class="bc-id">'+esc(gameLabel(gid))+'</span>')
+  return '<div class="bc-hdr">'+(g.bye?'<span class="bc-id u-invisible">x</span>':'<span class="bc-id">'+esc(gameLabel(gid))+'</span>')
+    +(r.projected?'<span class="bc-proj-chip">pick</span>':'')
     +fieldTagHTML(gid)
     +(gameIsLive(gid)
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
         : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'+offHTML))
     +'</div>'
-    +'<div class="bc-team '+c1+(t1.projected?' proj':'')+(pick1?' pickable':'')+'"'+pickAttrHTML(gid,t1.name,pick1)+'>'+seedChip(t1.name)+'<span class="bc-name">'+esc(t1.name)+'</span>'+projChipHTML(t1)+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
+    +'<div class="bc-team '+c1+'">'+seedChip(t1.name)+'<span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
     +(g.bye
       ? '<div class="bc-team bye"><span class="bc-bye-label">— BYE —</span></div>'
-      : '<div class="bc-team '+c2+(t2.projected?' proj':'')+(pick2?' pickable':'')+'"'+pickAttrHTML(gid,t2.name,pick2)+'>'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+projChipHTML(t2)+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
+      : '<div class="bc-team '+c2+'">'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -947,7 +890,7 @@ function cardHTML(gid){
 function connLines(conns,wVw,hVh,lc,mirror){
   if(!conns.length) return '';
   var s='<svg viewBox="0 0 100 100" preserveAspectRatio="none" '
-    +'style="position:absolute;top:0;left:0;width:100%;height:100%;overflow:visible">';
+    +'class="conn-svg">';
   var lw='0.5';
   function fx(x){ return mirror?(100-x):x; }
   var byDest={};
@@ -1171,13 +1114,97 @@ var _bracketFlight = 'open';
 // switching tabs doesn't clobber the other's selection.
 var _schedFlight = 'open';
 
+// Overlay projections onto real results. Real results always win; a pick
+// for a game that has gone final, or whose projected team no longer reaches
+// that game (an upstream pick changed), is dropped. Processing in play order
+// lets picks cascade down "Winner of ..." feeds.
+function mergedResults(){
+  if (!Object.keys(_projected).length) return results;
+  var merged = {};
+  Object.keys(results).forEach(function(k){ merged[k] = results[k]; });
+  Object.keys(GAMES)
+    .sort(function(a, b){ return (GAMES[a].num || 0) - (GAMES[b].num || 0); })
+    .forEach(function(sid){
+      var pick = _projected[sid];
+      if (merged[sid] && merged[sid].winner) { if (pick) delete _projected[sid]; return; }
+      if (!pick) return;
+      var g = GAMES[sid];
+      if (!g || g.bye) { delete _projected[sid]; return; }
+      var p1 = resolveSlot(g.t1, merged), p2 = resolveSlot(g.t2, merged);
+      if (pick !== p1 && pick !== p2) { delete _projected[sid]; return; }
+      merged[sid] = { winner: pick, loser: pick === p1 ? p2 : p1, projected: true };
+    });
+  return merged;
+}
+
+function updateProjectBar(){
+  var t = document.getElementById('projectToggleBtn');
+  if (!t) return;
+  var c = document.getElementById('projectClearBtn');
+  var h = document.getElementById('projectHint');
+  t.classList.toggle('project-toggle--on', _projectMode);
+  t.textContent = _projectMode ? 'Done picking' : 'Project winners';
+  var n = Object.keys(_projected).length;
+  if (c) { c.hidden = !n; c.textContent = 'Clear picks (' + n + ')'; }
+  if (h) h.hidden = !_projectMode;
+}
+
+function onProjectTap(e){
+  if (!_projectMode || _bracketEditMode) return;
+  var teamEl = e.target.closest('.bc-team');
+  if (!teamEl) return;
+  var card = e.target.closest('.bc');
+  var gid = card && card.getAttribute('data-gid');
+  if (!gid || !GAMES[gid] || GAMES[gid].bye) return;
+  if (results[gid] && results[gid].winner) return;   // real result — locked
+  var nameEl = teamEl.querySelector('.bc-name');
+  var name = nameEl && nameEl.textContent;
+  var merged = mergedResults();
+  var g = GAMES[gid];
+  var p1 = resolveSlot(g.t1, merged), p2 = resolveSlot(g.t2, merged);
+  if (name !== p1 && name !== p2) return;            // placeholder, not a team yet
+  if (_projected[gid] === name) delete _projected[gid];
+  else _projected[gid] = name;
+  renderBracket();
+  updateProjectBar();
+}
+
+// renderBracket swaps the results global for the merged projection view for
+// the duration of the (synchronous) render, so every card/connector helper
+// sees projected winners without threading a parameter through all of them.
 function renderBracket(){
+  var _real = results;
+  results = mergedResults();
+  try { renderBracketInner(); } finally { results = _real; }
+}
+
+function renderBracketInner(){
   var root=document.getElementById('bracketRoot');
   // A/B flights render as their own simple single-elim column layout (they
   // live in R0 storage slots, outside the Open tree). Open uses the full
   // WB/LB renderer below.
   if (_bracketFlight === 'A' || _bracketFlight === 'B') {
     renderFlightBracket(root, _bracketFlight);
+    return;
+  }
+  // Schedule-first formats (round robin, pools, Swiss) have no bracket
+  // topology — their games are laid into R1+ slots purely for STORAGE, so a
+  // structural "any tree games?" test can't distinguish them; gate on the
+  // generating format instead. Without this guard the tree renderers draw
+  // those storage slots as a meaningless bracket. Also cover a tournament
+  // with no games at all (fresh install), which otherwise renders a void.
+  var fmt = getSetting('format');
+  var schedFirst = fmt === 'round-robin' || fmt === 'round-robin-double' || fmt === 'pools' || fmt === 'swiss';
+  var hasTreeGames = Object.keys(GAMES).some(function(gid){
+    return !GAMES[gid].tier && GAMES[gid].round !== 'R0';
+  });
+  if (schedFirst || !hasTreeGames) {
+    root.innerHTML = '<div class="flight-empty">'
+      + (schedFirst
+          ? 'This format plays out on the schedule — there is no bracket tree.<br>'
+            + '<button class="flight-pill bracket-empty-goto" data-action="gotoScheduleTab">View Schedule &amp; Standings</button>'
+          : (Object.keys(GAMES).length ? 'No bracket games yet.' : 'No games yet.'))
+      + '</div>';
     return;
   }
   var dims=getDims();
@@ -1245,15 +1272,15 @@ function updateFlightTabs() {
   var hasA = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'A'; });
   var hasB = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'B'; });
   if (!hasA && !hasB) {
-    row.style.display = 'none';
+    row.hidden = true;
     _bracketFlight = 'open';
     return;
   }
-  row.style.display = '';
+  row.hidden = false;
   var aPill = row.querySelector('[data-arg="A"]');
   var bPill = row.querySelector('[data-arg="B"]');
-  if (aPill) { aPill.style.display = hasA ? '' : 'none'; aPill.textContent = bracketDisplayName('A'); }
-  if (bPill) { bPill.style.display = hasB ? '' : 'none'; bPill.textContent = bracketDisplayName('B'); }
+  if (aPill) { aPill.hidden = !(hasA); aPill.textContent = bracketDisplayName('A'); }
+  if (bPill) { bPill.hidden = !(hasB); bPill.textContent = bracketDisplayName('B'); }
   // Three-game format (B drop bracket, no A tier): the main tree IS the
   // "A" bracket, so label its pill accordingly; tiered keeps "Open".
   var mainPill = row.querySelector('[data-arg="open"]');
@@ -1263,26 +1290,6 @@ function updateFlightTabs() {
   row.querySelectorAll('.flight-pill').forEach(function(p){
     p.classList.toggle('active', p.dataset.arg === _bracketFlight);
   });
-}
-
-// Reflects _projecting/_projected onto the toggle row: button label/active
-// state, and the "Clear projections" button only when there's something to
-// clear. Also drops projections for games that have since gone final —
-// dispProjected already prefers real results, but pruning keeps the "Clear"
-// button (and the have-picks check) honest.
-function updateProjectUI() {
-  Object.keys(_projected).forEach(function(gid) {
-    var r = results[gid];
-    if (r && r.winner) delete _projected[gid];
-  });
-  var btn = document.getElementById('projectToggleBtn');
-  if (btn) {
-    btn.classList.toggle('active', _projecting);
-    btn.textContent = _projecting ? 'Done projecting' : 'Project winners';
-    btn.disabled = _bracketEditMode;
-  }
-  var clearBtn = document.getElementById('projectClearBtn');
-  if (clearBtn) clearBtn.style.display = Object.keys(_projected).length ? '' : 'none';
 }
 
 function setBracketFlight(f) {
@@ -1304,15 +1311,15 @@ function updateScheduleFlightTabs() {
   var hasA = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'A'; });
   var hasB = Object.keys(GAMES).some(function(g){ return GAMES[g].tier === 'B'; });
   if (!hasA && !hasB) {
-    row.style.display = 'none';
+    row.hidden = true;
     _schedFlight = 'open';
     return;
   }
-  row.style.display = '';
+  row.hidden = false;
   var aPill = row.querySelector('[data-arg="A"]');
   var bPill = row.querySelector('[data-arg="B"]');
-  if (aPill) { aPill.style.display = hasA ? '' : 'none'; aPill.textContent = bracketDisplayName('A'); }
-  if (bPill) { bPill.style.display = hasB ? '' : 'none'; bPill.textContent = bracketDisplayName('B'); }
+  if (aPill) { aPill.hidden = !(hasA); aPill.textContent = bracketDisplayName('A'); }
+  if (bPill) { bPill.hidden = !(hasB); bPill.textContent = bracketDisplayName('B'); }
   // Three-game format (B drop bracket, no A tier): the main tree IS the
   // "A" bracket, so label its pill accordingly; tiered keeps "Open".
   var mainPill = row.querySelector('[data-arg="open"]');
@@ -1388,7 +1395,7 @@ function renderDesktopBracket(root,dims){
         var topVh = isRight && lbPosMap[entry.gid] !== undefined
           ? lbPosMap[entry.gid]
           : slotTopVh(col.round,entry.slot,slotVh,col.side);
-        cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" style="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
+        cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" data-css="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
       });
       if (_bracketEditMode) {
         var usedSlots = {};
@@ -1398,25 +1405,25 @@ function renderDesktopBracket(root,dims){
           if (usedSlots[sn]) return;
           var slotId = col.round + '.' + col.side + '.' + sn;
           var topVh = slotTopVh(col.round, sn, slotVh, col.side);
-          cardsHTML += '<div class="bc bc-empty-slot" data-slot="'+esc(slotId)+'" style="top:'+topVh+'vh"></div>';
+          cardsHTML += '<div class="bc bc-empty-slot" data-slot="'+esc(slotId)+'" data-css="top:'+topVh+'vh"></div>';
         });
       }
-      html+='<div class="round-col" style="width:'+colVw+'vw;height:'+totalVh+'vh">'
+      html+='<div class="round-col" data-css="width:'+colVw+'vw;height:'+totalVh+'vh">'
         +'<div class="round-col-hdr">'+roundLabel(col.round)+'</div>'+cardsHTML+'</div>';
       if(ci<ordCols.length-1){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
-        html+='<div style="position:relative;flex-shrink:0;width:'+gapVw+'vw;height:'+totalVh+'vh">'
+        html+='<div class="u-relative" data-css="flex-shrink:0;width:'+gapVw+'vw;height:'+totalVh+'vh">'
           +connLines(buildConnPcts(srcCol,dstCol,slotVh,isRight?lbPosMap:null),gapVw,totalVh,lc,isRight)+'</div>';
       }
     }
     var labelAlign=isRight?'right:0':'left:0';
     // Each side takes its natural width; the outer flex row centers the
     // whole bracket so the champ column sits at the seam between sides.
-    return '<div style="position:relative;flex:0 0 auto;display:flex">'
-      +'<div style="position:relative">'
-      +'<div class="bracket-side-label" style="position:absolute;top:calc(var(--col-hdr-h)*-2.2);'+labelAlign+'">'+esc(label)+'</div>'
-      +'<div style="display:flex;flex-direction:row;margin-top:'+hdrVh+'vh">'+html+'</div>'
+    return '<div class="bcc-sideflex">'
+      +'<div class="u-relative">'
+      +'<div class="bracket-side-label bracket-side-label--abs" data-css="'+labelAlign+'">'+esc(label)+'</div>'
+      +'<div class="bcc-rowflex" data-css="margin-top:'+hdrVh+'vh">'+html+'</div>'
       +'</div></div>';
   }
 
@@ -1424,8 +1431,8 @@ function renderDesktopBracket(root,dims){
   var champ2G=GAMES['CHAMP2.C.1'], cr2=results['CHAMP2.C.1']||{};
   var champHTML;
   if(!champG){
-    champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
-      +'<div class="champ-inner" style="opacity:0.3">'
+    champHTML='<div class="champ-center--desktop" data-css="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
+      +'<div class="champ-inner u-dim30">'
       +'<div class="champ-trophy">'+trophySVG()+'</div>'
       +'<div class="champ-title">Championship</div>'
       +'</div></div>';
@@ -1444,26 +1451,25 @@ function renderDesktopBracket(root,dims){
           +'<div class="champ-ifnec-label">' + (c2s === 'third-place' ? '3rd Place' : 'If Necessary') + '</div>'
           + c2Note
           +(champ2G.time?'<div class="champ-gametime">'+esc(formatTime(champ2G.time))+'</div>':'')
-          +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" data-gid="CHAMP2.C.1" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP2.C.1')+'</div></div>'
+          +'<div class="champ-bc" data-css="height:'+cardVh+'vh"><div class="bc bc--static" data-gid="CHAMP2.C.1" data-css="height:'+cardVh+'vh">'+cardHTML('CHAMP2.C.1')+'</div></div>'
           +(cr2.winner?'<div class="champ-winner">'+esc(cr2.winner)+'</div>':'')
           +'</div>';
       }
     }
     var showChampWinner = cr.winner && champ2State() !== 'needed';
-    champHTML='<div class="champ-center--desktop" style="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
-      +'<div class="champ-inner" style="margin-top:'+(3.5*slotVh)+'vh">'
+    champHTML='<div class="champ-center--desktop" data-css="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
+      +'<div class="champ-inner" data-css="margin-top:'+(3.5*slotVh)+'vh">'
       +'<div class="champ-trophy">'+trophySVG()+'</div>'
       +'<div class="champ-title">Championship</div>'
       +'<div class="champ-gametime">'+esc(formatTime(champG.time))+'</div>'
       +'</div>'
-      +'<div class="champ-bc" style="height:'+cardVh+'vh"><div class="bc" data-gid="CHAMP.C.1" style="position:relative;height:'+cardVh+'vh;left:auto;right:auto">'+cardHTML('CHAMP.C.1')+'</div></div>'
+      +'<div class="champ-bc" data-css="height:'+cardVh+'vh"><div class="bc bc--static" data-gid="CHAMP.C.1" data-css="height:'+cardVh+'vh">'+cardHTML('CHAMP.C.1')+'</div></div>'
       +(showChampWinner?'<div class="champ-winner">'+esc(cr.winner)+'</div>':'')
       +ifNecHTML
       +'</div>';
   }
 
-  root.innerHTML='<div style="display:flex;align-items:flex-start;justify-content:center;width:97vw;margin:0 auto;'
-    +'box-sizing:border-box;padding:calc(var(--col-hdr-h)*2.5) 0 1em;">'
+  root.innerHTML='<div class="bcc-outerflex">'
     +sideHTML('L',getSetting('leftLabel'),false)
     +champHTML
     +sideHTML('R',getSetting('rightLabel'),true)
@@ -1485,12 +1491,10 @@ function renderDesktopBracket(root,dims){
 function champCardHTML(gid) {
   var g = GAMES[gid];
   if (!g) return '';
-  var t1 = dispProjected(gid, g.t1), t2 = dispProjected(gid, g.t2), r = results[gid] || {};
+  var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
   var ft = formatTime(g.time);
-  var pick1 = _projecting && !r.winner && t1.actual;
-  var pick2 = _projecting && !r.winner && t2.actual;
   return '<div class="mbc-champ-card">'
     + '<div class="mbc-champ-top">'
     +   '<div class="mbc-champ-trophy">'+trophySVG()+'</div>'
@@ -1501,13 +1505,13 @@ function champCardHTML(gid) {
     + '</div>'
     + '<div class="mbc-champ-sep"></div>'
     + '<div class="mbc-champ-teams">'
-    +   '<div class="mbc-champ-team ' + c1 + (t1.projected?' proj':'') + (pick1?' pickable':'') + '"' + pickAttrHTML(gid,t1.name,pick1) + '>'
-    +     '<span class="mbc-champ-name">' + esc(t1.name) + '</span>' + projChipHTML(t1)
+    +   '<div class="mbc-champ-team ' + c1 + '">'
+    +     '<span class="mbc-champ-name">' + esc(t1.name) + '</span>'
     +     (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     +   '</div>'
     +   '<div class="mbc-champ-vs">vs</div>'
-    +   '<div class="mbc-champ-team ' + c2 + (t2.projected?' proj':'') + (pick2?' pickable':'') + '"' + pickAttrHTML(gid,t2.name,pick2) + '>'
-    +     '<span class="mbc-champ-name">' + esc(t2.name) + '</span>' + projChipHTML(t2)
+    +   '<div class="mbc-champ-team ' + c2 + '">'
+    +     '<span class="mbc-champ-name">' + esc(t2.name) + '</span>'
     +     (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     +   '</div>'
     + '</div>'
@@ -1519,7 +1523,7 @@ function champCardHTML(gid) {
 function mobileRoundCardHTML(gid) {
   var g = GAMES[gid];
   if (!g) return '<div class="mbc-game-card"><div class="mbc-game-mid"><span class="mbc-game-lbl">' + esc(gid) + '</span></div></div>';
-  var t1 = dispProjected(gid, g.t1), t2 = dispProjected(gid, g.t2), r = results[gid] || {};
+  var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
   if (g.bye) { c1 = 'won'; c2 = 'bye'; }   // lone team advances; opponent is a greyed BYE
@@ -1528,8 +1532,6 @@ function mobileRoundCardHTML(gid) {
   if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
   var fd = fmtDate(dateStr), fw = fmtDow(dowStr);
   var upcoming = !r.winner ? ' upcoming' : '';
-  var pick1 = _projecting && !g.bye && !r.winner && t1.actual;
-  var pick2 = _projecting && !g.bye && !r.winner && t2.actual;
   // Header (top 25%), team 1 (37.5%), team 2 (37.5%)
   return '<div class="mbc-game-card' + upcoming + '">'
     + '<div class="mbc-game-mid">'
@@ -1543,12 +1545,12 @@ function mobileRoundCardHTML(gid) {
             + (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
             + '</span>')
     + '</div>'
-    + '<div class="mbc-game-team ' + c1 + (t1.projected?' proj':'') + (pick1?' pickable':'') + '"' + pickAttrHTML(gid,t1.name,pick1) + '>'
-    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(t1.name) + '</span>' + projChipHTML(t1)
+    + '<div class="mbc-game-team ' + c1 + '">'
+    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
     +   (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     + '</div>'
-    + '<div class="mbc-game-team ' + c2 + (t2.projected?' proj':'') + (pick2?' pickable':'') + '"' + pickAttrHTML(gid,t2.name,pick2) + '>'
-    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(t2.name) + '</span>' + projChipHTML(t2)
+    + '<div class="mbc-game-team ' + c2 + '">'
+    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
     +   (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     + '</div>'
     + '</div>';
@@ -1811,7 +1813,7 @@ function renderMobileBracket(root, dims) {
       // Divider is placed INSIDE the card so it inherits the card's translateY
       // and opacity transitions — it travels and fades with the card automatically.
       var divHTML = divEntry
-        ? '<div class="mbc-playin-divider" data-div-type="' + esc(divEntry.type || '') + '" style="height:' + DIV_H + 'px;top:-' + (DIV_H + GAP) + 'px">'
+        ? '<div class="mbc-playin-divider" data-div-type="' + esc(divEntry.type || '') + '" data-css="height:' + DIV_H + 'px;top:-' + (DIV_H + GAP) + 'px">'
           + '<span class="mbc-playin-line"></span>'
           + '<span class="mbc-playin-label">' + esc(divEntry.label) + '</span>'
           + '<span class="mbc-playin-line"></span>'
@@ -1822,7 +1824,7 @@ function renderMobileBracket(root, dims) {
       var isPlayIn = (col.divs || []).some(function(d) {
         return d.type === 'playin' && d.idx <= gi;
       });
-      return '<div class="mbc-card' + c2cls + '" style="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0"'
+      return '<div class="mbc-card' + c2cls + '" data-css="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0"'
         + (isPlayIn ? ' data-playin="1"' : '') + '>'
         + divHTML + inner + '</div>';
     }).join('');
@@ -1831,20 +1833,20 @@ function renderMobileBracket(root, dims) {
       return '<span class="mbc-dot' + (i === ri ? ' active' : '') + '" data-ri="' + i + '"></span>';
     }).join('');
 
-    return '<div class="mbc-col" data-ri="' + ri + '" style="width:' + cWidth + 'px;flex:0 0 ' + cWidth + 'px">'
+    return '<div class="mbc-col" data-ri="' + ri + '" data-css="width:' + cWidth + 'px;flex:0 0 ' + cWidth + 'px">'
       + '<div class="mbc-hdr">'
       +   '<span class="mbc-hdr-label">' + esc(col.label) + '</span>'
       +   '<span class="mbc-dots">' + dots + '</span>'
       + '</div>'
       + '<div class="mbc-scroll">'
-      +   '<div class="mbc-inner" style="height:' + viewH + 'px;width:' + cCardW + 'px">'
+      +   '<div class="mbc-inner" data-css="height:' + viewH + 'px;width:' + cCardW + 'px">'
       +     cardsHTML
       +   '</div>'
       + '</div>'
       + '</div>';
   }).join('');
 
-  root.innerHTML = '<div class="mbc-outer" id="mbcOuter" style="height:' + viewH + 'px">'
+  root.innerHTML = '<div class="mbc-outer" id="mbcOuter" data-css="height:' + viewH + 'px">'
     + colsHTML + '</div>';
 
   var outer  = document.getElementById('mbcOuter');
@@ -2243,8 +2245,8 @@ function renderMobileBracket(root, dims) {
   root.appendChild(nextArrowEl);
 
   function updateArrows() {
-    prevArrowEl.style.display = activeIdx <= 0 ? 'none' : '';
-    nextArrowEl.style.display = activeIdx >= colEls.length - 1 ? 'none' : '';
+    prevArrowEl.hidden = !!(activeIdx <= 0);
+    nextArrowEl.hidden = !!(activeIdx >= colEls.length - 1);
   }
   updateArrows();
 
@@ -2539,6 +2541,80 @@ function scheduleCardHTML(sid) {
     + '</div></div>';
 }
 
+
+// ── Standings (round robin / pool play) ─────────────────────────────────
+// Formats without elimination live and die by the score table, so the
+// Schedule tab leads with one. A game counts toward standings when both
+// sides are fixed team names; pool play groups by the " · Pool X" label
+// suffix, which the cross-seeded playoff games don't carry — so the playoff
+// never pollutes pool records. Which format generated the schedule is
+// persisted server-side in settings.format.
+function standingsGroups() {
+  var fmt = getSetting('format');
+  if (fmt !== 'round-robin' && fmt !== 'round-robin-double' && fmt !== 'pools' && fmt !== 'swiss') return null;
+  var groups = {}, order = [];
+  Object.keys(GAMES).forEach(function (sid) {
+    var g = GAMES[sid];
+    if (g.bye || !g.t1 || !g.t2 || g.t1.type !== 'fixed' || g.t2.type !== 'fixed') return;
+    var key = '', label = 'Standings';
+    if (fmt === 'pools') {
+      var m = / \u00b7 (Pool [A-Z])$/.exec(g.label || '');
+      if (!m) return;
+      key = m[1]; label = m[1];
+    }
+    if (!groups[key]) { groups[key] = { label: label, teams: {} }; order.push(key); }
+    var t = groups[key].teams;
+    [g.t1.team, g.t2.team].forEach(function (nm) {
+      if (!t[nm]) t[nm] = { name: nm, w: 0, l: 0, rf: 0, ra: 0 };
+    });
+    var r = results[sid];
+    if (!r || !r.winner) return;
+    if (t[r.winner]) t[r.winner].w++;
+    if (t[r.loser])  t[r.loser].l++;
+    var s1 = parseInt(r.t1score, 10), s2 = parseInt(r.t2score, 10);
+    if (!isNaN(s1) && !isNaN(s2)) {
+      t[g.t1.team].rf += s1; t[g.t1.team].ra += s2;
+      t[g.t2.team].rf += s2; t[g.t2.team].ra += s1;
+    }
+  });
+  if (!order.length) return null;
+  order.sort();
+  return order.map(function (k) {
+    var rows = Object.keys(groups[k].teams).map(function (nm) { return groups[k].teams[nm]; });
+    rows.sort(function (a, b) {
+      if (b.w !== a.w) return b.w - a.w;
+      var da = a.rf - a.ra, db = b.rf - b.ra;
+      if (db !== da) return db - da;
+      if (b.rf !== a.rf) return b.rf - a.rf;
+      return a.name < b.name ? -1 : 1;
+    });
+    return { label: groups[k].label, rows: rows };
+  });
+}
+
+function standingsHTML() {
+  var gs = standingsGroups();
+  if (!gs) return '';
+  var html = '<div class="standings-block">';
+  gs.forEach(function (g) {
+    html += '<div class="standings-group">'
+      + '<div class="standings-hdr">' + esc(g.label) + '</div>'
+      + '<div class="standings-card"><table class="standings-table">'
+      + '<thead><tr><th class="standings-team-th">Team</th><th>W</th><th>L</th>'
+      + '<th>RF</th><th>RA</th><th>+/-</th></tr></thead><tbody>';
+    g.rows.forEach(function (r) {
+      var diff = r.rf - r.ra;
+      html += '<tr><td class="standings-team">' + seedChip(r.name) + esc(r.name) + '</td>'
+        + '<td>' + r.w + '</td><td>' + r.l + '</td>'
+        + '<td>' + r.rf + '</td><td>' + r.ra + '</td>'
+        + '<td class="' + (diff > 0 ? 'standings-diff-pos' : diff < 0 ? 'standings-diff-neg' : '') + '">'
+        + (diff > 0 ? '+' : '') + diff + '</td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+  });
+  return html + '</div>';
+}
+
 function renderScheduleView() {
   updateScheduleFlightTabs();
 
@@ -2612,7 +2688,7 @@ function renderScheduleView() {
     html += '</div></div>';
   });
 
-  document.getElementById('roundGames').innerHTML = html;
+  document.getElementById('roundGames').innerHTML = standingsHTML() + html;
   updateSchedViewDropdown(groups);
   setupSchedObserver();
   applyStickyOffsets();
@@ -2651,7 +2727,7 @@ var _shareBtn = document.getElementById('teamShareBtn');
 function updateShareBtn() {
   if (!_shareBtn) return;
   var team = teamSel ? teamSel.value : '';
-  _shareBtn.style.display = team ? '' : 'none';
+  _shareBtn.hidden = !(team);
 }
 if (_shareBtn) {
   _shareBtn.addEventListener('click', function() {
@@ -2753,7 +2829,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       var lbl = smartLabel(slot, results);
       var srcGid = slot && slot.type !== 'fixed' ? slot.slot : null;
       if (srcGid && GAMES[srcGid]) {
-        return '<span class="tp-opp-chip" role="button" title="View this game in the bracket"'
+        return '<span class="tp-opp-chip" role="button" tabindex="0" title="View this game in the bracket"'
           + ' data-opp-gid="' + esc(srcGid) + '">'
           + esc(lbl) + '<span class="tp-opp-chevron">&#8250;</span></span>';
       }
@@ -2781,7 +2857,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       var canNav = !champElim && ln;
       var destText = canNav ? gameLabel(ln) : 'OUT';
       loseSide = '<div class="round-lose-side"'
-        + (canNav ? ' data-lose-anchor="tp-lose-' + esc(gid) + '" role="button" title="Jump to this path"' : '')
+        + (canNav ? ' data-lose-anchor="tp-lose-' + esc(gid) + '" role="button" tabindex="0" title="Jump to this path"' : '')
         + '>'
         + '<span class="round-lose-tag">LOSS</span>'
         + '<span class="round-lose-arrow">↓</span>'
@@ -2795,7 +2871,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
     } else if (teamLost) {
       var ln = findNextSlot(gid, 'loser');
       if (ln && !champElim) {
-        loseSide = '<div class="round-lose-side" data-lose-anchor="tp-lose-' + esc(gid) + '" role="button" title="Jump to this path">'
+        loseSide = '<div class="round-lose-side" data-lose-anchor="tp-lose-' + esc(gid) + '" role="button" tabindex="0" title="Jump to this path">'
           + '<span class="round-lose-tag">Lost</span>'
           + '<span class="round-lose-arrow round-lose-arrow--cont">↓</span>'
           + '<span class="round-lose-dest">' + esc(gameLabel(ln)) + '</span>'
@@ -2807,12 +2883,12 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       }
     }
 
-    html += '<div class="round-game-card" style="border-color:' + borderColor + '"'
+    html += '<div class="round-game-card" data-css="border-color:' + borderColor + '"'
       + ' data-jump-gid="' + esc(gid) + '">'
       + '<div class="round-game-main">'
       + '<div class="round-game-header">'
       + timeOrLiveHTML(gid, dt2, dw2, tm2)
-      + '<span class="round-game-id" style="margin-left:auto;flex-shrink:0">' + esc(gameLabel(gid)) + '</span>'
+      + '<span class="round-game-id u-push-right">' + esc(gameLabel(gid)) + '</span>'
       + '</div>'
       + '<div class="round-team-row">'
       + '<span class="round-team-name ' + c1 + '">' + t1html + '</span>'
@@ -2919,6 +2995,31 @@ function renderTeamView(){
   // which team is being viewed, so a heading here is redundant.
   var html='';
 
+  // Record summary: wins-losses plus run totals where scores were entered.
+  var rec = { gp: 0, w: 0, l: 0, rf: 0, ra: 0, scored: false };
+  Object.keys(GAMES).forEach(function(sid){
+    var g = GAMES[sid];
+    if (g.bye) return;
+    var r = results[sid];
+    if (!r || !r.winner) return;
+    var p1 = resolveSlot(g.t1, results), p2 = resolveSlot(g.t2, results);
+    if (p1 !== team && p2 !== team) return;
+    rec.gp++;
+    if (r.winner === team) rec.w++; else if (r.loser === team) rec.l++;
+    var s1 = parseInt(r.t1score, 10), s2 = parseInt(r.t2score, 10);
+    if (!isNaN(s1) && !isNaN(s2)) {
+      rec.scored = true;
+      rec.rf += (p1 === team ? s1 : s2);
+      rec.ra += (p1 === team ? s2 : s1);
+    }
+  });
+  if (rec.gp) {
+    html += '<div class="team-record-bar">' + rec.w + '\u2013' + rec.l
+      + '<span class="team-record-detail"> \u00b7 ' + rec.gp + ' played'
+      + (rec.scored ? ' \u00b7 ' + rec.rf + ' for / ' + rec.ra + ' against' : '')
+      + '</span></div>';
+  }
+
   var winChain=buildWinChain(firstGid);
   var r0=results[firstGid]||{};
   var lostR1=r0.loser===team;
@@ -2975,7 +3076,7 @@ function renderTeamView(){
             +'<div class="team-path-connector-track">'
             +'<div class="team-path-connector-line lose"></div>'
             +'</div>'
-            +'<span class="team-path-win-label" style="color:var(--lose-color)">LOSS</span>'
+            +'<span class="team-path-win-label team-path-win-label--loss">LOSS</span>'
             +'</div>';
         }
         html+=makeVerticalChain(buildWinChain(ln),team,true,true,gid);
@@ -3119,9 +3220,9 @@ function initBracketDrag(root) {
     ghost.style.top  = (e.clientY - dragState.offY) + 'px';
 
     // Briefly hide ghost so elementsFromPoint can see what's underneath.
-    ghost.style.display = 'none';
+    ghost.hidden = true;
     var els = document.elementsFromPoint(e.clientX, e.clientY);
-    ghost.style.display = '';
+    ghost.hidden = false;
 
     var target = null;
     for (var i = 0; i < els.length; i++) {
@@ -3182,10 +3283,10 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   var lineupBtn      = document.getElementById('lineupPortalBtn');
   var editBtn        = document.getElementById('bucketEditBtn');
   var bracketEditBtn = document.getElementById('bracketEditBtn');
-  if (adminBtn)       adminBtn.style.display       = (_sessionRole === 'admin' || _sessionRole === 'results') ? '' : 'none';
-  if (lineupBtn)      lineupBtn.style.display      = (_sessionRole === 'team') ? '' : 'none';
-  if (editBtn)        editBtn.style.display        = (_sessionRole === 'buckets') ? '' : 'none';
-  if (bracketEditBtn) bracketEditBtn.style.display = (_sessionRole === 'admin') ? '' : 'none';
+  if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
+  if (lineupBtn)      lineupBtn.hidden = !((_sessionRole === 'team'));
+  if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
+  if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));
   // PWA home preference: redirect to admin if user prefers it and is in standalone mode
   if (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) {
     var pref; try { pref = localStorage.getItem('ttPwaHome'); } catch(e) {}
@@ -3235,30 +3336,38 @@ async function pollLive() {
       schedule = JSON.parse(st);
       if (typeof applySchedule === 'function') applySchedule(schedule);
     }
-    updateProjectUI();
     renderActiveNoScroll();
   } catch (e) { setOffline(true); }
 }
 setInterval(pollLive, LIVE_POLL_MS);
+
+var _bracketRootEl = document.getElementById('bracketRoot');
+if (_bracketRootEl) _bracketRootEl.addEventListener('click', onProjectTap);
+updateProjectBar();
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible') fetchAll();
 });
 
 // ── Delegated actions (see tt-common.js) ──────────────────────────────
 Object.assign(TT_ACTIONS, {
+  toggleProject: function() {
+    _projectMode = !_projectMode;
+    if (_projectMode && _bracketEditMode) toggleBracketEdit();  // mutually exclusive
+    updateProjectBar();
+  },
+  clearProjections: function() {
+    _projected = {};
+    renderBracket();
+    updateProjectBar();
+  },
   toggleBracketEdit: function() { toggleBracketEdit(); },
+  gotoScheduleTab:   function() {
+    var tab = document.querySelector('.view-tab[data-view="schedule"]');
+    if (tab) tab.click();
+  },
   enterBucketEdit:   function() { enterBucketEdit(); },
   saveBucketEdit:    function() { saveBucketEdit(); },
   exitBucketEdit:    function() { exitBucketEdit(); },
   setFlight:         function(arg) { setBracketFlight(arg); },
   setSchedFlight:    function(arg) { setSchedFlight(arg); },
-  toggleProjecting:  function() { _projecting = !_projecting; updateProjectUI(); renderBracket(); },
-  clearProjections:  function() { _projected = {}; updateProjectUI(); renderBracket(); },
-  pickProjected:     function(gid, el) {
-    var team = el.dataset.arg2;
-    if (!gid || !team || (results[gid] && results[gid].winner)) return;
-    if (_projected[gid] === team) delete _projected[gid]; else _projected[gid] = team;
-    updateProjectUI();
-    renderBracket();
-  },
 });

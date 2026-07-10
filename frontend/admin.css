@@ -111,9 +111,9 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .admin-winner-sel:focus { outline: 0.13em solid var(--blue-lt); }
 .admin-save-btn { white-space: nowrap; }
 .admin-locked { font-size: 0.74rem; color: var(--text-mute); font-style: italic; }
-.admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) 0.62em; border-radius: var(--radius-xs); border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
+.admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) var(--btn-pad-h-compact); border-radius: var(--radius-xs); border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
 .admin-clear-btn:hover,
-.admin-clear-btn:active { background: rgba(192,80,80,0.1); }
+.admin-clear-btn:active { background: color-mix(in srgb, var(--lose-color) 10%, transparent); }
 
 
 /* ── Delays admin chips ── */
@@ -270,7 +270,7 @@ input, select, textarea { font-size: max(1rem, 16px); }
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: var(--btn-pad-v) 0.5em;
+  padding: var(--btn-pad-v) var(--btn-pad-h-compact);
   border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;
@@ -363,11 +363,11 @@ input, select, textarea { font-size: max(1rem, 16px); }
   transition: color 0.12s, background 0.12s, border-color 0.12s;
   user-select: none;
 }
-.settings-nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+.settings-nav-item:hover { color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); }
 .settings-nav-item.active {
   color: var(--gold-lt);
   border-left-color: var(--gold-lt);
-  background: rgba(196,154,26,0.07);
+  background: color-mix(in srgb, var(--gold) 7%, transparent);
 }
 
 /* ── Content area ── */
@@ -456,7 +456,7 @@ input[type="time"] {
   border-radius: 0.25em;
   padding: 0.3em 0.45em;
   font-family: 'Barlow', sans-serif;
-  font-size: 0.88em;
+  font-size: max(1rem, 16px);   /* under 16px triggers iOS zoom-on-focus */
 }
 input[type="date"]:focus,
 input[type="time"]:focus {
@@ -486,19 +486,19 @@ input[type="time"]:focus {
   border-radius: 0.25em;
   flex-shrink: 0;
 }
-.user-role--admin   { background: rgba(59,130,246,0.12); color: var(--blue-lt); border: 0.07em solid var(--blue); }
-.user-role--results { background: rgba(196,154,26,0.1);  color: var(--gold-lt);  border: 0.07em solid rgba(196,154,26,0.4); }
+.user-role--admin   { background: color-mix(in srgb, var(--blue-lt) 15%, transparent); color: var(--blue-lt); border: 0.07em solid var(--blue); }
+.user-role--results { background: color-mix(in srgb, var(--gold) 10%, transparent);  color: var(--gold-lt);  border: 0.07em solid color-mix(in srgb, var(--gold) 40%, transparent); }
 .user-actions { display: flex; gap: 0.4em; align-items: center; flex-shrink: 0; }
 .user-delete-btn { color: var(--clear-color) !important; border-color: var(--clear-border) !important; }
 .user-regen-btn { color: var(--gold) !important; border-color: var(--gold) !important; background: transparent !important; }
-.user-regen-btn:hover { background: rgba(196,154,26,0.10) !important; }
+.user-regen-btn:hover { background: color-mix(in srgb, var(--gold) 10%, transparent) !important; }
 .user-self-label { font-size: var(--text-xs); color: var(--text-mute); font-style: italic; }
 .user-must-change { font-size: 0.68rem; color: var(--gold); font-style: italic; flex-shrink: 0; }
 
 /* ── User row layout update for team info ── */
 .user-info { display: flex; flex-direction: column; gap: 0.15em; flex: 1; min-width: 0; }
 .user-team-name { font-size: 0.75rem; color: var(--gold-lt); font-style: italic; }
-.user-role--team { background: rgba(74,154,74,0.1); color: var(--win-color); border: 0.07em solid rgba(74,154,74,0.3); }
+.user-role--team { background: color-mix(in srgb, var(--win-color) 10%, transparent); color: var(--win-color); border: 0.07em solid color-mix(in srgb, var(--win-color) 30%, transparent); }
 
 /* ── Coach card ── */
 .coach-card {
@@ -838,7 +838,7 @@ input[type="time"]:focus {
     border-bottom: 0.07em solid var(--border);
   }
   .settings-nav-item:last-child { border-bottom: none; }
-  .settings-nav-item.active { color: var(--gold-lt); background: rgba(196,154,26,0.08); }
+  .settings-nav-item.active { color: var(--gold-lt); background: color-mix(in srgb, var(--gold) 8%, transparent); }
 
   /* Quick bar: sits just above the tab bar (order:9 vs tab-bar order:10) */
   .admin-quick-bar--visible {
@@ -878,7 +878,7 @@ input[type="time"]:focus {
 /* ── Live scoring card ── */
 .admin-res-card--live {
   border-color: var(--gold-lt);
-  box-shadow: 0 0 0 1.5px var(--gold-lt), 0 2px 12px rgba(196,154,26,0.18);
+  box-shadow: 0 0 0 1.5px var(--gold-lt), 0 2px 12px color-mix(in srgb, var(--gold) 18%, transparent);
 }
 .admin-live-badge {
   font-size: 0.7rem;
@@ -929,16 +929,16 @@ input[type="time"]:focus {
 }
 /* Cancel — outline (destructive) */
 .admin-res-footer .admin-clear-btn { background: transparent; color: var(--clear-color); border-color: var(--clear-border); }
-.admin-res-footer .admin-clear-btn:hover { background: rgba(192,80,80,0.12); }
+.admin-res-footer .admin-clear-btn:hover { background: color-mix(in srgb, var(--lose-color) 12%, transparent); }
 /* Final — solid blue */
 .admin-res-footer .admin-save-btn { background: var(--blue); color: #fff; border-color: var(--blue); }
 .admin-res-footer .admin-save-btn:hover { background: var(--blue-lt); border-color: var(--blue-lt); }
 /* Update — outline green */
 .admin-res-footer .admin-live-update-btn { background: transparent; color: var(--win-color); border-color: var(--win-color); }
-.admin-res-footer .admin-live-update-btn:hover { background: rgba(74,154,74,0.12); }
+.admin-res-footer .admin-live-update-btn:hover { background: color-mix(in srgb, var(--win-color) 12%, transparent); }
 /* Live — outline gold */
 .admin-res-footer .admin-live-start-btn { background: transparent; color: var(--gold-lt); border-color: var(--gold-lt); }
-.admin-res-footer .admin-live-start-btn:hover { background: rgba(196,154,26,0.12); }
+.admin-res-footer .admin-live-start-btn:hover { background: color-mix(in srgb, var(--gold) 12%, transparent); }
 @media (pointer: coarse) {
   .admin-res-footer button { height: 2.4rem; }
 }
@@ -1077,3 +1077,34 @@ input[type="time"]:focus {
 /* Logo picker (Application Colors) */
 .logo-picker-row { display: flex; align-items: center; gap: 0.8em; flex-wrap: wrap; }
 .logo-picker-row .site-logo { background: var(--surface2); border: 0.07em solid var(--border); padding: 0.2em; }
+
+/* Small icon buttons need real touch targets on phones/tablets — mouse
+   users keep the compact sizes above. */
+@media (pointer: coarse) {
+  .team-ed-up, .team-ed-down { width: 2.75rem; height: 2.75rem; font-size: 0.95rem; }
+  .coach-team-remove { padding: 0.55em 0.7em; margin: -0.55em -0.35em; }
+  .delay-offset-del { min-height: 2.6rem; padding: 0.2em 0.9em; }
+}
+
+/* CSP refactor: classes replacing generated inline styles */
+.bld-muted--pad { padding: 1em; }
+.admin-subtitle--pad { padding: 0.5em 0; }
+.admin-subtitle--flush { margin: 0; }
+
+/* ── Swiss pairing bar (quick editor, swiss format only) ── */
+.swiss-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  flex-wrap: wrap;
+  padding: 0.7em 0;
+  border-bottom: 0.07em solid var(--border);
+  margin-bottom: 0.6em;
+}
+.swiss-bar-hint {
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  color: var(--text-dim);
+  flex: 1;
+  min-width: 14em;
+}

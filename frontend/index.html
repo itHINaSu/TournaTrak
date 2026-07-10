@@ -16,26 +16,26 @@
 <body>
 
 <header class="site-header" id="siteHeader">
-  <img id="siteLogo" class="site-logo" alt="" style="display:none">
+  <img id="siteLogo" class="site-logo" alt="" hidden>
   <div class="header-name-block">
     <h1 id="siteName">Tournament Bracket</h1>
     <div id="siteSubtitle" class="site-subtitle"></div>
   </div>
   <div class="header-controls">
-    <button class="admin-public-btn" id="bracketEditBtn" style="display:none" data-action="toggleBracketEdit">Edit</button>
-    <button class="admin-public-btn" id="bucketEditBtn" style="display:none" data-action="enterBucketEdit">Edit</button>
-    <a href="/lineup" class="admin-public-btn" id="lineupPortalBtn" style="display:none">Lineup →</a>
-    <a href="/admin" class="admin-public-btn" id="adminPortalBtn" style="display:none">Admin →</a>
+    <button class="admin-public-btn" id="bracketEditBtn" hidden data-action="toggleBracketEdit">Edit</button>
+    <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
+    <a href="/lineup" class="admin-public-btn" id="lineupPortalBtn" hidden>Lineup →</a>
+    <a href="/admin" class="admin-public-btn" id="adminPortalBtn" hidden>Admin →</a>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
   </div>
 </header>
 
-<div class="offline-notice" id="offlineNotice" style="display:none">Offline — showing last loaded data</div>
-<div class="update-bar" id="updateBar" style="display:none">
+<div class="offline-notice" id="offlineNotice" hidden>Offline — showing last loaded data</div>
+<div class="update-bar" id="updateBar" hidden>
   <span id="updateBarText"></span>
 </div>
 
-<div class="delay-notice" id="delayNotice" style="display:none">
+<div class="delay-notice" id="delayNotice" hidden>
   <span id="delayNoticeText"></span>
 </div>
 
@@ -78,22 +78,23 @@
 
 <div class="view-panel active" id="view-bracket">
   <!-- Open/A/B flight switcher — shown only for tiered tournaments -->
-  <div class="bracket-flights" id="bracketFlights" style="display:none">
+  <div class="bracket-flights" id="bracketFlights" hidden>
     <button class="flight-pill active" data-action="setFlight" data-arg="open">Open</button>
     <button class="flight-pill" data-action="setFlight" data-arg="A">A Bracket</button>
     <button class="flight-pill" data-action="setFlight" data-arg="B">B Bracket</button>
   </div>
-  <!-- Project winners: device-local picks, never synced. See bracket.js _projected. -->
-  <div class="bracket-flights bracket-project-row" id="bracketProjectRow">
-    <button class="flight-pill" id="projectToggleBtn" data-action="toggleProjecting">Project winners</button>
-    <button class="flight-pill bracket-project-clear" id="projectClearBtn" data-action="clearProjections" style="display:none">Clear projections</button>
+  <!-- Project winners: viewer-local what-if picks; nothing is saved or sent -->
+  <div class="project-bar" id="projectBar">
+    <button class="project-toggle" id="projectToggleBtn" type="button" data-action="toggleProject">Project winners</button>
+    <button class="project-clear" id="projectClearBtn" type="button" data-action="clearProjections" hidden>Clear picks</button>
+    <span class="project-hint" id="projectHint" hidden>Tap a team to pick a winner — picks are only on this device and reset on reload</span>
   </div>
   <div id="bracketRoot"></div>
 </div>
 
 <div class="view-panel" id="view-schedule">
   <!-- Open/A/B flight switcher — shown only for tournaments with drop brackets -->
-  <div class="bracket-flights sched-flights" id="scheduleFlights" style="display:none">
+  <div class="bracket-flights sched-flights" id="scheduleFlights" hidden>
     <button class="flight-pill active" data-action="setSchedFlight" data-arg="open">Open</button>
     <button class="flight-pill" data-action="setSchedFlight" data-arg="A">A Bracket</button>
     <button class="flight-pill" data-action="setSchedFlight" data-arg="B">B Bracket</button>
@@ -126,7 +127,7 @@
       <select class="styled" id="teamSelect">
         <option value="">— select a team —</option>
       </select>
-      <button class="team-share-btn" id="teamShareBtn" title="Copy shareable link" style="display:none">Share</button>
+      <button class="team-share-btn" id="teamShareBtn" title="Copy shareable link" hidden>Share</button>
     </div>
   </div>
   <div class="team-panel" id="teamOut"></div>

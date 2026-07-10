@@ -31,8 +31,8 @@
 
 /* ── Weather / delay notice banner ── */
 .delay-notice {
-  background: rgba(196,154,26,0.14);
-  border-bottom: 0.08em solid rgba(196,154,26,0.45);
+  background: color-mix(in srgb, var(--gold) 14%, transparent);
+  border-bottom: 0.08em solid color-mix(in srgb, var(--gold) 45%, transparent);
   color: var(--gold-lt);
   text-align: center;
   padding: 0.55em 1em;
@@ -80,7 +80,7 @@
 }
 .tab-label { line-height: 1; }
 .view-tab.active { color: var(--blue-lt); border-bottom-color: var(--blue-lt); }
-.view-tab:active { background: rgba(255,255,255,0.04); }
+.view-tab:active { background: color-mix(in srgb, var(--text) 5%, transparent); }
 
 /* ── Panels ── */
 .view-panel { display: none; }
@@ -344,7 +344,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: var(--btn-pad-v) 0.88em;
+  padding: var(--btn-pad-v) var(--btn-pad-h);
   border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;
@@ -421,7 +421,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 }
 .flight-pill.active { background: var(--blue); border-color: var(--blue); color: #fff; }
 .flight-pill:hover:not(.active) { color: var(--text); border-color: var(--text-dim); }
-.flight-pill:disabled { opacity: 0.4; cursor: default; }
 @media (pointer: coarse) { .flight-pill { min-height: 44px; } }
 
 /* A/B flights: simple left-to-right round columns (their own single-elim
@@ -467,6 +466,12 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   color: var(--text-mute);
   padding: 2em 1em;
   font-family: 'Barlow', sans-serif;
+}
+/* "View Schedule" action inside the bracket-tab empty state */
+.bracket-empty-goto {
+  display: inline-block;
+  flex: none;
+  margin-top: 1em;
 }
 
 .round-col {
@@ -629,41 +634,18 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   display: block;
   width: 100%;
   text-align: center;
-  color: rgba(255,255,255,0.45);
+  color: color-mix(in srgb, var(--text) 45%, transparent);
   font-style: italic;
   font-weight: 300;
   font-size: 0.72rem;
   letter-spacing: 0.14em;
 }
-body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
 .bc-team.won  { color: var(--win-color); }
 .bc-team.lost { color: var(--lose-color); }
 
-/* ── Project winners (public, device-local picks — bracket.js _projected) ── */
-.bracket-project-row { max-width: 17em; }
-.bracket-project-clear { flex: none; color: var(--text-dim); }
-.bc-team.proj, .mbc-champ-team.proj, .mbc-game-team.proj { font-style: italic; }
-.bc-proj-chip {
-  flex: none;
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.58rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--blue-lt);
-  border: 0.07em solid var(--blue-lt);
-  border-radius: var(--radius-xs);
-  padding: 0.05em 0.35em;
-  white-space: nowrap;
-}
-.bc-team.pickable, .mbc-champ-team.pickable, .mbc-game-team.pickable { cursor: pointer; }
-.bc-team.pickable:hover, .mbc-champ-team.pickable:hover, .mbc-game-team.pickable:hover {
-  background: rgba(74,144,217,0.12);
-}
-
 /* ── Admin drag-and-drop ── */
 .bc-dragging    { opacity: 0.3; pointer-events: none; }
-.bc-drop-target { box-shadow: 0 0 0 2px var(--blue), 0 0 12px rgba(60,130,220,0.35); }
+.bc-drop-target { box-shadow: 0 0 0 2px var(--blue), 0 0 12px color-mix(in srgb, var(--blue-lt) 35%, transparent); }
 .bc-empty-slot  {
   border: 2px dashed var(--line-color);
   border-radius: 6px;
@@ -675,7 +657,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
 .bc-empty-slot.bc-drop-target {
   border-color: var(--blue);
   opacity: 0.75;
-  box-shadow: 0 0 0 2px var(--blue), 0 0 12px rgba(60,130,220,0.35);
+  box-shadow: 0 0 0 2px var(--blue), 0 0 12px color-mix(in srgb, var(--blue-lt) 35%, transparent);
 }
 .bc-drag-ghost  {
   opacity: 0.88;
@@ -698,9 +680,9 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   align-items: center;
   justify-content: center;
   padding: 0 0.5em;
-  background: rgba(196,154,26,0.04);
-  border-left: 0.07em solid rgba(196,154,26,0.15);
-  border-right: 0.07em solid rgba(196,154,26,0.15);
+  background: color-mix(in srgb, var(--gold) 4%, transparent);
+  border-left: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
+  border-right: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
   width: var(--col-w);
   height: calc(var(--slot-h) * 8);
 }
@@ -741,9 +723,9 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
      The 0.8vw per side is subtracted from the inline width in
      renderDesktopBracket so the total stays champVw. */
   margin: 0 0.8vw;
-  background: rgba(196,154,26,0.04);
-  border-left: 0.07em solid rgba(196,154,26,0.15);
-  border-right: 0.07em solid rgba(196,154,26,0.15);
+  background: color-mix(in srgb, var(--gold) 4%, transparent);
+  border-left: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
+  border-right: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
 }
 .champ-center--desktop .champ-winner { text-align: center; }
 .champ-center--ifnec {
@@ -932,7 +914,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   justify-content: center;
   gap: 0.3em;
   padding: 0.4em 0.25em;
-  background: rgba(192,80,80,0.06);
+  background: color-mix(in srgb, var(--lose-color) 6%, transparent);
 }
 .round-lose-tag {
   font-family: 'Oswald', sans-serif;
@@ -970,7 +952,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   justify-content: center;
   gap: 0.25em;
   padding: 0.4em 0.2em;
-  background: rgba(60, 160, 80, 0.10);
+  background: color-mix(in srgb, var(--win-color) 10%, transparent);
 }
 .round-win-img {
   width: 100%;
@@ -1117,10 +1099,10 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   gap: 0.5em;
   margin: 0.9em 0 0.5em;
   padding: 0.7em 1.4em;
-  background: linear-gradient(135deg, rgba(196,154,26,0.16), rgba(196,154,26,0.04));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--gold) 16%, transparent), color-mix(in srgb, var(--gold) 4%, transparent));
   border: 0.1em solid var(--gold);
   border-radius: var(--radius-md);
-  box-shadow: 0 0 16px rgba(196,154,26,0.22);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--gold) 22%, transparent);
 }
 .team-path-champion .tpc-pre {
   font-family: 'Oswald', sans-serif;
@@ -1139,7 +1121,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   color: var(--gold-lt);
 }
 .team-path-champion.is-crowned {
-  box-shadow: 0 0 24px rgba(196,154,26,0.4);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--gold) 40%, transparent);
 }
 .team-path-champion.is-crowned .tpc-word { font-size: 1.55rem; }
 
@@ -1261,7 +1243,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
     width: auto;
     flex-shrink: 0;
     padding: 0.6em 0.5em;
-    border-left: 0.07em solid rgba(196,154,26,0.15);
+    border-left: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
     border-right: none;
     border-top: none;
     border-bottom: none;
@@ -1367,7 +1349,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
     height: 2.5rem;
     transform: translateY(-50%);
     border-radius: 50%;
-    background: rgba(20,24,28,0.72);
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
     border: 0.1em solid var(--border);
     color: var(--text-dim);
     font-family: 'Oswald', sans-serif;
@@ -1382,7 +1364,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   }
   .mbc-arrow:hover {
     opacity: 1;
-    background: rgba(30,36,44,0.92);
+    background: color-mix(in srgb, var(--surface2) 92%, transparent);
     color: var(--gold-lt);
     border-color: var(--gold);
   }
@@ -1411,7 +1393,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   background: linear-gradient(170deg, var(--surface2) 0%, #1e2e18 100%);
   border: 0.15em solid var(--gold);
   border-radius: var(--radius-md);
-  box-shadow: 0 0 32px rgba(196,154,26,0.3), inset 0 1px 0 rgba(232,184,42,0.12);
+  box-shadow: 0 0 32px color-mix(in srgb, var(--gold) 30%, transparent), inset 0 1px 0 color-mix(in srgb, var(--gold-lt) 12%, transparent);
   overflow: hidden;
 }
 /* Top info block */
@@ -1426,7 +1408,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
 .mbc-champ-trophy {
   font-size: calc(var(--mbc-card-h, 120px) * 0.22);
   line-height: 1;
-  filter: drop-shadow(0 2px 8px rgba(232,184,42,0.6));
+  filter: drop-shadow(0 2px 8px color-mix(in srgb, var(--gold-lt) 60%, transparent));
 }
 .mbc-champ-label {
   font-family: 'Oswald', sans-serif;
@@ -1494,7 +1476,7 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   color: var(--gold-lt);
   letter-spacing: 0.1em;
   text-align: center;
-  border-top: 0.07em solid rgba(196,154,26,0.3);
+  border-top: 0.07em solid color-mix(in srgb, var(--gold) 30%, transparent);
 }
 
 /* champ2 state classes on .mbc-card */
@@ -1812,12 +1794,6 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   }
 }
 
-@media print {
-  .site-header, .view-tabs, .header-controls, .theme-toggle, .selector-row { display: none; }
-  body { background: #fff; color: #000; }
-  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-}
-
 /* ── Field badge: which field a game is played on (admin "Field" input) ── */
 .game-field-tag {
   font-family: 'Oswald', sans-serif;
@@ -1892,3 +1868,183 @@ body.light .bc-bye-label { color: rgba(0,0,0,0.38); }
   .team-chip          { min-height: 2.75rem; }
   .bucket-edit-save-btn, .bucket-edit-cancel-btn { min-height: 2.75rem; }
 }
+
+/* ── Standings table (round robin / pool play — Schedule tab) ── */
+.standings-block {
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 0.9em 1em 0.1em;
+}
+.standings-group { margin-bottom: 1.2em; }
+.standings-hdr {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--gold-lt);
+  margin-bottom: 0.4em;
+}
+.standings-card {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.standings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-md);
+}
+.standings-table th {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: right;
+  padding: 0.5em 0.65em;
+  border-bottom: 0.12em solid var(--gold);
+}
+.standings-table th.standings-team-th { text-align: left; }
+.standings-table td {
+  text-align: right;
+  padding: 0.45em 0.65em;
+  border-bottom: 0.07em solid var(--border);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.standings-table tr:last-child td { border-bottom: none; }
+.standings-table td.standings-team {
+  text-align: left;
+  font-weight: 600;
+  max-width: 11em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.standings-diff-pos { color: var(--win-color); }
+.standings-diff-neg { color: var(--lose-color); }
+
+/* ── Team Path record summary ── */
+.team-record-bar {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--gold-lt);
+  text-align: center;
+  padding: 0.2em 0 0.7em;
+  letter-spacing: 0.04em;
+}
+.team-record-detail {
+  font-size: 0.72em;
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+}
+
+/* ── Print: paper bracket sheet ──────────────────────────────────────────
+   TDs tape paper brackets to the fence. Print whichever tab is active with
+   the interactive chrome stripped; the palette flips to paper via the token
+   override in base.css. Landscape suits the bracket tree. */
+@page { size: landscape; margin: 10mm; }
+@media print {
+  .header-controls,
+  .view-tabs,
+  .selector-row,
+  .update-bar,
+  .offline-notice,
+  .bracket-flights,
+  .toast,
+  .mbc-arrow,
+  .team-share-btn,
+  .admin-quick-bar { display: none !important; }
+  .site-header,
+  .bucket-frozen { position: static !important; }
+  .site-header { border-bottom: 0.15em solid #000; }
+  .bracket-outer,
+  .bracket-scroller,
+  .mbc-scroll { overflow: visible !important; }
+  .round-panel,
+  .team-panel { overflow: visible !important; max-height: none !important; }
+}
+
+/* ── Project-winners mode ── */
+.project-bar {
+  display: flex;
+  gap: 0.6em;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 0.55em 1em 0;
+}
+.project-toggle, .project-clear {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.45em 0.9em;
+  border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.project-toggle:hover, .project-clear:hover { color: var(--text); border-color: var(--text-dim); }
+.project-toggle--on {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.project-toggle--on:hover { color: #fff; }
+.project-clear { color: var(--lose-color); border-color: var(--lose-color); }
+.project-hint {
+  flex-basis: 100%;
+  text-align: center;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  color: var(--text-mute);
+  padding-bottom: 0.2em;
+}
+@media (pointer: coarse) { .project-toggle, .project-clear { min-height: 44px; } }
+@media print { .project-bar { display: none !important; } }
+
+/* Projected picks: tinted blue + italic, distinct from a real (green) win */
+.bc-team.won.projected { color: var(--blue-lt); }
+.bc-team.won.projected .bc-name { font-style: italic; }
+.bc-proj-chip {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.52rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--blue-lt);
+  border: 0.09em solid color-mix(in srgb, var(--blue-lt) 55%, transparent);
+  border-radius: 0.25em;
+  padding: 0.05em 0.35em;
+  margin-left: 0.35em;
+}
+
+/* ── CSP refactor: classes replacing generated inline styles ── */
+.u-invisible { visibility: hidden; }
+.u-relative { position: relative; }
+.u-dim30 { opacity: 0.3; }
+.u-push-right { margin-left: auto; flex-shrink: 0; }
+.conn-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible; }
+.bcc-outerflex {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 97vw;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: calc(var(--col-hdr-h)*2.5) 0 1em;
+}
+.bcc-sideflex { position: relative; flex: 0 0 auto; display: flex; }
+.bcc-rowflex { display: flex; flex-direction: row; }
+.bracket-side-label--abs { position: absolute; top: calc(var(--col-hdr-h)*-2.2); }
+.bc.bc--static { position: relative; left: auto; right: auto; }
+.team-path-win-label--loss { color: var(--lose-color); }

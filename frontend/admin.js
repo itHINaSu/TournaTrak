@@ -54,7 +54,7 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
     }
     // Hide delays panel on any tab switch
     var _dp = document.getElementById('resultsDelaysPanel');
-    if (_dp) _dp.style.display = 'none';
+    if (_dp) _dp.hidden = true;
     document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
     document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
     tab.classList.add('active');
@@ -75,7 +75,7 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       if (window.innerWidth < 1024) {
         var visibleNavItems = Array.prototype.filter.call(
           document.querySelectorAll('.settings-nav-item'),
-          function(n) { return n.style.display !== 'none'; }
+          function(n) { return n.hidden === false; }
         );
         if (visibleNavItems.length === 1) {
           showSettingsSection(visibleNavItems[0].dataset.section);
@@ -136,6 +136,11 @@ function closeSettingsSidebar() {
   if (backdrop) backdrop.classList.remove('open');
 }
 
+ttRegisterOverlay(document.getElementById('settingsSidebar'), closeSettingsSidebar, function () {
+  var el = document.getElementById('settingsSidebar');
+  return !!el && el.classList.contains('open');
+});
+
 function toggleSettingsSidebar() {
   var sidebar = document.getElementById('settingsSidebar');
   if (sidebar && sidebar.classList.contains('open')) {
@@ -188,7 +193,7 @@ async function fetchAll() {
   if (savedTab) {
     var target = document.querySelector('.admin-tab[data-tab="' + savedTab + '"]');
     var panel  = document.getElementById('tab-' + savedTab);
-    if (target && panel && target.style.display !== 'none') {
+    if (target && panel && target.hidden === false) {
       document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
       document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
       target.classList.add('active');
@@ -222,7 +227,7 @@ function populateSettingsFields() {
 function onLineupPresetChange() {
   var sel   = document.getElementById('set-lineupPreset');
   var field = document.getElementById('lineupCustomColsField');
-  if (sel && field) field.style.display = sel.value === 'custom' ? '' : 'none';
+  if (sel && field) field.hidden = !(sel.value === 'custom');
 }
 
 function toggleSection(hdrEl) {
@@ -527,7 +532,7 @@ function slotNumDropdown(id, round, side, currentNum) {
     var lbl = slotDisp + (occ ? ' (' + (GAMES[s2].label||s2) + ')' : ' — empty');
     return '<option value="' + n + '"' + (n===currentNum?' selected':'') + '>' + lbl + '</option>';
   }).join('');
-  return '<select class="admin-winner-sel" id="' + id + '" style="min-width:9em">' + opts + '</select>';
+  return '<select class="admin-winner-sel" id="' + id + '" data-css="min-width:9em">' + opts + '</select>';
 }
 
 function sourceDropdown(idBase, currentType, currentSlot) {
@@ -595,9 +600,9 @@ function sourceDropdown(idBase, currentType, currentSlot) {
   slotOptgroup(bracketDisplayName('B'), Object.keys(GAMES).filter(function(s){ return GAMES[s].tier==='B'; }));
 
   return '<div class="source-dropdown-row">'
-    + '<select class="admin-winner-sel" id="' + idBase + '-type" data-curtype="' + esc(currentType || '') + '" style="min-width:5.5em">' + typeOpts + '</select>'
+    + '<select class="admin-winner-sel" id="' + idBase + '-type" data-curtype="' + esc(currentType || '') + '" data-css="min-width:5.5em">' + typeOpts + '</select>'
     + '<span class="source-dropdown-sep">of</span>'
-    + '<select class="admin-winner-sel" id="' + idBase + '-slot" style="min-width:12em">' + slotOpts + '</select>'
+    + '<select class="admin-winner-sel" id="' + idBase + '-slot" data-css="min-width:12em">' + slotOpts + '</select>'
     + '</div>';
 }
 
@@ -884,7 +889,7 @@ function renderScheduleEditor() {
   }
 
   if (!html) {
-    html = '<div class="bld-muted" style="padding:1em">No games yet. Use the Builder to generate '
+    html = '<div class="bld-muted bld-muted--pad">No games yet. Use the Builder to generate '
       + 'a schedule, or add games below.</div>' + fallbackRow;
   } else {
     html += fallbackRow;
@@ -1082,7 +1087,7 @@ function applyRoleRestrictions(role) {
   // Schedule tab is admin-only (Builder is a sub-view of Schedule, no own tab)
   document.querySelectorAll('.admin-tab').forEach(function(tab) {
     var hide = role !== 'admin' && tab.dataset.tab === 'schedule';
-    tab.style.display = hide ? 'none' : '';
+    tab.hidden = !!(hide);
     if (hide && tab.classList.contains('active')) {
       tab.classList.remove('active');
       document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
@@ -1094,7 +1099,7 @@ function applyRoleRestrictions(role) {
   var adminOnlySections = ['pageinfo', 'users', 'coaches'];
   adminOnlySections.forEach(function(section) {
     var navItem = document.querySelector('.settings-nav-item[data-section="' + section + '"]');
-    if (navItem) navItem.style.display = role === 'admin' ? '' : 'none';
+    if (navItem) navItem.hidden = !(role === 'admin');
   });
   if (role !== 'admin') {
     var activePanel = document.querySelector('.settings-panel.active');
@@ -1131,11 +1136,11 @@ function showAdmin(username, role, teamName) {
   resetIOSZoom();
   if (role !== undefined) currentRole = role;
   if (teamName !== undefined) currentTeamName = teamName;
-  document.getElementById('loginOverlay').style.display = 'none';
-  document.getElementById('changePasswordOverlay').style.display = 'none';
-  document.getElementById('adminWrap').style.display = '';
+  document.getElementById('loginOverlay').hidden = true;
+  document.getElementById('changePasswordOverlay').hidden = true;
+  document.getElementById('adminWrap').hidden = false;
   applyStickyOffsets();
-  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = '';
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.hidden = false;
   var unEl = document.getElementById('accountUsername');
   if (unEl) unEl.textContent = username || 'admin';
   var pwaHomeEl = document.getElementById('set-pwaHome');
@@ -1168,7 +1173,7 @@ async function loadTournamentContext() {
   if (saved && !_adminTournaments.some(function(t) { return t.slug === saved; })) setAdminSlug(null);
 
   var navT = document.getElementById('navTournaments');
-  if (navT) navT.style.display = _isSuperadmin ? '' : 'none';
+  if (navT) navT.hidden = !(_isSuperadmin);
   renderTournamentSwitcher();
 }
 
@@ -1185,7 +1190,7 @@ function renderTournamentSwitcher() {
   if (cur && opts.some(function(t) { return t.slug === cur; })) sel.value = cur;
   else if (opts.length) { sel.value = opts[0].slug; setAdminSlug(opts[0].slug); }
   // Show the switcher only when there's a real choice.
-  sel.style.display = opts.length > 1 ? '' : 'none';
+  sel.hidden = !(opts.length > 1);
   updateViewPublicLink();
 }
 
@@ -1207,37 +1212,37 @@ function switchTournament(slug) {
 }
 
 function showLogin() {
-  document.getElementById('loginOverlay').style.display = 'flex';
-  document.getElementById('changePasswordOverlay').style.display = 'none';
-  document.getElementById('adminWrap').style.display = 'none';
-  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = 'none';
+  document.getElementById('loginOverlay').hidden = false;
+  document.getElementById('changePasswordOverlay').hidden = true;
+  document.getElementById('adminWrap').hidden = true;
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.hidden = true;
   document.getElementById('loginPass').value = '';
-  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginError').hidden = true;
   var blockMsg = document.getElementById('coachBlockMsg');
   var loginForm = document.getElementById('loginForm');
-  if (blockMsg) blockMsg.style.display = 'none';
-  if (loginForm) loginForm.style.display = '';
+  if (blockMsg) blockMsg.hidden = true;
+  if (loginForm) loginForm.hidden = false;
 }
 
 function showCoachBlock(username) {
-  document.getElementById('loginOverlay').style.display = 'flex';
-  document.getElementById('changePasswordOverlay').style.display = 'none';
-  document.getElementById('adminWrap').style.display = 'none';
-  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = 'none';
+  document.getElementById('loginOverlay').hidden = false;
+  document.getElementById('changePasswordOverlay').hidden = true;
+  document.getElementById('adminWrap').hidden = true;
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.hidden = true;
   var blockMsg  = document.getElementById('coachBlockMsg');
   var blockText = document.getElementById('coachBlockText');
   var loginForm = document.getElementById('loginForm');
-  if (loginForm) loginForm.style.display = 'none';
+  if (loginForm) loginForm.hidden = true;
   if (blockText) blockText.textContent = 'You are signed in as ' + (username || 'coach') + ' and do not have access to this page.';
-  if (blockMsg)  blockMsg.style.display = '';
+  if (blockMsg)  blockMsg.hidden = false;
 }
 
 function showChangePassword() {
-  document.getElementById('loginOverlay').style.display = 'none';
-  document.getElementById('changePasswordOverlay').style.display = 'flex';
-  document.getElementById('adminWrap').style.display = 'none';
-  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.style.display = '';
-  document.getElementById('cpError').style.display = 'none';
+  document.getElementById('loginOverlay').hidden = true;
+  document.getElementById('changePasswordOverlay').hidden = false;
+  document.getElementById('adminWrap').hidden = true;
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.hidden = false;
+  document.getElementById('cpError').hidden = true;
   document.getElementById('cpNewPass1').value = '';
   document.getElementById('cpNewPass2').value = '';
 }
@@ -1249,7 +1254,7 @@ async function doLogin(e) {
   var btn   = document.getElementById('loginBtn');
   var errEl = document.getElementById('loginError');
   btn.disabled = true;
-  errEl.style.display = 'none';
+  errEl.hidden = true;
   try {
     var r = await fetch('/api/login', {
       method: 'POST',
@@ -1267,11 +1272,11 @@ async function doLogin(e) {
     } else {
       var data = await r.json().catch(function(){ return {}; });
       errEl.textContent = data.error || 'Login failed';
-      errEl.style.display = 'block';
+      errEl.hidden = false;
     }
   } catch(e) {
     errEl.textContent = 'Network error — try again';
-    errEl.style.display = 'block';
+    errEl.hidden = false;
   }
   btn.disabled = false;
 }
@@ -1284,15 +1289,15 @@ async function doLogout() {
 // Shared helper: validates, POSTs to /api/change-password, calls onSuccess or
 // writes error to errEl. Returns true on success.
 async function submitPasswordChange(p1, p2, errEl, onSuccess) {
-  errEl.style.display = 'none';
+  errEl.hidden = true;
   if (p1.length < 8) {
     errEl.textContent = 'Password must be at least 8 characters';
-    errEl.style.display = 'block';
+    errEl.hidden = false;
     return false;
   }
   if (p1 !== p2) {
     errEl.textContent = 'Passwords do not match';
-    errEl.style.display = 'block';
+    errEl.hidden = false;
     return false;
   }
   var r = await apiFetch('/api/change-password', {
@@ -1304,7 +1309,7 @@ async function submitPasswordChange(p1, p2, errEl, onSuccess) {
   if (!r.ok) {
     var data = await r.json().catch(function(){ return {}; });
     errEl.textContent = data.error || 'Change failed';
-    errEl.style.display = 'block';
+    errEl.hidden = false;
     return false;
   }
   onSuccess();
@@ -1408,7 +1413,7 @@ function renderUsersList(users) {
   var me = (document.getElementById('accountUsername') || {}).textContent || '';
   users = users.filter(function(u) { return u.role !== 'team'; });
   if (!users.length) {
-    el.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No additional users.</div>';
+    el.innerHTML = '<div class="admin-subtitle admin-subtitle--pad">No additional users.</div>';
     return;
   }
   el.innerHTML = users.map(function(u) {
@@ -1485,7 +1490,7 @@ function fallbackCopy(text) {
 }
 
 async function regenerateToken(username) {
-  if (!confirm('Regenerate access link for "' + username + '"?\nThe old link will stop working immediately.')) return;
+  if (!await ttConfirm('Regenerate access link for "' + username + '"?\nThe old link will stop working immediately.', { okLabel: 'Regenerate', danger: true })) return;
   var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/regenerate-token', { method: 'POST' });
   if (!r) return;
   var data = await r.json().catch(function(){ return {}; });
@@ -1546,7 +1551,7 @@ async function addUser() {
 function onNewUserRoleChange() {
   var role = document.getElementById('newUserRole') ? document.getElementById('newUserRole').value : 'results';
   var teamField = document.getElementById('newTeamNameField');
-  if (teamField) teamField.style.display = role === 'team' ? '' : 'none';
+  if (teamField) teamField.hidden = !(role === 'team');
 }
 
 async function deleteUser(username, el) {
@@ -1554,7 +1559,7 @@ async function deleteUser(username, el) {
   var prompt = revokeOnly
     ? 'Remove "' + username + '" from this tournament? Their account and access to other tournaments are kept.'
     : 'Delete user "' + username + '"? This cannot be undone.';
-  if (!confirm(prompt)) return;
+  if (!await ttConfirm(prompt, { okLabel: revokeOnly ? 'Remove' : 'Delete', danger: true })) return;
   var r = await apiFetch('/api/users/' + encodeURIComponent(username), { method: 'DELETE' });
   if (!r) return;
   if (!r.ok) {
@@ -1584,7 +1589,7 @@ async function loadTournaments() {
 function renderTournamentsList(list) {
   var el = document.getElementById('tournamentsList');
   if (!el) return;
-  if (!list.length) { el.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No tournaments.</div>'; return; }
+  if (!list.length) { el.innerHTML = '<div class="admin-subtitle admin-subtitle--pad">No tournaments.</div>'; return; }
   var activeSlug = getAdminSlug();
   el.innerHTML = list.map(function(t) {
     var pub = t.isPublic !== false;
@@ -1628,16 +1633,16 @@ async function createTournament() {
 }
 
 async function renameTournament(slug) {
-  var newName = prompt('New name for this tournament:');
+  var newName = await ttPrompt('New name for this tournament:');
   if (newName === null) return;
   newName = newName.trim();
   if (!newName) return;
-  var newSlug = prompt('New slug (leave unchanged to keep URLs). WARNING: changing the slug breaks existing links and QR codes.', slug);
+  var newSlug = await ttPrompt('New slug (leave unchanged to keep URLs). WARNING: changing the slug breaks existing links and QR codes.', slug);
   if (newSlug === null) return;
   newSlug = newSlug.trim().toLowerCase();
   var body = { name: newName };
   if (newSlug && newSlug !== slug) {
-    if (!confirm('Change the slug from "' + slug + '" to "' + newSlug + '"? Existing /t/' + slug + ' links and QR codes will stop working.')) return;
+    if (!await ttConfirm('Change the slug from "' + slug + '" to "' + newSlug + '"? Existing /t/' + slug + ' links and QR codes will stop working.', { okLabel: 'Change slug', danger: true })) return;
     body.slug = newSlug;
   }
   var r = await apiFetch('/api/tournaments/' + encodeURIComponent(slug), {
@@ -1666,7 +1671,7 @@ async function toggleTournamentPublic(slug, el) {
 }
 
 async function deleteTournamentUI(slug) {
-  if (!confirm('Delete tournament "' + slug + '"? This permanently removes its bracket, schedule, results, lineups, and all data. This cannot be undone.')) return;
+  if (!await ttConfirm('Delete tournament "' + slug + '"? This permanently removes its bracket, schedule, results, lineups, and all data. This cannot be undone.', { okLabel: 'Delete', danger: true })) return;
   var r = await apiFetch('/api/tournaments/' + encodeURIComponent(slug), { method: 'DELETE' });
   if (!r) return;
   var d = await r.json().catch(function(){ return {}; });
@@ -1693,8 +1698,8 @@ function syncLogoUI() {
   var img = document.getElementById('logoPreview');
   var rm  = document.getElementById('logoRemoveBtn');
   if (!img || !rm) return;
-  if (_logoDataUri) { img.src = _logoDataUri; img.style.display = ''; rm.style.display = ''; }
-  else { img.removeAttribute('src'); img.style.display = 'none'; rm.style.display = 'none'; }
+  if (_logoDataUri) { img.src = _logoDataUri; img.hidden = false; rm.hidden = false; }
+  else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
 }
 
 function pickLogo(val, el) {
@@ -1761,9 +1766,7 @@ function applyThemeColors() {
       darkMap[key].forEach(function(prop) { lightRules.push('  ' + prop + ':' + lc + ';'); });
     }
   });
-  var styleEl = document.getElementById('tt-theme-overrides');
-  if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'tt-theme-overrides'; document.head.appendChild(styleEl); }
-  styleEl.textContent = lightRules.length ? 'body.light{' + lightRules.join('') + '}' : '';
+  ttSetThemeOverrideCss(lightRules.length ? 'body.light{' + lightRules.join('') + '}' : '');
 }
 
 var THEME_COLOR_DEFAULTS = { accent: '#e8b82a', interactive: '#4a90d9', winColor: '#4a9a4a', loseColor: '#c05050' };
@@ -1787,7 +1790,7 @@ function renderThemeSection() {
       + '<label>' + THEME_COLOR_LABELS[key] + ' <span class="field-label-hint">— ' + THEME_COLOR_HINTS[key] + '</span></label>'
       + '<div class="field-color-input-row">'
       + '<input type="color" class="field-color-picker theme-color-picker" id="themeColor-' + key + '" data-key="' + key + '" data-default="' + esc(def) + '" value="' + esc(cur) + '">'
-      + '<span class="theme-color-swatch" style="background:' + esc(cur) + '"></span>'
+      + '<span class="theme-color-swatch" data-css="background:' + esc(cur) + '"></span>'
       + '<button class="admin-clear-btn" data-action="resetOneThemeColor">Reset</button>'
       + '</div>'
       + '</div>';
@@ -1817,11 +1820,11 @@ function renderFieldsPanel() {
   var section = document.getElementById('fieldColorsSection');
   var fields = getScheduleFields();
   if (!fields.length) {
-    if (section) section.style.display = 'none';
+    if (section) section.hidden = true;
     el.innerHTML = '';
     return;
   }
-  if (section) section.style.display = '';
+  if (section) section.hidden = false;
   var html = '';
   fields.forEach(function(f, i) {
     var defColor = FIELD_DEFAULT_COLORS[i % FIELD_DEFAULT_COLORS.length];
@@ -1830,7 +1833,7 @@ function renderFieldsPanel() {
       + '<label>' + esc(f) + '</label>'
       + '<div class="field-color-input-row">'
       + '<input type="color" class="field-color-picker" data-field="' + esc(f) + '" data-default="' + esc(defColor) + '" value="' + esc(curColor) + '">'
-      + '<span class="field-color-preview" style="color:' + esc(curColor) + ';border-color:' + esc(curColor) + '">' + esc(f) + '</span>'
+      + '<span class="field-color-preview" data-css="color:' + esc(curColor) + ';border-color:' + esc(curColor) + '">' + esc(f) + '</span>'
       + '<button class="admin-clear-btn" data-action="resetOneFieldColor">Reset</button>'
       + '</div>'
       + '</div>';
@@ -1901,16 +1904,16 @@ function setSchedMode(mode) {
   var bBtn    = document.getElementById('modeBuilderBtn');
   var dBtn    = document.getElementById('modeSchedDelaysBtn');
   var tBtn    = document.getElementById('modeSchedTeamsBtn');
-  if (qPanel)  qPanel.style.display  = mode === 'quick'   ? '' : 'none';
-  if (ePanel)  ePanel.style.display  = mode === 'editor'  ? '' : 'none';
-  if (bPanel)  bPanel.style.display  = mode === 'builder' ? '' : 'none';
-  if (tPanel)  tPanel.style.display  = mode === 'teams'   ? '' : 'none';
+  if (qPanel)  qPanel.hidden = !(mode === 'quick');
+  if (ePanel)  ePanel.hidden = !(mode === 'editor');
+  if (bPanel)  bPanel.hidden = !(mode === 'builder');
+  if (tPanel)  tPanel.hidden = !(mode === 'teams');
   if (mode === 'delays' && dPanel && slot) {
     slot.appendChild(dPanel);
-    dPanel.style.display = '';
+    dPanel.hidden = false;
     renderDelaysAdmin();
   } else if (dPanel) {
-    dPanel.style.display = 'none';
+    dPanel.hidden = true;
   }
   if (qBtn)    qBtn.classList.toggle('active',  mode === 'quick');
   if (eBtn)    eBtn.classList.toggle('active',  mode === 'editor');
@@ -1948,20 +1951,20 @@ function setResultsMode(mode) {
   var dBtn     = document.getElementById('modeDelaysBtn');
   var saveBtn  = document.getElementById('bucketModeSaveBtn');
   var saveStat = document.getElementById('bucketModeSaveStatus');
-  if (gPanel)   gPanel.style.display = mode === 'games'   ? '' : 'none';
-  if (bPanel)   bPanel.style.display = mode === 'buckets' ? '' : 'none';
+  if (gPanel)   gPanel.hidden = !(mode === 'games');
+  if (bPanel)   bPanel.hidden = !(mode === 'buckets');
   if (mode === 'delays' && dPanel) {
     var _rSlot = document.getElementById('resultsDelaysSlot');
     if (_rSlot) _rSlot.appendChild(dPanel);
-    dPanel.style.display = '';
+    dPanel.hidden = false;
   } else if (dPanel) {
-    dPanel.style.display = 'none';
+    dPanel.hidden = true;
   }
   if (gBtn)     gBtn.classList.toggle('active', mode === 'games');
   if (bBtn)     bBtn.classList.toggle('active', mode === 'buckets');
   if (dBtn)     dBtn.classList.toggle('active', mode === 'delays');
-  if (saveBtn)  saveBtn.style.display  = mode === 'buckets' ? '' : 'none';
-  if (saveStat) saveStat.style.display = mode === 'buckets' ? '' : 'none';
+  if (saveBtn)  saveBtn.hidden = !(mode === 'buckets');
+  if (saveStat) saveStat.hidden = !(mode === 'buckets');
   if (mode === 'buckets') renderBucketAdmin();
   if (mode === 'delays')  renderDelaysAdmin();
   var qgBtn = document.getElementById('qModeGamesBtn');
@@ -2027,7 +2030,7 @@ function renderDelaysAdmin() {
   // Day chips — only if tournament spans multiple days
   var dayWrap  = document.getElementById('delayDayWrap');
   var dayChips = document.getElementById('delayDayChips');
-  if (dayWrap)  dayWrap.style.display = days.length > 1 ? '' : 'none';
+  if (dayWrap)  dayWrap.hidden = !(days.length > 1);
   if (dayChips && days.length > 1) {
     dayChips.innerHTML = days.map(function(d) {
       return '<button class="delay-chip" data-value="' + esc(d) + '" data-action="toggleChipSel">' + esc(fmtDayLabel(d)) + '</button>';
@@ -2042,7 +2045,7 @@ function renderDelaysAdmin() {
   var list = document.getElementById('activeOffsetsList');
   if (!list) return;
   if (!_offsets.entries || !_offsets.entries.length) {
-    list.innerHTML = '<div class="admin-subtitle" style="margin:0">No active offsets.</div>';
+    list.innerHTML = '<div class="admin-subtitle admin-subtitle--flush">No active offsets.</div>';
     return;
   }
   var html = '';
@@ -2053,7 +2056,7 @@ function renderDelaysAdmin() {
     var fieldStr = (entry.fields && entry.fields.length) ? entry.fields.join(', ') : 'All fields';
     var dayStrs  = (entry.days  && entry.days.length)   ? entry.days.map(fmtDayLabel).join(', ') : 'All days';
     html += '<div class="delay-offset-row">'
-      + '<span class="delay-offset-val" style="color:' + color + '">' + sign + mins + ' min</span>'
+      + '<span class="delay-offset-val" data-css="color:' + color + '">' + sign + mins + ' min</span>'
       + '<span class="delay-offset-desc">' + esc(fieldStr) + ' · ' + esc(dayStrs) + '</span>'
       + '<button class="admin-clear-btn delay-offset-del" data-action="deleteOffset" data-arg="' + idx + '">✕</button>'
       + '</div>';
@@ -2189,7 +2192,7 @@ function renderBucketAdmin() {
   }
 
   if (!_bucketTeams.length) {
-    wrap.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No teams yet. Add schedule games or outside teams below.</div>';
+    wrap.innerHTML = '<div class="admin-subtitle admin-subtitle--pad">No teams yet. Add schedule games or outside teams below.</div>';
     return;
   }
   var html = '<div class="bucket-admin-list">';
@@ -2391,7 +2394,7 @@ async function addBucketTeam() {
 async function deleteBucketTeam(idx) {
   var team = _bucketTeams[idx];
   if (!team || !team.extra) return;
-  if (!confirm('Remove "' + team.name + '" from the bucket challenge?')) return;
+  if (!await ttConfirm('Remove "' + team.name + '" from the bucket challenge?', { okLabel: 'Remove', danger: true })) return;
   var r = await apiFetch('/api/buckets/teams/' + encodeURIComponent(team.name), { method: 'DELETE' });
   if (!r) return;
   if (!r.ok) { var d = await r.json().catch(function(){ return {}; }); showToast(d.error || 'Remove failed', true); return; }
@@ -2438,7 +2441,7 @@ function renderCoachesList(coaches) {
   var el = document.getElementById('coachesList');
   if (!el) return;
   if (!coaches.length) {
-    el.innerHTML = '<div class="admin-subtitle" style="padding:0.5em 0">No coaches added yet.</div>';
+    el.innerHTML = '<div class="admin-subtitle admin-subtitle--pad">No coaches added yet.</div>';
     return;
   }
   el.innerHTML = coaches.map(function(u) {
@@ -2455,7 +2458,7 @@ function renderCoachesList(coaches) {
       +   teamTags
       +   '<button class="coach-add-team-btn" data-action="showAddCoachTeam" data-arg="' + esc(u.username) + '">+ Team</button>'
       + '</div>'
-      + '<div class="coach-add-team-row" id="cat-' + esc(u.username) + '" style="display:none">'
+      + '<div class="coach-add-team-row" id="cat-' + esc(u.username) + '" hidden>'
       +   '<select class="styled" id="cat-sel-' + esc(u.username) + '"></select>'
       +   '<button class="admin-save-btn" data-action="addCoachTeam" data-arg="' + esc(u.username) + '">Add</button>'
       +   '<button class="admin-clear-btn" data-action="hideAddCoachTeam" data-arg="' + esc(u.username) + '">Cancel</button>'
@@ -2478,12 +2481,12 @@ function showAddCoachTeam(username) {
   sel.innerHTML = schedTeams.length
     ? schedTeams.map(function(t){ return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('')
     : '<option value="">No schedule loaded</option>';
-  row.style.display = '';
+  row.hidden = false;
 }
 
 function hideAddCoachTeam(username) {
   var row = document.getElementById('cat-' + username);
-  if (row) row.style.display = 'none';
+  if (row) row.hidden = true;
 }
 
 async function addCoachTeam(username) {
@@ -2502,7 +2505,7 @@ async function addCoachTeam(username) {
 }
 
 async function removeCoachTeam(username, teamName) {
-  if (!confirm('Remove "' + teamName + '" from ' + username + '?')) return;
+  if (!await ttConfirm('Remove "' + teamName + '" from ' + username + '?', { okLabel: 'Remove', danger: true })) return;
   var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/teams/' + encodeURIComponent(teamName), { method: 'DELETE' });
   if (!r) return;
   var data = await r.json().catch(function(){ return {}; });
@@ -2551,13 +2554,13 @@ function openResetPwModal(username) {
   document.getElementById('resetPwTitle').textContent = 'Reset Password';
   document.getElementById('resetPwDesc').textContent = 'Set a new password for "' + username + '". They will be required to change it on next login.';
   document.getElementById('resetPwInput').value = '';
-  document.getElementById('resetPwError').style.display = 'none';
-  document.getElementById('resetPwModal').style.display = 'flex';
+  document.getElementById('resetPwError').hidden = true;
+  document.getElementById('resetPwModal').hidden = false;
 }
 
 function closeResetPwModal() {
   resetPwTarget = null;
-  document.getElementById('resetPwModal').style.display = 'none';
+  document.getElementById('resetPwModal').hidden = true;
 }
 
 async function submitResetPassword(e) {
@@ -2565,10 +2568,10 @@ async function submitResetPassword(e) {
   if (!resetPwTarget) return;
   var pw    = document.getElementById('resetPwInput').value;
   var errEl = document.getElementById('resetPwError');
-  errEl.style.display = 'none';
+  errEl.hidden = true;
   if (!pw || pw.length < 8) {
     errEl.textContent = 'Password must be at least 8 characters';
-    errEl.style.display = 'block';
+    errEl.hidden = false;
     return;
   }
   var r = await apiFetch('/api/users/' + encodeURIComponent(resetPwTarget) + '/reset-password', {
@@ -2580,7 +2583,7 @@ async function submitResetPassword(e) {
   if (!r.ok) {
     var data = await r.json().catch(function(){ return {}; });
     errEl.textContent = data.error || 'Reset failed';
-    errEl.style.display = 'block';
+    errEl.hidden = false;
     return;
   }
   closeResetPwModal();
@@ -2645,11 +2648,11 @@ function quickTeamCell(sid, n) {
   var isName  = !!over['t' + n + 'name'];
   var curType = over['t' + n + 'type'] || side.type;
   var curSlot = over['t' + n + 'slot'] || side.slot;
-  return '<span class="quick-team quick-team--feed" id="qfeedwrap-' + n + '-' + esc(sid) + '"' + (isName ? ' style="display:none"' : '') + '>'
+  return '<span class="quick-team quick-team--feed" id="qfeedwrap-' + n + '-' + esc(sid) + '"' + (isName ? ' hidden' : '') + '>'
       + sourceDropdown('qt' + n + 's-' + sid, curType, curSlot)
       + '</span>'
     + '<label class="quick-feed-toggle"><input type="checkbox" class="quick-feed-chk" data-sid="' + esc(sid) + '" data-side="' + n + '"' + (isName ? ' checked' : '') + '>name</label>'
-    + '<input type="text" class="quick-team-inp quick-feed-inp" id="' + idT + '" placeholder="New team name" value="' + (isName ? esc(over['t' + n + 'name']) : '') + '" style="display:' + (isName ? '' : 'none') + '">';
+    + '<input type="text" class="quick-team-inp quick-feed-inp" id="' + idT + '" placeholder="New team name" value="' + (isName ? esc(over['t' + n + 'name']) : '') + '"' + (isName ? '' : ' hidden') + '>';
 }
 
 function quickRowHTML(sid) {
@@ -2673,10 +2676,35 @@ function quickRowHTML(sid) {
     + '</div>';
 }
 
+async function swissPairNextRound() {
+  var btn = document.getElementById('swissPairBtn');
+  if (btn) btn.disabled = true;
+  try {
+    var r = await apiFetch('/api/schedule/swiss-next-round', { method: 'POST' });
+    if (!r) return;
+    var d = await r.json().catch(function(){ return {}; });
+    if (!r.ok) { showToast(d.error || 'Pairing failed', true); return; }
+    showToast('Round ' + d.round + (d.of ? ' of ' + d.of : '') + ' paired \u2014 ' + d.games + ' games added');
+    await fetchAll();
+    renderQuickEditor();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 function renderQuickEditor() {
   var list = document.getElementById('quickEditorList');
   if (!list) return;
   var html = '';
+
+  // Swiss: rounds beyond the first are drawn from standings on demand.
+  if (settings.format === 'swiss') {
+    html += '<div class="swiss-bar">'
+      + '<button class="admin-save-btn" id="swissPairBtn" type="button" data-action="swissPair">Pair next round</button>'
+      + '<span class="swiss-bar-hint">Enter every result for the current round, then pair the next one from the standings (no rematches). '
+      + esc(String(settings.swissRounds || '')) + ' rounds planned.</span>'
+      + '</div>';
+  }
 
   // Main bracket rounds — plain headers, occupied slots only.
   ROUND_ORDER.forEach(function(round) {
@@ -2715,7 +2743,7 @@ function renderQuickEditor() {
   tierSection('L', bracketDisplayName('A'));
   tierSection('R', bracketDisplayName('B'));
 
-  list.innerHTML = html || '<div class="bld-muted" style="padding:1em">No games in schedule.</div>';
+  list.innerHTML = html || '<div class="bld-muted bld-muted--pad">No games in schedule.</div>';
 
   // Feed ↔ fixed-name toggle: checking hides the winner/loser+game dropdowns
   // and swaps in a blank name input; unchecking restores the dropdowns
@@ -2726,11 +2754,11 @@ function renderQuickEditor() {
       var wrap = document.getElementById('qfeedwrap-' + n + '-' + sid);
       var inp  = document.getElementById('qt' + n + '-' + sid);
       if (chk.checked) {
-        if (wrap) wrap.style.display = 'none';
-        if (inp) { inp.style.display = ''; inp.value = ''; inp.focus(); }
+        if (wrap) wrap.hidden = true;
+        if (inp) { inp.hidden = false; inp.value = ''; inp.focus(); }
       } else {
-        if (wrap) wrap.style.display = '';
-        if (inp) { inp.style.display = 'none'; inp.value = ''; }
+        if (wrap) wrap.hidden = false;
+        if (inp) { inp.hidden = true; inp.value = ''; }
       }
     });
   });
@@ -2958,6 +2986,7 @@ async function saveTeams() {
 // Explicit allowlist replacing the old inline onclick/onchange/onsubmit
 // attributes, so the CSP can drop script-src 'unsafe-inline'.
 Object.assign(TT_ACTIONS, {
+  swissPair: function() { swissPairNextRound(); },
   // header / account
   doLogout:            function() { doLogout(); },
   saveUsername:        function() { saveUsername(); },
@@ -3043,7 +3072,7 @@ Object.assign(TT_ACTIONS, {
   var tat = document.getElementById('themeAdvancedToggle');
   if (tat) tat.addEventListener('change', function() {
     var panel = document.getElementById('themeAdvancedPanel');
-    if (panel) panel.style.display = this.checked ? '' : 'none';
+    if (panel) panel.hidden = !(this.checked);
     if (this.checked) renderThemeSection();
   });
 })();

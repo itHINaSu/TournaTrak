@@ -22,9 +22,9 @@
   <div class="login-box">
     <div class="login-title">Admin Login</div>
     <!-- Coach-blocked state -->
-    <div id="coachBlockMsg" style="display:none">
+    <div id="coachBlockMsg" hidden>
       <div class="login-desc" id="coachBlockText"></div>
-      <button class="sched-save-btn login-btn" style="margin-top:1em" data-action="doLogout">Sign Out</button>
+      <button class="sched-save-btn login-btn" class="u-mt-1" data-action="doLogout">Sign Out</button>
     </div>
     <!-- Normal login form -->
     <form id="loginForm">
@@ -43,7 +43,7 @@
 </div>
 
 <!-- Change-password overlay — shown on first login when FORCE_PASSWORD_CHANGE=true -->
-<div class="login-overlay" id="changePasswordOverlay" style="display:none">
+<div class="login-overlay" id="changePasswordOverlay" hidden>
   <div class="login-box">
     <div class="login-title">Set a New Password</div>
     <div class="login-desc">Choose a permanent password before continuing. Must be at least 8 characters.</div>
@@ -63,7 +63,7 @@
 </div>
 
 <!-- Password reset modal — admin resets another user's password -->
-<div class="login-overlay" id="resetPwModal" style="display:none">
+<div class="login-overlay" id="resetPwModal" hidden>
   <div class="login-box">
     <div class="login-title" id="resetPwTitle">Reset Password</div>
     <div class="login-desc" id="resetPwDesc"></div>
@@ -73,7 +73,7 @@
         <input type="password" id="resetPwInput" autocomplete="new-password" placeholder="At least 8 characters">
       </div>
       <div class="login-error" id="resetPwError"></div>
-      <div style="display:flex;gap:0.6em;margin-top:0.5em">
+      <div class="u-flexrow-gap">
         <button type="submit" class="sched-save-btn">Reset Password</button>
         <button type="button" class="admin-clear-btn" data-action="closeResetPwModal">Cancel</button>
       </div>
@@ -84,16 +84,16 @@
 <header class="site-header" id="siteHeader">
   <div class="header-name-block">
     <h1 id="adminSiteName">Tournament Admin</h1>
-    <div id="adminSiteSubtitle" class="site-subtitle" style="visibility:hidden">&#8203;</div>
+    <div id="adminSiteSubtitle" class="site-subtitle" class="u-invisible">&#8203;</div>
   </div>
   <div class="header-controls">
-    <select class="styled admin-tournament-switcher" id="tournamentSwitcher" data-action-change="switchTournament" style="display:none" title="Active tournament"></select>
+    <select class="styled admin-tournament-switcher" id="tournamentSwitcher" data-action-change="switchTournament" hidden title="Active tournament"></select>
     <a href="/" class="admin-public-btn" id="viewPublicLink">← Bracket</a>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
   </div>
 </header>
 
-<div class="admin-wrap" id="adminWrap" style="display:none">
+<div class="admin-wrap" id="adminWrap" hidden>
 
   <div class="admin-tab-bar">
     <div class="admin-tab active" data-tab="results">
@@ -143,21 +143,21 @@
       <button class="results-mode-btn" id="modeBucketsBtn" data-action="setResultsMode" data-arg="buckets">Bucket Challenge</button>
       <button class="results-mode-btn" id="modeDelaysBtn" data-action="setResultsMode" data-arg="delays">Delays</button>
       <a class="results-mode-btn results-mode-btn--link" id="modeScoreLink" href="/score">⚡ Score</a>
-      <button class="sched-save-btn" id="bucketModeSaveBtn" style="display:none;margin-left:auto" data-action="saveBucketCounts">Save</button>
-      <span class="sched-status" id="bucketModeSaveStatus" style="display:none"></span>
+      <button class="sched-save-btn" id="bucketModeSaveBtn" class="u-push-right-b" hidden data-action="saveBucketCounts">Save</button>
+      <span class="sched-status" id="bucketModeSaveStatus" hidden></span>
     </div>
     <div id="resultsGamesPanel">
       <div class="admin-subtitle">Select a winner for each completed game. Clear removes a result without confirmation.</div>
       <div id="adminGames"></div>
     </div>
-    <div id="resultsBucketPanel" style="display:none">
+    <div id="resultsBucketPanel" hidden>
       <div class="admin-subtitle">Enter bucket counts for all teams. Save all writes every count at once.</div>
       <div id="bucketAdminWrap"></div>
-      <div class="sched-action-row sched-action-row--top" style="margin-top:1em">
+      <div class="sched-action-row sched-action-row--top" class="u-mt-1">
         <button class="sched-save-btn" data-action="saveBucketCounts">Save All</button>
         <span class="sched-status" id="bucketSaveStatus"></span>
       </div>
-      <div class="settings-section" style="margin-top:1.5em">
+      <div class="settings-section" class="u-mt-15">
         <div class="settings-section-hdr">Add Outside Team</div>
         <div class="settings-field">
           <label>Team Name <span class="field-label-hint">(for teams not in the bracket)</span></label>
@@ -195,13 +195,13 @@
         <span class="sched-status" id="quickSaveStatus"></span>
       </div>
     </div>
-    <div id="schedEditorPanel" style="display:none">
+    <div id="schedEditorPanel" hidden>
       <div class="admin-subtitle">Edit game labels, times, team names, slot positions, and team sources.
         Use "+ Add game" to fill an unused bracket slot. Each game saves individually and publishes immediately.</div>
       <div id="scheduleEditor"></div>
     </div>
-    <div id="schedBuilderPanel" style="display:none">
-      <main class="bld-main" id="authGate" style="display:none">
+    <div id="schedBuilderPanel" hidden>
+      <main class="bld-main" id="authGate" hidden>
         <div class="bld-card bld-gate">
           <div class="bld-gate-msg" id="authGateMsg">Sign in as an administrator to build a bracket.</div>
           <a class="bld-btn bld-btn--primary" href="/admin">Go to Admin Login</a>
@@ -210,118 +210,18 @@
       <main class="bld-main" id="loading">
         <div class="bld-card"><div class="bld-muted">Loading…</div></div>
       </main>
-      <main class="bld-main" id="builder" style="display:none">
-        <div class="bld-card">
-          <h2 class="bld-h2">1 · Format</h2>
-          <div class="bld-field">
-            <label for="formatSel">Tournament format</label>
-            <select class="bld-input" id="formatSel"></select>
-          </div>
-          <p class="bld-muted" id="formatDesc"></p>
-          <label class="bld-check" id="ifNecField" style="display:none">
-            <input type="checkbox" id="ifNecChk" checked>
-            Include "if necessary" final (bracket reset — losers-bracket team must win twice)
-          </label>
-          <label class="bld-check" id="thirdPlaceField" style="display:none">
-            <input type="checkbox" id="thirdPlaceChk">
-            Include 3rd-place game (semifinal losers play before the final)
-          </label>
-        </div>
-        <div class="bld-card">
-          <h2 class="bld-h2">2 · Teams <span class="bld-count" id="teamCount"></span></h2>
-          <div class="bld-gen-row">
-            <span>Randomly generate</span>
-            <select class="bld-input bld-gen-count" id="genCount" aria-label="Number of teams to generate"></select>
-            <span>team names</span>
-            <button type="button" class="bld-btn bld-btn--small" id="genBtn">Generate</button>
-          </div>
-          <div class="bld-field">
-            <label for="teamsInput">One team name per line</label>
-            <textarea class="bld-input bld-textarea" id="teamsInput" rows="10"
-              placeholder="Paste or type one team name per line…" spellcheck="false"></textarea>
-          </div>
-          <p class="bld-muted" id="byeNote"></p>
-        </div>
-        <div class="bld-card">
-          <h2 class="bld-h2">3 · Seeding &amp; byes</h2>
-          <div class="bld-field">
-            <label for="seedMode">How should teams be seeded?</label>
-            <select class="bld-input" id="seedMode">
-              <option value="random">Random — shuffle everything (byes to random teams)</option>
-              <option value="order">By list order — line 1 is the top seed (byes to top teams)</option>
-              <option value="partial">Seed the top N — everyone else is placed randomly</option>
-              <option value="manual">Manual — I'll pick which teams get byes</option>
-            </select>
-          </div>
-          <div class="bld-field" id="seedCountField" style="display:none">
-            <label for="seedCountInput">How many of the top lines are seeds?</label>
-            <input type="number" class="bld-input" id="seedCountInput" min="1" step="1" value="4">
-            <p class="bld-muted">Lines 1–N keep their order as seeds 1–N; everyone below is placed randomly.</p>
-          </div>
-          <label class="bld-check" id="showSeedsField" style="display:none">
-            <input type="checkbox" id="showSeedsChk">
-            Show seed numbers on the bracket <span class="bld-muted">(e.g. (1) Team Name)</span>
-          </label>
-          <div id="byePicker" style="display:none">
-            <label class="bld-field" style="display:block">Pick the teams that get a first-round bye
-              <span class="bld-count" id="byeCount"></span></label>
-            <div class="bld-bye-list" id="byeList"></div>
-          </div>
-        </div>
-        <div class="bld-card">
-          <h2 class="bld-h2">4 · Schedule</h2>
-          <div class="bld-field" id="simpleDateField">
-            <label for="simpleDate">Tournament start date</label>
-            <input type="date" class="bld-input" id="simpleDate">
-          </div>
-          <label class="bld-check">
-            <input type="checkbox" id="advSchedChk">
-            Set specific playing days (custom dates, times &amp; games per day)
-          </label>
-          <div id="advSched" style="display:none">
-            <p class="bld-muted">Tap the days games will be played, then set each day's start time,
-              number of games, and minutes between games. Add a field to run games on more than one
-              surface — games then run in concurrent waves so the day finishes sooner, and each day
-              can be limited to the fields it actually uses (e.g. championship day on one field).
-              Games fill the days in bracket order — early rounds first.</p>
-            <div class="bld-cal" id="calendar"></div>
-            <div class="bld-fields-setup" id="fieldsSetup"></div>
-            <div class="bld-day-defaults" id="dayDefaultsRow">
-              <span class="bld-day-defaults-label">Day defaults</span>
-              <label class="bld-day-f">Start<input type="time" class="bld-input" id="defStartTime" value="09:00"></label>
-              <label class="bld-day-f">Games<input type="number" min="1" max="100" inputmode="numeric" class="bld-input bld-input--sm" id="defGames" placeholder="all"></label>
-              <label class="bld-day-f">Min apart<input type="number" min="1" max="1440" inputmode="numeric" class="bld-input bld-input--sm" id="defInterval" value="60"></label>
-              <button type="button" class="bld-btn bld-btn--small" id="applyDefaultsBtn">Apply to all days</button>
-              <p class="bld-muted bld-day-defaults-note">New days start with these values. "Apply to all days" overwrites every added day (blank Games means each day keeps its own count).</p>
-            </div>
-            <div class="bld-days" id="daysList"></div>
-            <p class="bld-muted" id="slotSummary"></p>
-          </div>
-          <p class="bld-muted">Game times can be fine-tuned afterward in the Admin schedule editor.</p>
-        </div>
-        <div class="bld-card">
-          <h2 class="bld-h2">5 · Game Labels</h2>
-          <div class="bld-field">
-            <label for="gamePrefixInput">Game number prefix</label>
-            <input type="text" class="bld-input" id="gamePrefixInput" placeholder="Game " value="Game ">
-          </div>
-          <p class="bld-muted">Use <code>[W/L]</code> to apply different text per bracket side — content before <code>/</code> for the left (Winner's) bracket, after for the right (Loser's). Example: <code>[W/L]G</code> produces <strong>WG1</strong>, <strong>LG2</strong>.</p>
-        </div>
-        <div class="bld-actions">
-          <div class="bld-error" id="builderError"></div>
-          <button class="bld-btn bld-btn--primary" id="generateBtn">Generate Bracket</button>
-        </div>
+      <main class="bld-main" id="builder" hidden>
       </main>
     </div>
     <!-- Slot where the shared delays panel is moved when delays mode is active -->
     <div id="schedDelaysSlot"></div>
     <!-- Teams panel -->
-    <div id="schedTeamsPanel" style="display:none">
+    <div id="schedTeamsPanel" hidden>
       <div class="admin-subtitle">All teams from the current schedule. Drag to reorder (the list order is the seed order when seeding is on). Edit a name to rename it everywhere.</div>
-      <div class="settings-field settings-field--toggle" style="margin-bottom:1em">
+      <div class="settings-field settings-field--toggle" class="u-mb-1">
         <label>Show seed numbers on the bracket</label>
         <input type="checkbox" id="teams-showSeeds">
-        <div class="field-hint">Displays <span style="opacity:.7">(1)</span> before team names on bracket cards. Only meaningful when teams are ordered intentionally.</div>
+        <div class="field-hint">Displays <span class="u-dim-70">(1)</span> before team names on bracket cards. Only meaningful when teams are ordered intentionally.</div>
       </div>
       <div id="teamsEditorWrap">
         <div id="teamsEditorList" class="teams-editor-list"></div>
@@ -338,29 +238,29 @@
     <div id="lineupLoading" class="lineup-state">
       <div class="lineup-state-body">Loading…</div>
     </div>
-    <div id="lineupInvalid" style="display:none" class="lineup-state">
+    <div id="lineupInvalid" hidden class="lineup-state">
       <div class="lineup-state-icon">🔗</div>
       <div class="lineup-state-title">Access Error</div>
       <div class="lineup-state-body">Could not load lineup data.</div>
     </div>
-    <div id="lineupContent" style="display:none" class="lineup-wrap">
+    <div id="lineupContent" hidden class="lineup-wrap">
       <div class="lineup-team-header">
         <div class="lineup-team-label">Team</div>
         <div id="lineupTeamName" class="lineup-team-name"></div>
       </div>
-      <div id="lineupSelectorsRow" class="lineup-selectors-row" style="display:none">
+      <div id="lineupSelectorsRow" class="lineup-selectors-row" hidden>
         <div class="lineup-game-info lineup-sel-half">
           <select id="lineupTeamSel" class="lineup-game-sel"></select>
         </div>
         <div class="lineup-game-info lineup-sel-half" id="lineupGameInfo">
           <span class="lineup-game-sel-placeholder" id="lineupGamePlaceholder">Select a team first</span>
-          <select id="lineupGameSelect" class="lineup-game-sel" style="display:none"></select>
+          <select id="lineupGameSelect" class="lineup-game-sel" hidden></select>
         </div>
       </div>
-      <div id="lineupReadOnlyBadge" style="display:none" class="lineup-readonly-badge">
+      <div id="lineupReadOnlyBadge" hidden class="lineup-readonly-badge">
         View Only — Game Complete
       </div>
-      <div id="lineupNoGame" style="display:none" class="lineup-no-game">
+      <div id="lineupNoGame" hidden class="lineup-no-game">
         No upcoming games scheduled for your team.
       </div>
       <div class="lineup-form-wrap">
@@ -393,7 +293,7 @@
         <div class="settings-nav-item" data-section="account" data-action="showSettingsSection" data-arg="account">Account</div>
         <div class="settings-nav-item" data-section="users" data-action="showSettingsSection" data-arg="users">Users</div>
         <div class="settings-nav-item" data-section="coaches" data-action="showSettingsSection" data-arg="coaches">Coaches</div>
-        <div class="settings-nav-item" data-section="tournaments" data-action="showSettingsSection" data-arg="tournaments" id="navTournaments" style="display:none">Tournaments</div>
+        <div class="settings-nav-item" data-section="tournaments" data-action="showSettingsSection" data-arg="tournaments" id="navTournaments" hidden>Tournaments</div>
       </nav>
 
       <div class="settings-content">
@@ -419,7 +319,7 @@
                 <label>Admin Panel Name <span class="field-label-hint">(this page's header)</span></label>
                 <input type="text" id="set-adminName" placeholder="Tournament Admin">
               </div>
-              <div class="settings-subsection-hdr" style="margin-top:0.9em">Navigation Defaults</div>
+              <div class="settings-subsection-hdr" class="u-mt-09">Navigation Defaults</div>
               <div class="settings-field">
                 <label>Default landing tab</label>
                 <select class="styled" id="set-defaultTab">
@@ -459,9 +359,9 @@
               <div class="settings-field">
                 <label>Tournament Logo <span class="field-label-hint">(PNG/JPEG/WebP, max 36 KB — shown in the public header)</span></label>
                 <div class="logo-picker-row">
-                  <img id="logoPreview" class="site-logo" alt="" style="display:none">
+                  <img id="logoPreview" class="site-logo" alt="" hidden>
                   <input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp" data-action-change="pickLogo">
-                  <button class="admin-clear-btn" id="logoRemoveBtn" data-action="removeLogo" style="display:none">Remove</button>
+                  <button class="admin-clear-btn" id="logoRemoveBtn" data-action="removeLogo" hidden>Remove</button>
                 </div>
                 <div class="field-hint">Saved with this section's Save button. SVG is not accepted.</div>
               </div>
@@ -469,21 +369,21 @@
                 <input type="checkbox" id="themeAdvancedToggle">
                 Advanced — Application Theme
               </label>
-              <div id="themeAdvancedPanel" style="display:none">
-                <div class="settings-subsection-hdr" style="margin-top:0.75em">Application Theme</div>
-                <div class="field-hint" style="margin-bottom:0.6em">Override accent and result colors used across the app. Light mode variants are auto-derived.</div>
+              <div id="themeAdvancedPanel" hidden>
+                <div class="settings-subsection-hdr" class="u-mt-075">Application Theme</div>
+                <div class="field-hint" class="u-mb-06">Override accent and result colors used across the app. Light mode variants are auto-derived.</div>
                 <div id="themeColorsList"></div>
-                <div class="settings-save-row" style="margin-top:0.5em">
+                <div class="settings-save-row" class="u-mt-05">
                   <button class="admin-clear-btn" data-action="resetTheme">Reset Defaults</button>
                   <span class="sched-status" id="themeResetStatus"></span>
                 </div>
               </div>
-              <div id="fieldColorsSection" style="display:none;margin-top:1em">
+              <div id="fieldColorsSection" class="u-mt-1" hidden>
                 <div class="settings-subsection-hdr">Field Colors</div>
-                <div class="field-hint" style="margin-bottom:0.6em">Assign a color to each field tag on game cards. Defaults are Teal / Orange / Purple / Pink / Blue.</div>
+                <div class="field-hint" class="u-mb-06">Assign a color to each field tag on game cards. Defaults are Teal / Orange / Purple / Pink / Blue.</div>
                 <div id="fieldsColorList"></div>
               </div>
-              <div class="settings-save-row" style="margin-top:1em">
+              <div class="settings-save-row" class="u-mt-1">
                 <button class="sched-save-btn" data-action="saveSettings">Save</button>
               </div>
             </div>
@@ -579,7 +479,7 @@
                 </select>
                 <div class="field-hint">Controls the columns coaches see on the lineup page and the default roster size.</div>
               </div>
-              <div class="settings-field" id="lineupCustomColsField" style="display:none">
+              <div class="settings-field" id="lineupCustomColsField" hidden>
                 <label>Custom Columns <span class="field-label-hint">(comma-separated, up to 4)</span></label>
                 <input type="text" id="set-lineupCustomCols" placeholder="e.g. #, Player, Belt Rank">
                 <div class="field-hint">A first column named "#" or "No." renders as a narrow number field. Values are stored in the same fields as the standard layout, so switching presets never loses data.</div>
@@ -662,7 +562,7 @@
                 <option value="team">Team — lineup submission</option>
               </select>
             </div>
-            <div class="settings-field" id="newTeamNameField" style="display:none">
+            <div class="settings-field" id="newTeamNameField" hidden>
               <label>Team Name <span class="field-label-hint">(shown on the lineup page)</span></label>
               <input type="text" id="newTeamName" autocomplete="off" placeholder="e.g. Eagles">
             </div>
@@ -736,19 +636,19 @@
 <div class="settings-backdrop" id="settingsBackdrop" data-action="closeSettingsSidebar"></div>
 
 <!-- Shared delays panel — moved between tab slots by DOM manipulation -->
-<div id="resultsDelaysPanel" style="display:none">
+<div id="resultsDelaysPanel" hidden>
   <div class="admin-subtitle">Set a time offset per field and day. Shows as colored text next to the game time on the public page and disappears once a final score is recorded.</div>
   <div class="settings-section">
     <div class="settings-section-hdr">Set Offset</div>
     <div class="settings-field">
       <label>Minutes <span class="field-label-hint">(positive = behind/late · negative = ahead/early)</span></label>
-      <input type="number" id="delayMinutes" placeholder="e.g. 20 or -5" style="max-width:10em">
+      <input type="number" id="delayMinutes" placeholder="e.g. 20 or -5" class="u-maxw-10">
     </div>
     <div class="settings-field" id="delayFieldWrap">
       <label>Fields impacted <span class="field-label-hint">(none selected = all fields)</span></label>
       <div class="delay-chip-row" id="delayFieldChips"></div>
     </div>
-    <div class="settings-field" id="delayDayWrap" style="display:none">
+    <div class="settings-field" id="delayDayWrap" hidden>
       <label>Days impacted <span class="field-label-hint">(none selected = all days)</span></label>
       <div class="delay-chip-row" id="delayDayChips"></div>
     </div>
@@ -772,34 +672,9 @@
   <div class="settings-section">
     <div class="settings-section-hdr">Active Offsets</div>
     <div id="activeOffsetsList"></div>
-    <div class="settings-save-row" style="margin-top:0.6em">
+    <div class="settings-save-row" class="u-mt-06">
       <button class="admin-clear-btn" data-action="clearAllOffsets">Clear All Offsets</button>
       <span class="sched-status" id="delayClearStatus"></span>
-    </div>
-  </div>
-</div>
-
-<!-- Builder confirm overlay -->
-<div class="bld-overlay" id="confirmOverlay" style="display:none">
-  <div class="bld-modal">
-    <div class="bld-modal-title">Replace current schedule?</div>
-    <div class="bld-modal-body" id="confirmText"></div>
-    <div class="bld-modal-actions">
-      <button class="bld-btn" id="cancelBtn">Cancel</button>
-      <button class="bld-btn bld-btn--danger" id="confirmBtn">Replace &amp; Generate</button>
-    </div>
-  </div>
-</div>
-
-<!-- Builder success overlay -->
-<div class="bld-overlay" id="doneOverlay" style="display:none">
-  <div class="bld-modal">
-    <div class="bld-modal-title">Bracket created</div>
-    <div class="bld-modal-body" id="doneText"></div>
-    <div class="bld-modal-actions">
-      <button type="button" class="bld-btn" id="doneBackBtn">Back to builder</button>
-      <a class="bld-btn" id="doneViewPublicBtn" href="/">View public bracket</a>
-      <a class="bld-btn bld-btn--primary" id="doneToScheduleBtn" href="/admin">Open schedule editor</a>
     </div>
   </div>
 </div>
@@ -809,6 +684,7 @@
 <script src="/bracket-data.js"></script>
 <script src="/admin.js"></script>
 <script src="/lineup.js"></script>
+<script src="/builder-form.js"></script>
 <script src="/builder.js"></script>
 <script src="/sw-register.js" data-sw="/admin-sw.js"></script>
 </body>

@@ -8,7 +8,7 @@ function $(id) { return document.getElementById(id); }
 // embedded builder) and builder.html (standalone); if one copy drifts and an
 // optional element is missing, degrade gracefully instead of throwing and
 // leaving the whole builder stuck on its loading spinner.
-function toggleEl(id, on) { var el = $(id); if (el) el.style.display = on ? '' : 'none'; }
+function toggleEl(id, on) { var el = $(id); if (el) el.hidden = !(on); }
 
 var FORMATS = [];        // [{ id, label, description, minTeams, maxTeams }]
 var currentFormat = null;
@@ -56,11 +56,11 @@ async function init(skipAuth) {
     } catch (e) { sess = null; }
 
     if (!sess || !sess.authenticated || sess.role !== 'admin') {
-      $('loading').style.display = 'none';
+      $('loading').hidden = true;
       if (sess && sess.authenticated) {
         $('authGateMsg').textContent = 'Your account does not have administrator access. Sign in as an admin to build a bracket.';
       }
-      $('authGate').style.display = '';
+      $('authGate').hidden = false;
       return;
     }
   }
@@ -72,9 +72,9 @@ async function init(skipAuth) {
   } catch (e) { FORMATS = []; }
 
   if (!FORMATS.length) {
-    $('loading').style.display = 'none';
+    $('loading').hidden = true;
     $('authGateMsg').textContent = 'No tournament formats are available.';
-    $('authGate').style.display = '';
+    $('authGate').hidden = false;
     return;
   }
 
@@ -84,8 +84,8 @@ async function init(skipAuth) {
   var dt = new Date(d0 + 'T00:00:00');
   calYear = dt.getFullYear();
   calMonth = dt.getMonth();
-  $('loading').style.display = 'none';
-  $('builder').style.display = '';
+  $('loading').hidden = true;
+  $('builder').hidden = false;
   wireEvents();
   refresh();
 }
@@ -111,9 +111,9 @@ function selectFormat(id) {
 
 function updateShowSeedsVisibility() {
   var mode = $('seedMode').value;
-  $('showSeedsField').style.display = (mode === 'order' || mode === 'partial' || mode === 'manual') ? '' : 'none';
+  $('showSeedsField').hidden = !((mode === 'order' || mode === 'partial' || mode === 'manual'));
   var scf = $('seedCountField');
-  if (scf) scf.style.display = mode === 'partial' ? '' : 'none';
+  if (scf) scf.hidden = !(mode === 'partial');
 }
 
 // Clamped top-seed count for partial seeding (1..teamCount; blank → 0).
@@ -271,8 +271,8 @@ function isAdvanced() { return $('advSchedChk').checked; }
 
 function onAdvToggle() {
   var on = isAdvanced();
-  $('advSched').style.display = on ? '' : 'none';
-  $('simpleDateField').style.display = on ? 'none' : '';
+  $('advSched').hidden = !(on);
+  $('simpleDateField').hidden = !!(on);
   if (on) {
     // Seed the calendar with the simple start date so there's a starting point.
     if (!playingDays.length && $('simpleDate').value) {
@@ -530,10 +530,10 @@ function renderByePicker(teams, byes) {
   var picker = $('byePicker');
 
   if (!manual || byes === 0 || !teams.length) {
-    picker.style.display = 'none';
+    picker.hidden = true;
     return;
   }
-  picker.style.display = '';
+  picker.hidden = false;
 
   // Drop selections for teams that no longer exist in the list.
   var teamSet = {};
@@ -580,7 +580,7 @@ function defaultStartDate() {
 function showError(msg) {
   var el = $('builderError');
   el.textContent = msg || '';
-  el.style.display = msg ? '' : 'none';
+  el.hidden = !(msg);
 }
 
 // ── Validate + confirm ────────────────────────────────────────────────
@@ -643,7 +643,7 @@ function onGenerate() {
     'This replaces the current schedule with a new <strong>' + esc(currentFormat.label) +
     '</strong> bracket for <strong>' + esc(String(n)) + ' teams</strong> (' + esc(seedDesc) +
     ') ' + when + '.<br><span class="bld-warn">The existing schedule is overwritten, and its results, live scores, and delays are cleared.</span>';
-  $('confirmOverlay').style.display = '';
+  $('confirmOverlay').hidden = false;
 }
 
 async function doGenerate() {
@@ -679,11 +679,11 @@ async function doGenerate() {
     });
     var data = await r.json().catch(function () { return {}; });
     if (!r.ok) throw new Error(data.error || 'Generation failed');
-    $('confirmOverlay').style.display = 'none';
+    $('confirmOverlay').hidden = true;
     $('doneText').innerHTML = 'Created <strong>' + esc(String(data.games)) + ' games</strong>.';
-    $('doneOverlay').style.display = '';
+    $('doneOverlay').hidden = false;
   } catch (e) {
-    $('confirmOverlay').style.display = 'none';
+    $('confirmOverlay').hidden = true;
     showError(e.message || 'Generation failed');
   } finally {
     btn.disabled = false;
@@ -705,10 +705,19 @@ function wireEvents() {
   var applyDefaults = $('applyDefaultsBtn');
   if (applyDefaults) applyDefaults.addEventListener('click', applyDefaultsToAllDays);
   $('generateBtn').addEventListener('click', onGenerate);
-  $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').style.display = 'none'; });
+  $('cancelBtn').addEventListener('click', function () { $('confirmOverlay').hidden = true; });
   $('confirmBtn').addEventListener('click', doGenerate);
+  // The form's state is module-level and nothing on the success path clears
+  // it, so dismissing the overlay drops the TD back on their intact settings
+  // to tweak and regenerate.
+  ttRegisterOverlay($('confirmOverlay'), function () { $('confirmOverlay').hidden = true; });
+  ttRegisterOverlay($('doneOverlay'), function () { $('doneOverlay').hidden = true; });
   var doneBack = $('doneBackBtn');
-  if (doneBack) doneBack.addEventListener('click', function () { $('doneOverlay').style.display = 'none'; });
+  if (doneBack) {
+    doneBack.addEventListener('click', function () {
+      $('doneOverlay').hidden = true;
+    });
+  }
   var doneViewPublic = $('doneViewPublicBtn');
   if (doneViewPublic) {
     doneViewPublic.addEventListener('click', function (e) {
@@ -720,7 +729,7 @@ function wireEvents() {
   if (doneToSched && window.__builderEmbedded) {
     doneToSched.addEventListener('click', function (e) {
       e.preventDefault();
-      $('doneOverlay').style.display = 'none';
+      $('doneOverlay').hidden = true;
       if (typeof window.adminSwitchToSchedule === 'function') window.adminSwitchToSchedule();
     });
   }

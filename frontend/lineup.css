@@ -59,8 +59,8 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: var(--btn-pad-v) 1.1em;
-  border-radius: 0.3em;
+  padding: var(--btn-pad-v) var(--btn-pad-h);
+  border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: var(--surface2);
   color: var(--text-dim);
@@ -242,7 +242,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: var(--btn-pad-v) 1.2em;
-  border-radius: 0.3em;
+  border-radius: var(--radius-xs);
   background: transparent;
   cursor: pointer;
 }
@@ -263,7 +263,7 @@
   font-weight: 600;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 720px) {
   .lineup-td-num { width: 3.5em; }
   .lineup-inp--num { padding: 0.4em 0.2em; }
 }
@@ -285,7 +285,7 @@
   align-items: center;
   padding: 0.55em 0.75em;
   background: var(--surface2);
-  border-radius: 0.3em;
+  border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   min-height: 2.4em;
 }
@@ -313,7 +313,7 @@
   font-style: italic;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 720px) {
   .lineup-selectors-row { flex-direction: column; gap: 0.5em; }
 }
 
@@ -341,7 +341,7 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   padding: 0.5em 1.1em;
-  border-radius: 0.3em;
+  border-radius: var(--radius-xs);
   border: 0.07em solid var(--border);
   background: transparent;
   color: var(--text-mute);

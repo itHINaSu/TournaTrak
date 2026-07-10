@@ -55,6 +55,11 @@
   /* Button sizing tokens — change here to resize all buttons at once */
   --btn-font-size: var(--text-sm);
   --btn-pad-v:     0.55em;
+  /* Horizontal padding tiers: standard for full buttons, compact for
+     dense toolbars (mode switchers, inline clears). Anything else is a
+     deliberate one-off and should say why. */
+  --btn-pad-h:         1.1em;
+  --btn-pad-h-compact: 0.6em;
   --btn-h:         1.8rem;
 
   /* Bracket slot sizing — set by JS via setProperty */
@@ -221,7 +226,7 @@ select:focus-visible,
   font-weight: 600;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  padding: var(--btn-pad-v) 1.1em;
+  padding: var(--btn-pad-v) var(--btn-pad-h);
   border-radius: var(--radius-xs);
   background: var(--blue);
   color: #fff;
@@ -250,3 +255,122 @@ select:focus-visible,
 /* Per-tournament header logo (white-label). Set via img.src from the
    validated theme-colors logo data URI; hidden when none is configured. */
 .site-logo { height: 2.4em; width: auto; max-width: 6em; object-fit: contain; border-radius: 0.25em; margin-right: 0.15em; align-self: center; }
+
+/* ── tt-dialog: shared in-app confirm/prompt (tt-common.js ttDialog) ── */
+.tt-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1em;
+}
+.tt-dialog {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: 0.5em;
+  padding: 1.3em 1.3em 1.1em;
+  width: min(92vw, 26em);
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55);
+}
+.tt-dialog-msg {
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-md);
+  color: var(--text);
+  line-height: 1.5;
+  white-space: pre-line;   /* messages use \n for emphasis lines */
+}
+.tt-dialog-input {
+  font-family: 'Barlow', sans-serif;
+  font-size: max(1rem, 16px);
+  padding: 0.45em 0.55em;
+  border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+}
+.tt-dialog-input:focus { outline: 0.13em solid var(--blue-lt); border-color: var(--blue-lt); }
+.tt-dialog-actions {
+  display: flex;
+  gap: 0.6em;
+  justify-content: flex-end;
+}
+.tt-dialog-btn {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--btn-font-size);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: var(--btn-pad-v) var(--btn-pad-h);
+  border-radius: var(--radius-xs);
+  border: 0.07em solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.tt-dialog-btn:hover { color: var(--text); border-color: var(--text-dim); }
+.tt-dialog-btn--primary {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+}
+.tt-dialog-btn--primary:hover { opacity: 0.88; color: #fff; }
+.tt-dialog-btn--danger {
+  background: var(--lose-color);
+  border-color: var(--lose-color);
+}
+@media (pointer: coarse) { .tt-dialog-btn { min-height: 44px; } }
+
+/* ── Print: force a white-paper palette ──────────────────────────────────
+   Everything derives from the tokens, so overriding them (at body AND
+   body.light specificity, after the theme blocks, so print wins in either
+   theme) restyles the whole app for paper. */
+@media print {
+  body, body.light {
+    color-scheme: light;
+    --bg:        #ffffff;
+    --surface:   #ffffff;
+    --surface2:  #f2f2f2;
+    --border:    #999999;
+    --blue:      #1a4a8a;
+    --blue-lt:   #1a4a8a;
+    --gold:      #7a5800;
+    --gold-lt:   #7a5800;
+    --text:      #000000;
+    --text-dim:  #333333;
+    --text-mute: #555555;
+    --win-color: #2a6a18;
+    --lose-color:#8a2a2a;
+    --line-color:#666666;
+    --live-color:#c81e1e;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  * { box-shadow: none !important; text-shadow: none !important; }
+}
+
+/* The hidden attribute must always win: JS toggles visibility exclusively
+   via el.hidden (CSP forbids inline style attributes), and several hidden
+   elements carry classes whose display rules would otherwise override the
+   UA default. */
+[hidden] { display: none !important; }
+.u-mx-auto { margin: 0 auto; }
+/* CSP refactor: spacing/visibility utilities replacing one-off inline styles */
+.u-invisible { visibility: hidden; }
+.u-dim-70 { opacity: 0.7; }
+.u-push-right-b { margin-left: auto; }
+.u-flexrow-gap { display: flex; gap: 0.6em; margin-top: 0.5em; }
+.u-mt-05 { margin-top: 0.5em; }
+.u-mt-06 { margin-top: 0.6em; }
+.u-mt-075 { margin-top: 0.75em; }
+.u-mt-09 { margin-top: 0.9em; }
+.u-mt-1 { margin-top: 1em; }
+.u-mt-15 { margin-top: 1.5em; }
+.u-mb-06 { margin-bottom: 0.6em; }
+.u-mb-1 { margin-bottom: 1em; }
+.u-maxw-10 { max-width: 10em; }

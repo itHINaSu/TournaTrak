@@ -17,14 +17,14 @@
     <h1 id="siteName">Team Lineup</h1>
   </div>
   <div class="header-controls">
-    <button class="admin-public-btn" id="coachAccountBtn" style="display:none" data-action="openCoachPw">Password</button>
+    <button class="admin-public-btn" id="coachAccountBtn" hidden data-action="openCoachPw">Password</button>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
   </div>
 </header>
 
-<nav id="lineupNav" style="display:none"></nav>
+<nav id="lineupNav" hidden></nav>
 
-<div id="lineupInvalid" style="display:none" class="lineup-state">
+<div id="lineupInvalid" hidden class="lineup-state">
   <div class="lineup-state-icon">🔗</div>
   <div class="lineup-state-title" id="lineupInvalidTitle">Link Invalid or Expired</div>
   <div class="lineup-state-body" id="lineupInvalidBody">This access link is no longer valid. Contact your tournament administrator for a new link — or sign in below if you've set a password.</div>
@@ -32,8 +32,8 @@
 
 <!-- Coach password login — shown alongside the invalid/unauthenticated state
      so coaches who set a password aren't dependent on their magic link. -->
-<div id="coachLoginWrap" style="display:none" class="lineup-state">
-  <form id="coachLoginForm" class="login-box" style="margin:0 auto">
+<div id="coachLoginWrap" hidden class="lineup-state">
+  <form id="coachLoginForm" class="login-box" class="u-mx-auto">
     <div class="login-title">Coach Sign In</div>
     <div class="sched-field">
       <label>Username</label>
@@ -49,7 +49,7 @@
 </div>
 
 <!-- Set/change password modal (coaches, standalone page only) -->
-<div id="coachPwOverlay" class="lineup-modal-overlay" style="display:none" data-action="closeCoachPw">
+<div id="coachPwOverlay" class="lineup-modal-overlay" hidden data-action="closeCoachPw">
   <div class="lineup-modal">
     <div class="lineup-modal-title" id="coachPwTitle">Set a Password</div>
     <div class="lineup-modal-body">
@@ -77,33 +77,33 @@
   <div class="lineup-state-body">Loading…</div>
 </div>
 
-<div id="lineupContent" style="display:none" class="lineup-wrap">
+<div id="lineupContent" hidden class="lineup-wrap">
   <div class="lineup-team-header">
     <div class="lineup-team-label">Team</div>
     <div id="lineupTeamName" class="lineup-team-name"></div>
   </div>
 
   <!-- Two-column selector row: team (left) + game (right) -->
-  <div id="lineupSelectorsRow" class="lineup-selectors-row" style="display:none">
+  <div id="lineupSelectorsRow" class="lineup-selectors-row" hidden>
     <div class="lineup-game-info lineup-sel-half">
       <select id="lineupTeamSel" class="lineup-game-sel"></select>
     </div>
     <div class="lineup-game-info lineup-sel-half" id="lineupGameInfo">
       <span class="lineup-game-sel-placeholder" id="lineupGamePlaceholder">Select a team first</span>
-      <select id="lineupGameSelect" class="lineup-game-sel" style="display:none"></select>
+      <select id="lineupGameSelect" class="lineup-game-sel" hidden></select>
     </div>
   </div>
 
-  <div id="lineupReadOnlyBadge" style="display:none" class="lineup-readonly-badge">
+  <div id="lineupReadOnlyBadge" hidden class="lineup-readonly-badge">
     View Only — Game Complete
   </div>
 
-  <div id="lineupNoGame" style="display:none" class="lineup-no-game">
+  <div id="lineupNoGame" hidden class="lineup-no-game">
     No upcoming games scheduled for your team.
   </div>
 
   <!-- Import modal -->
-  <div id="lineupImportOverlay" class="lineup-modal-overlay" style="display:none" data-action="closeImport">
+  <div id="lineupImportOverlay" class="lineup-modal-overlay" hidden data-action="closeImport">
     <div class="lineup-modal">
       <div class="lineup-modal-title">Import Lineup</div>
       <div class="lineup-modal-body">
@@ -118,7 +118,7 @@
   </div>
 
   <div class="lineup-form-wrap">
-    <div class="lineup-tools" id="lineupTools" style="display:none">
+    <div class="lineup-tools" id="lineupTools" hidden>
       <button class="lineup-tool-btn lineup-tool-btn--import" id="lineupImportBtn" data-action="openImport">Import Lineup</button>
       <button class="lineup-tool-btn lineup-tool-btn--right lineup-tool-btn--reorder" id="lineupReorderBtn" data-action="toggleReorder">Reorder</button>
     </div>
@@ -136,8 +136,8 @@
     </table>
     <div class="lineup-actions">
       <button class="lineup-submit-btn" id="lineupSubmitBtn" data-action="submitLineup">Save Lineup</button>
-      <button class="lineup-sub-add-btn" id="lineupAddSubBtn" data-action="addSubRow" style="display:none">Add Subs</button>
-      <button class="lineup-sub-del-btn" id="lineupDelSubBtn" data-action="deleteSubRow" style="display:none">Delete Sub</button>
+      <button class="lineup-sub-add-btn" id="lineupAddSubBtn" data-action="addSubRow" hidden>Add Subs</button>
+      <button class="lineup-sub-del-btn" id="lineupDelSubBtn" data-action="deleteSubRow" hidden>Delete Sub</button>
       <span class="lineup-status" id="lineupStatus"></span>
     </div>
   </div>

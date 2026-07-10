@@ -674,6 +674,142 @@ function makeRoundRobin(passes) {
   };
 }
 
+// ── Format: Swiss system (dynamic per-round pairing) ────────────────────
+// Swiss can't be a static topology: each round's pairings depend on the
+// standings so far. generateSwiss emits ROUND 1 only (seed i vs seed
+// i+N/2, the standard Swiss split); the admin then calls
+// POST /schedule/swiss-next-round after each round completes, which runs
+// pairSwissRound below and appends the new games. Rounds are tagged via
+// the " · Round K" label suffix — that suffix is the round bookkeeping, so
+// renaming game labels in the editor should preserve it.
+function generateSwiss(opts) {
+  const teams = resolveSeeding(opts);
+  const N = teams.length;
+  if (N % 2) throw new Error('Swiss needs an even number of teams — add or drop one');
+  const half = N / 2;
+  const specs = [];
+  for (let i = 0; i < half; i++) {
+    specs.push({
+      slot: RR_SLOTS[i], col: 0,
+      t1: { name: teams[i] }, t2: { name: teams[i + half] },
+      labelSuffix: ' \u00b7 Round 1',
+    });
+  }
+  return emitSpecs(specs, opts);
+}
+
+// Recommended round count: enough to separate a single undefeated leader.
+function swissRounds(n) { return Math.ceil(Math.log2(n)); }
+
+const SWISS_ROUND_RE = / \u00b7 Round (\d+)$/;
+
+// Pair the next Swiss round from the stored schedule + results.
+// Throws (with a TD-readable message) when the current round isn't done or
+// the tournament is over. Returns { entries, round } — entries are new
+// schedule rows keyed by slot, ready to merge and validate.
+function pairSwissRound(schedule, results, totalRounds) {
+  const games = [];
+  for (const [sid, g] of Object.entries(schedule)) {
+    const m = SWISS_ROUND_RE.exec(g.label || '');
+    if (m && g.t1name && g.t2name) games.push({ sid, g, round: parseInt(m[1], 10) });
+  }
+  if (!games.length) throw new Error('No Swiss rounds found in the schedule');
+  const curRound = Math.max(...games.map(x => x.round));
+  if (totalRounds && curRound >= totalRounds) {
+    throw new Error('All ' + totalRounds + ' rounds are already paired \u2014 standings decide the winner');
+  }
+  const cur = games.filter(x => x.round === curRound);
+  const missing = cur.filter(x => !(results[x.sid] && results[x.sid].winner));
+  if (missing.length) {
+    throw new Error('Round ' + curRound + ' isn\u2019t finished \u2014 missing results for: '
+      + missing.map(x => x.g.label).join(', '));
+  }
+
+  // Standings + rematch set. Round-1 listing order doubles as the seed
+  // tiebreak so pairing is deterministic.
+  const rec = {};   // name -> { w, l, rf, ra, seed }
+  const played = new Set();
+  let seedIdx = 0;
+  games.filter(x => x.round === 1)
+    .sort((a, b) => (a.g.num || 0) - (b.g.num || 0))
+    .forEach(x => {
+      for (const nm of [x.g.t1name, x.g.t2name]) {
+        if (!rec[nm]) rec[nm] = { w: 0, l: 0, rf: 0, ra: 0, seed: seedIdx++ };
+      }
+    });
+  for (const x of games) {
+    const r = results[x.sid];
+    if (!r || !r.winner) continue;
+    const a = x.g.t1name, b = x.g.t2name;
+    played.add(a < b ? a + '\u0000' + b : b + '\u0000' + a);
+    if (rec[r.winner]) rec[r.winner].w++;
+    if (rec[r.loser])  rec[r.loser].l++;
+    const s1 = parseInt(r.t1score, 10), s2 = parseInt(r.t2score, 10);
+    if (!isNaN(s1) && !isNaN(s2) && rec[a] && rec[b]) {
+      rec[a].rf += s1; rec[a].ra += s2;
+      rec[b].rf += s2; rec[b].ra += s1;
+    }
+  }
+  const order = Object.keys(rec).sort((x, y) => {
+    const a = rec[x], b = rec[y];
+    if (b.w !== a.w) return b.w - a.w;
+    const da = a.rf - a.ra, db = b.rf - b.ra;
+    if (db !== da) return db - da;
+    return a.seed - b.seed;
+  });
+
+  // Greedy pairing with backtracking: best available vs next best it hasn't
+  // played. Fields are <= 32 teams, so the search is trivial. If no
+  // rematch-free perfect matching exists (late rounds of a tiny field),
+  // fall back to pairing straight down the standings rather than failing.
+  const isRematch = (a, b) => played.has(a < b ? a + '\u0000' + b : b + '\u0000' + a);
+  function match(pool) {
+    if (!pool.length) return [];
+    const a = pool[0];
+    for (let j = 1; j < pool.length; j++) {
+      if (isRematch(a, pool[j])) continue;
+      const rest = match(pool.slice(1, j).concat(pool.slice(j + 1)));
+      if (rest) return [[a, pool[j]]].concat(rest);
+    }
+    return null;
+  }
+  let pairs = match(order);
+  if (!pairs) {
+    pairs = [];
+    const pool = order.slice();
+    while (pool.length) pairs.push([pool.shift(), pool.shift()]);
+  }
+
+  // New rows: slots continue down RR_SLOTS; numbering and times continue
+  // from the last existing game (one hour between new games — the TD tunes
+  // times in the editor, this just keeps them ordered).
+  const usedSlots = new Set(Object.keys(schedule));
+  const freeSlots = RR_SLOTS.filter(sl => !usedSlots.has(sl));
+  if (freeSlots.length < pairs.length) throw new Error('Not enough free slots for another round');
+  let maxNum = 0, lastTime = null;
+  for (const g of Object.values(schedule)) {
+    if (g.num > maxNum) maxNum = g.num;
+    if (g.time && (!lastTime || g.time > lastTime)) lastTime = g.time;
+  }
+  const base = lastTime ? new Date(lastTime) : new Date();
+  const entries = {};
+  const nextRound = curRound + 1;
+  const pad = n => String(n).padStart(2, '0');
+  pairs.forEach(([a, b], i) => {
+    const t = new Date(base.getTime() + (i + 1) * 60 * 60 * 1000);
+    maxNum++;
+    entries[freeSlots[i]] = {
+      label: 'Game ' + maxNum + ' \u00b7 Round ' + nextRound,
+      num: maxNum,
+      time: t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate())
+        + 'T' + pad(t.getHours()) + ':' + pad(t.getMinutes()),
+      t1name: a,
+      t2name: b,
+    };
+  });
+  return { entries, round: nextRound };
+}
+
 // ── Format: pool play → playoffs (the youth-tournament staple) ──────────
 // Teams split into 2–4 balanced pools; every pool plays a round robin, then
 // the top two of each pool cross-seed into a single-elim playoff. Pools of 4
@@ -937,6 +1073,18 @@ const FORMATS = {
     estimateGames: n => rrGames(n, 2),
     generate: makeRoundRobin(2),
   },
+  'swiss': {
+    id: 'swiss',
+    label: 'Swiss System',
+    description: 'Everyone plays every round, always against an opponent with the same record \u2014 no elimination, no rematches, standings decide it. Generate creates Round 1 (seeded top half vs bottom half); after each round finishes, use "Pair next round" on the admin Schedule tab to draw the next round from the standings. 4\u201332 teams, even counts only. Recommended rounds: ceil(log2(teams)).',
+    minTeams: 4,
+    maxTeams: 32,
+    noByes: true,
+    scheduleFirst: true,
+    swiss: true,
+    estimateGames: n => swissRounds(n) * Math.floor(n / 2),
+    generate: generateSwiss,
+  },
   'tiered': {
     id: 'tiered',
     label: 'Open / A / B (tiered flights)',
@@ -1079,4 +1227,4 @@ function generateSchedule(formatId, opts) {
   return { schedule, seededTeams };
 }
 
-module.exports = { FORMATS, generateSchedule, resolveSeeding, isoLocal, shuffle, nextPow2 };
+module.exports = { FORMATS, generateSchedule, resolveSeeding, isoLocal, shuffle, nextPow2, pairSwissRound, swissRounds };
