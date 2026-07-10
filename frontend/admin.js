@@ -1780,9 +1780,40 @@ function savePwaHome(val) {
 
 // ── Tournament logo (white-label) ──────────────────────────────────────
 // Held as a data URI; rides the theme-colors POST in saveSettings(). The
-// server re-validates format, size, and magic bytes.
+// server re-validates format, size, and magic bytes. Oversized images are
+// downscaled here automatically — the header renders the logo at ~48px
+// tall, so shrinking to a few hundred px loses nothing visible and any
+// photo/export straight off a design tool "just works".
 var _logoDataUri = null;
-var LOGO_MAX_FILE = 36 * 1024;
+var LOGO_MAX_URI = 48 * 1024;   // matches the server's LOGO_MAX_CHARS cap
+var LOGO_MAX_H = 144;           // ~3x the rendered header height (retina)
+var LOGO_MAX_W = 288;
+
+// Draw the image onto a shrinking canvas until the encoded data URI fits
+// the server cap. WebP encodes smallest and keeps transparency; browsers
+// that can't encode WebP return a PNG data URI from the same call, which
+// the server also accepts. cb(uri, w, h) on success, cb(null) if even a
+// tiny render won't fit (pathological images only).
+function downscaleLogo(srcUri, cb) {
+  var img = new Image();
+  img.onload = function() {
+    var scale = Math.min(1, LOGO_MAX_H / img.height, LOGO_MAX_W / img.width);
+    for (var attempt = 0; attempt < 4; attempt++) {
+      var w = Math.max(1, Math.round(img.width * scale));
+      var h = Math.max(1, Math.round(img.height * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var out = canvas.toDataURL('image/webp', 0.85);
+      if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/png');
+      if (out.length <= LOGO_MAX_URI) return cb(out, w, h);
+      scale *= 0.65;
+    }
+    cb(null);
+  };
+  img.onerror = function() { cb(null); };
+  img.src = srcUri;
+}
 
 function syncLogoUI() {
   var img = document.getElementById('logoPreview');
@@ -1800,16 +1831,25 @@ function pickLogo(val, el) {
     el.value = '';
     return;
   }
-  if (f.size > LOGO_MAX_FILE) {
-    showToast('Logo too large — max 36 KB (resize/crop it first)', true);
-    el.value = '';
-    return;
-  }
   var reader = new FileReader();
   reader.onload = function() {
-    _logoDataUri = reader.result;
-    syncLogoUI();
-    showToast('Logo ready — press Save to apply');
+    var uri = reader.result;
+    if (uri.length <= LOGO_MAX_URI) {
+      _logoDataUri = uri;
+      syncLogoUI();
+      showToast('Logo ready — press Save to apply');
+      return;
+    }
+    downscaleLogo(uri, function(out, w, h) {
+      if (!out) {
+        showToast('Could not shrink that image enough — try a simpler or smaller logo', true);
+        el.value = '';
+        return;
+      }
+      _logoDataUri = out;
+      syncLogoUI();
+      showToast('Logo resized to ' + w + '×' + h + ' to fit — press Save to apply');
+    });
   };
   reader.readAsDataURL(f);
 }
