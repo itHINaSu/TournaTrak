@@ -7,6 +7,12 @@
 //     /frontend volume mount; the keys double as the POST /api/settings
 //     allowlist, so adding a setting here is the only step needed to
 //     persist it.
+//
+// Server-managed keys NOT listed here (intentional): `format` and
+// `swissRounds` are written by /api/schedule/generate via store.put, which
+// bypasses the allowlist. Keeping them out of SETTINGS_DEFAULTS means an
+// admin can't overwrite them through the Settings form; POST /api/settings
+// merges over stored values, so partial saves never drop them either.
 const SETTINGS_DEFAULTS = {
   tournamentName:   'Tournament Bracket',
   pageTitle:        'Tournament Bracket',

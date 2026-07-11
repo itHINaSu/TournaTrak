@@ -70,6 +70,8 @@ function validateSchedule(updates) {
     // Tiered drop brackets (Open→A→B): games marked with a tier render in
     // the schedule/team path but stay out of the bracket tree.
     if (entry.tier !== undefined && !['A','B'].includes(entry.tier)) return `invalid tier for ${sid}`;
+    // Bye marker: lone team auto-advances; opponent slot renders as BYE.
+    if (entry.bye !== undefined && typeof entry.bye !== 'boolean') return `bye for ${sid} must be a boolean`;
     if (entry.num !== undefined) {
       const n = parseInt(entry.num);
       if (isNaN(n) || n < 1) return `invalid num for ${sid}`;

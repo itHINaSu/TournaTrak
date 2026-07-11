@@ -276,6 +276,7 @@ function userActionAllowed(req, target) {
 
 // ── Auth endpoints ────────────────────────────────────────────────────
 api.get('/session', ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const u = req.user;
   if (!u) {
     return res.json({
@@ -398,6 +399,7 @@ api.post('/change-username', ah(async (req, res) => {
 
 // ── User management (admin of this tournament; superadmin everywhere) ─
 api.get('/users', requireAdmin, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   const users = (await store.allUsers())
     .filter(u => store.effectiveRole(u, req.tid))
     .map(u => {
@@ -575,6 +577,7 @@ api.delete('/users/:username/teams/:teamName', requireAdmin, ah(async (req, res)
 }));
 
 api.get('/setup-password/:token', ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const { token } = req.params;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return res.redirect('/admin?setup=invalid');
   const hashed = store.hashToken(token);
@@ -588,6 +591,7 @@ api.get('/setup-password/:token', ah(async (req, res) => {
 }));
 
 api.get('/team-access/:token', ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const { token } = req.params;
   if (!token || !/^[a-f0-9]{64}$/.test(token)) {
     return res.redirect('/lineup?invalid=1');
@@ -618,6 +622,7 @@ api.get('/team-access/:token', ah(async (req, res) => {
 // Public list (only public tournaments unless superadmin). CRUD is
 // superadmin-only; the default tournament cannot be deleted.
 api.get('/tournaments', ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   const isSuper = req.user && req.user.role === 'superadmin';
   const list = (await store.listTournaments())
     .filter(t => isSuper || t.isPublic)
@@ -880,6 +885,7 @@ api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
 // ── Bracket Builder ───────────────────────────────────────────────────
 // List the available tournament formats so the builder UI can render choices.
 api.get('/schedule/formats', requireAdmin, (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   res.json(Object.values(FORMATS).map(f => {
     const min = f.minTeams != null ? f.minTeams : f.teamCount;
     const max = f.maxTeams != null ? f.maxTeams : f.teamCount;
@@ -1100,6 +1106,7 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
 
 // All lineups for a team across all games (used by coach page for selector)
 api.get('/lineups/by-team/:teamName', requireLineupAccess, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   const { teamName } = req.params;
   const lineups = await store.get(req.tid, 'lineups');
   const out = {};
@@ -1111,6 +1118,7 @@ api.get('/lineups/by-team/:teamName', requireLineupAccess, ah(async (req, res) =
 
 // All lineups for a game slot (admin/results only)
 api.get('/lineups/game/:slotId', requireResults, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   const { slotId } = req.params;
   if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
   const lineups = await store.get(req.tid, 'lineups');
@@ -1119,6 +1127,7 @@ api.get('/lineups/game/:slotId', requireResults, ah(async (req, res) => {
 
 // Lineup for a specific team in a specific game — team users can view any team (read-only from their POV)
 api.get('/lineups/game/:slotId/:teamName', requireLineupRead, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
   const { slotId, teamName } = req.params;
   if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
   const lineups = await store.get(req.tid, 'lineups');
@@ -1246,6 +1255,9 @@ const TAB_PATH_ROUTES = TAB_PATHS.map(t => '/' + t);
 app.get(['/', '/index.html', ...TAB_PATH_ROUTES], ah(async (req, res) => {
   try {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    // The shell embeds settings-derived <title>/OG tags — must revalidate
+    // so a renamed tournament isn't served stale from the browser cache.
+    res.setHeader('Cache-Control', 'no-cache');
     res.send(await getIndexHtml(store.tid));
   } catch (err) {
     console.error('Error serving index:', err);
@@ -1258,6 +1270,7 @@ app.get(['/t/:slug', ...TAB_PATHS.map(t => `/t/:slug/${t}`)], ah(async (req, res
   if (!t) return res.status(404).send('Tournament not found');
   try {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
     res.send(await getIndexHtml(t.id));
   } catch (err) {
     console.error('Error serving index:', err);

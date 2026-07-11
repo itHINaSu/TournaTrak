@@ -554,16 +554,18 @@ function sourceDropdown(idBase, currentType, currentSlot) {
   var selfSide = selfSideM ? selfSideM[1] : '';
 
   // Taken-map: once some other game already feeds off "winner of G" (or
-  // "loser of G"), G shouldn't clutter other winner (or loser) pickers —
-  // walk every GAMES side and record it, skipping the side this dropdown
-  // itself edits (that's the one feed we're currently choosing).
+  // "loser of G"), that feed can't be claimed again. Store the CLAIMING
+  // game's label (not just a flag) so the option can say who holds it —
+  // silently hiding taken feeds read as the option being missing
+  // (reported: "can't select the loser of game 11 even though it appears
+  // nowhere else" — it was claimed by a generated B-bracket game).
   var takenWinner = {}, takenLoser = {};
   Object.keys(GAMES).forEach(function(gsid){
     ['1','2'].forEach(function(side){
       if (gsid === selfSid && side === selfSide) return;
       var t = GAMES[gsid]['t' + side];
       if (!t || (t.type !== 'winner' && t.type !== 'loser')) return;
-      (t.type === 'winner' ? takenWinner : takenLoser)[t.slot] = true;
+      (t.type === 'winner' ? takenWinner : takenLoser)[t.slot] = GAMES[gsid].label || gsid;
     });
   });
 
@@ -579,13 +581,16 @@ function sourceDropdown(idBase, currentType, currentSlot) {
       var p2  = resolveSlot(g.t2, results) || slotLabel(g.t2);
       var disp = (g.label||s) + ': ' + shortName(p1) + ' / ' + shortName(p2);
       var cur = s === currentSlot;
-      var tw  = !!takenWinner[s], tl = !!takenLoser[s];
-      // Initial filter: hide+disable if the current TYPE collides with an
-      // already-claimed feed, unless this option is the current selection.
-      var collide = !cur && ((currentType === 'winner' && tw) || (currentType === 'loser' && tl));
-      var attrs = (tw ? ' data-tw="1"' : '') + (tl ? ' data-tl="1"' : '') + (cur ? ' data-cur="1"' : '')
-        + (collide ? ' hidden disabled' : '');
-      slotOpts += '<option value="' + s + '"' + (cur?' selected':'') + attrs + '>' + esc(disp) + '</option>';
+      var tw  = takenWinner[s], tl = takenLoser[s];
+      // Already-claimed feeds stay VISIBLE but disabled, labeled with the
+      // claiming game — hiding them looked like the option didn't exist.
+      var claimer = (currentType === 'winner') ? tw : tl;
+      var collide = !cur && !!claimer;
+      var attrs = (tw ? ' data-tw="' + esc(tw) + '"' : '') + (tl ? ' data-tl="' + esc(tl) + '"' : '')
+        + (cur ? ' data-cur="1"' : '') + ' data-basetext="' + esc(disp) + '"'
+        + (collide ? ' disabled' : '');
+      var text = collide ? disp + ' — used by ' + claimer : disp;
+      slotOpts += '<option value="' + s + '"' + (cur?' selected':'') + attrs + '>' + esc(text) + '</option>';
     });
     slotOpts += '</optgroup>';
   }
@@ -626,18 +631,14 @@ function bindSourceFilters(container) {
       var curExempt = t === typeSel.dataset.curtype;
       Array.prototype.forEach.call(slotSel.options, function(opt){
         if (!opt.value) return;
-        if (opt.dataset.cur && curExempt) { opt.hidden = false; opt.disabled = false; return; }
-        var hide = (t === 'winner' && opt.dataset.tw) || (t === 'loser' && opt.dataset.tl);
-        opt.hidden = !!hide;
-        opt.disabled = !!hide;
-      });
-      // optional: hide optgroups left with nothing selectable in them
-      slotSel.querySelectorAll('optgroup').forEach(function(og){
-        var kids = Array.prototype.slice.call(og.children);
-        og.hidden = kids.length > 0 && kids.every(function(o){ return o.hidden; });
+        var base = opt.dataset.basetext || opt.textContent;
+        if (opt.dataset.cur && curExempt) { opt.disabled = false; opt.textContent = base; return; }
+        var claimer = (t === 'winner') ? opt.dataset.tw : opt.dataset.tl;
+        opt.disabled = !!claimer;
+        opt.textContent = claimer ? base + ' — used by ' + claimer : base;
       });
       var picked = slotSel.options[slotSel.selectedIndex];
-      if (picked && picked.hidden) slotSel.value = '';
+      if (picked && picked.disabled) slotSel.value = '';
     });
   });
 }
