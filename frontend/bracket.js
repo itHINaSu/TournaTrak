@@ -1268,36 +1268,33 @@ function renderFlightBracket(root, tier) {
       : (i === cols.length - 2 && gids.length <= 2) ? 'Semifinal'
       : 'Round ' + (i + 1);
   }
-  var html;
   if (isMobile) {
-    // Mobile: one vertical list, round headers between groups, using the
-    // same compact card style as the mobile tree (mbc-game-card).
-    html = '<div class="flight-mobile">';
+    // Mobile: the same swipeable round-column carousel as the main tree.
+    // Labels are computed against the unfiltered column list so Final /
+    // Semifinal stay correct even if an intermediate band is empty.
+    var mcols = [];
     cols.forEach(function(gids, i) {
-      html += '<div class="flight-mob-hdr">' + esc(colLabel(i, gids)) + '</div>';
-      gids.forEach(function(gid) {
-        html += '<div class="flight-mob-card" data-gid="' + esc(gid) + '">' + mobileRoundCardHTML(gid) + '</div>';
-      });
+      if (!gids.length) return;
+      mcols.push({ round: 'FLIGHT' + i, label: colLabel(i, gids), gids: gids, divs: [] });
     });
-    html += '</div>';
-  } else {
-    html = '<div class="flight-bracket">';
-    cols.forEach(function(gids, i) {
-      html += '<div class="flight-col"><div class="flight-col-hdr">' + esc(colLabel(i, gids)) + '</div>';
-      gids.forEach(function(gid) {
-        html += '<div class="bc flight-bc" data-gid="' + esc(gid) + '">' + cardHTML(gid) + '</div>';
-      });
-      html += '</div>';
-    });
-    html += '</div>';
+    renderMobileColumns(root, mcols);   // installs its own _bracketJumpToGid
+    return;
   }
+  var html = '<div class="flight-bracket">';
+  cols.forEach(function(gids, i) {
+    html += '<div class="flight-col"><div class="flight-col-hdr">' + esc(colLabel(i, gids)) + '</div>';
+    gids.forEach(function(gid) {
+      html += '<div class="bc flight-bc" data-gid="' + esc(gid) + '">' + cardHTML(gid) + '</div>';
+    });
+    html += '</div>';
+  });
+  html += '</div>';
   root.innerHTML = html;
 
   // Cross-view jump hook (Team Path card tap) — same contract as the
-  // desktop/mobile tree renderers install for their layouts. Matches both
-  // the desktop column cards (.bc) and the mobile list cards.
+  // desktop/mobile tree renderers install for their layouts.
   window._bracketJumpToGid = function(gid) {
-    var card = root.querySelector('.bc[data-gid="' + gid + '"], .flight-mob-card[data-gid="' + gid + '"]');
+    var card = root.querySelector('.bc[data-gid="' + gid + '"]');
     if (!card) return;
     card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     holdHighlight(card);
@@ -1661,20 +1658,6 @@ function roundCardHTML(gid) {
 // Each column scrolls independently — no cross-column scrollTop sync,
 // which was stopping iOS momentum.
 function renderMobileBracket(root, dims) {
-  var siteHdrH = document.getElementById('siteHeader').getBoundingClientRect().height;
-  var tabsH    = document.getElementById('viewTabs').getBoundingClientRect().height;
-  var viewH    = window.innerHeight - siteHdrH - tabsH;
-  var winW     = window.innerWidth;
-
-  var CARD_H       = Math.max(Math.floor(viewH / 4.5), 80);
-  var CHAMP_CARD_H = Math.round(CARD_H * 1.8);
-  var GAP          = Math.max(Math.round(CARD_H * 0.07), 6);
-  var DIV_H        = Math.max(Math.round(CARD_H * 0.28), 24); // play-in divider
-  document.documentElement.style.setProperty('--mbc-card-h', CARD_H + 'px');
-
-  var colW  = Math.round(winW * 0.72);
-  var padPx = 12;
-
   var rounds = ROUND_ORDER.filter(function(r){
     // Tiered A/B games (schedule/team-path only) must not create columns.
     return Object.keys(GAMES).some(function(gid){ return GAMES[gid].round===r && !GAMES[gid].tier; });
@@ -1764,6 +1747,32 @@ function renderMobileBracket(root, dims) {
     });
     cols.push({ round: round, label: roundLabel(round), gids: flat, divs: divs });
   });
+
+  renderMobileColumns(root, cols);
+}
+
+// ── Shared mobile column carousel ──────────────────────────────────────
+// Takes [{round, label, gids, divs}] and renders the swipeable round-column
+// view: card positioning, convergence blends, the fixed scroll-capture
+// overlay, dots, arrows, wheel and mouse-drag support. Used by the main
+// tree (renderMobileBracket) and the A/B flight brackets
+// (renderFlightBracket), so both get the identical left/right swipe UX.
+// Layout is measured from root's actual viewport position, so rows above
+// the bracket (flight pills, project bar, notices) are accounted for.
+function renderMobileColumns(root, cols) {
+  var rootTop = Math.max(root.getBoundingClientRect().top, 0);
+  var tabsH   = document.getElementById('viewTabs').getBoundingClientRect().height;
+  var viewH   = window.innerHeight - rootTop - tabsH;
+  var winW    = window.innerWidth;
+
+  var CARD_H       = Math.max(Math.floor(viewH / 4.5), 80);
+  var CHAMP_CARD_H = Math.round(CARD_H * 1.8);
+  var GAP          = Math.max(Math.round(CARD_H * 0.07), 6);
+  var DIV_H        = Math.max(Math.round(CARD_H * 0.28), 24); // play-in divider
+  document.documentElement.style.setProperty('--mbc-card-h', CARD_H + 'px');
+
+  var colW  = Math.round(winW * 0.72);
+  var padPx = 12;
 
   // ── Reorder each column so games feeding the same next-column game sit
   // adjacent (t1 feeder above t2 feeder). Plain L-then-R ordering makes
@@ -2139,7 +2148,7 @@ function renderMobileBracket(root, dims) {
   var captureEl = document.createElement('div');
   captureEl.className = 'mbc-scroll-cap';
   captureEl.style.cssText = 'position:fixed;left:0;width:' + winW + 'px'
-    + ';top:' + Math.round(siteHdrH + mbcHdrH) + 'px'
+    + ';top:' + Math.round(rootTop + mbcHdrH) + 'px'
     + ';height:' + scrollH + 'px';
 
   var spacerEl = document.createElement('div');
@@ -2309,7 +2318,7 @@ function renderMobileBracket(root, dims) {
   nextArrowEl.className = 'mbc-arrow mbc-arrow--next';
   nextArrowEl.innerHTML = '&#8250;';
   // Vertical centre within the scrollable area
-  var arrowTopPx = Math.round(siteHdrH + mbcHdrH + scrollH / 2);
+  var arrowTopPx = Math.round(rootTop + mbcHdrH + scrollH / 2);
   prevArrowEl.style.top = arrowTopPx + 'px';
   nextArrowEl.style.top = arrowTopPx + 'px';
   root.appendChild(prevArrowEl);
