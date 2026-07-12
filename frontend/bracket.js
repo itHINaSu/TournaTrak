@@ -1034,8 +1034,11 @@ function computeLBPositions(slotVh) {
         if (f.round === col.round) {
           // Same-column chain (LB final fed by LB semi): place below the
           // feeder so it reads top-to-bottom and lands level with the WB
-          // final across the bracket.
-          top = f.pos + gap / 4;
+          // final across the bracket. gap/4 comes from the PREVIOUS
+          // column's spacing and can be smaller than a card at some
+          // viewport aspects — floor it at a full card height so the
+          // chained game never overlaps its feeder.
+          top = f.pos + Math.max(gap / 4, slotVh * CARD_RATIO * 1.06);
         } else {
           // Real feeder is t2 -> drop-in/bye above -> game lands above feeder.
           top = f.ti === 1 ? f.pos - gap / 4 : f.pos + gap / 4;
@@ -1083,6 +1086,28 @@ function computeLBPositions(slotVh) {
       if (!collides) posMap[slotDef.slot] = pinned;
     });
   }
+
+  // ── Overlap guard ─────────────────────────────────────────────────
+  // Whatever the rules above produced (including hand-edited topologies
+  // the heuristics never anticipated), no two cards in a column may sit
+  // closer than one card height. Order-preserving downward push, then the
+  // whole column shifts back up if the push ran past the grid bottom.
+  var minSep = slotVh * CARD_RATIO * 1.06;
+  cols.forEach(function(col) {
+    var placed = col.games
+      .filter(function(e) { return posMap[e.gid] !== undefined; })
+      .sort(function(a, b) { return posMap[a.gid] - posMap[b.gid]; });
+    for (var i = 1; i < placed.length; i++) {
+      var prev = posMap[placed[i - 1].gid], cur = posMap[placed[i].gid];
+      if (cur < prev + minSep) posMap[placed[i].gid] = prev + minSep;
+    }
+    if (placed.length) {
+      var overflow = posMap[placed[placed.length - 1].gid] - maxTop;
+      if (overflow > 0) placed.forEach(function(e) {
+        posMap[e.gid] = Math.max(0, posMap[e.gid] - overflow);
+      });
+    }
+  });
 
   return posMap;
 }

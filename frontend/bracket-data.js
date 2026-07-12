@@ -173,7 +173,11 @@ function slotLabel(teamSlot) {
   if (!teamSlot) return '?';
   if (teamSlot.type==='fixed') return teamSlot.team || '?';
   const g = GAMES[teamSlot.slot];
-  const lbl = g ? (g.label || teamSlot.slot) : teamSlot.slot;
+  // A feed pointing at a slot with no game (the source was deleted or
+  // moved in the editor) can never resolve — say so instead of leaking a
+  // bare slot id like "Winner of SF.R.2", which reads as a glitch. The
+  // slot id stays visible so the TD knows which feed to rewire.
+  const lbl = g ? (g.label || teamSlot.slot) : teamSlot.slot + ' (deleted game)';
   return (teamSlot.type==='winner' ? 'Winner of ' : 'Loser of ') + lbl;
 }
 
