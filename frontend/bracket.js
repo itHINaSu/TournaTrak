@@ -745,8 +745,15 @@ function bracketTime(iso) {
   var h12 = h % 12 || 12;
   var ms = min < 10 ? '0'+min : ''+min;
   var timeStr = h12 + ':' + ms + ' ' + ampm;
-  if (getSetting('showDay') === 'false') return timeStr;
-  return days[d.getDay()] + ' ' + timeStr;
+  // Honor the show-date setting here too — multi-day tournaments need the
+  // date on the bracket cards, not just day-of-week + time. fmtDate also
+  // applies the TD's short/long date format choice.
+  var parts = [];
+  var ds = fmtDate((d.getMonth() + 1) + '/' + d.getDate());
+  if (ds) parts.push(ds);
+  if (getSetting('showDay') !== 'false') parts.push(days[d.getDay()]);
+  parts.push(timeStr);
+  return parts.join(' ');
 }
 
 function scoreHTML(score) {
@@ -3060,6 +3067,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       + ' data-jump-gid="' + esc(gid) + '">'
       + '<div class="round-game-main">'
       + '<div class="round-game-header">'
+      + gameDateHTML(dt2)
       + timeOrLiveHTML(gid, dt2, dw2, tm2)
       + '<span class="round-game-id u-push-right">' + esc(gameLabel(gid)) + '</span>'
       + '</div>'
