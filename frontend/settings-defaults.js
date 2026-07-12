@@ -46,6 +46,10 @@ const SETTINGS_DEFAULTS = {
   // Custom display names for the two extra/drop brackets; '' = "A Bracket"/"B Bracket".
   bracketNameA: '',
   bracketNameB: '',
+  // Title over each flight's final game (the consolation championship);
+  // blank derives "<bracket name> Championship".
+  bracketChampLabelA: '',
+  bracketChampLabelB: '',
 };
 
 if (typeof module !== 'undefined') {

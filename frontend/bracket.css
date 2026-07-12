@@ -442,6 +442,18 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   flex: 0 0 auto;
   min-width: 11em;
 }
+/* Flight championship column: trophy header above the final's card,
+   centered as a group (no space-around spread), gold-tinted like the
+   main championship column. */
+.flight-col--champ {
+  justify-content: center;
+  gap: 0.6em;
+  padding: 0 1em;
+  background: color-mix(in srgb, var(--gold) 4%, transparent);
+  border-left: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
+  border-right: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
+}
+.flight-col--champ .champ-winner { text-align: center; }
 .flight-col-hdr {
   text-align: center;
   font-family: 'Oswald', sans-serif;
@@ -728,6 +740,17 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   border-right: 0.07em solid color-mix(in srgb, var(--gold) 15%, transparent);
 }
 .champ-center--desktop .champ-winner { text-align: center; }
+/* Championship card anchored to the feeder row: the wrapper's top is the
+   row both feeder games enter at; the trophy/title block floats ABOVE the
+   card so the card itself lines up with its feeders. */
+.champ-anchor { position: absolute; left: 0.5vw; right: 0.5vw; }
+.champ-inner--above {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: 1.2vh;
+}
 .champ-center--ifnec {
   width: 100%;
   margin-top: 1.5vh;

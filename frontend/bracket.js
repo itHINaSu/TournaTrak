@@ -956,6 +956,9 @@ function buildSideColumns(side){
 //     so the game lands a quarter-gap off its real feeder.
 function computeLBPositions(slotVh) {
   var posMap = {};
+  // Games whose position is pinned (championship-row alignment); the
+  // overlap sweep moves neighbors around these instead of moving them.
+  var _lbAnchored = {};
   var cols = buildSideColumns('R');
   if (!cols.length) return posMap;
   var gridH = gridHeight();
@@ -1040,8 +1043,12 @@ function computeLBPositions(slotVh) {
           // chained game never overlaps its feeder.
           top = f.pos + Math.max(gap / 4, slotVh * CARD_RATIO * 1.06);
         } else {
-          // Real feeder is t2 -> drop-in/bye above -> game lands above feeder.
-          top = f.ti === 1 ? f.pos - gap / 4 : f.pos + gap / 4;
+          // Cross-column drop-in: hang the game BELOW its real feeder,
+          // regardless of which slot the drop-in occupies. The old rule
+          // placed it above when the real feeder was t2, which made
+          // sibling games in one column alternate above/below their
+          // feeders (owner request: consistent, like-for-like hang).
+          top = f.pos + gap / 4;
         }
       } else {
         top = slotTopVh(col.round, entry.slot, slotVh, col.side);
@@ -1073,38 +1080,41 @@ function computeLBPositions(slotVh) {
       if (!slotDef || slotDef.type !== 'winner') return;
       var fg = GAMES[slotDef.slot];
       if (!fg || fg.side !== 'R') return;
-      // Pin only if no sibling in the same column already sits at that
-      // height — when the LB final shares its column with the LB semi
-      // (SF.R.1 + SF.R.2), the semi's feeder-midpoint can land exactly on
-      // the championship row and the pin would stack the two cards.
-      var pinned = clamp(wbSFMidTop);
-      var ci = colIndexOfRound(fg.round);
-      var collides = ci !== -1 && cols[ci].games.some(function(e) {
-        return e.gid !== slotDef.slot && posMap[e.gid] !== undefined
-          && Math.abs(posMap[e.gid] - pinned) < slotVh * CARD_RATIO;
-      });
-      if (!collides) posMap[slotDef.slot] = pinned;
+      // Pin the LB championship feeder level with the WB one so both
+      // feeds enter the championship on the same row. The overlap sweep
+      // below treats this as an ANCHOR: siblings move out of ITS way.
+      posMap[slotDef.slot] = clamp(wbSFMidTop);
+      _lbAnchored[slotDef.slot] = true;
     });
   }
 
   // ── Overlap guard ─────────────────────────────────────────────────
   // Whatever the rules above produced (including hand-edited topologies
   // the heuristics never anticipated), no two cards in a column may sit
-  // closer than one card height. Order-preserving downward push, then the
-  // whole column shifts back up if the push ran past the grid bottom.
+  // closer than one card height. Order-preserving push: anchored cards
+  // (championship-row pin) hold position and displace neighbors upward;
+  // everything else pushes downward. Repeated passes settle cascades,
+  // then the whole column shifts back up if it ran past the grid bottom.
   var minSep = slotVh * CARD_RATIO * 1.06;
   cols.forEach(function(col) {
     var placed = col.games
       .filter(function(e) { return posMap[e.gid] !== undefined; })
       .sort(function(a, b) { return posMap[a.gid] - posMap[b.gid]; });
-    for (var i = 1; i < placed.length; i++) {
-      var prev = posMap[placed[i - 1].gid], cur = posMap[placed[i].gid];
-      if (cur < prev + minSep) posMap[placed[i].gid] = prev + minSep;
+    for (var pass = 0; pass < placed.length; pass++) {
+      for (var i = 1; i < placed.length; i++) {
+        var above = placed[i - 1].gid, cur = placed[i].gid;
+        if (posMap[cur] >= posMap[above] + minSep) continue;
+        if (_lbAnchored[cur] && !_lbAnchored[above]) posMap[above] = posMap[cur] - minSep;
+        else posMap[cur] = posMap[above] + minSep;
+      }
     }
     if (placed.length) {
       var overflow = posMap[placed[placed.length - 1].gid] - maxTop;
       if (overflow > 0) placed.forEach(function(e) {
         posMap[e.gid] = Math.max(0, posMap[e.gid] - overflow);
+      });
+      if (posMap[placed[0].gid] < 0) placed.forEach(function(e) {
+        posMap[e.gid] = posMap[e.gid] - posMap[placed[0].gid];
       });
     }
   });
@@ -1264,6 +1274,13 @@ function bracketDisplayName(tier) {
   return getSetting('bracketName' + tier) || (tier + ' Bracket');
 }
 
+// Title over a flight's final game — the consolation championship. TD-
+// editable via Settings (bracketChampLabelA/B); default derives from the
+// bracket's display name so renaming B to "Consolation" flows through.
+function flightChampLabel(tier) {
+  return getSetting('bracketChampLabel' + tier) || (bracketDisplayName(tier) + ' Championship');
+}
+
 // Group a flight's (tier A or B) games into columns by round: column N holds
 // every game whose tierGameRound() is N (band index, or deeper if a game is
 // hand-wired to feed from later in the same tier). Cycle guard lives inside
@@ -1293,6 +1310,10 @@ function renderFlightBracket(root, tier) {
       : (i === cols.length - 2 && gids.length <= 2) ? 'Semifinal'
       : 'Round ' + (i + 1);
   }
+  // The last column with a single game is the flight's championship —
+  // rendered with the same trophy treatment as the main championship.
+  function isChampFinal(i, gids) { return i === cols.length - 1 && gids.length === 1; }
+
   if (isMobile) {
     // Mobile: the same swipeable round-column carousel as the main tree.
     // Labels are computed against the unfiltered column list so Final /
@@ -1300,13 +1321,32 @@ function renderFlightBracket(root, tier) {
     var mcols = [];
     cols.forEach(function(gids, i) {
       if (!gids.length) return;
-      mcols.push({ round: 'FLIGHT' + i, label: colLabel(i, gids), gids: gids, divs: [] });
+      var champ = isChampFinal(i, gids);
+      mcols.push({
+        round: 'FLIGHT' + i,
+        label: champ ? flightChampLabel(tier) : colLabel(i, gids),
+        gids: gids, divs: [],
+        champ: champ, champLabel: champ ? flightChampLabel(tier) : undefined,
+      });
     });
     renderMobileColumns(root, mcols);   // installs its own _bracketJumpToGid
     return;
   }
   var html = '<div class="flight-bracket">';
   cols.forEach(function(gids, i) {
+    if (isChampFinal(i, gids)) {
+      var fgid = gids[0], fg = GAMES[fgid], fr = results[fgid] || {};
+      html += '<div class="flight-col flight-col--champ">'
+        + '<div class="champ-inner">'
+        +   '<div class="champ-trophy">' + trophySVG() + '</div>'
+        +   '<div class="champ-title">' + esc(flightChampLabel(tier)) + '</div>'
+        +   (fg && fg.time ? '<div class="champ-gametime">' + esc(formatTime(fg.time)) + '</div>' : '')
+        + '</div>'
+        + '<div class="bc flight-bc" data-gid="' + esc(fgid) + '">' + cardHTML(fgid) + '</div>'
+        + (fr.winner ? '<div class="champ-winner">' + esc(fr.winner) + '</div>' : '')
+        + '</div>';
+      return;
+    }
     html += '<div class="flight-col"><div class="flight-col-hdr">' + esc(colLabel(i, gids)) + '</div>';
     gids.forEach(function(gid) {
       html += '<div class="bc flight-bc" data-gid="' + esc(gid) + '">' + cardHTML(gid) + '</div>';
@@ -1542,8 +1582,26 @@ function renderDesktopBracket(root,dims){
       }
     }
     var showChampWinner = cr.winner && champ2State() !== 'needed';
-    champHTML='<div class="champ-center--desktop" data-css="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
-      +'<div class="champ-inner" data-css="margin-top:'+(3.5*slotVh)+'vh">'
+    // Championship card sits ON the feeder row — the same height its two
+    // feeder games (WB final + pinned LB final) enter at — with the
+    // trophy/title block floating above it. Derived from the WB feeder's
+    // slot position, mirroring the LB pin in computeLBPositions.
+    var champRowVh = (function() {
+      var tops = [];
+      [champG.t1, champG.t2].forEach(function(sd) {
+        if (!sd || sd.type !== 'winner') return;
+        var fg = GAMES[sd.slot];
+        if (!fg || fg.side !== 'L') return;
+        var p = sd.slot.split('.');
+        tops.push(slotTopVh(p[0], parseInt(p[2], 10), slotVh, 'L'));
+      });
+      return tops.length
+        ? tops.reduce(function(a, b) { return a + b; }, 0) / tops.length
+        : 3.5 * slotVh;
+    })();
+    champHTML='<div class="champ-center--desktop u-relative" data-css="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
+      +'<div class="champ-anchor" data-css="top:'+champRowVh+'vh">'
+      +'<div class="champ-inner champ-inner--above">'
       +'<div class="champ-trophy">'+trophySVG()+'</div>'
       +'<div class="champ-title">Championship</div>'
       +'<div class="champ-gametime">'+esc(formatTime(champG.time))+'</div>'
@@ -1551,6 +1609,7 @@ function renderDesktopBracket(root,dims){
       +'<div class="champ-bc" data-css="height:'+cardVh+'vh"><div class="bc bc--static" data-gid="CHAMP.C.1" data-css="height:'+cardVh+'vh">'+cardHTML('CHAMP.C.1')+'</div></div>'
       +(showChampWinner?'<div class="champ-winner">'+esc(cr.winner)+'</div>':'')
       +ifNecHTML
+      +'</div>'
       +'</div>';
   }
 
@@ -1573,7 +1632,7 @@ function renderDesktopBracket(root,dims){
 
 
 // ── Mobile: championship card HTML ───────────────────────────────────
-function champCardHTML(gid) {
+function champCardHTML(gid, title) {
   var g = GAMES[gid];
   if (!g) return '';
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
@@ -1583,7 +1642,7 @@ function champCardHTML(gid) {
   return '<div class="mbc-champ-card">'
     + '<div class="mbc-champ-top">'
     +   '<div class="mbc-champ-trophy">'+trophySVG()+'</div>'
-    +   '<div class="mbc-champ-label">Championship' + fieldTagHTML(gid) + '</div>'
+    +   '<div class="mbc-champ-label">' + esc(title || 'Championship') + fieldTagHTML(gid) + '</div>'
     +   (gameIsLive(gid)
           ? '<div class="mbc-champ-time mbc-champ-live">' + liveHeaderHTML(gid) + '</div>'
           : (ft ? '<div class="mbc-champ-time">' + esc(ft) + '</div>' : ''))
@@ -1851,7 +1910,7 @@ function renderMobileColumns(root, cols) {
   // Only inserted when ALL L-side games appear before ALL R-side games (or
   // vice versa) — interleaved columns get no divider.
   if (getSetting('showSideDividers') !== 'false') cols.forEach(function(col) {
-    if (col.round === 'CHAMP' || col.round === 'CHAMP2') return;
+    if (champCol(col)) return;
     // Work within each existing divider segment so we don't cross existing dividers.
     var existingDivIdxs = (col.divs || []).map(function(d){ return d.idx; });
     var bounds = [0].concat(existingDivIdxs, [col.gids.length]);
@@ -1881,17 +1940,21 @@ function renderMobileColumns(root, cols) {
     col.divs.sort(function(a, b) { return a.idx - b.idx; });
   });
 
+  // Championship-treatment columns: the tree's CHAMP/CHAMP2, or a column
+  // flagged champ by the caller (flight-bracket finals).
+  function champCol(c) { return c.round === 'CHAMP' || c.round === 'CHAMP2' || !!c.champ; }
+
   // ── Pass 1: build HTML with placeholder card positions ───────────────
   var colsHTML = cols.map(function(col, ri) {
     var round   = col.round;
-    var isChamp = round === 'CHAMP' || round === 'CHAMP2';
+    var isChamp = champCol(col);
     var cWidth  = isChamp ? winW : colW;
     var cCardW  = cWidth - 2 * padPx;
     var cardH   = isChamp ? CHAMP_CARD_H : CARD_H;
     var gids    = col.gids;
 
     var cardsHTML = gids.map(function(gid, gi) {
-      var inner = isChamp ? champCardHTML(gid) : mobileRoundCardHTML(gid);
+      var inner = isChamp ? champCardHTML(gid, col.champLabel) : mobileRoundCardHTML(gid);
       // For CHAMP2, apply if-necessary state
       var c2cls = '';
       if (round === 'CHAMP2' && gid === 'CHAMP2.C.1') {
@@ -1964,7 +2027,7 @@ function renderMobileColumns(root, cols) {
     var acc = 0;
     cols.forEach(function(col, ri) {
       colStarts[ri] = acc;
-      acc += (col.round === 'CHAMP' || col.round === 'CHAMP2') ? winW : colW;
+      acc += champCol(col) ? winW : colW;
     });
   }());
 
@@ -1993,7 +2056,7 @@ function renderMobileColumns(root, cols) {
   // Uses actual games in GAMES so the layout adapts to any bracket structure.
   var earlyY = {};
   cols.forEach(function(col) {
-    var isChamp  = col.round === 'CHAMP' || col.round === 'CHAMP2';
+    var isChamp  = champCol(col);
     var numSlots = col.gids.length;
     var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
     var nDivs    = (col.divs || []).length;
@@ -2011,7 +2074,7 @@ function renderMobileColumns(root, cols) {
   // innerH: exact content height so there's no excess blank space at bottom
   function colInnerH(ci) {
     var col      = cols[ci];
-    var isChamp  = col.round === 'CHAMP' || col.round === 'CHAMP2';
+    var isChamp  = champCol(col);
     var numSlots = col.gids.length;
     var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
     var nDivs    = (col.divs || []).length;
@@ -2040,7 +2103,7 @@ function renderMobileColumns(root, cols) {
   cols.forEach(function(col, ri) {
     col.gids.forEach(function(gid) {
       var selfY = earlyY[gid] !== undefined ? earlyY[gid] : 0;
-      if (col.round === 'CHAMP' || col.round === 'CHAMP2' || ri === 0) {
+      if (champCol(col) || ri === 0) {
         lateY[gid] = selfY;
         return;
       }
@@ -2077,7 +2140,7 @@ function renderMobileColumns(root, cols) {
   // are moved out of the way — up if the anchored card is below them, down
   // otherwise. Repeated sweeps settle cascades; column order is preserved.
   cols.forEach(function(col) {
-    if (col.round === 'CHAMP' || col.round === 'CHAMP2') return;
+    if (champCol(col)) return;
     var sorted = col.gids.slice().sort(function(a, b) {
       return (earlyY[a] || 0) - (earlyY[b] || 0);
     });
