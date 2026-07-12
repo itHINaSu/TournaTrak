@@ -102,42 +102,65 @@ function escHtml(s) {
 const _indexHtmlCache = new Map();   // tid -> html string
 
 function invalidateIndexCache(tid) {
-  if (tid === undefined) _indexHtmlCache.clear();
-  else _indexHtmlCache.delete(tid);
+  if (tid === undefined) return _indexHtmlCache.clear();
+  // Keys are `tid|origin` — drop every origin variant for this tournament.
+  for (const key of _indexHtmlCache.keys()) {
+    if (key === tid || String(key).startsWith(tid + '|')) _indexHtmlCache.delete(key);
+  }
 }
 
-async function buildIndexHtml(tid) {
+async function buildIndexHtml(tid, origin) {
   const s       = Object.assign({}, SETTINGS_DEFAULTS, await store.get(tid, 'settings'));
   const title   = escHtml(s.pageTitle      || SETTINGS_DEFAULTS.pageTitle);
   const ogTitle = escHtml(s.tournamentName || SETTINGS_DEFAULTS.tournamentName);
   const desc    = escHtml(s.subtitle       || '');
   let html = fs.readFileSync(FRONTEND_INDEX, 'utf8');
   html = html.replace(/<title>[^<]*<\/title>/, `<title>${title}</title>`);
-  // iOS home-screen icon follows the uploaded tournament icon. Only the
+  // Home-screen + tab icons follow the uploaded tournament icon. Only the
   // default tournament — /pwa-icon.png serves that tournament's branding
   // and the PWA installs against start_url '/'.
+  let hasCustomIcon = false;
   if (tid === store.tid) {
     const tc = await store.get(tid, 'theme_colors');
     if (tc && tc.icon) {
+      hasCustomIcon = true;
       html = html.replace(/<link rel="apple-touch-icon" href="[^"]*">/,
         '<link rel="apple-touch-icon" href="/pwa-icon.png">');
+      html = html.replace(/<link rel="icon" href="[^"]*" type="image\/png">/,
+        '<link rel="icon" href="/pwa-icon.png" type="image/png">');
     }
   }
+  // og:image must be an ABSOLUTE url — scrapers don't resolve relative
+  // paths. The stock trophy is the fallback so shares always get an image.
+  const ogImage = origin
+    ? origin + (hasCustomIcon ? '/pwa-icon.png' : '/icons/trophy-512.png')
+    : '';
   const meta = [
     `  <meta property="og:title" content="${ogTitle}">`,
     `  <meta property="og:type" content="website">`,
     desc ? `  <meta property="og:description" content="${desc}">` : '',
     desc ? `  <meta name="description" content="${desc}">` : '',
+    ogImage ? `  <meta property="og:image" content="${escHtml(ogImage)}">` : '',
+    ogImage ? `  <meta property="og:image:width" content="512">` : '',
+    ogImage ? `  <meta property="og:image:height" content="512">` : '',
+    ogImage ? `  <meta name="twitter:card" content="summary">` : '',
   ].filter(Boolean).join('\n');
   html = html.replace('</head>', `${meta}\n</head>`);
   return html;
 }
 
-async function getIndexHtml(tid) {
-  if (!_indexHtmlCache.has(tid)) {
-    _indexHtmlCache.set(tid, await buildIndexHtml(tid));
+// Cache key is tid + origin: og:image needs the absolute public URL, and
+// origin comes from the request (one per deployment in practice, so this
+// doesn't meaningfully grow the map). invalidateIndexCache(tid) must drop
+// every origin variant for that tournament.
+async function getIndexHtml(tid, req) {
+  const proto  = req.get('x-forwarded-proto') || req.protocol || 'http';
+  const origin = proto + '://' + req.get('host');
+  const key = tid + '|' + origin;
+  if (!_indexHtmlCache.has(key)) {
+    _indexHtmlCache.set(key, await buildIndexHtml(tid, origin));
   }
-  return _indexHtmlCache.get(tid);
+  return _indexHtmlCache.get(key);
 }
 
 // ── App ───────────────────────────────────────────────────────────────
@@ -1258,7 +1281,7 @@ app.get(['/', '/index.html', ...TAB_PATH_ROUTES], ah(async (req, res) => {
     // The shell embeds settings-derived <title>/OG tags — must revalidate
     // so a renamed tournament isn't served stale from the browser cache.
     res.setHeader('Cache-Control', 'no-cache');
-    res.send(await getIndexHtml(store.tid));
+    res.send(await getIndexHtml(store.tid, req));
   } catch (err) {
     console.error('Error serving index:', err);
     res.status(500).send('Server error');
@@ -1271,7 +1294,7 @@ app.get(['/t/:slug', ...TAB_PATHS.map(t => `/t/:slug/${t}`)], ah(async (req, res
   try {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
-    res.send(await getIndexHtml(t.id));
+    res.send(await getIndexHtml(t.id, req));
   } catch (err) {
     console.error('Error serving index:', err);
     res.status(500).send('Server error');
