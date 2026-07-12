@@ -1839,6 +1839,46 @@ function renderMobileBracket(root, dims) {
     cols.push({ round: round, label: roundLabel(round), gids: flat, divs: divs });
   });
 
+  // ── Championship-row parity with desktop ─────────────────────────────
+  // Owner rule: the losers-bracket final must ALWAYS sit in line with the
+  // winners final and the championship card. On desktop the three share the
+  // championship row; here the equivalent is one column reading WB final →
+  // title card → LB final. When CHAMP is fed by one WB game and one LB game
+  // (any double-elim shape), pull both finals out of their round columns
+  // into the championship column. Single-elim (two WB feeders) is left
+  // alone. titleGid marks which card keeps the big champ treatment.
+  (function() {
+    var champIdx = -1;
+    cols.forEach(function(c, i) { if (c.round === 'CHAMP') champIdx = i; });
+    if (champIdx < 0) return;
+    var champGid = cols[champIdx].gids[0];
+    var g = GAMES[champGid];
+    if (!g) return;
+    var feeds = [g.t1, g.t2].filter(function(s) {
+      return s && s.type === 'winner' && s.slot && GAMES[s.slot];
+    });
+    if (feeds.length !== 2) return;
+    var wb = feeds.filter(function(s) { return isWBGame(s.slot); });
+    var lb = feeds.filter(function(s) { return !isWBGame(s.slot); });
+    if (wb.length !== 1 || lb.length !== 1) return;   // not a WB+LB pair
+    var pulled = [wb[0].slot, lb[0].slot];
+    pulled.forEach(function(gid) {
+      cols.forEach(function(col) {
+        var idx = col.gids.indexOf(gid);
+        if (idx === -1) return;
+        col.gids.splice(idx, 1);
+        (col.divs || []).forEach(function(d) { if (d.idx > idx) d.idx--; });
+        // A divider with nothing under it any more is noise.
+        col.divs = (col.divs || []).filter(function(d) { return d.idx < col.gids.length; });
+      });
+    });
+    cols = cols.filter(function(col) { return col.gids.length; });
+    champIdx = -1;
+    cols.forEach(function(c, i) { if (c.round === 'CHAMP') champIdx = i; });
+    cols[champIdx].gids = [pulled[0], champGid, pulled[1]];
+    cols[champIdx].titleGid = champGid;
+  })();
+
   renderMobileColumns(root, cols);
 }
 
@@ -1950,6 +1990,14 @@ function renderMobileColumns(root, cols) {
   // Championship-treatment columns: the tree's CHAMP/CHAMP2, or a column
   // flagged champ by the caller (flight-bracket finals).
   function champCol(c) { return c.round === 'CHAMP' || c.round === 'CHAMP2' || !!c.champ; }
+  // Card height inside a column. Championship columns normally hold only
+  // big title cards, but the main CHAMP column may carry the two finals
+  // (WB + LB) around its title card — those keep the regular card height.
+  // col.titleGid set ⇒ only that gid is the big card.
+  function cardHeightFor(col, gid) {
+    if (!champCol(col)) return CARD_H;
+    return (col.titleGid && gid !== col.titleGid) ? CARD_H : CHAMP_CARD_H;
+  }
 
   // ── Pass 1: build HTML with placeholder card positions ───────────────
   var colsHTML = cols.map(function(col, ri) {
@@ -1957,11 +2005,11 @@ function renderMobileColumns(root, cols) {
     var isChamp = champCol(col);
     var cWidth  = isChamp ? winW : colW;
     var cCardW  = cWidth - 2 * padPx;
-    var cardH   = isChamp ? CHAMP_CARD_H : CARD_H;
     var gids    = col.gids;
 
     var cardsHTML = gids.map(function(gid, gi) {
-      var inner = isChamp ? champCardHTML(gid, col.champLabel) : mobileRoundCardHTML(gid);
+      var isTitle = isChamp && (!col.titleGid || gid === col.titleGid);
+      var inner = isTitle ? champCardHTML(gid, col.champLabel) : mobileRoundCardHTML(gid);
       // For CHAMP2, apply if-necessary state
       var c2cls = '';
       if (round === 'CHAMP2' && gid === 'CHAMP2.C.1') {
@@ -1991,7 +2039,7 @@ function renderMobileColumns(root, cols) {
       var isPlayIn = (col.divs || []).some(function(d) {
         return d.type === 'playin' && d.idx <= gi;
       });
-      return '<div class="mbc-card' + c2cls + '" data-css="top:0;height:' + cardH + 'px" data-gid="' + esc(gid) + '" data-late-offset="0"'
+      return '<div class="mbc-card' + c2cls + '" data-css="top:0;height:' + cardHeightFor(col, gid) + 'px" data-gid="' + esc(gid) + '" data-late-offset="0"'
         + (isPlayIn ? ' data-playin="1"' : '') + '>'
         + divHTML + inner + '</div>';
     }).join('');
@@ -2059,38 +2107,40 @@ function renderMobileColumns(root, cols) {
   var mbcHdrH = colEls[0] ? colEls[0].querySelector('.mbc-hdr').getBoundingClientRect().height : 36;
   var scrollH = viewH - mbcHdrH;  // actual visible scroll area height
 
+  // Per-column stacking math shared by earlyY and colInnerH. Card heights
+  // vary per gid inside the main CHAMP column (finals ride along at regular
+  // height around the big title card), so total height is a sum, not a
+  // multiply.
+  function colStackTotal(col) {
+    var total = 0;
+    col.gids.forEach(function(gid, idx) {
+      total += cardHeightFor(col, gid) + (idx ? GAP : 0);
+    });
+    return total + (col.divs || []).length * (DIV_H + GAP);
+  }
+  function colStackOffset(col) {
+    return col.gids.length <= 4
+      ? Math.max(Math.floor((scrollH - colStackTotal(col)) / 2), GAP)
+      : GAP;
+  }
+
   // earlyY: evenly spaced, centered when ≤4 slots fit without scrolling.
   // Uses actual games in GAMES so the layout adapts to any bracket structure.
   var earlyY = {};
   cols.forEach(function(col) {
-    var isChamp  = champCol(col);
-    var numSlots = col.gids.length;
-    var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
-    var nDivs    = (col.divs || []).length;
-    var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP
-                 + nDivs * (DIV_H + GAP);
-    var offset   = numSlots <= 4
-      ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
-      : GAP;
+    var y = colStackOffset(col);
     col.gids.forEach(function(gid, idx) {
-      var divsAbove = (col.divs || []).filter(function(d) { return d.idx <= idx; }).length;
-      earlyY[gid] = offset + idx * (cardH + GAP) + divsAbove * (DIV_H + GAP);
+      var divHere = (col.divs || []).some(function(d) { return d.idx === idx; });
+      if (divHere) y += DIV_H + GAP;
+      earlyY[gid] = y;
+      y += cardHeightFor(col, gid) + GAP;
     });
   });
 
   // innerH: exact content height so there's no excess blank space at bottom
   function colInnerH(ci) {
-    var col      = cols[ci];
-    var isChamp  = champCol(col);
-    var numSlots = col.gids.length;
-    var cardH    = isChamp ? CHAMP_CARD_H : CARD_H;
-    var nDivs    = (col.divs || []).length;
-    var totalH   = numSlots * cardH + Math.max(numSlots - 1, 0) * GAP
-                 + nDivs * (DIV_H + GAP);
-    var offset   = numSlots <= 4
-      ? Math.max(Math.floor((scrollH - totalH) / 2), GAP)
-      : GAP;
-    return Math.max(offset + totalH + GAP, scrollH);
+    var col = cols[ci];
+    return Math.max(colStackOffset(col) + colStackTotal(col) + GAP, scrollH);
   }
 
   // lateY: where each game's card sits when the PREVIOUS round is active.
@@ -3083,9 +3133,13 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       + loseSide
       + '</div>';
 
-    // Team lost this game — win path ends here; remaining games are unreachable
+    // Team lost this game — this chain ends here; remaining games are
+    // unreachable. Only show the Eliminated stamp when the loss is truly
+    // terminal: if the loser drops somewhere (LB → B bracket, consolation),
+    // the team plays on and its continuation renders as its own "Loss to …"
+    // section below (the card's "Lost ↓ Game …" box links to it).
     if (played && teamLost) {
-      if (showElimOnLoss) {
+      if (showElimOnLoss && !findNextSlot(gid, 'loser')) {
         html += '<div class="team-elim-inline">'
           + '<img src="/icons/eliminated.png" class="team-elim-inline-img" alt="Eliminated">'
           + '</div>';
