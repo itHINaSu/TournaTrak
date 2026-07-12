@@ -310,11 +310,13 @@ api.get('/session', ah(async (req, res) => {
   }
   const eff   = roleFor(req);
   const teams = store.teamsFor(u, req.tid);
-  // Tournaments this user can act on (for the admin switcher).
+  // Tournaments this user can act on (for the admin switcher). isLive marks
+  // the tournament served at / — the switcher defaults to it.
   const tournaments = (await store.listTournaments())
     .map(t => ({ t, role: store.effectiveRole(u, t.id) }))
     .filter(x => x.role)
-    .map(x => ({ slug: x.t.slug, name: x.t.name, role: x.role === 'superadmin' ? 'admin' : x.role }));
+    .map(x => ({ slug: x.t.slug, name: x.t.name, isLive: x.t.isDefault,
+                 role: x.role === 'superadmin' ? 'admin' : x.role }));
   res.json({
     authenticated:      true,
     mustChangePassword: !!u.mustChangePassword,
@@ -650,8 +652,23 @@ api.get('/tournaments', ah(async (req, res) => {
   const isSuper = req.user && req.user.role === 'superadmin';
   const list = (await store.listTournaments())
     .filter(t => isSuper || t.isPublic)
-    .map(t => isSuper ? { slug: t.slug, name: t.name, isPublic: t.isPublic } : { slug: t.slug, name: t.name });
+    .map(t => isSuper
+      ? { slug: t.slug, name: t.name, isPublic: t.isPublic, isLive: t.isDefault }
+      : { slug: t.slug, name: t.name });
   res.json(list);
+}));
+
+// Make a tournament "live": it becomes the one served at /, and the
+// installed PWA's name/icon rebrand to it (manifest + apple-touch-icon are
+// generated from the live tournament). Devices refresh on their own PWA
+// update cadence — see the admin UI hint.
+api.post('/tournaments/:slug/live', requireSuperadmin, ah(async (req, res) => {
+  const id = await store.setDefaultTournament(req.params.slug);
+  if (id == null) return res.status(404).json({ error: 'Tournament not found' });
+  // Every cached index.html carries the OLD live tournament's title/OG/icon
+  // links — rebuild them all on next request.
+  invalidateIndexCache();
+  res.json({ ok: true });
 }));
 
 api.post('/tournaments', requireSuperadmin, ah(async (req, res) => {
@@ -700,7 +717,7 @@ api.delete('/tournaments/:slug', requireSuperadmin, ah(async (req, res) => {
   const { slug } = req.params;
   const t = await store.tournamentBySlug(slug);
   if (!t) return res.status(404).json({ error: 'Tournament not found' });
-  if (t.id === store.tid) return res.status(400).json({ error: 'Cannot delete the default tournament' });
+  if (t.id === store.tid) return res.status(400).json({ error: 'Cannot delete the live tournament — set another tournament live first' });
   await store.deleteTournament(slug);
   res.json({ ok: true });
 }));
@@ -866,6 +883,14 @@ api.post('/theme-colors', requireAdmin, ah(async (req, res) => {
   });
   if (validLogoDataUri(incoming.logo)) clean.logo = incoming.logo;
   if (validLogoDataUri(incoming.icon, ICON_MAX_CHARS, true)) clean.icon = incoming.icon;
+  // How the app icon is baked from the logo (kept so the admin UI can
+  // re-render the baker with the TD's choices): fit = whole logo on a
+  // colored tile, fill = crop to cover the square.
+  const st = incoming.iconStyle;
+  if (st && typeof st === 'object' && ['fit', 'fill'].includes(st.mode)
+      && typeof st.bg === 'string' && /^#[0-9a-f]{6}$/i.test(st.bg)) {
+    clean.iconStyle = { mode: st.mode, bg: st.bg };
+  }
   await store.put(req.tid, 'theme_colors', clean);
   // The served index.html carries an apple-touch-icon link that follows
   // the uploaded icon — rebuild it on the next request.

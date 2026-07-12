@@ -381,13 +381,15 @@ async function replaceUsers(users, tid = defaultTid) {
 }
 
 // ── Tournaments ───────────────────────────────────────────────────────
-// Cached list: [{ id, slug, name, isPublic }]. Invalidated on any CRUD.
+// Cached list: [{ id, slug, name, isPublic, isDefault }]. Invalidated on
+// any CRUD. isDefault marks the "live" tournament — served at /, brands
+// the installed PWA.
 
 async function listTournaments() {
   if (!cache.has('tournaments')) {
-    const r = await pool.query('SELECT id, slug, name, is_public FROM tournaments ORDER BY id');
+    const r = await pool.query('SELECT id, slug, name, is_public, is_default FROM tournaments ORDER BY id');
     _setCache('tournaments', r.rows.map(t => ({
-      id: t.id, slug: t.slug, name: t.name, isPublic: t.is_public,
+      id: t.id, slug: t.slug, name: t.name, isPublic: t.is_public, isDefault: t.is_default,
     })));
   }
   return structuredClone(cache.get('tournaments').data);
@@ -415,6 +417,26 @@ async function updateTournament(slug, fields) {
   const r = await pool.query(`UPDATE tournaments SET ${sets.join(', ')} WHERE slug = $1`, vals);
   _invalidateTournaments();
   return r.rowCount > 0;
+}
+
+// Move the "live" designation (served at /, brands the PWA) to `slug`.
+// store.tid is a live getter over defaultTid, so every default-mount
+// request resolves to the new tournament immediately — no restart needed.
+// Clear-then-set ordering inside one transaction keeps the partial unique
+// index (at most one is_default row) satisfied at every statement.
+// Returns the new tid, or null when the slug doesn't exist.
+async function setDefaultTournament(slug) {
+  let id = null;
+  await _withTransaction(async client => {
+    const r = await client.query('SELECT id FROM tournaments WHERE slug = $1', [slug]);
+    if (!r.rows.length) return;
+    id = r.rows[0].id;
+    await client.query('UPDATE tournaments SET is_default = FALSE WHERE is_default');
+    await client.query('UPDATE tournaments SET is_default = TRUE WHERE id = $1', [id]);
+  });
+  if (id != null) defaultTid = id;
+  _invalidateTournaments();
+  return id;
 }
 
 // Cascades wipe every domain row for the tournament.
@@ -518,6 +540,7 @@ module.exports = {
   grantRole, revokeRole,
   hashToken, hashTokenIfRaw,
   listTournaments, tournamentBySlug, createTournament, updateTournament, deleteTournament,
+  setDefaultTournament,
   SessionStore: PgSessionStore,
   _saveDomain, _withTransaction,
 };

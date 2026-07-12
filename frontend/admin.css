@@ -1091,6 +1091,11 @@ input[type="time"]:focus {
 /* Logo picker (Application Colors) */
 .logo-picker-row { display: flex; align-items: center; gap: 0.8em; flex-wrap: wrap; }
 .logo-picker-row .site-logo { background: var(--surface2); border: 0.07em solid var(--border); padding: 0.2em; }
+/* App-icon baker: preview at home-screen size with the platform corner
+   radius so the TD sees what the phone will actually show. */
+.icon-preview { width: 64px; height: 64px; border-radius: 14px; border: 0.07em solid var(--border); flex-shrink: 0; }
+.icon-style-row select { flex: 0 1 auto; width: auto; }
+.icon-style-row input[type="color"] { width: 3.2em; height: 2.2em; padding: 0.15em; flex-shrink: 0; }
 
 /* Small icon buttons need real touch targets on phones/tablets — mouse
    users keep the compact sizes above. */

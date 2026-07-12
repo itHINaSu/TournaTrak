@@ -165,7 +165,10 @@ async function fetchAll() {
       fetch(scopedUrl('/api/live')),
       fetch(scopedUrl('/api/offsets')),
       fetch(scopedUrl('/api/field-colors')),
-      fetch(scopedUrl('/api/theme-colors')),
+      // no-store: this endpoint is served with max-age=60 for the public
+      // page, but the ADMIN is the writer — editing against a cached copy
+      // makes a fresh save look reverted on the next reload.
+      fetch(scopedUrl('/api/theme-colors'), { cache: 'no-store' }),
       fetch(scopedUrl('/api/teams')),
     ]);
     results  = await rr.json();
@@ -221,16 +224,22 @@ function populateSettingsFields() {
   onLineupPresetChange();
   _logoDataUri = (_themeColors && _themeColors.logo) || null;
   _logoIconUri = (_themeColors && _themeColors.icon) || null;
+  var st = _themeColors && _themeColors.iconStyle;
+  _iconStyle = {
+    mode: st && st.mode === 'fill' ? 'fill' : 'fit',
+    bg: (st && st.bg) || '#ffffff',
+  };
   // Self-heal: logos uploaded before the PWA-icon feature existed have no
   // baked icon, so /pwa-icon.png and the manifest still serve the stock
   // trophy. Bake one from the stored logo and persist it (theme-colors
   // POST replaces the whole doc, so resend everything) — one-time; the
   // next load finds the icon and skips this.
   if (_logoDataUri && !_logoIconUri) {
-    makeLogoIcon(_logoDataUri, function(icon) {
+    makeLogoIcon(_logoDataUri, _iconStyle, function(icon) {
       if (!icon) return;
       _logoIconUri = icon;
-      var payload = Object.assign({}, _themeColors, { icon: icon });
+      syncLogoUI();
+      var payload = Object.assign({}, _themeColors, { icon: icon, iconStyle: _iconStyle });
       apiFetch('/api/theme-colors', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -270,7 +279,7 @@ async function saveSettings() {
     if (inp) themeColors[key] = inp.value;
   });
   if (_logoDataUri) themeColors.logo = _logoDataUri;
-  if (_logoIconUri) themeColors.icon = _logoIconUri;
+  if (_logoIconUri) { themeColors.icon = _logoIconUri; themeColors.iconStyle = _iconStyle; }
   var fieldColors = {};
   document.querySelectorAll('.field-color-picker:not(.theme-color-picker)').forEach(function(inp) {
     if (inp.dataset.field) fieldColors[inp.dataset.field] = inp.value;
@@ -1298,7 +1307,13 @@ function renderTournamentSwitcher() {
   }).join('');
   var cur = getAdminSlug();
   if (cur && opts.some(function(t) { return t.slug === cur; })) sel.value = cur;
-  else if (opts.length) { sel.value = opts[0].slug; setAdminSlug(opts[0].slug); }
+  else if (opts.length) {
+    // No remembered choice: start on the LIVE tournament (the one at /),
+    // not the oldest — a fresh login should edit the event that's running.
+    var live = opts.find(function(t) { return t.isLive; }) || opts[0];
+    sel.value = live.slug;
+    setAdminSlug(live.slug);
+  }
   // Show the switcher only when there's a real choice.
   sel.hidden = !(opts.length > 1);
   updateViewPublicLink();
@@ -1703,20 +1718,37 @@ function renderTournamentsList(list) {
   var activeSlug = getAdminSlug();
   el.innerHTML = list.map(function(t) {
     var pub = t.isPublic !== false;
-    var isActive = t.slug === activeSlug;
+    var isEditing = t.slug === activeSlug;
     return '<div class="user-row">'
       + '<div class="user-info">'
-      +   '<span class="user-name">' + esc(t.name) + (isActive ? ' <span class="user-self-label">(active)</span>' : '') + '</span>'
+      +   '<span class="user-name">' + esc(t.name)
+      +     (t.isLive ? ' <span class="user-role user-role--results">Live</span>' : '')
+      +     (isEditing ? ' <span class="user-self-label">(editing)</span>' : '') + '</span>'
       +   '<span class="user-team-name">/t/' + esc(t.slug) + '</span>'
       + '</div>'
       + '<span class="user-role user-role--' + (pub ? 'results' : 'admin') + '">' + (pub ? 'Public' : 'Private') + '</span>'
       + '<div class="user-actions">'
+      +   (t.isLive ? '' : '<button class="admin-clear-btn" data-action="setLiveTournament" data-arg="' + esc(t.slug) + '">Set Live</button>')
       +   '<button class="admin-clear-btn" data-action="renameTournament" data-arg="' + esc(t.slug) + '">Rename</button>'
       +   '<button class="admin-clear-btn" data-action="toggleTournamentPublic" data-arg="' + esc(t.slug) + '" data-public="' + (pub ? '1' : '0') + '">' + (pub ? 'Make Private' : 'Make Public') + '</button>'
-      +   '<button class="admin-clear-btn user-delete-btn" data-action="deleteTournament" data-arg="' + esc(t.slug) + '">Delete</button>'
+      +   (t.isLive ? '' : '<button class="admin-clear-btn user-delete-btn" data-action="deleteTournament" data-arg="' + esc(t.slug) + '">Delete</button>')
       + '</div>'
       + '</div>';
   }).join('');
+}
+
+async function setLiveTournament(slug) {
+  var ok = await ttConfirm('Make this the live tournament? The public root URL and the installed app\'s name and icon will switch to it.');
+  if (!ok) return;
+  var r = await apiFetch('/api/tournaments/' + encodeURIComponent(slug) + '/live', { method: 'POST' });
+  if (!r) return;
+  if (!r.ok) {
+    var d = await r.json().catch(function(){ return {}; });
+    showToast(d.error || 'Could not set live tournament', true);
+    return;
+  }
+  showToast('Live tournament switched');
+  loadTournaments();
 }
 
 async function createTournament() {
@@ -1806,26 +1838,34 @@ function savePwaHome(val) {
 // photo/export straight off a design tool "just works".
 var _logoDataUri = null;
 var _logoIconUri = null;        // square PNG PWA/home-screen icon derived from the logo
+var _iconStyle = { mode: 'fit', bg: '#ffffff' };  // how the icon is baked (TD's choice)
 var LOGO_MAX_URI = 48 * 1024;   // matches the server's LOGO_MAX_CHARS cap
 var LOGO_MAX_H = 144;           // ~3x the rendered header height (retina)
 var LOGO_MAX_W = 288;
 var ICON_MAX_URI = 192 * 1024;  // matches the server's ICON_MAX_CHARS cap
 
-// Render the logo centered on a square white tile for the PWA / home-screen
-// icon. Always PNG — iOS ignores WebP touch icons — and white rather than
-// transparent because iOS composites transparency onto black. Shrinks the
-// tile if a very complex logo overruns the cap. cb(uri) or cb(null).
-function makeLogoIcon(srcUri, cb) {
+// Render the logo as a square PNG PWA / home-screen icon. Two modes:
+//   fit  — whole logo centered on a colored tile (background color shows)
+//   fill — logo scaled up to cover the tile, overflow cropped
+// Always PNG — iOS ignores WebP touch icons — and an opaque background
+// because iOS composites transparency onto black. Shrinks the tile if a
+// very complex logo overruns the cap. cb(uri) or cb(null).
+function makeLogoIcon(srcUri, style, cb) {
+  var mode = (style && style.mode) === 'fill' ? 'fill' : 'fit';
+  var bg = (style && style.bg) || '#ffffff';
   var img = new Image();
   img.onload = function() {
     for (var size = 512; size >= 128; size = size / 2) {
       var canvas = document.createElement('canvas');
       canvas.width = size; canvas.height = size;
       var ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = bg;
       ctx.fillRect(0, 0, size, size);
-      var pad = size * 0.08;
-      var scale = Math.min((size - 2 * pad) / img.width, (size - 2 * pad) / img.height);
+      var pad = mode === 'fill' ? 0 : size * 0.08;
+      var inner = size - 2 * pad;
+      var scale = mode === 'fill'
+        ? Math.max(inner / img.width, inner / img.height)
+        : Math.min(inner / img.width, inner / img.height);
       var w = img.width * scale, h = img.height * scale;
       ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
       var out = canvas.toDataURL('image/png');
@@ -1835,6 +1875,24 @@ function makeLogoIcon(srcUri, cb) {
   };
   img.onerror = function() { cb(null); };
   img.src = srcUri;
+}
+
+// Re-bake the icon after a style change (mode/background). Uses the stored
+// logo — the original upload isn't kept around after a reload.
+function onIconStyleChange() {
+  var modeSel = document.getElementById('iconModeSel');
+  var bgInp = document.getElementById('iconBgInput');
+  _iconStyle = {
+    mode: modeSel && modeSel.value === 'fill' ? 'fill' : 'fit',
+    bg: (bgInp && bgInp.value) || '#ffffff',
+  };
+  if (!_logoDataUri) return;
+  makeLogoIcon(_logoDataUri, _iconStyle, function(icon) {
+    if (!icon) return;
+    _logoIconUri = icon;
+    syncLogoUI();
+    showToast('Icon updated — press Save to apply');
+  });
 }
 
 // Draw the image onto a shrinking canvas until the encoded data URI fits
@@ -1863,12 +1921,12 @@ function downscaleLogo(srcUri, cb) {
   img.src = srcUri;
 }
 
-// The branding subset of theme-colors (logo + derived PWA icon) — what a
-// color reset preserves.
+// The branding subset of theme-colors (logo + derived PWA icon + how it
+// was baked) — what a color reset preserves.
 function _logoBrand() {
   var out = {};
   if (_logoDataUri) out.logo = _logoDataUri;
-  if (_logoIconUri) out.icon = _logoIconUri;
+  if (_logoIconUri) { out.icon = _logoIconUri; out.iconStyle = _iconStyle; }
   return out;
 }
 
@@ -1878,6 +1936,18 @@ function syncLogoUI() {
   if (!img || !rm) return;
   if (_logoDataUri) { img.src = _logoDataUri; img.hidden = false; rm.hidden = false; }
   else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
+  // App-icon baker: preview + controls only make sense once a logo exists.
+  var field = document.getElementById('iconStyleField');
+  var icon = document.getElementById('iconPreview');
+  var modeSel = document.getElementById('iconModeSel');
+  var bgInp = document.getElementById('iconBgInput');
+  if (!field) return;
+  field.hidden = !_logoIconUri;
+  if (icon) {
+    if (_logoIconUri) icon.src = _logoIconUri; else icon.removeAttribute('src');
+  }
+  if (modeSel) modeSel.value = _iconStyle.mode;
+  if (bgInp) bgInp.value = _iconStyle.bg;
 }
 
 function pickLogo(val, el) {
@@ -1893,7 +1963,7 @@ function pickLogo(val, el) {
     var uri = reader.result;
     // The PWA icon renders from the ORIGINAL image (full resolution),
     // independent of the header-logo downscale.
-    makeLogoIcon(uri, function(icon) { _logoIconUri = icon; });
+    makeLogoIcon(uri, _iconStyle, function(icon) { _logoIconUri = icon; syncLogoUI(); });
     if (uri.length <= LOGO_MAX_URI) {
       _logoDataUri = uri;
       syncLogoUI();
@@ -3188,6 +3258,7 @@ Object.assign(TT_ACTIONS, {
   switchTournament:    function(v) { switchTournament(v); },
   // tournaments (superadmin)
   createTournament:    function() { createTournament(); },
+  setLiveTournament:   function(arg) { setLiveTournament(arg); },
   renameTournament:    function(arg) { renameTournament(arg); },
   toggleTournamentPublic: function(arg, el) { toggleTournamentPublic(arg, el); },
   deleteTournament:    function(arg) { deleteTournamentUI(arg); },
@@ -3236,6 +3307,7 @@ Object.assign(TT_ACTIONS, {
   resetOneThemeColor:  function(arg, el) { resetOneThemeColor(el); },
   pickLogo:            function(arg, el) { pickLogo(arg, el); },
   removeLogo:          function() { removeLogo(); },
+  onIconStyleChange:   function() { onIconStyleChange(); },
   resetOneFieldColor:  function(arg, el) { resetOneFieldColor(el); },
   // users
   addUser:             function() { addUser(); },

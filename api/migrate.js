@@ -50,8 +50,14 @@ async function ensureTournament(pool) {
   await pool.query(
     'INSERT INTO tournaments (slug, name) VALUES ($1, $2) ON CONFLICT (slug) DO NOTHING',
     [TOURNAMENT_SLUG, name]);
-  const r = await pool.query('SELECT id FROM tournaments WHERE slug = $1', [TOURNAMENT_SLUG]);
-  return r.rows[0].id;
+  // Exactly one tournament is "live" (served at /, brands the PWA). Keep an
+  // existing designation; otherwise flag the oldest row, which matches the
+  // hard-wired behavior deployments had before the flag existed.
+  const live = await pool.query('SELECT id FROM tournaments WHERE is_default LIMIT 1');
+  if (live.rows.length) return live.rows[0].id;
+  const oldest = await pool.query('SELECT id FROM tournaments ORDER BY id LIMIT 1');
+  await pool.query('UPDATE tournaments SET is_default = TRUE WHERE id = $1', [oldest.rows[0].id]);
+  return oldest.rows[0].id;
 }
 
 async function importLegacyJson(pool, tid) {

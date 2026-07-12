@@ -16,8 +16,18 @@ CREATE TABLE IF NOT EXISTS tournaments (
   slug       TEXT        NOT NULL UNIQUE CHECK (slug ~ '^[a-z0-9][a-z0-9-]{0,62}$'),
   name       TEXT        NOT NULL,
   is_public  BOOLEAN     NOT NULL DEFAULT TRUE,
+  is_default BOOLEAN     NOT NULL DEFAULT FALSE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- The "live" tournament: served at /, and the one the installed PWA is
+-- branded with (manifest name, app icon). Exactly one row carries the flag
+-- (partial unique index); migrate.js designates the oldest tournament when
+-- none is flagged (upgrades from before this column existed). The ALTER
+-- makes this file idempotent for databases created without the column —
+-- it must run before the index so both fresh and upgraded schemas converge.
+ALTER TABLE tournaments ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE UNIQUE INDEX IF NOT EXISTS tournaments_one_default ON tournaments (is_default) WHERE is_default;
 
 -- Users are deployment-global; role grants and team assignments scope per
 -- tournament (user_roles / user_teams). users.role is the account's BASE

@@ -369,6 +369,18 @@
                 </div>
                 <div class="field-hint">Saved with this section's Save button. SVG is not accepted.</div>
               </div>
+              <div class="settings-field" id="iconStyleField" hidden>
+                <label>App Icon <span class="field-label-hint">(home-screen icon baked from the logo)</span></label>
+                <div class="logo-picker-row icon-style-row">
+                  <img id="iconPreview" class="icon-preview" alt="App icon preview">
+                  <select class="styled" id="iconModeSel" data-action-change="onIconStyleChange">
+                    <option value="fit">Fit — whole logo on a colored square</option>
+                    <option value="fill">Fill — crop the logo to fill the square</option>
+                  </select>
+                  <input type="color" class="field-color-picker theme-color-picker" id="iconBgInput" value="#ffffff" data-action-change="onIconStyleChange" title="Icon background color">
+                </div>
+                <div class="field-hint">Background shows behind the logo in Fit mode (and through transparent areas). Devices refresh the icon when the app is reinstalled.</div>
+              </div>
               <label class="adv-toggle-label">
                 <input type="checkbox" id="themeAdvancedToggle">
                 Advanced — Application Theme
@@ -615,7 +627,8 @@
 
         <!-- ── Tournaments panel (superadmin only) ── -->
         <div class="settings-panel" id="sp-tournaments">
-          <div class="admin-subtitle">Create and manage tournaments. Each has its own bracket, schedule, results, settings, and users. Public tournaments appear at <code>/t/&lt;slug&gt;</code>.</div>
+          <div class="admin-subtitle">Create and manage tournaments. Each has its own bracket, schedule, results, settings, and users. Public tournaments appear at <code>/t/&lt;slug&gt;</code>.
+            The <strong>Live</strong> tournament is the one served at the root URL — the installed app opens it and takes its name and icon. Already-installed apps pick up a new icon on their next reinstall (iOS: remove and re-add to Home Screen).</div>
           <div class="settings-section">
             <div class="settings-section-hdr">Tournaments</div>
             <div id="tournamentsList" class="users-list"></div>
