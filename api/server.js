@@ -126,8 +126,9 @@ async function buildIndexHtml(tid, origin) {
       hasCustomIcon = true;
       html = html.replace(/<link rel="apple-touch-icon" href="[^"]*">/,
         '<link rel="apple-touch-icon" href="/pwa-icon.png">');
-      html = html.replace(/<link rel="icon" href="[^"]*" type="image\/png">/,
-        '<link rel="icon" href="/pwa-icon.png" type="image/png">');
+      // rel="icon" (browser tab) deliberately stays the gold trophy —
+      // owner preference: the tab shows the championship trophy, while
+      // the uploaded art covers home-screen installs and og:image.
     }
   }
   // og:image must be an ABSOLUTE url — scrapers don't resolve relative
@@ -892,6 +893,19 @@ api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
   };
   const sched = await store.get(req.tid, 'schedule');
   swapKeys(sched);
+  // Feeds pointing AT the swapped slots must follow the games: any other
+  // game's winner/loser source that referenced slotA now finds that game
+  // living at slotB (and vice versa). Without this, moving a game silently
+  // orphaned every downstream reference — the championship card ends up
+  // showing "Winner of <deleted game>" after the TD rearranges a bracket.
+  for (const sid of Object.keys(sched)) {
+    const e = sched[sid];
+    if (!e) continue;
+    for (const k of ['t1slot', 't2slot']) {
+      if (e[k] === slotA) e[k] = slotB;
+      else if (e[k] === slotB) e[k] = slotA;
+    }
+  }
   await store.put(req.tid, 'schedule', sched);
   // Results and live scores are keyed by slot but belong to the games — they
   // must travel with a swap, or a final score would jump onto whichever game

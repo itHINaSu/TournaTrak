@@ -560,7 +560,12 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 60%;
+  /* No width cap: with show-date on, "7/15 Wed 9:00 PM" overran the old
+     60% and ellipsized. Let it use the header's leftover space instead —
+     min-width:0 keeps ellipsis as the true last resort, and
+     shrinkFieldTags() already frees room by abbreviating field tags. */
+  flex: 0 1 auto;
+  min-width: 0;
   text-align: right;
   margin-left: auto;
   line-height: 1;
