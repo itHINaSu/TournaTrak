@@ -157,6 +157,20 @@ body {
   line-height: 1;
 }
 .header-controls { margin-left: auto; display: flex; align-items: center; gap: 0.6em; }
+
+/* Narrow screens: never squeeze the tournament name into a sliver between
+   the logo and the header buttons — a long name would wrap one word per
+   line and balloon the header to half the viewport. Let the header wrap:
+   the name block claims the width it needs (pushing the controls to their
+   own right-aligned row below), and the display type drops its wide
+   tracking so multi-line names stay compact. */
+@media (max-width: 720px) {
+  .site-header { flex-wrap: wrap; row-gap: 0.35em; }
+  .header-name-block { flex: 1 1 14em; }
+  .site-header h1 { letter-spacing: 0.1em; line-height: 1.15; }
+  .header-controls { flex-wrap: wrap; justify-content: flex-end; row-gap: 0.35em; }
+  .site-logo { height: 2em; max-width: 4.5em; }
+}
 .theme-toggle {
   background: none;
   border: 0.07em solid var(--border);
