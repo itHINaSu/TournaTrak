@@ -7,10 +7,14 @@
 // no direct DB access, so validation and cache invalidation all apply.
 //
 //   node scripts/import-schedule.js <file.json> \
-//     --url http://localhost:8080 --user admin [--slug <tournament>]
+//     --url http://localhost:8080 --user admin [--slug <tournament>] [--replace]
 //
 // The admin password is read from the TT_ADMIN_PASS environment variable
 // (never a CLI arg — those leak into shell history and process lists).
+//
+// SAFETY: if the target tournament already has a schedule, the import
+// REFUSES to touch it unless --replace is passed. Replacing wipes every
+// hand-edit and clears all results — that must never happen by accident.
 //
 // File shape:
 //   {
@@ -71,10 +75,25 @@ async function req(method, path, body) {
   return out;
 }
 
+const REPLACE = process.argv.includes('--replace');
+
 (async () => {
   // 1. Login (auth is global, not tournament-scoped)
   await req('POST', '/api/login', { username: USER, password: PASS });
   console.log('logged in as', USER);
+
+  // 1b. Guard: never silently destroy a saved bracket. An import replaces
+  // the whole schedule and clears all results, so a non-empty target
+  // requires the operator to say --replace explicitly.
+  const current = await req('GET', api.replace(BASE, '') + '/schedule');
+  const currentGames = Object.keys(current).length;
+  if (currentGames && !REPLACE) {
+    console.error('REFUSING: the target tournament already has a schedule ('
+      + currentGames + ' entries). Importing would replace it and clear all'
+      + ' results. Re-run with --replace if that is really what you want.');
+    process.exit(2);
+  }
+  if (currentGames) console.log('replacing existing schedule (' + currentGames + ' entries) — --replace given');
 
   // 2. Clear results + live for every slot that currently has one
   const existing = await req('GET', api.replace(BASE, '') + '/results');

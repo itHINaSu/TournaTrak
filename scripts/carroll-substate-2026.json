@@ -75,7 +75,7 @@
     "R1.L.4": {
       "label": "Game 3",
       "num": 3,
-      "time": "2026-07-14T20:10",
+      "time": "2026-07-15T20:10",
       "t1name": "#4 Coors Light / Grit Bar",
       "t2name": "Curb Appeal"
     },
@@ -103,7 +103,7 @@
     "R1.L.8": {
       "label": "Game 7",
       "num": 7,
-      "time": "2026-07-15T20:10",
+      "time": "2026-07-14T20:10",
       "t1name": "#2 Tropics",
       "t2name": "Brew Crew"
     },
@@ -161,9 +161,9 @@
       "t2slot": "R2.L.4"
     },
     "QF2.L.1": {
-      "label": "Game 31",
-      "num": 31,
-      "time": "2026-07-24T22:30",
+      "label": "Game 25",
+      "num": 25,
+      "time": "2026-07-24T20:30",
       "t1type": "winner",
       "t1slot": "QF.L.1",
       "t2type": "winner",
@@ -174,41 +174,41 @@
       "num": 12,
       "time": "2026-07-17T18:30",
       "t1type": "loser",
-      "t1slot": "R2.L.2",
+      "t1slot": "R1.L.5",
       "t2type": "loser",
-      "t2slot": "R1.L.5"
+      "t2slot": "R1.L.6"
     },
     "R1.R.3": {
       "label": "Game 13",
       "num": 13,
       "time": "2026-07-17T21:00",
       "t1type": "loser",
-      "t1slot": "R1.L.6",
+      "t1slot": "R1.L.7",
       "t2type": "loser",
-      "t2slot": "R1.L.7"
+      "t2slot": "R1.L.8"
     },
     "R1.R.4": {
       "label": "Game 14",
       "num": 14,
       "time": "2026-07-17T20:10",
       "t1type": "loser",
-      "t1slot": "R1.L.2",
+      "t1slot": "R1.L.3",
       "t2type": "loser",
-      "t2slot": "R1.L.3"
+      "t2slot": "R1.L.4"
     },
     "R2.R.1": {
       "label": "Game 15",
       "num": 15,
       "time": "2026-07-21T20:10",
       "t1type": "loser",
-      "t1slot": "R1.L.4",
+      "t1slot": "R2.L.2",
       "t2type": "winner",
       "t2slot": "R1.R.2"
     },
     "R2.R.2": {
       "label": "Game 16",
       "num": 16,
-      "time": "2026-07-21T21:00",
+      "time": "2026-07-21T19:20",
       "t1type": "loser",
       "t1slot": "R2.L.1",
       "t2type": "winner",
@@ -219,16 +219,16 @@
       "num": 17,
       "time": "2026-07-19T16:30",
       "t1type": "loser",
-      "t1slot": "R1.L.8",
+      "t1slot": "R2.L.3",
       "t2type": "loser",
-      "t2slot": "R2.L.3"
+      "t2slot": "R2.L.4"
     },
     "R2.R.4": {
       "label": "Game 18",
       "num": 18,
       "time": "2026-07-21T18:30",
       "t1type": "loser",
-      "t1slot": "R2.L.4",
+      "t1slot": "R1.L.2",
       "t2type": "winner",
       "t2slot": "R1.R.4"
     },
@@ -253,7 +253,7 @@
     "QF2.R.1": {
       "label": "Game 23",
       "num": 23,
-      "time": "2026-07-24T20:30",
+      "time": "2026-07-24T21:30",
       "t1type": "loser",
       "t1slot": "QF.L.2",
       "t2type": "winner",
@@ -262,7 +262,7 @@
     "QF2.R.2": {
       "label": "Game 24",
       "num": 24,
-      "time": "2026-07-24T21:30",
+      "time": "2026-07-24T19:30",
       "t1type": "loser",
       "t1slot": "QF.L.1",
       "t2type": "winner",
@@ -327,7 +327,7 @@
     "R0.R.3": {
       "label": "Game B3",
       "num": 43,
-      "time": "2026-07-21T19:20",
+      "time": "2026-07-21T21:00",
       "t1type": "loser",
       "t1slot": "R2.R.2",
       "t2type": "loser",
@@ -347,7 +347,7 @@
     "R0.R.10": {
       "label": "Game B5",
       "num": 45,
-      "time": "2026-07-24T19:30",
+      "time": "2026-07-24T22:30",
       "t1type": "winner",
       "t1slot": "R0.R.3",
       "t2type": "loser",
