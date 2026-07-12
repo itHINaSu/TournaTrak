@@ -3471,7 +3471,11 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   var editBtn        = document.getElementById('bucketEditBtn');
   var bracketEditBtn = document.getElementById('bracketEditBtn');
   var projectBtn     = document.getElementById('projectToggleBtn');
-  if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
+  // Signed-out visitors in an installed PWA also get the Admin button —
+  // an admin who tapped "view public bracket" from the admin PWA's login
+  // screen (or whose session expired) needs a way back to sign in; browser
+  // visitors can just navigate to /admin.
+  if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results' || (!_sessionRole && isPwa)));
   if (lineupBtn)      lineupBtn.hidden = !((_sessionRole === 'team'));
   if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
   if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));

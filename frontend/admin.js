@@ -221,6 +221,23 @@ function populateSettingsFields() {
   onLineupPresetChange();
   _logoDataUri = (_themeColors && _themeColors.logo) || null;
   _logoIconUri = (_themeColors && _themeColors.icon) || null;
+  // Self-heal: logos uploaded before the PWA-icon feature existed have no
+  // baked icon, so /pwa-icon.png and the manifest still serve the stock
+  // trophy. Bake one from the stored logo and persist it (theme-colors
+  // POST replaces the whole doc, so resend everything) — one-time; the
+  // next load finds the icon and skips this.
+  if (_logoDataUri && !_logoIconUri) {
+    makeLogoIcon(_logoDataUri, function(icon) {
+      if (!icon) return;
+      _logoIconUri = icon;
+      var payload = Object.assign({}, _themeColors, { icon: icon });
+      apiFetch('/api/theme-colors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(function() {});
+    });
+  }
   syncLogoUI();
 }
 
