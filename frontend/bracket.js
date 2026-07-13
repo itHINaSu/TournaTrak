@@ -3049,12 +3049,18 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       if (isLosePath && entryGid) return slot.type === 'loser' && slot.slot === entryGid;
       return false;
     }
-    // Resolved names and the team's own projected slot render as plain text.
-    // An unresolved OPPONENT slot renders as a tappable chip that jumps to
-    // the game it comes from ("who might I play?" — separate tap target from
-    // the card itself, which jumps to this game).
+    // The team's own projected slot renders as plain text. Every OPPONENT
+    // slot renders as a tappable pill: a known team name re-projects the
+    // path onto that team (the projection picker), while an unresolved slot
+    // jumps to the game it comes from ("who might I play?"). Separate tap
+    // targets from the card itself, which jumps to this game.
     function slotHTML(slot, resolved) {
-      if (resolved) return esc(resolved);
+      if (resolved) {
+        if (resolved === team) return esc(resolved);
+        return '<span class="tp-opp-chip" role="button" tabindex="0" title="View this team\'s path"'
+          + ' data-opp-team="' + esc(resolved) + '">'
+          + esc(resolved) + '<span class="tp-opp-chevron">&#8250;</span></span>';
+      }
       if (isTeamSlot(slot)) return esc(team);
       var lbl = smartLabel(slot, results);
       var srcGid = slot && slot.type !== 'fixed' ? slot.slot : null;
@@ -3264,6 +3270,65 @@ function renderTeamView(){
       +makeVerticalChain(winChain,team,false);
   }
 
+  // One "Loss to …" section per source game, across the top-level loop AND
+  // the recursive drop expansion below.
+  var _dropRendered = {};
+
+  // Opponent label for a "Loss to …" heading: the resolved name on the
+  // other side of the game, or the smart placeholder. In hypothetical
+  // branches neither side resolves, so the team's own projected slot is
+  // identified structurally — fed by the winner of the previous chain game
+  // (prevGid) or by the loser of the game that started the branch
+  // (entryGid) — and the OTHER side is the opponent.
+  function lossOppLabel(gid, prevGid, entryGid) {
+    var g = GAMES[gid];
+    var o1 = resolveSlot(g.t1, results), o2 = resolveSlot(g.t2, results);
+    if (o1 === team) return o2 || smartLabel(g.t2, results);
+    if (o2 === team) return o1 || smartLabel(g.t1, results);
+    function isTeamSlot(s) {
+      if (!s || s.type === 'fixed') return s && s.team === team;
+      if (prevGid && s.type === 'winner' && s.slot === prevGid) return true;
+      if (entryGid && s.type === 'loser' && s.slot === entryGid) return true;
+      return false;
+    }
+    if (isTeamSlot(g.t1)) return o2 || smartLabel(g.t2, results);
+    if (isTeamSlot(g.t2)) return o1 || smartLabel(g.t1, results);
+    return o1 || smartLabel(g.t1, results);
+  }
+
+  // Drops from WITHIN a lose branch (an LB game whose loser falls to the B
+  // bracket, a consolation drop, …): render each as its own nested
+  // "Loss to …" section so every reachable game exists on the page — the
+  // "LOSS ↓ Game …" boxes on the cards navigate to these anchors. Depth-
+  // first, so a branch's own continuations sit directly beneath it.
+  function subLossSections(chain, entryGid) {
+    var out = '';
+    var stopped = false;
+    chain.forEach(function(gid, i) {
+      if (stopped) return;
+      var g = GAMES[gid];
+      // Championship drops (WB finalist → if-necessary) are handled by the
+      // top-level loop; an LB finalist losing CHAMP is simply out.
+      if (!g || g.round === 'CHAMP' || g.round === 'CHAMP2') return;
+      var r = results[gid] || {};
+      var played = !!r.winner;
+      var teamLostHere = r.loser === team;
+      if (played && r.winner === team) return;          // advanced through
+      if (played && !teamLostHere) { stopped = true; return; } // branch dead — someone else played it
+      var ln = findNextSlot(gid, 'loser');
+      if (ln && !_dropRendered[gid]) {
+        _dropRendered[gid] = true;
+        var opp = lossOppLabel(gid, i > 0 ? chain[i - 1] : null, i === 0 ? entryGid : null);
+        out += '<div class="team-path-divider"></div>';
+        out += '<div class="team-path-label lose-label" id="tp-lose-' + esc(gid) + '">Loss to ' + esc(opp) + '</div>';
+        out += makeVerticalChain(buildWinChain(ln), team, true, true, gid);
+        out += subLossSections(buildWinChain(ln), gid);
+      }
+      if (teamLostHere) stopped = true;   // real path continues only via this drop
+    });
+    return out;
+  }
+
   var teamEliminated=false;
   winChain.forEach(function(gid,i){
     if(teamEliminated) return;
@@ -3279,10 +3344,7 @@ function renderTeamView(){
 
     if(!ln){
       if(teamLostHere){
-        var lgGame0 = GAMES[gid];
-        var lopp10 = resolveSlot(lgGame0.t1, results);
-        var lopp20 = resolveSlot(lgGame0.t2, results);
-        var lossOpp0 = (lopp10===team) ? (lopp20||smartLabel(lgGame0.t2,results)) : (lopp10||smartLabel(lgGame0.t1,results));
+        var lossOpp0 = lossOppLabel(gid, i > 0 ? winChain[i-1] : null, null);
         if(lostR1){
           // First game was a loss with no loser bracket — show the game card before the banner
           html+='<div class="team-path-label lose-label">Loss to '+esc(lossOpp0)+'</div>';
@@ -3297,12 +3359,9 @@ function renderTeamView(){
       }
     } else {
       if(!played||teamLostHere){
-        var lgGame = GAMES[gid];
-        var lopp1 = resolveSlot(lgGame.t1, results);
-        var lopp2 = resolveSlot(lgGame.t2, results);
-        var lossOpp = (lopp1 === team) ? (lopp2 || smartLabel(lgGame.t2, results)) : (lopp1 || smartLabel(lgGame.t1, results));
+        _dropRendered[gid] = true;
         html+='<div class="team-path-divider"></div>';
-        html+='<div class="team-path-label lose-label" id="tp-lose-'+esc(gid)+'">Loss to '+esc(lossOpp)+'</div>';
+        html+='<div class="team-path-label lose-label" id="tp-lose-'+esc(gid)+'">Loss to '+esc(lossOppLabel(gid, i > 0 ? winChain[i-1] : null, null))+'</div>';
         // Show the game that put the team on the lose path, then a LOSS connector.
         // This makes the lose path section self-contained with full context.
         if(teamLostHere){
@@ -3315,6 +3374,7 @@ function renderTeamView(){
             +'</div>';
         }
         html+=makeVerticalChain(buildWinChain(ln),team,true,true,gid);
+        html+=subLossSections(buildWinChain(ln),gid);
         if(teamLostHere) teamEliminated=true;
       }
     }
@@ -3365,6 +3425,18 @@ function renderTeamView(){
         target.classList.remove('tp-target-flash');
         void target.offsetWidth; // restart the highlight animation
         target.classList.add('tp-target-flash');
+        return;
+      }
+      // A known team name re-projects the path onto that team.
+      var tn=e.target.closest('[data-opp-team]');
+      if(tn){
+        var t=tn.getAttribute('data-opp-team');
+        if(teamSel) teamSel.value=t;
+        setCookie('tt_team', t);
+        history.replaceState(null, '', window.location.pathname + '?team=' + encodeURIComponent(t));
+        renderTeamView();
+        updateShareBtn();
+        scrollTeamPathTop();
         return;
       }
       // Only the opponent chip navigates — tapping the card itself does nothing.
