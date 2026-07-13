@@ -45,6 +45,50 @@ Commit and push when a change is complete. Do not open PRs unless asked.
 Consolidated to-do list; each item points at the detailed section. Ordered
 roughly by priority / by what the owner has been driving.
 
+**Shipped 2026-07-10 (code-review deep dive — fixes)** — on `main`:
+- ✅ **Empty-string scores no longer 400.** `validateResult` rejected
+  `t1score:''`/`t2score:''` before the POST /results handler's own `!== ''`
+  "no score" guard could run, so a winner-only save via the API failed.
+  Validator now treats `''` like an omitted field (matches the handler).
+- ✅ **`isValidSlotId` tightened to per-round slots.** Was a single global
+  max (1–16 any round), so `CHAMP.C.9` / `SF3.L.1` validated as real slots
+  and orphan results could be stored at nonexistent positions. Now checks
+  actual `SLOT_DEFS[round][side]` membership (dropped `_MAX_SLOT_NUM` /
+  `_VALID_ROUNDS`). Verified every generator + the Carroll import still pass
+  `validateSchedule` (the generate route's defence-in-depth path).
+- ✅ **Clearing a result deletes the key** instead of leaving a
+  `{winner:null,loser:null}` tombstone (server + admin client both). ETag
+  recomputes on any change so clients still re-render; matches the empty-
+  object clear that generate does. No consumer distinguished the two.
+- ✅ **`parseInt` radix** added to all remaining radix-less calls (cosmetic).
+
+**Known-but-deferred (found in the same review; NOT bugs that misbehave today)**
+- ⬜ **`applySchedule` silently drops half-configured games** (bracket-data.js
+  ~L261: skips entries missing a label or either team). A game saved in the
+  editor with only one side wired vanishes from the public bracket with no
+  warning. Fix is really the "bracket health" feature below (editor-side
+  warning), not a runtime change to applySchedule.
+- ⬜ **`_nextSlotMap` is last-write-wins** (bracket-data.js ~L287): if two
+  games consume the same feed (`loser of X`) — only reachable by hand-wiring
+  — one edge is silently lost, skewing isEliminated / Team Path. Generated
+  brackets never do this; the editor should warn (see health check).
+
+**Feature ideas (from the 2026-07-10 review — owner to prioritize)**
+- ⬜ **Bracket "health check" in the editor.** Surface dangling feeds,
+  incomplete games (the applySchedule drop above), and double-consumed
+  feeds as warnings before a TD publishes. Detection logic already exists
+  scattered across the resolvers — this is a presentation layer.
+- ⬜ **RR / pools standings tiebreakers.** Standings sort by W-L then run
+  diff; add head-to-head and a documented tiebreak order (what TDs ask for).
+- ⬜ **CSV / "final results" export** for post-tournament reporting (print
+  stylesheet already exists; this is the data-export sibling).
+- ⬜ **Undo for destructive admin actions** (regenerate, clear-all) — a
+  one-step snapshot/undo, since these wipe results behind only a confirm.
+- ⬜ **API-level integration tests** for the route layer (auth guards, the
+  results/settings/schedule contracts). The generators have strong
+  property-based coverage; the routes have none — which is where the
+  empty-score bug above hid.
+
 **Shipped 2026-07-07 (this session, all on the buildout branch / PR #15)**
 Beyond item 1 below (byes): public Schedule flight sub-tabs; schedule-editor
 unused slots hidden behind per-round "+ Add game" (+ "+ Add round" for tier

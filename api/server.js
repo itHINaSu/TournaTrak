@@ -804,7 +804,12 @@ api.delete('/results/:slot', requireResults, ah(async (req, res) => {
   if (data[game] === undefined) {
     return res.status(404).json({ error: 'game not found' });
   }
-  data[game] = { winner: null, loser: null };
+  // Actually remove the key rather than leaving a { winner:null, loser:null }
+  // tombstone. Nothing distinguishes "cleared" from "absent" (every consumer
+  // checks r.winner), the ETag recomputes on any change so clients still
+  // re-render, and tombstones otherwise accumulate forever in the results
+  // object. Matches the empty-object clear that /schedule/generate does.
+  delete data[game];
   await store.put(req.tid, 'results', data);
   res.json({ ok: true });
 }));

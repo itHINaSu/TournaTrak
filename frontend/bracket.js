@@ -189,7 +189,7 @@ function renderBucketView() {
     var sorted = allTeams.slice().sort(function(a, b) { return a.localeCompare(b); });
     var editHTML = '<div class="bucket-edit-wrap">';
     sorted.forEach(function(team) {
-      var val = parseInt(counts[team]) || 0;
+      var val = parseInt(counts[team], 10) || 0;
       editHTML += '<div class="bucket-edit-row">'
         + '<span class="bucket-edit-name">' + esc(team) + '</span>'
         + '<input class="bucket-edit-inp" type="number" min="0" inputmode="numeric" data-team="' + esc(team) + '" value="' + val + '">'
@@ -207,8 +207,8 @@ function renderBucketView() {
 
   // Always sort by count descending, then alphabetically as tiebreaker
   allTeams.sort(function(a, b) {
-    var ca = parseInt(counts[a]) || 0;
-    var cb = parseInt(counts[b]) || 0;
+    var ca = parseInt(counts[a], 10) || 0;
+    var cb = parseInt(counts[b], 10) || 0;
     if (cb !== ca) return cb - ca;
     return a.localeCompare(b);
   });
@@ -220,7 +220,7 @@ function renderBucketView() {
   }
 
   function makeRow(team, i) {
-    var count     = parseInt(counts[team]) || 0;
+    var count     = parseInt(counts[team], 10) || 0;
     var rank      = i + 1;
     var medalCls  = rank <= 3 ? ' bucket-row--' + rank : '';
     return '<div class="bucket-row' + medalCls + '">'

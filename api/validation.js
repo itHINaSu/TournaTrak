@@ -1,25 +1,19 @@
 // validation.js — slot ID constants and input validators shared by API routes
 const { SLOT_DEFS } = require('./slot-defs');
 
-const _VALID_ROUNDS = new Set(Object.keys(SLOT_DEFS));
-
-// Derive the max slot number from SLOT_DEFS so this stays in sync automatically.
-const _MAX_SLOT_NUM = Object.values(SLOT_DEFS).reduce(function(mx, sides) {
-  return Object.values(sides).reduce(function(mx2, nums) {
-    return Math.max(mx2, Math.max.apply(null, nums));
-  }, mx);
-}, 0);
-
 function isValidSlotId(sid) {
   if (typeof sid !== 'string') return false;
   const p = sid.split('.');
   if (p.length !== 3) return false;
   const [round, side, numStr] = p;
-  if (!_VALID_ROUNDS.has(round)) return false;
-  const isChampRound = round === 'CHAMP' || round === 'CHAMP2';
-  if (isChampRound ? side !== 'C' : side !== 'L' && side !== 'R') return false;
+  // Validate against the ACTUAL per-round/side slot list, not a single global
+  // max. This rejects num-in-range-but-nonexistent slots like CHAMP.C.9 or
+  // SF3.L.1 (SF3 has no L side), so orphan data can't be stored at slots no
+  // game will ever occupy. Every generator output stays within these lists.
+  const nums = SLOT_DEFS[round] && SLOT_DEFS[round][side];
+  if (!nums) return false;
   const num = parseInt(numStr, 10);
-  return !isNaN(num) && num >= 1 && num <= _MAX_SLOT_NUM;
+  return !isNaN(num) && nums.includes(num);
 }
 
 function validateResult({ game, winner, loser, t1score, t2score } = {}) {
@@ -29,11 +23,15 @@ function validateResult({ game, winner, loser, t1score, t2score } = {}) {
   if (typeof loser  !== 'string' || !loser.trim())   return 'loser must be a non-empty string';
   if (winner.length > 100 || loser.length > 100)     return 'team name too long (max 100)';
   if (winner.trim() === loser.trim())                return 'winner and loser must differ';
-  if (t1score !== undefined && t1score !== null) {
+  // Empty string means "no score entered" — a valid way to record just a
+  // winner. Treat it the same as an omitted field (the POST /results handler
+  // already skips '' when building the stored entry); validating it here as a
+  // number would 400 a legitimate winner-only save.
+  if (t1score !== undefined && t1score !== null && t1score !== '') {
     const n = parseInt(t1score, 10);
     if (isNaN(n) || n < 0 || n > 9999)              return 't1score must be an integer 0–9999';
   }
-  if (t2score !== undefined && t2score !== null) {
+  if (t2score !== undefined && t2score !== null && t2score !== '') {
     const n = parseInt(t2score, 10);
     if (isNaN(n) || n < 0 || n > 9999)              return 't2score must be an integer 0–9999';
   }
@@ -73,7 +71,7 @@ function validateSchedule(updates) {
     // Bye marker: lone team auto-advances; opponent slot renders as BYE.
     if (entry.bye !== undefined && typeof entry.bye !== 'boolean') return `bye for ${sid} must be a boolean`;
     if (entry.num !== undefined) {
-      const n = parseInt(entry.num);
+      const n = parseInt(entry.num, 10);
       if (isNaN(n) || n < 1) return `invalid num for ${sid}`;
     }
   }

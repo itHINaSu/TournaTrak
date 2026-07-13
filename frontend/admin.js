@@ -546,7 +546,7 @@ async function clearResult(sid) {
     var r = await apiFetch('/api/results/' + encodeURIComponent(sid), { method:'DELETE' });
     if (!r) return;
     if (!r.ok) throw new Error();
-    results[sid] = { winner: null, loser: null };
+    delete results[sid];   // match the server: clearing removes the key, no tombstone
     showToast(gameLabel(sid) + ' cleared');
     renderAdmin();
   } catch(e) { showToast('Clear failed', true); }
@@ -2505,7 +2505,7 @@ function renderBucketAdmin() {
   }
   var html = '<div class="bucket-admin-list">';
   _bucketTeams.forEach(function(team, i) {
-    var rawVal = (counts[team.name] !== undefined && counts[team.name] !== null) ? parseInt(counts[team.name]) : 0;
+    var rawVal = (counts[team.name] !== undefined && counts[team.name] !== null) ? parseInt(counts[team.name], 10) : 0;
     var val = isNaN(rawVal) ? 0 : rawVal;
     var isHidden = hidden.indexOf(team.name) !== -1;
     var rowCls = 'bucket-admin-row' + (isHidden ? ' bucket-admin-row--hidden' : '');

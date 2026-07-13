@@ -96,7 +96,7 @@ function formatTime(t) {
 // ── Slot ID helpers ───────────────────────────────────────────────────
 function parseSlotId(sid) {
   const p = sid.split('.');
-  return { round:p[0], side:p[1], num:parseInt(p[2]) };
+  return { round:p[0], side:p[1], num:parseInt(p[2], 10) };
 }
 
 function allSlotIds() {
@@ -264,7 +264,7 @@ function applySchedule(schedule) {
       label: ov.label,
       round: parsed.round,
       side:  parsed.side,
-      num:   ov.num != null ? parseInt(ov.num) : parsed.num,
+      num:   ov.num != null ? parseInt(ov.num, 10) : parsed.num,
       time:  ov.time || '',
       field: typeof ov.field === 'string' ? ov.field.trim() : '',
       bye:   ov.bye === true,
