@@ -224,6 +224,7 @@ function populateSettingsFields() {
   onLineupPresetChange();
   _logoDataUri = (_themeColors && _themeColors.logo) || null;
   _logoIconUri = (_themeColors && _themeColors.icon) || null;
+  _iconSrcUri  = (_themeColors && _themeColors.iconSrc) || null;
   var st = _themeColors && _themeColors.iconStyle;
   _iconStyle = {
     mode: st && st.mode === 'fill' ? 'fill' : 'fit',
@@ -231,11 +232,11 @@ function populateSettingsFields() {
   };
   // Self-heal: logos uploaded before the PWA-icon feature existed have no
   // baked icon, so /pwa-icon.png and the manifest still serve the stock
-  // trophy. Bake one from the stored logo and persist it (theme-colors
-  // POST replaces the whole doc, so resend everything) — one-time; the
-  // next load finds the icon and skips this.
+  // trophy. Bake one from the best stored source and persist it
+  // (theme-colors POST replaces the whole doc, so resend everything) —
+  // one-time; the next load finds the icon and skips this.
   if (_logoDataUri && !_logoIconUri) {
-    makeLogoIcon(_logoDataUri, _iconStyle, function(icon) {
+    makeLogoIcon(_iconSrcUri || _logoDataUri, _iconStyle, function(icon) {
       if (!icon) return;
       _logoIconUri = icon;
       syncLogoUI();
@@ -280,6 +281,7 @@ async function saveSettings() {
   });
   if (_logoDataUri) themeColors.logo = _logoDataUri;
   if (_logoIconUri) { themeColors.icon = _logoIconUri; themeColors.iconStyle = _iconStyle; }
+  if (_iconSrcUri) themeColors.iconSrc = _iconSrcUri;
   var fieldColors = {};
   document.querySelectorAll('.field-color-picker:not(.theme-color-picker)').forEach(function(inp) {
     if (inp.dataset.field) fieldColors[inp.dataset.field] = inp.value;
@@ -1837,28 +1839,68 @@ function savePwaHome(val) {
 // tall, so shrinking to a few hundred px loses nothing visible and any
 // photo/export straight off a design tool "just works".
 var _logoDataUri = null;
-var _logoIconUri = null;        // square PNG PWA/home-screen icon derived from the logo
+var _logoIconUri = null;        // square PNG PWA/home-screen/share icon derived from the logo
+var _iconSrcUri  = null;        // high-res baking source (original upload, ≤1024px) — icons
+                                // re-bake from THIS, never from the tiny header logo, so
+                                // link-share previews stay sharp
 var _iconStyle = { mode: 'fit', bg: '#ffffff' };  // how the icon is baked (TD's choice)
 var LOGO_MAX_URI = 48 * 1024;   // matches the server's LOGO_MAX_CHARS cap
 var LOGO_MAX_H = 144;           // ~3x the rendered header height (retina)
 var LOGO_MAX_W = 288;
-var ICON_MAX_URI = 192 * 1024;  // matches the server's ICON_MAX_CHARS cap
+var ICON_MAX_URI = 360 * 1024;      // matches the server's ICON_MAX_CHARS cap
+var ICONSRC_MAX_URI = 480 * 1024;   // matches the server's ICONSRC_MAX_CHARS cap
+var ICONSRC_MAX_DIM = 1024;
 
-// Render the logo as a square PNG PWA / home-screen icon. Two modes:
+// Downscale the ORIGINAL upload to a ≤1024px baking source. Kept alongside
+// the icon (theme_colors.iconSrc) so later re-bakes — background or crop
+// changes, self-heal — start from real resolution instead of stretching
+// the 288px header logo (which made link-share previews grainy).
+// cb(uri) or cb(null) when even heavy shrinking can't fit the cap.
+function makeIconSrc(origUri, cb) {
+  var img = new Image();
+  img.onload = function() {
+    var dim = ICONSRC_MAX_DIM;
+    for (var attempt = 0; attempt < 5; attempt++) {
+      var scale = Math.min(1, dim / Math.max(img.width, img.height));
+      var w = Math.max(1, Math.round(img.width * scale));
+      var h = Math.max(1, Math.round(img.height * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, w, h);
+      var out = canvas.toDataURL('image/webp', 0.9);
+      if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/png');
+      if (out.length <= ICONSRC_MAX_URI) return cb(out);
+      dim = Math.round(dim * 0.7);
+    }
+    cb(null);
+  };
+  img.onerror = function() { cb(null); };
+  img.src = origUri;
+}
+
+// Render the logo as a square PNG PWA / home-screen / link-share icon:
 //   fit  — whole logo centered on a colored tile (background color shows)
 //   fill — logo scaled up to cover the tile, overflow cropped
 // Always PNG — iOS ignores WebP touch icons — and an opaque background
-// because iOS composites transparency onto black. Shrinks the tile if a
-// very complex logo overruns the cap. cb(uri) or cb(null).
+// because iOS composites transparency onto black. The tile is sized near
+// the source's own resolution (capped at 1024) so the art is never
+// stretched up, and shrinks if a very complex image overruns the cap.
+// cb(uri) or cb(null).
 function makeLogoIcon(srcUri, style, cb) {
   var mode = (style && style.mode) === 'fill' ? 'fill' : 'fit';
   var bg = (style && style.bg) || '#ffffff';
   var img = new Image();
   img.onload = function() {
-    for (var size = 512; size >= 128; size = size / 2) {
+    var srcMax = Math.max(img.width, img.height);
+    var start = 128;
+    while (start < 1024 && start * 2 <= srcMax * 1.15) start *= 2;
+    for (var size = start; size >= 128; size = size / 2) {
       var canvas = document.createElement('canvas');
       canvas.width = size; canvas.height = size;
       var ctx = canvas.getContext('2d');
+      ctx.imageSmoothingQuality = 'high';
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, size, size);
       var pad = mode === 'fill' ? 0 : size * 0.08;
@@ -1886,8 +1928,8 @@ function onIconStyleChange() {
     mode: modeSel && modeSel.value === 'fill' ? 'fill' : 'fit',
     bg: (bgInp && bgInp.value) || '#ffffff',
   };
-  if (!_logoDataUri) return;
-  makeLogoIcon(_logoDataUri, _iconStyle, function(icon) {
+  if (!_iconSrcUri && !_logoDataUri) return;
+  makeLogoIcon(_iconSrcUri || _logoDataUri, _iconStyle, function(icon) {
     if (!icon) return;
     _logoIconUri = icon;
     syncLogoUI();
@@ -1927,6 +1969,7 @@ function _logoBrand() {
   var out = {};
   if (_logoDataUri) out.logo = _logoDataUri;
   if (_logoIconUri) { out.icon = _logoIconUri; out.iconStyle = _iconStyle; }
+  if (_iconSrcUri) out.iconSrc = _iconSrcUri;
   return out;
 }
 
@@ -1961,9 +2004,11 @@ function pickLogo(val, el) {
   var reader = new FileReader();
   reader.onload = function() {
     var uri = reader.result;
-    // The PWA icon renders from the ORIGINAL image (full resolution),
-    // independent of the header-logo downscale.
+    // The PWA/share icon renders from the ORIGINAL image (full resolution),
+    // independent of the header-logo downscale — and a ≤1024px copy of the
+    // original is kept as the re-bake source for later style changes.
     makeLogoIcon(uri, _iconStyle, function(icon) { _logoIconUri = icon; syncLogoUI(); });
+    makeIconSrc(uri, function(src) { _iconSrcUri = src; });
     if (uri.length <= LOGO_MAX_URI) {
       _logoDataUri = uri;
       syncLogoUI();
@@ -1987,6 +2032,7 @@ function pickLogo(val, el) {
 function removeLogo() {
   _logoDataUri = null;
   _logoIconUri = null;
+  _iconSrcUri = null;
   var inp = document.getElementById('logoFileInput');
   if (inp) inp.value = '';
   syncLogoUI();

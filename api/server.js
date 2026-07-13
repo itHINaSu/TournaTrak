@@ -109,6 +109,17 @@ function invalidateIndexCache(tid) {
   }
 }
 
+// Real pixel size of a stored PNG data URI (width/height are big-endian at
+// IHDR offsets 16/20). Falls back to 512 — the stock trophy's size.
+function pngDataUriSize(uri) {
+  const m = /^data:image\/png;base64,(.+)$/.exec(uri || '');
+  if (m) {
+    const buf = Buffer.from(m[1], 'base64');
+    if (buf.length > 24) return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+  }
+  return { w: 512, h: 512 };
+}
+
 async function buildIndexHtml(tid, origin) {
   const s       = Object.assign({}, SETTINGS_DEFAULTS, await store.get(tid, 'settings'));
   const title   = escHtml(s.pageTitle      || SETTINGS_DEFAULTS.pageTitle);
@@ -120,10 +131,12 @@ async function buildIndexHtml(tid, origin) {
   // default tournament — /pwa-icon.png serves that tournament's branding
   // and the PWA installs against start_url '/'.
   let hasCustomIcon = false;
+  let iconSize = { w: 512, h: 512 };
   if (tid === store.tid) {
     const tc = await store.get(tid, 'theme_colors');
     if (tc && tc.icon) {
       hasCustomIcon = true;
+      iconSize = pngDataUriSize(tc.icon);
       html = html.replace(/<link rel="apple-touch-icon" href="[^"]*">/,
         '<link rel="apple-touch-icon" href="/pwa-icon.png">');
       // rel="icon" (browser tab) deliberately stays the gold trophy —
@@ -142,8 +155,8 @@ async function buildIndexHtml(tid, origin) {
     desc ? `  <meta property="og:description" content="${desc}">` : '',
     desc ? `  <meta name="description" content="${desc}">` : '',
     ogImage ? `  <meta property="og:image" content="${escHtml(ogImage)}">` : '',
-    ogImage ? `  <meta property="og:image:width" content="512">` : '',
-    ogImage ? `  <meta property="og:image:height" content="512">` : '',
+    ogImage ? `  <meta property="og:image:width" content="${iconSize.w}">` : '',
+    ogImage ? `  <meta property="og:image:height" content="${iconSize.h}">` : '',
     ogImage ? `  <meta name="twitter:card" content="summary">` : '',
   ].filter(Boolean).join('\n');
   html = html.replace('</head>', `${meta}\n</head>`);
@@ -179,7 +192,7 @@ app.set('etag', false);
 // Theme-colors is the one route that may carry logo + PWA-icon data URIs,
 // so it gets a larger (still tight) body cap. Runs before the global 10kb
 // parser; once parsed here the global one skips the request.
-app.use(['/api/theme-colors', '/api/t/:slug/theme-colors'], express.json({ limit: '256kb' }));
+app.use(['/api/theme-colors', '/api/t/:slug/theme-colors'], express.json({ limit: '1mb' }));
 app.use(express.json({ limit: '10kb' }));
 
 // In-memory login rate limiter: max 10 failures per IP per 15 minutes.
@@ -855,9 +868,13 @@ const THEME_COLOR_KEYS = ['accent', 'interactive', 'winColor', 'loseColor'];
 const LOGO_DATAURI_RE = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/;
 const LOGO_MAGIC = { png: [0x89, 0x50, 0x4e, 0x47], jpeg: [0xff, 0xd8, 0xff], webp: [0x52, 0x49, 0x46, 0x46] };
 const LOGO_MAX_CHARS = 48 * 1024;
-// The PWA icon is a client-generated 512x512 square PNG of the logo; PNG
-// only (iOS ignores WebP touch icons) and a larger cap to fit 512px art.
-const ICON_MAX_CHARS = 192 * 1024;
+// The PWA/share icon is a client-generated square PNG of the logo, up to
+// 1024px so link previews aren't grainy; PNG only (iOS ignores WebP touch
+// icons). iconSrc is the high-res baking source (the original upload,
+// client-downscaled to ≤1024px) kept so later re-bakes (background/crop
+// changes, self-heal) don't have to upscale the tiny header logo.
+const ICON_MAX_CHARS = 360 * 1024;
+const ICONSRC_MAX_CHARS = 480 * 1024;
 function validLogoDataUri(v, maxChars, pngOnly) {
   if (typeof v !== 'string' || !v || v.length > (maxChars || LOGO_MAX_CHARS)) return false;
   const m = LOGO_DATAURI_RE.exec(v);
@@ -870,8 +887,16 @@ function validLogoDataUri(v, maxChars, pngOnly) {
 }
 
 api.get('/theme-colors', ah(async (req, res) => {
-  res.set('Cache-Control', 'public, max-age=60');
-  res.json(await store.get(req.tid, 'theme_colors') || {});
+  // Response varies by role (heavy fields are editor-only) — no shared caches.
+  res.set('Cache-Control', 'private, max-age=60');
+  const tc = await store.get(req.tid, 'theme_colors') || {};
+  // icon + iconSrc together can run to hundreds of KB and only the admin
+  // editor and the server's own /pwa-icon.png need them — public visitors
+  // just want colors and the header logo.
+  const role = req.user ? roleFor(req) : null;
+  if (role === 'admin' || role === 'superadmin') return res.json(tc);
+  const { icon, iconSrc, ...pub } = tc;
+  res.json(pub);
 }));
 
 api.post('/theme-colors', requireAdmin, ah(async (req, res) => {
@@ -883,6 +908,7 @@ api.post('/theme-colors', requireAdmin, ah(async (req, res) => {
   });
   if (validLogoDataUri(incoming.logo)) clean.logo = incoming.logo;
   if (validLogoDataUri(incoming.icon, ICON_MAX_CHARS, true)) clean.icon = incoming.icon;
+  if (validLogoDataUri(incoming.iconSrc, ICONSRC_MAX_CHARS)) clean.iconSrc = incoming.iconSrc;
   // How the app icon is baked from the logo (kept so the admin UI can
   // re-render the baker with the TD's choices): fit = whole logo on a
   // colored tile, fill = crop to cover the square.
@@ -1377,17 +1403,11 @@ app.get('/manifest.json', ah(async (req, res) => {
     manifest.short_name = name.slice(0, 12);
   }
   if (tc && tc.icon) {
-    // Declare the icon's REAL pixel size (read from the PNG IHDR — width
-    // and height are big-endian at offsets 16/20) so browsers' declared-
-    // vs-actual checks pass. No 'maskable': Android's mask would zoom-crop
-    // a tile that isn't designed for it.
-    let sizes = '512x512';
-    const m = /^data:image\/png;base64,(.+)$/.exec(tc.icon);
-    if (m) {
-      const buf = Buffer.from(m[1], 'base64');
-      if (buf.length > 24) sizes = buf.readUInt32BE(16) + 'x' + buf.readUInt32BE(20);
-    }
-    manifest.icons = [{ src: '/pwa-icon.png', sizes, type: 'image/png' }];
+    // Declare the icon's REAL pixel size so browsers' declared-vs-actual
+    // checks pass. No 'maskable': Android's mask would zoom-crop a tile
+    // that isn't designed for it.
+    const dim = pngDataUriSize(tc.icon);
+    manifest.icons = [{ src: '/pwa-icon.png', sizes: dim.w + 'x' + dim.h, type: 'image/png' }];
   }
   res.setHeader('Content-Type', 'application/manifest+json');
   res.setHeader('Cache-Control', 'no-cache');
