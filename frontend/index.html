@@ -23,7 +23,8 @@
     <div id="siteSubtitle" class="site-subtitle"></div>
   </div>
   <div class="header-controls">
-    <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
+    <!-- Public feature: what-if picks, device-local only (never synced). -->
+    <button class="admin-public-btn" id="projectToggleBtn" data-action="toggleProject">Project winners</button>
     <button class="admin-public-btn" id="bracketEditBtn" hidden data-action="toggleBracketEdit">Edit</button>
     <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
     <a href="/lineup" class="admin-public-btn" id="lineupPortalBtn" hidden>Lineup →</a>
@@ -85,9 +86,10 @@
     <button class="flight-pill" data-action="setFlight" data-arg="A">A Bracket</button>
     <button class="flight-pill" data-action="setFlight" data-arg="B">B Bracket</button>
   </div>
-  <!-- Project winners: admin-only what-if picks (toggle lives in the header
-       next to Edit); nothing is saved or sent. This bar carries the hint and
-       the clear button while a projection is active. -->
+  <!-- Project winners: public what-if picks (toggle lives in the header);
+       picks are device-local — nothing is saved or sent, and they reset on
+       reload. This bar carries the hint and the clear button while a
+       projection is active. -->
   <div class="project-bar" id="projectBar" hidden>
     <button class="project-clear" id="projectClearBtn" type="button" data-action="clearProjections" hidden>Clear picks</button>
     <span class="project-hint" id="projectHint" hidden>Tap a team to pick a winner — picks are only on this device and reset on reload</span>

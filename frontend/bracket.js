@@ -3605,7 +3605,10 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   if (lineupBtn)      lineupBtn.hidden = !((_sessionRole === 'team'));
   if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
   if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));
-  if (projectBtn)     projectBtn.hidden = !((_sessionRole === 'admin'));
+  // projectToggleBtn is NOT gated here: Project winners is a public feature
+  // (owner spec) — picks are device-local, never synced, reset on reload —
+  // so the markup ships it visible to every visitor. Admin bracket-edit mode
+  // still wins: onProjectTap no-ops while editing.
   // PWA home preference: redirect to admin if user prefers it and is in standalone mode
   if (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) {
     var pref; try { pref = localStorage.getItem('ttPwaHome'); } catch(e) {}
@@ -3670,7 +3673,7 @@ document.addEventListener('visibilitychange', function() {
 // ── Delegated actions (see tt-common.js) ──────────────────────────────
 Object.assign(TT_ACTIONS, {
   toggleProject: function() {
-    if (_sessionRole !== 'admin') return;   // admin-only (button is hidden too)
+    // Public feature — no role gate; picks are device-local and never sent.
     _projectMode = !_projectMode;
     if (_projectMode && _bracketEditMode) toggleBracketEdit();  // mutually exclusive
     updateProjectBar();

@@ -70,6 +70,12 @@ function validateSchedule(updates) {
     if (entry.tier !== undefined && !['A','B'].includes(entry.tier)) return `invalid tier for ${sid}`;
     // Bye marker: lone team auto-advances; opponent slot renders as BYE.
     if (entry.bye !== undefined && typeof entry.bye !== 'boolean') return `bye for ${sid} must be a boolean`;
+    // Swiss round bookkeeping: which round this pairing belongs to. A real
+    // field so label edits/find-replace can't break "Pair next round".
+    if (entry.swissRound !== undefined) {
+      const n = parseInt(entry.swissRound, 10);
+      if (isNaN(n) || n < 1 || n > 99) return `invalid swissRound for ${sid}`;
+    }
     if (entry.num !== undefined) {
       const n = parseInt(entry.num, 10);
       if (isNaN(n) || n < 1) return `invalid num for ${sid}`;

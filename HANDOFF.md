@@ -13,37 +13,69 @@ advancement. The Bracket Builder additionally generates true single-elim
 (4–64 teams, byes) and double-elim (4/8/16/32) schedules; topology is defined
 per game in schedule.json, not hardcoded.
 Plain JS frontend (no framework, no build step), Node/Express API. Storage is
-**PostgreSQL as of the buildout branch** (v2 on `main` still uses JSON files);
-see "Persistence (v3)". PWA with a service worker. Role-based auth (bcrypt,
-rate-limited login): roles are `admin`, `results`, `team` (coach), `buckets`.
+**PostgreSQL** (v3 — the JSON-file era is history; see "Persistence (v3)").
+PWA with a service worker. Role-based auth (bcrypt, rate-limited login):
+roles are `superadmin` (global), and per-tournament `admin`, `results`,
+`team` (coach), `buckets`.
 
 ## START OF SESSION PROMPT (always do this first)
-At the start of every new session (or when told to "get up to speed"), ask:
+`git fetch origin` and base yourself on **`origin/main`** — it is the
+integration branch and both historical feature branches are fully merged
+into it. Work and push ONLY on the branch you were assigned for the session
+(e.g. `claude/tournatrak-eval-buildout-sa3mvv`); reset it onto
+`origin/main`'s tip before starting (`git checkout -B <your-branch>
+origin/main`) unless it carries unmerged work. If unsure which branch you
+were assigned, ask.
 
-> "Which branch should I work on this session? (default: the leading branch
-> `claude/handoff-continuation-9elo3q` — see Branch rule)"
+## Branch rule — updated 2026-07-13
+**`main` is the leading/integration branch.** The 2026-07-04 note naming
+`claude/handoff-continuation-9elo3q` as leading is obsolete: both session
+branches were merged into main (PR #15 + follow-ups) and main has since
+moved well beyond them. Do not push to a branch you weren't assigned; do
+not open PRs unless asked. Commit and push when a change is complete.
+- `claude/*` branches — per-session working branches; merged into main when
+  accepted. Stale ones may lag main by dozens of commits.
+- `feature/bracket-builder` — MERGED long ago. Do not develop here.
+- `feature/regional` — parked prototype; UNRELATED git history (no common
+  ancestor with main). Reference-only. Its committed files/users.json
+  contains real leaked secrets — see Security items.
 
-Then `git checkout <branch>`, `git fetch`, and fast-forward to its tip before
-touching anything. Do not assume `main`.
-
-## Branch rule
-**Leading branch as of 2026-07-04: `claude/handoff-continuation-9elo3q`**
-(owner decision). Other Claude sessions — including the one that previously
-led on `claude/tournatrak-eval-buildout-sa3mvv` — PULL from this branch to
-stay current; do not push to a branch you weren't assigned. Before starting
-work, `git fetch` and fast-forward onto the leading branch's tip to avoid
-the parallel-Phase-C style divergence that happened on 2026-07-02/03.
-Commit and push when a change is complete. Do not open PRs unless asked.
-- `main` — production-ready v2. All pre-buildout features land here.
-- `feature/bracket-builder` — MERGED into the buildout branch (formats engine,
-  /builder UI, teams/seeding, drag-and-drop, theme colors). Do not develop here.
-- `feature/regional` — parked Postgres prototype; UNRELATED git history (no
-  common ancestor with main). Reference-only for the v3 schema. Its committed
-  files/users.json contains real leaked secrets — see Security items.
-
-## Outstanding work (what's still needed) — updated 2026-07-07 (evening)
+## Outstanding work (what's still needed) — updated 2026-07-13
 Consolidated to-do list; each item points at the detailed section. Ordered
 roughly by priority / by what the owner has been driving.
+
+**Shipped 2026-07-13 (deep-dive audit fixes)** — on
+`claude/tournatrak-eval-buildout-sa3mvv` (based on main @ d329ef6):
+- ✅ **Stale seed display after regenerate.** /schedule/generate now clears
+  `showSeeds`/`seedCount` in the teams domain when the TD didn't request
+  seed display — previously the prior tournament's flag survived and the
+  new bracket numbered teams in bracket-appearance order.
+- ✅ **Magic/setup links first-click failure.** Session cookie
+  `sameSite: strict → lax`: links opened from text/email are cross-site
+  top-level navigations and Strict withheld the fresh cookie on the
+  redirect continuation. All mutations are POST/DELETE, so CSRF posture is
+  unchanged.
+- ✅ **Reset Password restored.** The admin user-row button rendering
+  `data-action="openResetPwModal"` had been lost; modal/handler/endpoint
+  were all unreachable. Button re-added next to Regenerate Link.
+- ✅ **Concurrent-write lost updates (results/live).** New
+  `store.putSlot`/`deleteSlot` row-scoped upserts used by POST/DELETE
+  /results and /live — two scorekeepers can no longer clobber each other,
+  and a live-score push no longer rewrites the whole table. Whole-domain
+  put() remains for the other domains (schedule Save-all is still
+  last-writer-wins between two admins — accepted for now).
+- ✅ **Swiss round bookkeeping is a real field.** `entry.swissRound`
+  (validated 1–99) written by generateSwiss + pairSwissRound; pairing reads
+  it first with the " · Round K" label-suffix as legacy fallback, so label
+  renames/find-replace can't break "Pair next round". Advanced editor
+  carries it through like `num`.
+- ✅ **Projections are public** (per the original 0a spec): the header
+  toggle ships visible to every visitor; picks stay device-local. The
+  admin-only gate was an inconsistency vs the recorded spec.
+- ✅ **nginx security headers on sw.js/manifest.json responses** — local
+  `add_header` had been cancelling the server-level set (inheritance rule).
+- ✅ Branch-rule + stale SW-version notes in this file corrected. SW cache
+  at **v3.02**.
 
 **Shipped 2026-07-10 (code-review deep dive — fixes)** — on `main`:
 - ✅ **Empty-string scores no longer 400.** `validateResult` rejected
@@ -394,13 +426,15 @@ fields use `class="styled"` (the `admin-winner-sel` inline-style inconsistency i
 
 ## Conventions / gotchas
 - `upcoming` cards use dashed border only — do NOT add `opacity`.
-- Theme toggle: admin.js claims it via `window.__ttThemeManaged = true`.
+- Theme toggle: owned by tt-common.js (dispatches `tt:themechange`); the old
+  `__ttThemeManaged` coordination hack is gone.
 - Mobile inputs: `inputmode="numeric" pattern="[0-9]*"` + `onfocus="this.select()"`.
 - `.admin-res-footer button` uses fixed `height` for even boxes.
-- **Bump `sw.js` `CACHE` whenever a precached asset changes.** Currently `tournatrak-v2.58`.
-  Precached: `/`, `index.html`, `fonts.css`, `base.css`, `bracket.css`, `bracket-data.js`,
-  `bracket.js`, `/lineup`, `lineup.html`, `lineup.css`, `lineup.js`.
-  `admin.*` / `admin-sw.js` are NOT in `sw.js` precache (they have their own `admin-sw.js`).
+- **Bump `sw.js` `CACHE` whenever a precached asset changes.** Don't trust
+  any version number written in this file — read `frontend/sw.js` (the
+  PRECACHE_URLS list there is authoritative too; it includes
+  settings-defaults.js and tt-common.js). `admin.*` are NOT precached —
+  admin-sw.js is deliberately network-only.
 - Bucket drag on mobile: `.bucket-drag-handle` has `touch-action: none` (eliminates
   long-press delay) and `user-select: none` (prevents text selection during drag).
   `.bucket-admin-row` also has `user-select: none`.
@@ -615,8 +649,10 @@ Static HTML/CSS/JS marketing site — separate nginx:alpine container, port 8081
 See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `index.html`.
 
 ## Current state
-Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
-`tournatrak-v2.58`.** Phase 0 evaluation is in `EVALUATION.md` (repo root).
+`main` is the integration branch (see Branch rule); session branches are
+merged into it when accepted. SW cache version: read `frontend/sw.js`.
+Phase 0 evaluation is in `EVALUATION.md` (repo root). The buildout history
+below is kept for context:
 
 **Completed this buildout (Phase 1, each its own commit):**
 - Merged `feature/bracket-builder` (conflicts resolved by hand in sw.js /
