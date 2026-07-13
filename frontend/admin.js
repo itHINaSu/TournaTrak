@@ -1557,6 +1557,7 @@ function renderUsersList(users) {
     // the raw token the server no longer returns).
     if (!isSelf && u.role !== 'team') {
       actions += '<button class="admin-clear-btn user-regen-btn" data-action="regenerateSetupLink" data-arg="' + esc(u.username) + '">Regenerate Link</button>';
+      actions += '<button class="admin-clear-btn user-resetpw-btn" data-action="openResetPwModal" data-arg="' + esc(u.username) + '">Reset Password</button>';
     }
     if (!isSelf) {
       // For a non-superadmin acting on a user who also has grants elsewhere,

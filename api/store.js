@@ -199,6 +199,64 @@ async function put(tid, domain, data) {
   _setCache(tid + '/' + domain, structuredClone(data));
 }
 
+// ── Single-slot writes (results, live) ────────────────────────────────
+// These two domains are written one game at a time by concurrent editors
+// (admin Results tab, /score scorekeepers, live auto-push). Whole-domain
+// put() makes every such save a read-modify-write over ALL games, so two
+// simultaneous saves could clobber each other's game. A row-scoped upsert
+// can't: each writer touches only its own (tournament_id, slot_id) row, and
+// the cache is patched from its CURRENT contents after the DB write, so
+// interleaved writers each land their own slot.
+
+async function _patchCache(tid, domain, slotId, entry) {
+  const key = tid + '/' + domain;
+  const data = cache.has(key)
+    ? cache.get(key).data
+    : await _loadDomain(pool, tid, domain);   // already includes this write
+  if (entry === undefined) delete data[slotId];
+  else data[slotId] = structuredClone(entry);
+  _setCache(key, data);
+}
+
+// Upsert one slot. `entry` must be shaped like the domain's per-slot value
+// (same field conventions _saveDomain uses).
+async function putSlot(tid, domain, slotId, entry) {
+  if (domain === 'results') {
+    await pool.query(
+      `INSERT INTO results (tournament_id, slot_id, winner, loser, t1_score, t2_score, saved_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (tournament_id, slot_id) DO UPDATE SET
+         winner = EXCLUDED.winner, loser = EXCLUDED.loser,
+         t1_score = EXCLUDED.t1_score, t2_score = EXCLUDED.t2_score,
+         saved_at = EXCLUDED.saved_at`,
+      [tid, slotId, entry.winner ?? null, entry.loser ?? null,
+       Number.isFinite(entry.t1score) ? entry.t1score : null,
+       Number.isFinite(entry.t2score) ? entry.t2score : null,
+       entry.savedAt ? new Date(entry.savedAt) : null]);
+  } else if (domain === 'live') {
+    await pool.query(
+      `INSERT INTO live (tournament_id, slot_id, period, t1_score, t2_score)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (tournament_id, slot_id) DO UPDATE SET
+         period = EXCLUDED.period, t1_score = EXCLUDED.t1_score, t2_score = EXCLUDED.t2_score`,
+      [tid, slotId, String(entry.period ?? ''), String(entry.t1score ?? ''), String(entry.t2score ?? '')]);
+  } else {
+    throw new Error('putSlot only supports results/live, got: ' + domain);
+  }
+  await _patchCache(tid, domain, slotId, entry);
+}
+
+// Delete one slot. Returns true when a row was actually removed.
+async function deleteSlot(tid, domain, slotId) {
+  if (domain !== 'results' && domain !== 'live') {
+    throw new Error('deleteSlot only supports results/live, got: ' + domain);
+  }
+  const r = await pool.query(
+    `DELETE FROM ${domain} WHERE tournament_id = $1 AND slot_id = $2`, [tid, slotId]);
+  await _patchCache(tid, domain, slotId, undefined);
+  return r.rowCount > 0;
+}
+
 // ── Users ─────────────────────────────────────────────────────────────
 // Users are deployment-global. Role grants (user_roles) and team assignments
 // (user_teams) scope per tournament. Each record carries the full grant map:
@@ -534,7 +592,7 @@ async function init() {
 }
 
 module.exports = {
-  pool, init, get, put, etag, clearCache,
+  pool, init, get, put, putSlot, deleteSlot, etag, clearCache,
   allUsers, findUser, effectiveRole, teamsFor,
   createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
   grantRole, revokeRole,
