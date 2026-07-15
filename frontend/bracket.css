@@ -633,6 +633,14 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
+.live-updated {
+  display: inline-block;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.78em;
+  font-weight: 400;
+  color: var(--text-mute);
+  white-space: nowrap;
+}
 /* Live indicator occupies the date/time slot — keep it on one row. */
 .bc-time-live, .round-game-live, .mbc-game-live, .mbc-champ-live {
   display: inline-flex;

@@ -775,6 +775,23 @@ function gameIsLive(sid) {
   return !!(liveScores[sid] && !(results[sid] && results[sid].winner));
 }
 
+// Compact "how long ago" for a live score's last update — 'just now', '45s
+// ago', '3m ago', '2h ago'. Empty string for missing/unparseable timestamps
+// (older live entries recorded before updatedAt existed) so it degrades
+// silently instead of showing garbage.
+function liveUpdatedLabel(ts) {
+  if (!ts) return '';
+  var t = new Date(ts).getTime();
+  if (isNaN(t)) return '';
+  var diffSec = Math.round((Date.now() - t) / 1000);
+  if (diffSec < 5) return 'just now';
+  if (diffSec < 60) return diffSec + 's ago';
+  var diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return diffMin + 'm ago';
+  var diffHr = Math.round(diffMin / 60);
+  return diffHr + 'h ago';
+}
+
 // "● LIVE" + inning label, sized to drop into the date/time slot of any card.
 // Period label comes from settings (Inning/Quarter/Half/…), defaulting to Inning.
 function liveHeaderHTML(sid) {
@@ -782,8 +799,10 @@ function liveHeaderHTML(sid) {
   var ls  = liveScores[sid];
   var lbl = (settings && settings.periodLabel) ? settings.periodLabel : 'Inning';
   var per = ls.period ? (esc(lbl) + ' ' + esc(String(ls.period))) : '';
+  var upd = liveUpdatedLabel(ls.updatedAt);
   return '<span class="live-badge">● LIVE</span>'
-    + (per ? '<span class="live-period">' + per + '</span>' : '');
+    + (per ? '<span class="live-period">' + per + '</span>' : '')
+    + (upd ? '<span class="live-updated">' + esc(upd) + '</span>' : '');
 }
 
 // Date/time block for round-style cards — swapped for the live indicator when
@@ -3648,8 +3667,12 @@ async function pollLive() {
     var changed = (lt !== _lastLiveJson) || (rt !== _lastResultsJson) || schedChanged;
     _lastLiveJson = lt; _lastResultsJson = rt; _lastSchedJson = st;
     setOffline(false);
-    if (!changed) return;
-    liveScores = JSON.parse(lt);
+    var liveNow = JSON.parse(lt);
+    // Even when nothing changed, re-render while a game is live so the
+    // "updated Xm ago" freshness label (liveHeaderHTML) keeps advancing
+    // instead of freezing at whatever it said after the last real change.
+    if (!changed && !Object.keys(liveNow).length) return;
+    liveScores = liveNow;
     results    = JSON.parse(rt);
     if (schedChanged) {
       schedule = JSON.parse(st);

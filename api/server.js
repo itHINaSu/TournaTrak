@@ -824,7 +824,9 @@ api.post('/live', requireResults, ah(async (req, res) => {
   const { game, period, t1score, t2score } = req.body || {};
   if (!game || !isValidSlotId(game)) return res.status(400).json({ error: 'invalid slot ID' });
   const data = await store.get(req.tid, 'live');
-  data[game] = { period: period || '', t1score: t1score ?? '', t2score: t2score ?? '' };
+  // Stamped fresh on every update (never trusts a client-supplied value) so
+  // the public bracket/schedule can show "updated Xm ago" next to the score.
+  data[game] = { period: period || '', t1score: t1score ?? '', t2score: t2score ?? '', updatedAt: new Date().toISOString() };
   await store.put(req.tid, 'live', data);
   res.json({ ok: true });
 }));
