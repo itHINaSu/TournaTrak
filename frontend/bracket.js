@@ -128,27 +128,43 @@ function updateTimestamp() {
     return;
   }
 
-  // All other tabs: show game results update time, or hide if none
+  // All other tabs: show the most recent update — a finalized result's
+  // savedAt, or a live score's updatedAt, whichever is newer. Previously
+  // this only ever looked at finalized results, so clicking Update on a
+  // live game card never moved the banner (and it stayed hidden entirely
+  // until the first final, even with games actively live).
   var latestSavedAt = null;
   Object.values(results).forEach(function(r) {
     if (r && r.winner && r.savedAt) {
       if (!latestSavedAt || r.savedAt > latestSavedAt) latestSavedAt = r.savedAt;
     }
   });
+  var latestLiveAt = null;
+  Object.values(liveScores).forEach(function(ls) {
+    if (ls && ls.updatedAt) {
+      if (!latestLiveAt || ls.updatedAt > latestLiveAt) latestLiveAt = ls.updatedAt;
+    }
+  });
   var hasResults = Object.values(results).some(function(r){ return r && r.winner; });
-  if (!hasResults) {
+  var hasLive = !!latestLiveAt;
+  if (!hasResults && !hasLive) {
     if (bar) bar.hidden = true;
     applyStickyOffsets();
     return;
   }
-  var ts = latestSavedAt ? new Date(latestSavedAt) : null;
+  // ISO 8601 timestamps (both always UTC 'Z' from toISOString()) compare
+  // correctly as plain strings, same as the per-source max() above.
+  var liveIsNewer = latestLiveAt && (!latestSavedAt || latestLiveAt > latestSavedAt);
+  var latest = liveIsNewer ? latestLiveAt : latestSavedAt;
+  var label  = liveIsNewer ? 'Live score updated' : 'Results updated';
+  var ts = latest ? new Date(latest) : null;
   var timeStr;
   if (ts && !isNaN(ts.getTime())) {
     timeStr = formatBucketTime(ts);
   } else {
     timeStr = null;
   }
-  if (text) text.textContent = timeStr ? 'Results updated ' + timeStr : 'Results updated';
+  if (text) text.textContent = timeStr ? label + ' ' + timeStr : label;
   if (bar) bar.hidden = false;
   applyStickyOffsets();
 }
@@ -1665,13 +1681,17 @@ function champCardHTML(gid, title) {
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
   var ft = formatTime(g.time);
+  var offMin = getGameOffset(gid);
+  var offHTML = (offMin !== null && offMin !== 0)
+    ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
+    : '';
   return '<div class="mbc-champ-card">'
     + '<div class="mbc-champ-top">'
     +   '<div class="mbc-champ-trophy">'+trophySVG()+'</div>'
     +   '<div class="mbc-champ-label">' + esc(title || 'Championship') + fieldTagHTML(gid) + '</div>'
     +   (gameIsLive(gid)
           ? '<div class="mbc-champ-time mbc-champ-live">' + liveHeaderHTML(gid) + '</div>'
-          : (ft ? '<div class="mbc-champ-time">' + esc(ft) + '</div>' : ''))
+          : ((ft || offHTML) ? '<div class="mbc-champ-time">' + esc(ft) + offHTML + '</div>' : ''))
     + '</div>'
     + '<div class="mbc-champ-sep"></div>'
     + '<div class="mbc-champ-teams">'
@@ -1702,6 +1722,10 @@ function mobileRoundCardHTML(gid) {
   if (m) { dateStr = m[1]; dowStr = m[2]; timeStr = m[3]; }
   var fd = fmtDate(dateStr), fw = fmtDow(dowStr);
   var upcoming = !r.winner ? ' upcoming' : '';
+  var offMin = getGameOffset(gid);
+  var offHTML = (offMin !== null && offMin !== 0)
+    ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
+    : '';
   // Header (top 25%), team 1 (37.5%), team 2 (37.5%)
   return '<div class="mbc-game-card' + upcoming + '">'
     + '<div class="mbc-game-mid">'
@@ -1713,6 +1737,7 @@ function mobileRoundCardHTML(gid) {
             + (fd      ? '<span class="mbc-game-day">'  + esc(fd)      + '</span>' : '')
             + (fw      ? '<span class="mbc-game-dow">'  + esc(fw)      + '</span>' : '')
             + (timeStr ? '<span class="mbc-game-time">' + esc(timeStr) + '</span>' : '')
+            + offHTML
             + '</span>')
     + '</div>'
     + '<div class="mbc-game-team ' + c1 + '">'
