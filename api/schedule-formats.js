@@ -564,6 +564,7 @@ function emitSpecs(specs, opts) {
       if (st.field) entry.field = st.field;
     }
     if (sp.tier) entry.tier = sp.tier;   // A/B drop bracket — see generateTiered
+    if (sp.swissRound) entry.swissRound = sp.swissRound;   // Swiss round bookkeeping
     applySide(entry, 1, sp.t1);
     if (sp.bye) entry.t2name = 'BYE'; else applySide(entry, 2, sp.t2);
     schedule[sp.slot] = entry;
@@ -679,9 +680,11 @@ function makeRoundRobin(passes) {
 // standings so far. generateSwiss emits ROUND 1 only (seed i vs seed
 // i+N/2, the standard Swiss split); the admin then calls
 // POST /schedule/swiss-next-round after each round completes, which runs
-// pairSwissRound below and appends the new games. Rounds are tagged via
-// the " · Round K" label suffix — that suffix is the round bookkeeping, so
-// renaming game labels in the editor should preserve it.
+// pairSwissRound below and appends the new games. The round each game
+// belongs to is a REAL schedule field (`swissRound`) — the " · Round K"
+// label suffix is display-only, so editor renames/find-replace can't break
+// the pairing bookkeeping. (Schedules generated before the field existed
+// are still read via the label suffix as a fallback.)
 function generateSwiss(opts) {
   const teams = resolveSeeding(opts);
   const N = teams.length;
@@ -693,6 +696,7 @@ function generateSwiss(opts) {
       slot: RR_SLOTS[i], col: 0,
       t1: { name: teams[i] }, t2: { name: teams[i + half] },
       labelSuffix: ' \u00b7 Round 1',
+      swissRound: 1,
     });
   }
   return emitSpecs(specs, opts);
@@ -710,8 +714,14 @@ const SWISS_ROUND_RE = / \u00b7 Round (\d+)$/;
 function pairSwissRound(schedule, results, totalRounds) {
   const games = [];
   for (const [sid, g] of Object.entries(schedule)) {
-    const m = SWISS_ROUND_RE.exec(g.label || '');
-    if (m && g.t1name && g.t2name) games.push({ sid, g, round: parseInt(m[1], 10) });
+    // swissRound field first; label-suffix fallback covers schedules
+    // generated before the field existed.
+    let round = parseInt(g.swissRound, 10);
+    if (isNaN(round)) {
+      const m = SWISS_ROUND_RE.exec(g.label || '');
+      round = m ? parseInt(m[1], 10) : NaN;
+    }
+    if (!isNaN(round) && g.t1name && g.t2name) games.push({ sid, g, round });
   }
   if (!games.length) throw new Error('No Swiss rounds found in the schedule');
   const curRound = Math.max(...games.map(x => x.round));
@@ -805,6 +815,7 @@ function pairSwissRound(schedule, results, totalRounds) {
         + 'T' + pad(t.getHours()) + ':' + pad(t.getMinutes()),
       t1name: a,
       t2name: b,
+      swissRound: nextRound,
     };
   });
   return { entries, round: nextRound };

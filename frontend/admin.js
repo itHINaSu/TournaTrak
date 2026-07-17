@@ -1027,6 +1027,8 @@ async function saveOneGame(sid) {
   // silently corrupted the game order instead of moving anything.)
   if (prev.num != null)   entry.num = prev.num;
   if (prev.bye === true)  entry.bye = true;
+  // Swiss pairing bookkeeping isn't editable — carry it through like num.
+  if (prev.swissRound != null) entry.swissRound = prev.swissRound;
   // Team sides: the occupied card shows a fixed-name input OR the
   // winner/loser dropdowns (sched-src-chk toggles which); only the visible
   // control counts. The empty-slot card shows both with no wrap — there the
