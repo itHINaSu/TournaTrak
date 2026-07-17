@@ -243,7 +243,14 @@ app.use(session({
     // Leaving it unset (false) is correct when TLS terminates at HAProxy
     // and the internal path to nginx/Express is plain HTTP.
     secure:   process.env.COOKIE_SECURE === 'true',
-    sameSite: 'strict',
+    // Lax, not strict: coach magic links and admin setup links are opened
+    // from messaging apps/email — cross-site top-level navigations. Strict
+    // withholds the just-set session cookie on the redirect continuation, so
+    // the first click always landed on the sign-in gate ("works after
+    // refresh"). Lax still withholds cookies on cross-site subresource and
+    // non-GET requests, and every mutating route here is POST/DELETE, so the
+    // CSRF posture is unchanged.
+    sameSite: 'lax',
     maxAge:   30 * 24 * 60 * 60 * 1000, // 30 days
   },
 }));
@@ -781,15 +788,14 @@ api.post('/results', requireResults, ah(async (req, res) => {
   const err = validateResult(req.body);
   if (err) return res.status(400).json({ error: err });
   const { game, winner, loser, t1score, t2score } = req.body;
-  const data = await store.get(req.tid, 'results');
   const entry = { winner: winner.trim(), loser: loser.trim(), savedAt: new Date().toISOString() };
   if (t1score !== undefined && t1score !== null && t1score !== '') entry.t1score = parseInt(t1score, 10);
   if (t2score !== undefined && t2score !== null && t2score !== '') entry.t2score = parseInt(t2score, 10);
-  data[game] = entry;
-  await store.put(req.tid, 'results', data);
+  // Row-scoped write: concurrent saves from two scorekeepers must not
+  // read-modify-write the whole domain over each other.
+  await store.putSlot(req.tid, 'results', game, entry);
   // Clear live state for this game now that a final result exists
-  const liveData = await store.get(req.tid, 'live');
-  if (liveData[game]) { delete liveData[game]; await store.put(req.tid, 'live', liveData); }
+  await store.deleteSlot(req.tid, 'live', game);
   res.json({ ok: true });
 }));
 
@@ -800,17 +806,15 @@ api.delete('/results/:slot', requireResults, ah(async (req, res) => {
   if (!isValidSlotId(game)) {
     return res.status(400).json({ error: 'invalid slot ID' });
   }
-  const data = await store.get(req.tid, 'results');
-  if (data[game] === undefined) {
-    return res.status(404).json({ error: 'game not found' });
-  }
-  // Actually remove the key rather than leaving a { winner:null, loser:null }
+  // Actually remove the row rather than leaving a { winner:null, loser:null }
   // tombstone. Nothing distinguishes "cleared" from "absent" (every consumer
   // checks r.winner), the ETag recomputes on any change so clients still
   // re-render, and tombstones otherwise accumulate forever in the results
   // object. Matches the empty-object clear that /schedule/generate does.
-  delete data[game];
-  await store.put(req.tid, 'results', data);
+  const removed = await store.deleteSlot(req.tid, 'results', game);
+  if (!removed) {
+    return res.status(404).json({ error: 'game not found' });
+  }
   res.json({ ok: true });
 }));
 
@@ -823,20 +827,19 @@ api.get('/live', ah(async (req, res) => {
 api.post('/live', requireResults, ah(async (req, res) => {
   const { game, period, t1score, t2score } = req.body || {};
   if (!game || !isValidSlotId(game)) return res.status(400).json({ error: 'invalid slot ID' });
-  const data = await store.get(req.tid, 'live');
-  // Stamped fresh on every update (never trusts a client-supplied value) so
-  // the public bracket/schedule can show "updated Xm ago" next to the score.
-  data[game] = { period: period || '', t1score: t1score ?? '', t2score: t2score ?? '', updatedAt: new Date().toISOString() };
-  await store.put(req.tid, 'live', data);
+  // Row-scoped write: concurrent editors (two scorekeepers, admin + /score)
+  // must not read-modify-write the whole live domain over each other.
+  // updatedAt is stamped fresh here (never trusts a client-supplied value)
+  // so the public bracket/schedule can show "updated Xm ago" next to the score.
+  await store.putSlot(req.tid, 'live', game,
+    { period: period || '', t1score: t1score ?? '', t2score: t2score ?? '', updatedAt: new Date().toISOString() });
   res.json({ ok: true });
 }));
 
 api.delete('/live/:slot', requireResults, ah(async (req, res) => {
   const game = req.params.slot;
   if (!isValidSlotId(game)) return res.status(400).json({ error: 'invalid slot ID' });
-  const data = await store.get(req.tid, 'live');
-  delete data[game];
-  await store.put(req.tid, 'live', data);
+  await store.deleteSlot(req.tid, 'live', game);
   res.json({ ok: true });
 }));
 
@@ -1080,6 +1083,15 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
       delete teamsOut.seedCount;
     }
     await store.put(req.tid, 'teams', teamsOut);
+  } else {
+    // Seeds NOT requested: a previous generate may have left showSeeds on,
+    // and GET /teams re-derives the list from the new schedule — so the old
+    // flag would number the new bracket's teams in meaningless order.
+    const existing = await store.get(req.tid, 'teams');
+    if (existing.showSeeds || existing.seedCount) {
+      delete existing.seedCount;
+      await store.put(req.tid, 'teams', { ...existing, showSeeds: false });
+    }
   }
 
   res.json({ ok: true, games: Object.keys(schedule).length });
