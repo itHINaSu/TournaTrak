@@ -1065,34 +1065,68 @@ function computeLBPositions(slotVh) {
   });
 
   // ── Align LB final with WB SF for a clean horizontal championship row ──
-  // Find which WB game feeds CHAMP (there should be exactly one) and compute
-  // its top position. Then find which LB game feeds CHAMP and pin it to the
-  // same position, so both CHAMP feeders are at the same height. Since CHAMP
-  // is already hardcoded at 3.5*slotVh and the WB SF (n=1) is also naturally
-  // at 3.5*slotVh, this produces the canonical paper-bracket look.
+  // Both games that feed the championship should sit at the same height. Pin
+  // the LB final to the WB final's row. The WB final is the L-side game feeding
+  // CHAMP; the LB final is the R-side game feeding CHAMP.
+  //
+  // Robustness: bye brackets can wire CHAMP's LB feeder to a slot id that does
+  // not match the LB final's actual slot (a dangling reference). When that
+  // happens the reference-based lookup finds nothing and the LB final is left
+  // at its low natural position. So if CHAMP has a dangling winner reference
+  // and no resolved R-side feeder, fall back to the LB final identified
+  // structurally — the terminal R-side game, whose winner no other R-side game
+  // consumes. Brackets whose CHAMP references all resolve are unaffected.
+  function terminalRGame() {
+    var consumed = {};
+    Object.keys(GAMES).forEach(function(gid) {
+      var g = GAMES[gid];
+      if (g.side !== 'R' || g.tier) return;
+      [g.t1, g.t2].forEach(function(s) {
+        if (s && s.type === 'winner' && s.slot) consumed[s.slot] = true;
+      });
+    });
+    var best = null, bestRi = -1;
+    Object.keys(GAMES).forEach(function(gid) {
+      var g = GAMES[gid];
+      if (g.side !== 'R' || g.tier || consumed[gid]) return;
+      var ri = ROUND_ORDER.indexOf(g.round);
+      if (ri > bestRi) { bestRi = ri; best = gid; }
+    });
+    return best;
+  }
+
   var champG = GAMES['CHAMP.C.1'];
   if (champG) {
     var wbSFTops = [];
+    var lbFinalGid = null, hasDangling = false;
     [champG.t1, champG.t2].forEach(function(slotDef) {
-      if (!slotDef || slotDef.type !== 'winner') return;
+      if (!slotDef || slotDef.type !== 'winner' || !slotDef.slot) return;
       var fg = GAMES[slotDef.slot];
-      if (!fg || fg.side !== 'L') return;
-      var parts = slotDef.slot.split('.');
-      wbSFTops.push(slotTopVh(parts[0], parseInt(parts[2], 10), slotVh, 'L'));
+      if (!fg) { hasDangling = true; return; }   // reference points at no game
+      if (fg.side === 'L') {
+        var parts = slotDef.slot.split('.');
+        wbSFTops.push(slotTopVh(parts[0], parseInt(parts[2], 10), slotVh, 'L'));
+      } else if (fg.side === 'R') {
+        lbFinalGid = slotDef.slot;
+      }
     });
     var wbSFMidTop = wbSFTops.length
       ? wbSFTops.reduce(function(a, b) { return a + b; }, 0) / wbSFTops.length
       : 3.5 * slotVh;
-    [champG.t1, champG.t2].forEach(function(slotDef) {
-      if (!slotDef || slotDef.type !== 'winner') return;
-      var fg = GAMES[slotDef.slot];
-      if (!fg || fg.side !== 'R') return;
-      // Pin the LB championship feeder level with the WB one so both
-      // feeds enter the championship on the same row. The overlap sweep
-      // below treats this as an ANCHOR: siblings move out of ITS way.
-      posMap[slotDef.slot] = clamp(wbSFMidTop);
-      _lbAnchored[slotDef.slot] = true;
-    });
+    // Bye brackets can wire CHAMP's LB feeder to a slot id that doesn't match
+    // where the LB final is actually stored (a dangling reference — the CHAMP
+    // card then renders "Winner of SF.R.3" as a raw slot label). When that
+    // happens the reference resolves to nothing; fall back to the LB final
+    // identified structurally (terminalRGame). Well-formed brackets keep the
+    // reference-resolved lbFinalGid from the pass above.
+    if (!lbFinalGid && hasDangling) lbFinalGid = terminalRGame();
+    if (lbFinalGid && posMap[lbFinalGid] !== undefined) {
+      // Pin the LB championship feeder level with the WB one so both feeds
+      // enter the championship on the same row. The overlap sweep below
+      // treats this as an ANCHOR: siblings move out of ITS way.
+      posMap[lbFinalGid] = clamp(wbSFMidTop);
+      _lbAnchored[lbFinalGid] = true;
+    }
   }
 
   // ── Overlap guard ─────────────────────────────────────────────────
