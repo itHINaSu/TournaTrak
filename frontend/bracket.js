@@ -16,6 +16,14 @@ var _bracketEditMode = false;
 var _projectMode = false;
 var _projected = {};   // slot id -> picked winner name
 var scheduleMode = null; // null = uninitialised; set from settings on first render
+
+// Mobile bracket carousel: which column the viewer last landed on, so the
+// 20s live poll's full re-render (renderBracket rebuilds #mbcOuter from
+// scratch) can restore it instead of snapping back to column 0 every time.
+// Keyed by the column's `round` id (e.g. 'CHAMP2', 'FLIGHT1') rather than a
+// raw index/pixel offset, since that's stable across re-renders even if
+// column composition or viewport width changes.
+var _mbcActiveRound = null;
 // esc() comes from tt-common.js
 
 // SETTINGS_DEFAULTS comes from settings-defaults.js; getSetting from tt-common.js
@@ -2130,6 +2138,16 @@ function renderMobileColumns(root, cols) {
     });
   }());
 
+  // Restore the column the viewer was on before this re-render, if it still
+  // exists (falls back to 0 on first paint or if the column disappeared —
+  // e.g. a schedule edit, or a genuine flight switch).
+  var initialIdx = 0;
+  if (_mbcActiveRound !== null) {
+    var _restoreIdx = -1;
+    cols.forEach(function(c, i) { if (c.round === _mbcActiveRound) _restoreIdx = i; });
+    if (_restoreIdx !== -1) initialIdx = _restoreIdx;
+  }
+
   // gid → column index, for membership tests and bracket-jump targeting
   var colOfGid = {};
   cols.forEach(function(col, ri) {
@@ -2314,9 +2332,10 @@ function renderMobileColumns(root, cols) {
     }
   }
 
-  var activeIdx = 0;
-  applyPrevBlend(0, 0);                                          // starting column: earlyY
-  for (var i = 1; i < colEls.length; i++) { applyBlend(i, 1); } // right columns: lateY
+  var activeIdx = initialIdx;
+  for (var i = 0; i < activeIdx; i++) { applyPrevBlend(i, 1); } // left columns: fully stacked
+  applyPrevBlend(activeIdx, 0);                                  // starting column: earlyY
+  for (var i = activeIdx + 1; i < colEls.length; i++) { applyBlend(i, 1); } // right columns: lateY
 
   // ── Single full-width scroll overlay ─────────────────────────────────
   //
@@ -2332,7 +2351,7 @@ function renderMobileColumns(root, cols) {
   var _approachIdx   = -1;  // which column is currently being approached
   var _approachComp  = 0;   // px to subtract from sharedScrollTop for that column
   var _anchorLateOff = 0;   // cached lateOffset of the anchor card
-  var _scrollLeftPrev = 0;  // for direction detection
+  var _scrollLeftPrev = colStarts[initialIdx];  // for direction detection
 
   var captureEl = document.createElement('div');
   captureEl.className = 'mbc-scroll-cap';
@@ -2492,6 +2511,7 @@ function renderMobileColumns(root, cols) {
       _approachIdx  = -1;
       _approachComp = 0;
       if (idx !== activeIdx) { activeIdx = idx; setSpacerForCol(idx); }
+      _mbcActiveRound = cols[idx].round;
       _anchorLateOff = 0;
       if (typeof updateArrows === 'function') updateArrows();
     }, 200);
@@ -2627,8 +2647,12 @@ function renderMobileColumns(root, cols) {
     }
   }, true); // capture phase so it beats card click handlers
 
-  setSpacerForCol(0);
+  setSpacerForCol(activeIdx);
   shrinkFieldTags(outer);
+  // Land on the restored column instantly (no animation) — the scroll
+  // listener re-settles activeIdx/_mbcActiveRound from this same value, so
+  // this is a no-op rather than a second jump when there's nothing to restore.
+  if (activeIdx > 0) outer.scrollLeft = colStarts[activeIdx];
 
   // Jump hook for cross-view navigation (e.g. team path card tap).
   // Snaps the carousel to the game's round column, then sets the shared
