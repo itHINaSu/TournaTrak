@@ -26,7 +26,14 @@ const SLOT = {
   // a pair of round-1 winners get them adjacent: 23←(16,17) 24←(19,20).
   // Games 15 and 18 feed alone (each pairs with a winners-side drop).
   16: 'R2.R.1', 17: 'R2.R.2', 19: 'R2.R.3', 20: 'R2.R.4', 15: 'R2.R.5', 18: 'R2.R.6',
-  21: 'QF.R.1', 22: 'QF.R.2', 23: 'QF.R.3', 24: 'QF.R.4',
+  // Round 2 is NOT in paper order, for the same reason the winners side
+  // isn't: a column has to be ordered by the order its games' winners are
+  // consumed, or the connector lines cross. 23 takes (16,17) and 24 takes
+  // (19,20), so putting 23 second and 22 third makes every losers-side line
+  // run straight. In paper order (21,22,23,24) the winners of 22 and 23 swap
+  // over each other on the way into round 3, and that crossing then
+  // propagates the whole way down to the losers final.
+  21: 'QF.R.1', 23: 'QF.R.2', 22: 'QF.R.3', 24: 'QF.R.4',
   29: 'QF2.R.1', 30: 'QF2.R.2', 31: 'QF2.R.3', 32: 'QF2.R.4',
   // Rounds must be assigned in ROUND_ORDER sequence (… QF2, SF, SF3, SF4,
   // SF2 …): the renderer lays columns out in that order, so LB round 4 goes
@@ -208,6 +215,7 @@ for (const g of Object.values(S)) {
     }
   }
 }
+const { ROUND_ORDER } = require(__dirname + '/../frontend/bracket-data.js');
 // Bracket-tree geometry: when a game's two feeders are winner-feeds from the
 // same round and side, they must occupy an adjacent slot pair (2k-1, 2k) —
 // the desktop renderer derives a card's height from its slot number, so a
@@ -224,6 +232,64 @@ for (const g of Object.values(S)) {
     problems.push(`${g.label} feeders ${f[0].r}.${f[0].side}.${lo}/${hi} are not an adjacent pair`);
   }
 }
+// Column ORDER: within one column, games must appear in the same order their
+// feeders do in the column before it. Adjacency (above) only checks a single
+// game's own two feeders; it says nothing about how games sit relative to
+// EACH OTHER, and that is the other half of a bracket that reads straight.
+//
+// This is what was wrong with the losers side. Round 3 was in paper order
+// (21, 22, 23, 24) while their feeders in round 2 ran 15, (16,17), 18,
+// (19,20) — so the winners of 22 and 23 crossed over each other on the way
+// in, and because every later round is positioned from its feeders, that one
+// inversion propagated all the way to the losers final. Only winner-feeds
+// count: a loser drop from the winners side is never drawn as a line
+// (buildConnPcts skips it), so it cannot cross anything.
+//
+// One column is exempt: the FIRST losers column. computeLBPositions lays that
+// one out on a virtual grid derived from the games that consume it, not from
+// its own slot numbers, so its slot order says nothing about where its cards
+// land — the constraint is satisfied there by construction, and checking it
+// against slot order only produces false alarms.
+const firstLbRound = ROUND_ORDER.find(r =>
+  Object.entries(S).some(([sid, g]) => !g.tier && parse(sid).r === r && parse(sid).side === 'R'));
+for (const round of ROUND_ORDER) {
+  for (const side of ['L', 'R']) {
+    // Games in this column, in the order the renderer will draw them.
+    const here = Object.entries(S)
+      .filter(([sid, g]) => !g.tier && parse(sid).r === round && parse(sid).side === side)
+      .map(([sid, g]) => ({ sid, g, n: parse(sid).n }))
+      .sort((a, b) => a.n - b.n);
+    if (here.length < 2) continue;
+    // Where each game's winner-feeds sit, keyed by the column they come from.
+    const key = [];
+    for (const item of here) {
+      const feeders = ['t1', 't2']
+        .filter(k => item.g[k + 'type'] === 'winner' && item.g[k + 'slot'])
+        .map(k => parse(item.g[k + 'slot']))
+        .filter(f => !(f.r === round && f.side === side));   // same-column chains sit elsewhere
+      for (const f of feeders) {
+        if (f.side === 'R' && f.r === firstLbRound) continue;   // see note above
+        const col = f.r + '.' + f.side;
+        key.push({ col, n: f.n, at: item.n, label: item.g.label });
+      }
+    }
+    // Per source column, slot order here must not disagree with feeder order.
+    const byCol = {};
+    key.forEach(k => (byCol[k.col] = byCol[k.col] || []).push(k));
+    for (const [col, list] of Object.entries(byCol)) {
+      for (let i = 0; i < list.length; i++) {
+        for (let j = i + 1; j < list.length; j++) {
+          const a = list[i], b = list[j];
+          if ((a.at - b.at) * (a.n - b.n) < 0) {
+            problems.push(`${a.label} and ${b.label} are out of order in ${round}.${side}: `
+              + `their feeders sit ${col}.${Math.min(a.n, b.n)} then ${col}.${Math.max(a.n, b.n)}, `
+              + `so the two connector lines cross`);
+          }
+        }
+      }
+    }
+  }
+}
 // Round ordering: the desktop renderer lays columns out in ROUND_ORDER, so a
 // game must never be fed by a game in a LATER round than its own — that draws
 // the feeder to the RIGHT of its consumer and the gap between them carries no
@@ -233,7 +299,6 @@ for (const g of Object.values(S)) {
 // own column (that's what SF4 exists for). A same-round CROSS-side feed is the
 // normal winners→losers drop and is fine. Tier games all live in R0, so they
 // order by slot band instead — a same-tier feeder must sit in an earlier slot.
-const { ROUND_ORDER } = require(__dirname + '/../frontend/bracket-data.js');
 for (const [sid, g] of Object.entries(S)) {
   const me = parse(sid);
   for (const n of [1, 2]) {
