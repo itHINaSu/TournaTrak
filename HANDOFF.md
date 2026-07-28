@@ -59,10 +59,11 @@ side.
 ## Outstanding work (what's still needed) — updated 2026-07-28
 
 **Shipped 2026-07-28 on `main`, newest first.** Every item is detailed below;
-this is the index. `main` is at `212c14d`.
+this is the index.
 
 | commit | what |
 |--------|------|
+| `c6dee73` | Logo/name click returns to the landing tab (desktop); Team Path renders through projections |
 | `212c14d` | Mobile carousel: `lateY` was cascading round-2 cards off-screen, and bye-fed cards were shoving visible ones aside |
 | `c572ba9` | Bracket Edit rebuilt on a stored POSITION, not a slot index; draft with Save/Discard; A/B flights included |
 | `39f1345` | Project winners dropped picks past round 1 — picks were applied in game-number order, and hand-wired schedules have no game number |
@@ -83,6 +84,54 @@ that sweep had been ordering by `earlyY` and cascading since long before.
 It stayed invisible while brackets were small and surfaced once the losers
 side got taller. Long-standing layout code with no test around it is the
 likeliest place for the next one of these.
+
+**✅ DONE 2026-07-28 — Team Path ignored projections; the logo wasn't a home
+link.** Owner: "Clicking the logo, or any page info in the top left corner of
+the page (desktop only) should take you to the default landing tab… when
+projecting winners, update team paths as though games are decided."
+
+*Team Path and projections.* `renderBracket()` had always swapped the
+`results` global for `mergedResults()` for the duration of its synchronous
+render, so every card helper sees picked winners without threading a
+parameter through all of them. `renderTeamView()` did not, so a pick made on
+the bracket left the path frozen at the last real result — which reads as the
+picker being broken, since following a team through a what-if is the whole
+point. It now uses the identical wrapper (`renderTeamView` swaps, calls
+`renderTeamViewInner`, restores in a `finally`). Listeners installed during
+the render call `renderTeamView()` again, so they re-enter the wrapper and
+get a fresh merge rather than a stale snapshot.
+- Projections stay visually distinct from settled games: blue + italic
+  instead of green/red, a PICK chip in the game header, and **no victory
+  badge** — `/icons/victory.png` is for games actually won.
+- **The record bar deliberately does NOT count picks.** It takes the real
+  results, passed into `renderTeamViewInner(realResults)` explicitly. Picks
+  carry no score, so counting them printed "7–0 · 7 played · 9 for / 4
+  against" — a line contradicting itself, seven games played against one
+  game's run total. The summary stays factual; the chain below is where the
+  what-if lives, and its PICK chips say so.
+- The Standings tab still uses real results only. Not an oversight — nobody
+  asked, and a projected standings table has the same self-contradiction
+  problem as the record bar, worse because run differential is a tiebreak.
+
+*Logo as a home link.* `data-action="goHome"` on `#siteLogo`, `#siteName` and
+`#siteSubtitle`. Three things worth keeping:
+1. **Desktop only** (`window.innerWidth < 1280` → no-op). Below that the
+   header wraps into a cramped two-row block where a stray tap on the name
+   reads as a misfire, and the tab bar is pinned on screen there anyway.
+2. **The hit area has to hug the text.** `.header-name-block` is `flex: 1`,
+   so it stretches all the way to the header controls — at 1920px the block's
+   right edge is 1468px while the name ends at 319px. Without
+   `width: fit-content` on `#siteName`/`.site-subtitle`, a click 1100px away
+   from the name would navigate. There is a regression check for exactly this.
+3. **Where "home" is comes from `landingTab()`**, factored out of `fetchAll`'s
+   first-load restore so the logo lands exactly where a fresh visit would —
+   including the `defaultTabScope: 'mobile'` rule that leaves DESKTOP on
+   Bracket. It also falls back to Bracket when the configured default is the
+   hidden half of the shared fourth tab slot. Verified across all four
+   permutations.
+Clicking while already on the landing tab scrolls to top instead of calling
+`tab.click()` — otherwise every click pushes a duplicate history entry and
+the back button stops working.
 
 **✅ DONE 2026-07-28 — the mobile carousel's lateY layout was throwing games
 off-screen.** Owner: "Games from round 1 that feed games in round 2 don't
@@ -1323,12 +1372,12 @@ Static HTML/CSS/JS marketing site — separate nginx:alpine container, port 8081
 See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `index.html`.
 
 ## Current state
-`main` at `212c14d` (2026-07-28, end of day) holds everything below plus both
+`main` at `c6dee73` (2026-07-28, end of day) holds everything below plus both
 2026-07-28 shipped lists at the top of "Outstanding work" — the parallel
-session's UI work and the seven commits that continued after it. Nothing is
-unmerged; `claude/bracket-generation-missing-lines-tbbhro` is history.
+session's UI work and the eight commits that continued after it. Nothing is
+unmerged; `claude/bracket-generation-missing-lines-tbbhro` tracks `main`.
 SW cache version lives in `frontend/sw.js` (at the time of writing
-`tournatrak-v3.25`) — **read it there, don't trust this number**, and keep
+`tournatrak-v3.26`) — **read it there, don't trust this number**, and keep
 the `?v=` stamps in step with it on ALL FIVE HTML files, not just the admin
 pages. Phase 0 evaluation is in `EVALUATION.md`.
 

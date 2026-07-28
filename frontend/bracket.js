@@ -4479,10 +4479,10 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
 function renderTeamView(){
   var _real = results;
   results = mergedResults();
-  try { renderTeamViewInner(); } finally { results = _real; }
+  try { renderTeamViewInner(_real); } finally { results = _real; }
 }
 
-function renderTeamViewInner(){
+function renderTeamViewInner(realResults){
   var team=teamSel.value, out=document.getElementById('teamOut');
   if(!team){
     var teamNames = [];
@@ -4532,13 +4532,18 @@ function renderTeamViewInner(){
   var html='';
 
   // Record summary: wins-losses plus run totals where scores were entered.
+  // REAL results only, even while projections are overlaid on the chain
+  // below. A pick has no score, so counting picks here would report "7-0 ·
+  // 7 played" beside a run total from the single game actually played — the
+  // line would contradict itself. The record stays factual; the chain is
+  // where the what-if lives, and its PICK chips say so.
   var rec = { gp: 0, w: 0, l: 0, rf: 0, ra: 0, scored: false };
   Object.keys(GAMES).forEach(function(sid){
     var g = GAMES[sid];
     if (g.bye) return;
-    var r = results[sid];
+    var r = realResults[sid];
     if (!r || !r.winner) return;
-    var p1 = resolveSlot(g.t1, results), p2 = resolveSlot(g.t2, results);
+    var p1 = resolveSlot(g.t1, realResults), p2 = resolveSlot(g.t2, realResults);
     if (p1 !== team && p2 !== team) return;
     rec.gp++;
     if (r.winner === team) rec.w++; else if (r.loser === team) rec.l++;
