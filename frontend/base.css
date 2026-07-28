@@ -344,6 +344,33 @@ select:focus-visible,
    Everything derives from the tokens, so overriding them (at body AND
    body.light specificity, after the theme blocks, so print wins in either
    theme) restyles the whole app for paper. */
+/* Paper palette: black on white, minimal ink, no tinted panels.
+   Applied two ways — automatically when printing (the @media block below)
+   and on demand by the bracket image exporter, which adds .print-palette to
+   get the same look in a PNG a TD is going to print or photocopy.
+   KEEP THE TWO TOKEN LISTS IN SYNC: CSS can't share one declaration block
+   between a class and a media query. */
+body.print-palette,
+body.print-palette.light {
+  color-scheme: light;
+  --bg:        #ffffff;
+  --surface:   #ffffff;
+  --surface2:  #ffffff;
+  --border:    #999999;
+  --blue:      #1a4a8a;
+  --blue-lt:   #1a4a8a;
+  --gold:      #7a5800;
+  --gold-lt:   #7a5800;
+  --text:      #000000;
+  --text-dim:  #333333;
+  --text-mute: #555555;
+  --win-color: #2a6a18;
+  --lose-color:#8a2a2a;
+  --line-color:#666666;
+  --live-color:#c81e1e;
+}
+body.print-palette * { box-shadow: none !important; text-shadow: none !important; }
+
 @media print {
   body, body.light {
     color-scheme: light;

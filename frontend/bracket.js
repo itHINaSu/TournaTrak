@@ -1730,8 +1730,8 @@ function roundRectPath(ctx, x, y, w, h, r) {
 }
 
 // One element: background, borders, its own text, then its children.
-function paintEl(ctx, el, base) {
-  var cs = window.getComputedStyle(el);
+function paintEl(ctx, el, base, win) {
+  var cs = win.getComputedStyle(el);
   if (cs.display === 'none' || cs.visibility === 'hidden') return;
   var op = parseFloat(cs.opacity);
   if (!isNaN(op) && op === 0) return;
@@ -1772,7 +1772,7 @@ function paintEl(ctx, el, base) {
     var lines = el.querySelectorAll('line');
     for (var li = 0; li < lines.length; li++) {
       var ln = lines[li];
-      ctx.strokeStyle = window.getComputedStyle(ln).stroke || 'currentColor';
+      ctx.strokeStyle = win.getComputedStyle(ln).stroke || 'currentColor';
       ctx.lineWidth = Math.max(1, parseFloat(ln.getAttribute('stroke-width')) || 1);
       ctx.beginPath();
       ctx.moveTo(x + (+ln.getAttribute('x1') / 100) * r.width, y + (+ln.getAttribute('y1') / 100) * r.height);
@@ -1794,7 +1794,7 @@ function paintEl(ctx, el, base) {
       ctx.translate(-vb[0], -vb[1]);
       var shapes = el.querySelectorAll('path, line, rect, circle, polyline');
       for (var si = 0; si < shapes.length; si++) {
-        var sh = shapes[si], scs = window.getComputedStyle(sh);
+        var sh = shapes[si], scs = win.getComputedStyle(sh);
         var path;
         if (sh.tagName === 'path') { try { path = new Path2D(sh.getAttribute('d')); } catch (e) { continue; } }
         else {
@@ -1873,66 +1873,119 @@ function paintEl(ctx, el, base) {
     ctx.restore();
   }
 
-  for (var i = 0; i < el.children.length; i++) paintEl(ctx, el.children[i], base);
+  for (var i = 0; i < el.children.length; i++) paintEl(ctx, el.children[i], base, win);
   ctx.restore();
 }
 
-// Paint the bracket currently on screen. withResults=false re-renders against
-// an empty results set first (the blank sheet a TD posts before play starts),
-// then puts the real one back.
-function buildBracketCanvas(withResults) {
-  var root = document.getElementById('bracketRoot');
-  var content = root.firstElementChild;
+// Render the bracket in an OFFSCREEN IFRAME at a fixed desktop viewport,
+// then hand the loaded frame to the caller.
+//
+// Two reasons it isn't painted from the visible page. First, a phone shows
+// the swipe carousel — one round at a time — and the whole point of the
+// image is the entire bracket at once, so it has to be the desktop layout
+// regardless of the device. The layout is sized in vw/vh, so the only way to
+// get desktop proportions is a viewport that is actually that size: an
+// iframe has its own. Second, options like "no results" and the paper
+// palette would otherwise have to mutate the live page and put it back.
+var SHARE_VW = 1600, SHARE_VH = 1000;
+
+function withRenderFrame(opts, cb) {
+  var ifr = document.createElement('iframe');
+  ifr.className = 'share-frame';
+  ifr.setAttribute('aria-hidden', 'true');
+  ifr.setAttribute('tabindex', '-1');
+  ifr.width = SHARE_VW;
+  ifr.height = SHARE_VH;
+  ifr.src = window.location.pathname;   // same tournament, clean of ?team= etc.
+  var done = false;
+  function finish(win, doc) {
+    if (done) return;
+    done = true;
+    cb(win, doc, function() { ifr.remove(); });
+  }
+  ifr.onload = function() {
+    var win = ifr.contentWindow, doc = ifr.contentDocument;
+    var tries = 0;
+    // The frame boots the whole app: wait for its first fetch to land.
+    (function ready() {
+      if (++tries > 100) { finish(null, null); return; }
+      if (!win.GAMES || !Object.keys(win.GAMES).length) { setTimeout(ready, 100); return; }
+      // Force the bracket tab active — a saved tt_tab cookie may have opened
+      // the frame on Schedule, and a display:none panel measures as zero.
+      doc.querySelectorAll('.view-panel').forEach(function(el) { el.classList.remove('active'); });
+      doc.querySelectorAll('.view-tab').forEach(function(el) { el.classList.remove('active'); });
+      var bp = doc.getElementById('view-bracket');
+      var bt = doc.querySelector('.view-tab[data-view="bracket"]');
+      if (bp) bp.classList.add('active');
+      if (bt) bt.classList.add('active');
+      doc.body.classList.toggle('light', opts.theme !== 'dark');
+      doc.body.classList.toggle('print-palette', opts.theme === 'print');
+      win._bracketFlight = _bracketFlight;
+      if (!opts.withResults) win.results = {};
+      win._projected = {};
+      try { win.renderBracketInner(); } catch (e) { /* fall through to paint whatever rendered */ }
+      // One more frame so fonts/layout settle before measuring.
+      setTimeout(function() { finish(win, doc); }, 120);
+    })();
+  };
+  document.body.appendChild(ifr);
+}
+
+// Paint a loaded render frame onto a canvas. Returns null if it never
+// produced a bracket.
+function paintBracketCanvas(win, doc, opts) {
+  if (!win || !doc) return null;
+  var root = doc.getElementById('bracketRoot');
+  var content = root && root.firstElementChild;
   if (!content) return null;
-  var real = null;
-  if (!withResults) {
-    real = results;
-    results = {};
-    renderBracketInner();
-    content = root.firstElementChild;
-  }
-  try {
-    var base = content.getBoundingClientRect();
-    var pad = 28, headH = 74;
-    var scale = Math.min(2, Math.max(1, 2200 / Math.max(base.width, 1)));
-    var W = Math.ceil(base.width + pad * 2);
-    var H = Math.ceil(base.height + pad * 2 + headH);
-    var canvas = document.createElement('canvas');
-    canvas.width = Math.round(W * scale);
-    canvas.height = Math.round(H * scale);
-    var ctx = canvas.getContext('2d');
-    ctx.scale(scale, scale);
-    var pageCS = window.getComputedStyle(document.body);
-    ctx.fillStyle = pageCS.backgroundColor || '#ffffff';
-    ctx.fillRect(0, 0, W, H);
+  var base = content.getBoundingClientRect();
+  if (!base.width || !base.height) return null;
+  var pad = 28, headH = 74;
+  var scale = Math.min(2, Math.max(1, 2200 / base.width));
+  var W = Math.ceil(base.width + pad * 2);
+  var H = Math.ceil(base.height + pad * 2 + headH);
+  var canvas = document.createElement('canvas');
+  canvas.width = Math.round(W * scale);
+  canvas.height = Math.round(H * scale);
+  var ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  var pageCS = win.getComputedStyle(doc.body);
+  // Print mode is deliberately paper-white regardless of the theme tint —
+  // the whole point is spending as little ink as possible.
+  ctx.fillStyle = opts.theme === 'print' ? '#ffffff' : (pageCS.backgroundColor || '#ffffff');
+  ctx.fillRect(0, 0, W, H);
 
-    // Title band — the image travels without the page around it, so it has
-    // to say which tournament it is on its own.
-    var name = (getSetting('tournamentName') || '').trim();
-    var sub = (getSetting('subtitle') || '').trim();
-    var flight = _bracketFlight === 'A' ? bracketDisplayName('A')
-               : _bracketFlight === 'B' ? bracketDisplayName('B') : '';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'alphabetic';
-    if (name) {
-      ctx.font = "600 26px 'Oswald', sans-serif";
-      ctx.fillStyle = window.getComputedStyle(document.documentElement).getPropertyValue('--gold') || '#c8a24a';
-      ctx.fillText(name + (flight ? '  ·  ' + flight : ''), pad, 34);
-    }
-    if (sub) {
-      ctx.font = "400 14px 'Barlow', sans-serif";
-      ctx.fillStyle = pageCS.color;
-      ctx.globalAlpha = 0.75;
-      ctx.fillText(sub, pad, 56);
-      ctx.globalAlpha = 1;
-    }
-
-    ctx.translate(pad, pad + headH);
-    paintEl(ctx, content, base);
-    return canvas;
-  } finally {
-    if (real) { results = real; renderBracket(); }
+  // Title band — the image travels without the page around it, so it has to
+  // say which tournament it is on its own.
+  var name = (getSetting('tournamentName') || '').trim();
+  var sub = (getSetting('subtitle') || '').trim();
+  var flight = _bracketFlight === 'A' ? bracketDisplayName('A')
+             : _bracketFlight === 'B' ? bracketDisplayName('B') : '';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  if (name) {
+    ctx.font = "600 26px 'Oswald', sans-serif";
+    ctx.fillStyle = opts.theme === 'print' ? '#000000'
+      : (win.getComputedStyle(doc.documentElement).getPropertyValue('--gold') || '#c8a24a');
+    ctx.fillText(name + (flight ? '  \u00b7  ' + flight : ''), pad, 34);
   }
+  if (sub) {
+    ctx.font = "400 14px 'Barlow', sans-serif";
+    ctx.fillStyle = opts.theme === 'print' ? '#333333' : pageCS.color;
+    ctx.globalAlpha = opts.theme === 'print' ? 1 : 0.75;
+    ctx.fillText(sub, pad, 56);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.translate(pad, pad + headH);
+  paintEl(ctx, content, base, win);
+  return canvas;
+}
+
+function shareOpts() {
+  var res = document.getElementById('shareResults');
+  var sel = document.querySelector('input[name="shareTheme"]:checked');
+  return { withResults: !res || res.checked, theme: (sel && sel.value) || 'dark' };
 }
 
 function openShareImage() {
@@ -1950,23 +2003,25 @@ function closeShareImage() {
 function refreshShareImage() {
   var img = document.getElementById('sharePreview');
   var hint = document.getElementById('shareHint');
-  var withRes = document.getElementById('shareResults');
   if (!img || _shareBusy) return;
   _shareBusy = true;
-  if (hint) hint.textContent = 'Rendering…';
-  // Let the overlay paint before the (synchronous) canvas work.
-  setTimeout(function() {
+  if (hint) hint.textContent = 'Rendering\u2026';
+  var opts = shareOpts();
+  withRenderFrame(opts, function(win, doc, cleanup) {
     try {
-      var canvas = buildBracketCanvas(!withRes || withRes.checked);
+      var canvas = paintBracketCanvas(win, doc, opts);
       if (!canvas) { if (hint) hint.textContent = 'Nothing to render yet.'; return; }
       img.src = canvas.toDataURL('image/png');
       img.dataset.w = canvas.width;
       img.dataset.h = canvas.height;
-      if (hint) hint.textContent = canvas.width + ' × ' + canvas.height + ' PNG';
+      if (hint) hint.textContent = canvas.width + ' \u00d7 ' + canvas.height + ' PNG';
     } catch (e) {
       if (hint) hint.textContent = 'Could not build the image.';
-    } finally { _shareBusy = false; }
-  }, 30);
+    } finally {
+      cleanup();
+      _shareBusy = false;
+    }
+  });
 }
 
 function downloadShareImage() {

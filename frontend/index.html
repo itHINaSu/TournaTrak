@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.17">
-<link rel="stylesheet" href="/bracket.css?v=3.17">
-<script src="/app-h.js?v=3.17"></script>
+<link rel="stylesheet" href="/base.css?v=3.18">
+<link rel="stylesheet" href="/bracket.css?v=3.18">
+<script src="/app-h.js?v=3.18"></script>
 </head>
 <body>
 
@@ -103,6 +103,11 @@
       <div class="share-opts">
         <label class="share-opt"><input type="checkbox" id="shareResults" checked data-action-change="refreshShareImage"> Include scores and winners</label>
       </div>
+      <div class="share-opts share-themes">
+        <label class="share-opt"><input type="radio" name="shareTheme" value="dark" checked data-action-change="refreshShareImage"> Dark</label>
+        <label class="share-opt"><input type="radio" name="shareTheme" value="light" data-action-change="refreshShareImage"> Light</label>
+        <label class="share-opt"><input type="radio" name="shareTheme" value="print" data-action-change="refreshShareImage"> Print <span class="share-opt-note">(white, minimal ink)</span></label>
+      </div>
       <div class="share-preview-wrap"><img id="sharePreview" class="share-preview" alt="Bracket image preview"></div>
       <div class="share-actions">
         <button class="admin-clear-btn" data-action="closeShareImage">Cancel</button>
@@ -173,10 +178,10 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.17"></script>
-<script src="/tt-common.js?v=3.17"></script>
-<script src="/bracket-data.js?v=3.17"></script>
-<script src="/bracket.js?v=3.17"></script>
-<script src="/sw-register.js?v=3.17" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.18"></script>
+<script src="/tt-common.js?v=3.18"></script>
+<script src="/bracket-data.js?v=3.18"></script>
+<script src="/bracket.js?v=3.18"></script>
+<script src="/sw-register.js?v=3.18" data-sw="/sw.js"></script>
 </body>
 </html>

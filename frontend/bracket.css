@@ -2320,3 +2320,21 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   color: var(--text-mute);
   text-align: right;
 }
+
+/* Offscreen render frame for the image exporter. It must actually LAY OUT
+   (the bracket is sized in vw/vh and measured with getBoundingClientRect),
+   so it can't be display:none or zero-sized — it is parked off-canvas
+   instead. Fixed size = the virtual desktop viewport the image is rendered
+   at, so a phone still exports the full desktop bracket. */
+.share-frame {
+  position: fixed;
+  left: -20000px;
+  top: 0;
+  width: 1600px;
+  height: 1000px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.share-themes { gap: 1.1em; }
+.share-opt-note { color: var(--text-mute); }
