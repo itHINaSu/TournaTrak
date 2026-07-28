@@ -1466,24 +1466,60 @@ var _schedFlight = 'open';
 
 // Overlay projections onto real results. Real results always win; a pick
 // for a game that has gone final, or whose projected team no longer reaches
-// that game (an upstream pick changed), is dropped. Processing in play order
-// lets picks cascade down "Winner of ..." feeds.
+// that game (an upstream pick changed), is dropped.
+//
+// Picks must be applied in DEPENDENCY order so they cascade down
+// "Winner of ..." feeds. This used to sort by game number, which quietly
+// failed on any schedule that doesn't set one: applySchedule falls back to
+// the SLOT number, so every round has a game "1" and consumers were resolved
+// before their feeders. Their feeds came back unresolved, the pick matched
+// neither side, and it was DELETED — picks vanishing part-way down the
+// bracket, with one side of a game selectable and the other not.
+//
+// A fixed-point loop is the fix: repeat passes until nothing new resolves.
+// That is a topological walk without building the graph, and unlike a round
+// ordering it copes with the cross-side drops, same-column chains and
+// hand-wired topologies a double elim actually contains.
 function mergedResults(){
   if (!Object.keys(_projected).length) return results;
   var merged = {};
   Object.keys(results).forEach(function(k){ merged[k] = results[k]; });
-  Object.keys(GAMES)
-    .sort(function(a, b){ return (GAMES[a].num || 0) - (GAMES[b].num || 0); })
-    .forEach(function(sid){
-      var pick = _projected[sid];
-      if (merged[sid] && merged[sid].winner) { if (pick) delete _projected[sid]; return; }
-      if (!pick) return;
-      var g = GAMES[sid];
-      if (!g || g.bye) { delete _projected[sid]; return; }
+
+  // Order-independent drops first, so the loop below only has to reason
+  // about whether a pick's game has resolved yet.
+  var pending = [];
+  Object.keys(_projected).forEach(function(sid){
+    var g = GAMES[sid];
+    if (!g || g.bye) { delete _projected[sid]; return; }
+    if (merged[sid] && merged[sid].winner) { delete _projected[sid]; return; }
+    pending.push(sid);
+  });
+
+  var progress = true;
+  while (progress && pending.length) {
+    progress = false;
+    var waiting = [];
+    for (var i = 0; i < pending.length; i++) {
+      var sid = pending[i], g = GAMES[sid], pick = _projected[sid];
       var p1 = resolveSlot(g.t1, merged), p2 = resolveSlot(g.t2, merged);
-      if (pick !== p1 && pick !== p2) { delete _projected[sid]; return; }
-      merged[sid] = { winner: pick, loser: pick === p1 ? p2 : p1, projected: true };
-    });
+      if (pick === p1 || pick === p2) {
+        // The other side may still be unknown — picking the known team in a
+        // half-resolved game is legitimate, and the loser simply stays null.
+        merged[sid] = { winner: pick, loser: pick === p1 ? p2 : p1, projected: true };
+        progress = true;
+      } else if (p1 && p2) {
+        // Both teams are known and neither was picked: an upstream pick
+        // changed and this one can no longer happen.
+        delete _projected[sid];
+      } else {
+        waiting.push(sid);   // still waiting on a feed to resolve
+      }
+    }
+    pending = waiting;
+  }
+  // Whatever is still waiting once the loop stops making progress depends on
+  // a game that will never resolve under the current picks.
+  pending.forEach(function(sid){ delete _projected[sid]; });
   return merged;
 }
 
