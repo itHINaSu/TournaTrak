@@ -3245,11 +3245,6 @@ function renderMobileColumns(root, cols) {
   // anchored[gid]: at least one feeder lives in the adjacent column, so the
   // card's converged position is meaningful and must not be displaced.
   var anchored = {};
-  // selfFed[gid]: at least one feeder lives in this SAME column (combined /
-  // absorbed rounds — e.g. a round-4 game derived from a round-3 game sharing
-  // its column). Such a card has no feeder line from the previous column, so
-  // it should hide in lateY like a wave-split play-in card.
-  var selfFed = {};
   cols.forEach(function(col, ri) {
     col.gids.forEach(function(gid) {
       var selfY = earlyY[gid] !== undefined ? earlyY[gid] : 0;
@@ -3267,9 +3262,10 @@ function renderMobileColumns(root, cols) {
           feeders.push(earlyY[srcGid]);
           anchored[gid] = true;
         } else if (srcGid && colOfGid[srcGid] === ri) {
-          // Feeder shares this column (combined/absorbed round): no converging
-          // line from the previous column — mark for lateY hide.
-          selfFed[gid] = true;
+          // Feeder shares this column (combined/absorbed round). No converging
+          // line from the previous column, and nothing to contribute here —
+          // `anchored` staying false is what hides the card (see hideInLate).
+          return;
         } else if (slot.type === 'winner' && srcGid
                    && colOfGid[srcGid] !== undefined && colOfGid[srcGid] < ri - 1) {
           // Winner byeing through from a farther-back column: its line runs
@@ -3285,24 +3281,63 @@ function renderMobileColumns(root, cols) {
     });
   });
 
-  // Overlap guard: anchored cards (real adjacent feeders) own their converged
-  // position; unanchored cards (bye-throughs, no adjacent feeders) yield and
-  // are moved out of the way — up if the anchored card is below them, down
-  // otherwise. Repeated sweeps settle cascades; column order is preserved.
+  // hideInLate: nothing feeds this card from the column to its LEFT, so while
+  // that column is the active one there is no converging line to draw and
+  // nowhere meaningful for the card to sit. Owner rule: a game is hidden in
+  // lateY ONLY when neither of its teams is fed by the active column. That
+  // covers the old same-column case AND the one it missed — a game whose
+  // feeders were byes, which has no round-1 card to converge to at all.
+  var hideInLate = {};
+  cols.forEach(function(col, ri) {
+    if (ri === 0 || champCol(col)) return;   // no column to their left / always shown
+    col.gids.forEach(function(gid) { if (!anchored[gid]) hideInLate[gid] = true; });
+  });
+
+  // Overlap guard. Two things here were wrong and between them they threw the
+  // whole mobile layout out:
+  //
+  // 1. It swept in earlyY order and forced each card at least one STEP below
+  //    the one before, so the FIRST card's converged position dictated every
+  //    other card's. One card converging low (its feeder at the bottom of the
+  //    previous column) turned the entire column into a staircase — an
+  //    11-team double elim came out at 481, 669, 857, 1045, 1233, 1421, 1609,
+  //    exactly STEP apart, with everything past the third card off-screen.
+  //    A round-1 game's own round-2 consequence ended up 500px away from it.
+  // 2. Cards HIDDEN in lateY still took part, so a game fed entirely by byes
+  //    — invisible, with nothing to converge to — shoved the visible cards
+  //    that did have feeders out of the way. That is why byes made whole
+  //    groups of games disappear.
+  //
+  // Now: only cards that actually show take part, they are ordered by where
+  // they converged (which is the order their feeders are in), and overlapping
+  // neighbours are pushed apart from BOTH sides so a group converging on one
+  // feeder stays centred on it instead of cascading downward.
   cols.forEach(function(col) {
     if (champCol(col)) return;
-    var sorted = col.gids.slice().sort(function(a, b) {
-      return (earlyY[a] || 0) - (earlyY[b] || 0);
-    });
     var STEP = CARD_H + GAP;
-    for (var pass = 0; pass < sorted.length; pass++) {
-      for (var i = 1; i < sorted.length; i++) {
-        var above = sorted[i - 1], cur = sorted[i];
-        if (lateY[cur] >= lateY[above] + STEP) continue;
-        if (anchored[cur] && !anchored[above]) lateY[above] = lateY[cur] - STEP;
-        else lateY[cur] = lateY[above] + STEP;
+    var live = col.gids.filter(function(gid) { return !hideInLate[gid]; })
+                       .sort(function(a, b) { return lateY[a] - lateY[b]; });
+    if (live.length < 2) return;
+    for (var pass = 0; pass < live.length * 2; pass++) {
+      var moved = false;
+      for (var i = 1; i < live.length; i++) {
+        var above = live[i - 1], cur = live[i];
+        var deficit = STEP - (lateY[cur] - lateY[above]);
+        if (deficit <= 0.5) continue;
+        // Both sides give half. Everything still in `live` has a real feeder
+        // in the previous column, so neither card has a better claim to its
+        // spot than the other — and splitting the difference is what keeps a
+        // group centred on the feeder they converged to.
+        lateY[above] -= deficit / 2;
+        lateY[cur]   += deficit / 2;
+        moved = true;
       }
+      if (!moved) break;
     }
+    // Spreading both ways can push the top card above the column; slide the
+    // group back down by just what is needed rather than re-cascading it.
+    var lift = GAP - lateY[live[0]];
+    if (lift > 0) live.forEach(function(gid) { lateY[gid] += lift; });
   });
 
   // prevOffset: where each card should be when the NEXT round is fully in view.
@@ -3333,10 +3368,10 @@ function renderMobileColumns(root, cols) {
       card.style.top = ey + 'px';
       card.dataset.lateOffset = (ly - ey).toFixed(1);
       card.dataset.prevOffset = (prevOffset[gid] || 0).toFixed(1);
-      // Hide same-column-fed cards in lateY (no converging line from the
-      // previous column), matching wave-split play-in behavior. Cards that
-      // also have a real previous-column feeder keep their converging line.
-      if (selfFed[gid] && !anchored[gid]) card.dataset.playin = '1';
+      // Hidden in lateY when neither team comes from the active column — see
+      // hideInLate. A card with even one real feeder there keeps its
+      // converging line and stays visible.
+      if (hideInLate[gid]) card.dataset.playin = '1';
     });
   });
 

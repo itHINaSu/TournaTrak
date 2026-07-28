@@ -57,6 +57,42 @@ side.
 
 ## Outstanding work (what's still needed) — updated 2026-07-28 (merge)
 
+**✅ DONE 2026-07-28 — the mobile carousel's lateY layout was throwing games
+off-screen.** Owner: "Games from round 1 that feed games in round 2 don't
+have round 2 games visible, and several games are hidden if one of the games
+is a bye… A game should only be hidden in lateY if neither team playing the
+game is fed by earlyY."
+
+`lateY` is where a column's cards sit while the column to its LEFT is the
+active one — each card converged onto its feeders so you can see what a game
+leads to. Two faults in `renderMobileColumns` (bracket.js) between them wrecked
+it:
+1. **The overlap guard swept in `earlyY` order and forced each card at least
+   one STEP below the one before.** So the first card's converged position
+   dictated every other card's, and one card converging low turned the whole
+   column into a staircase. An 11-team double elim came out 481, 669, 857,
+   1045, 1233, 1421, 1609 — exactly STEP apart, everything past the third
+   card off a 932px screen, and a round-1 game's own round-2 consequence
+   500px away from it.
+2. **Cards hidden in lateY still took part in that sweep.** A game fed
+   entirely by byes is invisible and has nothing to converge to, yet it
+   shoved the visible cards that DID have feeders out of the way. That is
+   why byes made whole groups of games disappear.
+
+Now: the hide rule is exactly the owner's — `hideInLate[gid] = !anchored[gid]`,
+anchored meaning at least one feeder sits in the column to the left (column 0
+and the championship column are exempt; the finals are always shown). The old
+`selfFed && !anchored` test is gone, along with `selfFed` itself — the
+same-column case is covered because such a feeder never sets `anchored`. The
+sweep then runs over VISIBLE cards only, ordered by where they converged
+(which is their feeders' order), pushing overlapping neighbours apart from
+both sides so a group converging on one feeder stays centred on it. A single
+lift at the end keeps the group inside the column.
+
+Verified on the 2026 ISSA bracket and on generated double elims at 8/11/16/
+22/25/32 plus every other format at 12 teams: no page errors, and round 2's
+cards now sit beside the round-1 games that feed them.
+
 **✅ DONE 2026-07-28 (second pass) — Edit mode stores a POSITION, not a slot.**
 The first pass below fixed the drop targets but kept the old "a drag is a
 slot swap" model, and the owner found three things wrong with it that all
