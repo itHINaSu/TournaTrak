@@ -100,7 +100,7 @@ A self-hosted tournament bracket web app supporting single- and double-eliminati
 ├── files/                 # legacy v2 JSON data — gitignored; now only the one-time
 │   │                      # import source, mounted read-only at /data
 │   └── schedule.example.json   # documents the schedule format (tracked)
-├── compose.yml            # nginx + api + postgres (internal-only)
+├── compose.yml            # nginx + api + postgres (internal-only) + backup
 └── compose.demo.yml       # public demo sandbox stack
 ```
 
@@ -309,17 +309,49 @@ Everything durable is a plain directory beside `compose.yml`:
 | path | holds |
 |------|-------|
 | `./pgdata` | the Postgres data directory — the tournament itself |
+| `./backups` | rolling database dumps, written automatically |
 | `./secrets` | generated database password and session secret |
 | `./files` | legacy v2 JSON, read-only after the one-time import |
 
-All three are gitignored. They are **host directories rather than Docker
+All four are gitignored. They are **host directories rather than Docker
 named volumes on purpose**: `docker compose down -v` deletes named volumes,
 and that is the first thing most people try when a stack misbehaves. Here it
 is harmless — there are no named volumes left to remove.
 
-To back up, stop the stack and copy `./pgdata` (and `./secrets` with it — the
-password Postgres was initialised with lives there). For a portable dump
-instead, run `./scripts/db-snapshot.sh` with the stack up.
+#### Backups
+
+A `backup` service dumps the database into `./backups` every 6 hours and keeps
+the most recent 14 — no cron, no setup, it just runs with the stack. Tune it
+in `.env`:
+
+```
+TT_BACKUP_INTERVAL=1800     # seconds between dumps; 30 min for a tournament weekend
+TT_BACKUP_KEEP=14           # how many to keep
+```
+
+These are logical `pg_dump`s, not file copies: they're consistent while the
+database is running, restore into any Postgres, and survive a major-version
+upgrade. Tournament branding is included — logos and icons are rows, not
+files. Sessions are excluded (they're cookie-bound and useless after a
+restore).
+
+To restore:
+
+```bash
+./scripts/db-restore.sh              # list what's available
+./scripts/db-restore.sh latest       # newest dump
+```
+
+It asks for confirmation, and dumps the CURRENT database to
+`backups/pre-restore-*.sql.gz` before overwriting it — so restoring the wrong
+file is recoverable too.
+
+`./backups` is gitignored: the dumps contain bcrypt password hashes and hashed
+team tokens, so they must never be committed.
+
+To take a copy off the machine entirely, `./pgdata` can also be copied
+wholesale with the stack stopped (bring `./secrets` with it — the password
+Postgres was initialised with lives there).
 
 Upgrading a machine that ran an older version, whose data is still in named
 volumes: `docker compose down` (**not** `-v`), then

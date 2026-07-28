@@ -1056,6 +1056,16 @@ What changed, so it cannot happen the same way again:
   the named volumes into the directories. It refuses to overwrite a non-empty
   target, refuses while the stack is running, and leaves the source volumes
   alone, so it is reversible.
+- A `backup` compose service now dumps the database to `./backups` on a loop
+  (`TT_BACKUP_INTERVAL`, `TT_BACKUP_KEEP`), because ./pgdata surviving the
+  container is still only ONE copy. Logical pg_dump, gzipped, written to a
+  `.part` file and renamed so a half-written dump can never look complete.
+  `scripts/db-restore.sh` takes `latest` or a path, and snapshots the CURRENT
+  database to `backups/pre-restore-*.sql.gz` before overwriting — restoring
+  the wrong file should not be final either.
+  **The dump-and-restore round trip was verified against a real Postgres**
+  (61 schedule rows and 5 config rows out and back, tournament name intact),
+  which is more than was ever true of the scripts it replaces.
 
 **A machine that ran the stack before this change still has its data in the
 old volumes and will come up EMPTY until it is migrated.** `docker compose

@@ -14,11 +14,16 @@ files/*
 demo-files/*
 !demo-files/.gitkeep
 
+# Rolling database backups written by the `backup` compose service. These are
+# full dumps: they contain bcrypt password hashes and hashed team tokens, so
+# they must never be committed.
+backups/
+
 # The live database and the generated secrets. These are HOST DIRECTORIES
 # rather than Docker named volumes precisely so `docker compose down -v`
-# cannot delete them — see the note at the bottom of compose.yml. Back up
-# ./pgdata by copying it (with the stack stopped), or use
-# scripts/db-snapshot.sh for a portable SQL dump.
+# cannot delete them — see the note at the bottom of compose.yml. The rolling
+# dumps in ./backups (above) are the second copy; restore one with
+# scripts/db-restore.sh.
 pgdata/
 secrets/
 

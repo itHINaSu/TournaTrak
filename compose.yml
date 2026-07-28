@@ -113,6 +113,62 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # Rolling local backups into ./backups.
+  #
+  # ./pgdata already survives the container, but it is ONE copy: this is the
+  # second, so a data directory that gets corrupted, or deleted by the next
+  # command someone runs in a hurry, is recoverable instead of final.
+  #
+  # A logical pg_dump rather than a file copy: it is consistent while the
+  # database is running, restores into any Postgres, and survives a major
+  # version upgrade — none of which is true of copying pgdata out from under
+  # a live server. Sessions are excluded; they are cookie-bound and worthless
+  # after a restore.
+  backup:
+    image: postgres:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./backups:/backups
+      - ./secrets:/run/tt-secrets:ro
+    environment:
+      PGHOST: postgres
+      PGUSER: tournatrak
+      PGDATABASE: tournatrak
+      # Seconds between dumps (default 6h) and how many to keep (default 14,
+      # so ~3.5 days at the default interval). Override in .env.
+      INTERVAL: "${TT_BACKUP_INTERVAL:-21600}"
+      KEEP: "${TT_BACKUP_KEEP:-14}"
+      # Finished dumps are chowned to this so they are readable on the host
+      # without sudo. Runs as root only so it can write into a bind-mount
+      # directory Docker created.
+      OWNER: "${PUID:-1000}:${PGID:-1000}"
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        PGPASSWORD="$$(cat /run/tt-secrets/pg_password)"; export PGPASSWORD
+        echo "backup: every $$INTERVAL s, keeping $$KEEP"
+        while :; do
+          ts=$$(date -u +%Y%m%d-%H%M%SZ)
+          part="/backups/.tournatrak-$$ts.sql.gz.part"
+          # Write to .part and rename: a rename is atomic, so an interrupted
+          # dump can never be mistaken for a complete one.
+          if pg_dump --clean --if-exists --exclude-table-data=sessions | gzip -9 > "$$part"; then
+            mv "$$part" "/backups/tournatrak-$$ts.sql.gz"
+            chown "$$OWNER" "/backups/tournatrak-$$ts.sql.gz" 2>/dev/null || true
+            echo "backup: wrote tournatrak-$$ts.sql.gz"
+            ls -1t /backups/tournatrak-*.sql.gz 2>/dev/null | tail -n +$$((KEEP+1)) \
+              | while read -r old; do rm -f "$$old"; done
+          else
+            rm -f "$$part"
+            echo "backup: FAILED (database unreachable?)" >&2
+          fi
+          sleep "$$INTERVAL"
+        done
+    restart: unless-stopped
+
 # No named volumes. Everything durable lives in host directories next to this
 # file — ./pgdata (the database), ./secrets (generated passwords) and ./files
 # (legacy JSON, read-only). All are gitignored. That is what makes
