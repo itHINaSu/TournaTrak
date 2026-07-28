@@ -234,22 +234,29 @@ service is internal-only (no host ports).
 
 ```bash
 git clone <repo> && cd TournaTrak
-./up.sh                                 # up -d --build, then prints the admin login
+docker compose up -d --build            # that's it
 docker compose up -d --build api        # rebuild after API changes
 ```
 
-No `.env` is required: on first boot the stack generates a random database
-password, session secret, and initial admin password (persisted in the
-`tt-secrets` volume). `./up.sh` waits for that first boot and prints the
-admin username/password directly — no separate `docker compose logs`/`ps`/
-`exec` needed. (You can still run plain `docker compose up -d --build` if
-you prefer; the password is then only visible via `docker compose logs api`
-or `docker compose exec api cat /run/tt-secrets/initial_admin_password`,
-recoverable either way until you change it.) To override any of the
-generated values, copy `.env.example` to `.env` (or run `./init-env.sh`,
-which pins a known default password instead of a random one) — explicit
-values always win. Compose treats a single `$` in `.env` as a variable
-reference; double literal `$` to `$$`.
+No `.env` is required, and there's no generated password to go find anywhere:
+on first boot the database password and session secret are generated
+automatically (persisted in the `tt-secrets` volume), and the admin account
+itself is deliberately **not** auto-created — visit `/admin` and you'll see a
+"Create Admin Account" form instead of a login form, since the instance has
+zero users yet. Pick your own username and password right there in the
+browser and you're logged straight in. That form only ever appears once: the
+moment any account exists, it refuses to run again, so it can't be used to
+add a second admin or take over a configured instance later. (Corollary:
+don't expose a freshly-started instance to the open internet before you've
+completed this step — same expectation as any other self-hosted app with a
+first-run setup screen.)
+
+To skip the browser step entirely for scripted/automated deployments, set
+`ADMIN_PASSWORD_HASH` (via `.env`, or `./init-env.sh` for a quick default of
+`admin` / `TournaTrak`) — an explicit hash bootstraps the admin account at
+first boot exactly like before, and `/admin` goes straight to the normal
+login form. Compose treats a single `$` in `.env` as a variable reference;
+double literal `$` to `$$`.
 
 Running a second, independent instance on the same host (e.g. archiving one
 tournament and starting a new one in isolation instead of using built-in
@@ -287,10 +294,9 @@ regenerate `schedule.json` via the Bracket Builder or `generate-schedule.js`).
 
 ## Setup for a new tournament
 
-1. Clone the repo and run `./up.sh` — secrets are generated on first boot and
-   the admin username/password print directly in the terminal
-2. Log in to `/admin` with those credentials — you will be required to
-   change the password immediately
+1. Clone the repo and run `docker compose up -d --build`
+2. Visit `/admin` and create your admin account (username + password) on
+   the setup form — you're logged in immediately, no password to look up
 3. Go to `/builder` → pick a format, enter teams, and generate the bracket
    schedule (or hand-edit games in the Schedule tab; see
    `files/schedule.example.json` for the format)

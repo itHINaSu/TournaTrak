@@ -52,7 +52,13 @@ if (/CHANGEME/i.test(SESSION_SECRET)) {
   console.error('       Replace it with at least 32 random characters, e.g.: openssl rand -base64 48');
   process.exit(1);
 }
-if (!ADMIN_PASSWORD_HASH.startsWith('$2')) {
+// ADMIN_PASSWORD_HASH is OPTIONAL: leave it unset and the instance boots
+// with zero users, which /admin detects and shows a "create your admin
+// account" form instead of a login form — the operator sets their own
+// password through the browser, so there's no generated secret to dig out
+// of logs. Set it explicitly only for scripted/automated deployments that
+// need a known credential from the first request (see generate-hash.js).
+if (ADMIN_PASSWORD_HASH && !ADMIN_PASSWORD_HASH.startsWith('$2')) {
   console.error('Fatal: ADMIN_PASSWORD_HASH must be a valid bcrypt hash');
   console.error('       Generate one with: docker compose run --rm api node generate-hash.js <password>');
   process.exit(1);
@@ -66,7 +72,10 @@ if (!process.env.DATABASE_URL && !process.env.PGHOST) {
 
 // On first startup (empty users table), auto-bootstrap from env vars +
 // any legacy /data/admin.json override hash if present. The bootstrap
-// account is the deployment's superadmin.
+// account is the deployment's superadmin. With no hash available from
+// either source, this deliberately does nothing — POST /api/setup (below)
+// creates the first superadmin instead, from a password the operator
+// chooses through the browser.
 async function ensureUsers() {
   if ((await store.allUsers()).length > 0) return;
 
@@ -78,6 +87,11 @@ async function ensureUsers() {
       hash = legacy.passwordHash;
     }
   } catch {}
+
+  if (!hash) {
+    console.log('No admin account yet — visit /admin to create one.');
+    return;
+  }
 
   await store.createUser({
     username:           ADMIN_USERNAME,
@@ -323,9 +337,13 @@ api.get('/session', ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const u = req.user;
   if (!u) {
+    // No session AND no users at all → the admin page shows the "create
+    // your admin account" form (POST /api/setup) instead of a login form.
+    const setupRequired = (await store.allUsers()).length === 0;
     return res.json({
       authenticated: false, mustChangePassword: false,
       username: null, role: null, teamName: null, teams: [],
+      setupRequired,
     });
   }
   const eff   = roleFor(req);
@@ -399,6 +417,38 @@ api.post('/logout', (req, res) => {
 });
 
 const USERNAME_RE = /^[a-zA-Z0-9_-]{2,32}$/;
+
+// First-run setup: creates the deployment's superadmin from a password the
+// operator chooses in the browser. Public (no auth exists yet to gate it
+// on) but self-closing — the moment any user exists, every call 403s, so
+// it can never be used to add a second admin or hijack a configured
+// instance. The only real exposure window is between container start and
+// the operator's first visit; same tradeoff every "set up through the web
+// UI" self-hosted app makes, which is why the instance shouldn't be
+// exposed to the internet before you've completed this step.
+api.post('/setup', loginRateLimit, ah(async (req, res) => {
+  if ((await store.allUsers()).length > 0) {
+    return res.status(403).json({ error: 'Setup already completed' });
+  }
+  const { username, password } = req.body || {};
+  if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
+    return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
+  }
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  if (Buffer.byteLength(password, 'utf8') > 72) {
+    return res.status(400).json({ error: 'Password too long (max 72 characters)' });
+  }
+  const passwordHash = await bcrypt.hash(password, 12);
+  await store.createUser({ username, passwordHash, role: 'superadmin', mustChangePassword: false }, store.tid);
+  const user = await store.findUser(username);
+  req.session.regenerate(err => {
+    if (err) return res.status(500).json({ error: 'Session error' });
+    req.session.username = user.username;
+    res.json({ ok: true, username: user.username, role: 'admin', superadmin: true });
+  });
+}));
 
 api.post('/change-password', ah(async (req, res) => {
   if (!req.user) {

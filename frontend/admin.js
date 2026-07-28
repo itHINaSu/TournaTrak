@@ -1260,6 +1260,7 @@ function showAdmin(username, role, teamName) {
   if (role !== undefined) currentRole = role;
   if (teamName !== undefined) currentTeamName = teamName;
   document.getElementById('loginOverlay').hidden = true;
+  document.getElementById('setupOverlay').hidden = true;
   document.getElementById('changePasswordOverlay').hidden = true;
   document.getElementById('adminWrap').hidden = false;
   applyStickyOffsets();
@@ -1342,6 +1343,7 @@ function switchTournament(slug) {
 
 function showLogin() {
   document.getElementById('loginOverlay').hidden = false;
+  document.getElementById('setupOverlay').hidden = true;
   document.getElementById('changePasswordOverlay').hidden = true;
   document.getElementById('adminWrap').hidden = true;
   var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.hidden = true;
@@ -1353,8 +1355,60 @@ function showLogin() {
   if (loginForm) loginForm.hidden = false;
 }
 
+// First-run state: zero users exist yet. Shown instead of the login form;
+// POST /api/setup creates the superadmin and logs the operator straight in.
+function showSetup() {
+  document.getElementById('loginOverlay').hidden = true;
+  document.getElementById('setupOverlay').hidden = false;
+  document.getElementById('changePasswordOverlay').hidden = true;
+  document.getElementById('adminWrap').hidden = true;
+  var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.hidden = true;
+  document.getElementById('setupError').hidden = true;
+}
+
+async function doSetup(e) {
+  if (e) e.preventDefault();
+  var user  = document.getElementById('setupUser').value;
+  var pass1 = document.getElementById('setupPass1').value;
+  var pass2 = document.getElementById('setupPass2').value;
+  var btn   = document.getElementById('setupBtn');
+  var errEl = document.getElementById('setupError');
+  errEl.hidden = true;
+  if (pass1.length < 8) {
+    errEl.textContent = 'Password must be at least 8 characters';
+    errEl.hidden = false;
+    return;
+  }
+  if (pass1 !== pass2) {
+    errEl.textContent = 'Passwords do not match';
+    errEl.hidden = false;
+    return;
+  }
+  btn.disabled = true;
+  try {
+    var r = await fetch('/api/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: user, password: pass1 })
+    });
+    var data = await r.json().catch(function(){ return {}; });
+    if (r.ok) {
+      currentRole = data.role || null;
+      showAdmin(data.username, data.role, null);
+    } else {
+      errEl.textContent = data.error || 'Setup failed';
+      errEl.hidden = false;
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error — try again';
+    errEl.hidden = false;
+  }
+  btn.disabled = false;
+}
+
 function showCoachBlock(username) {
   document.getElementById('loginOverlay').hidden = false;
+  document.getElementById('setupOverlay').hidden = true;
   document.getElementById('changePasswordOverlay').hidden = true;
   document.getElementById('adminWrap').hidden = true;
   var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.hidden = true;
@@ -1368,6 +1422,7 @@ function showCoachBlock(username) {
 
 function showChangePassword() {
   document.getElementById('loginOverlay').hidden = true;
+  document.getElementById('setupOverlay').hidden = true;
   document.getElementById('changePasswordOverlay').hidden = false;
   document.getElementById('adminWrap').hidden = true;
   var _lb = document.getElementById('logoutBtn'); if (_lb) _lb.hidden = false;
@@ -1519,6 +1574,8 @@ async function checkSession() {
       currentTeamName = data.teamName || null;
       if (data.mustChangePassword) showChangePassword();
       else showAdmin(data.username, data.role, data.teamName);
+    } else if (data.setupRequired) {
+      showSetup();
     } else {
       showLogin();
     }
@@ -3378,6 +3435,8 @@ Object.assign(TT_ACTIONS, {
 (function bindAdminForms() {
   var lf = document.getElementById('loginForm');
   if (lf) lf.addEventListener('submit', doLogin);
+  var sf = document.getElementById('setupForm');
+  if (sf) sf.addEventListener('submit', doSetup);
   var ff = document.getElementById('firstLoginForm');
   if (ff) ff.addEventListener('submit', doFirstLoginPasswordChange);
   var rf = document.getElementById('resetPwForm');

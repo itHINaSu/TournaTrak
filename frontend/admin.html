@@ -46,6 +46,31 @@
   </div>
 </div>
 
+<!-- First-run setup overlay — shown instead of the login form when the
+     instance has zero users yet (fresh install, no ADMIN_PASSWORD_HASH set) -->
+<div class="login-overlay" id="setupOverlay" hidden>
+  <div class="login-box">
+    <div class="login-title">Create Admin Account</div>
+    <div class="login-desc">This is a fresh install with no admin account yet. Choose a username and password to finish setup.</div>
+    <form id="setupForm">
+      <div class="sched-field">
+        <label>Username</label>
+        <input type="text" id="setupUser" autocomplete="off" placeholder="Username">
+      </div>
+      <div class="sched-field">
+        <label>Password</label>
+        <input type="password" id="setupPass1" autocomplete="new-password" placeholder="At least 8 characters">
+      </div>
+      <div class="sched-field">
+        <label>Confirm Password</label>
+        <input type="password" id="setupPass2" autocomplete="new-password" placeholder="Confirm password">
+      </div>
+      <div class="login-error" id="setupError"></div>
+      <button type="submit" id="setupBtn" class="sched-save-btn login-btn">Create Account</button>
+    </form>
+  </div>
+</div>
+
 <!-- Change-password overlay — shown on first login when FORCE_PASSWORD_CHANGE=true -->
 <div class="login-overlay" id="changePasswordOverlay" hidden>
   <div class="login-box">

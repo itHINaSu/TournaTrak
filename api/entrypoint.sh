@@ -2,19 +2,28 @@
 # entrypoint.sh — zero-touch first-boot secrets.
 #
 # Goal: `git clone && docker compose up` yields a working, SECURE install
-# with nothing else touched. Secrets are generated randomly per install on
-# first boot and persisted in the tt-secrets volume (never in the image or
-# repo). Explicit env vars always win, so .env overrides keep working and
-# external databases stay possible.
+# with nothing else touched. The database password and session secret are
+# generated randomly per install on first boot and persisted in the
+# tt-secrets volume (never in the image or repo) — see secrets-init in
+# compose.yml. The admin account is deliberately NOT auto-generated: the
+# operator creates it themselves through the browser on first visit to
+# /admin (POST /api/setup), so there's no secret to generate, print, or dig
+# out of `docker compose logs`. Explicit env vars always win, so .env
+# overrides (a pre-set ADMIN_PASSWORD_HASH for scripted deployments) keep
+# working, as do external databases.
 #
-# Files in $SECRETS_DIR (written by the secrets-init service or by us):
+# Files in $SECRETS_DIR (written by the secrets-init service):
 #   pg_password              database password (also read by postgres via
 #                            POSTGRES_PASSWORD_FILE)
 #   session_secret           express-session signing key
-#   admin_password_hash      bcrypt hash of the initial admin password
-#   initial_admin_password   plaintext of that password — kept ONLY until the
-#                            first successful password change, for
-#                            `docker compose exec api cat …` recovery
+#   admin_password_hash      only present on deployments upgraded from a
+#                            version that generated one here; new installs
+#                            never write this — with no ADMIN_PASSWORD_HASH
+#                            and no users yet, server.js boots with zero
+#                            users and /admin shows a "create your admin
+#                            account" form (POST /api/setup) instead of a
+#                            login form, so there is no secret to generate
+#                            or print in the first place.
 set -eu
 
 SECRETS_DIR="${SECRETS_DIR:-/run/tt-secrets}"
@@ -44,26 +53,17 @@ if [ -z "${SESSION_SECRET:-}" ]; then
 fi
 
 # ── Initial admin credentials ─────────────────────────────────────────
-# Only when the operator didn't provide a hash. Generated once per install;
-# FORCE_PASSWORD_CHANGE makes the first login replace it.
+# Only when the operator didn't provide a hash. Honors a hash left over
+# from an older version of this script (upgrade case) so an existing
+# deployment never loses its bootstrap account; a genuinely new install
+# leaves this unset entirely — server.js then boots with zero users and
+# the web setup form (POST /api/setup) takes over.
 if [ -z "${ADMIN_PASSWORD_HASH:-}" ]; then
   ADMIN_PASSWORD_HASH="$(read_secret admin_password_hash)"
-  if [ -z "$ADMIN_PASSWORD_HASH" ]; then
-    ADMIN_PW="$(node -e "console.log(require('crypto').randomBytes(9).toString('base64url'))")"
-    ADMIN_PASSWORD_HASH="$(node -e "console.log(require('bcryptjs').hashSync(process.argv[1], 12))" "$ADMIN_PW")"
-    umask 077
-    printf '%s' "$ADMIN_PASSWORD_HASH" > "$SECRETS_DIR/admin_password_hash"
-    printf '%s' "$ADMIN_PW" > "$SECRETS_DIR/initial_admin_password"
-    echo "──────────────────────────────────────────────────────────────"
-    echo " First boot: generated admin credentials"
-    echo "   username: ${ADMIN_USERNAME:-admin}"
-    echo "   password: $ADMIN_PW"
-    echo " You will be required to change it on first login."
-    echo " Recover later: docker compose exec api cat $SECRETS_DIR/initial_admin_password"
-    echo "──────────────────────────────────────────────────────────────"
+  if [ -n "$ADMIN_PASSWORD_HASH" ]; then
+    export ADMIN_PASSWORD_HASH
+    export FORCE_PASSWORD_CHANGE="${FORCE_PASSWORD_CHANGE:-true}"
   fi
-  export ADMIN_PASSWORD_HASH
-  export FORCE_PASSWORD_CHANGE="${FORCE_PASSWORD_CHANGE:-true}"
 fi
 
 exec node server.js
