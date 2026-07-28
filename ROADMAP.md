@@ -20,12 +20,17 @@ The bracket builder ships seven formats plus Swiss. The app is feature-complete
 for the tournaments it is actually being run for.
 
 **What that means for planning:** the open work is no longer "build the
-product". It is (1) making it distributable to people who are not the author,
-and (2) a thin tail of polish and unbuilt format variants.
+product". It is (1) getting it onto machines cleanly, and (2) a thin tail of
+polish and unbuilt format variants.
 
 ---
 
-## 1. Open-sourcing / distribution — the live question
+## 1. Deployment
+
+**This section is about how TournaTrak gets ONTO a machine. It does not
+assume the project is ever published — every item here pays for itself on the
+owner's own boxes, and none of it requires a licence.** The separate question
+of whether to open-source is parked at the bottom of this file.
 
 Prompted by the owner (2026-07-28) after a deploy box wedged itself mid-merge:
 *"Should a user create their own compose file (I provide example) and that
@@ -59,20 +64,16 @@ has now bitten twice.
 - These genuinely differ; do not try to make one file serve both with
   profiles. The split is the point.
 
-### 1c. Repo hygiene for strangers
-- **No `LICENSE` file exists.** Without one the code is legally
-  all-rights-reserved and nobody can use it, which makes every other item here
-  moot. Pick a licence first.
+### 1c. Versioning
 - No `CHANGELOG.md`; `api/package.json` still says `1.0.0` and nothing reads
   it. Versioned images need a version that means something — decide the scheme
-  (semver on tags) before 1a.
-- No `CONTRIBUTING.md` / issue templates. Only worth doing if outside
-  contributions are actually wanted.
+  (semver on tags) before 1a. This is the only prerequisite for 1a, and it is
+  a decision, not work.
 - **Leaked secrets in git history** (HANDOFF security item 5) — rotate the
-  token and decide on history rewrite. This is a hard blocker on making the
-  repo public and is owner-only work.
+  token regardless. Owner-only. It is a hard blocker on ever making the repo
+  public, but the token wants rotating either way.
 
-### 1d. Ops items that only matter once others run it
+### 1d. Hardening, once more than one person can reach it
 - **Rate limiter is in-memory** (`loginAttempts` Map, `api/server.js:226`) and
   resets on container restart, so a reboot grants every IP a fresh window. It
   is bounded by an eviction sweep, so this is a hardening item, not a leak.
@@ -141,13 +142,36 @@ these**; several imply a lot of surface area.
 
 ---
 
+## Open question: does TournaTrak ever get published?
+
+**Undecided, and nothing above depends on it.** Recorded here so it stops
+being implied by the deployment work.
+
+A `LICENSE` file is not something the owner would need to obtain — it is a
+grant they would be making to other people, and it costs nothing. **With no
+LICENSE the code is all-rights-reserved by default, which is the most
+protective position available.** Adding one loosens that; adding none is a
+complete and valid answer.
+
+If the answer stays no, delete nothing: section 1 still stands on its own,
+and `CONTRIBUTING.md` / issue templates simply never get written.
+
+If the answer becomes yes, the prerequisites are: pick a licence, rotate the
+leaked token and decide on a history rewrite (1c), and add contribution docs.
+
+For the record, none of this touches what the app already does. The inbound
+dependencies (`express`, `express-session`, `pg`, `bcryptjs` — MIT; Barlow and
+Oswald — SIL OFL) are permissive and already satisfied, and the share links
+added 2026-07-28 are plain hyperlinks to public endpoints, carrying no terms,
+SDK or key.
+
 ## Notes for future sessions
 
 - `feature/regional` is the dead Postgres prototype. v3 shipped from other
   work; that branch is historical reference only and should probably be
   deleted once someone confirms nothing unique is on it.
-- Item 1c's licence question gates everything else in section 1. Ask before
-  building CI for a repo that can't legally be used.
+- Section 1 is deployment only. If a session finds itself reasoning about
+  licences while doing it, it has wandered — the two are unrelated.
 - Sizes and formats live in `api/schedule-formats.js` with a test per format ×
   field size. Adding a format means adding to that suite — it is the only
   thing standing between a generator bug and a wrecked tournament day.
