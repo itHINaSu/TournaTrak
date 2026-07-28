@@ -1678,6 +1678,238 @@ function renderFlightBracket(root, tier) {
   };
 }
 
+// ══════════════════════════════════════════════════════════
+// SHARE IMAGE
+// ══════════════════════════════════════════════════════════
+// Export the bracket as a static PNG for social posts and printing.
+//
+// The image is PAINTED FROM THE LIVE DOM rather than re-derived from the
+// data: every card is already positioned, sized and coloured on screen, so
+// walking it guarantees the image matches what the TD is looking at — and it
+// keeps one layout implementation instead of a second one that drifts.
+// html2canvas would do the same job, but the CSP forbids third-party script
+// and this only needs boxes, text and lines.
+var _shareBusy = false;
+
+// Text belonging directly to this element, not to its children — so a card's
+// wrapper doesn't repaint everything nested inside it.
+function directText(el) {
+  var out = '';
+  for (var i = 0; i < el.childNodes.length; i++) {
+    var n = el.childNodes[i];
+    if (n.nodeType === 3) out += n.nodeValue;
+  }
+  return out.trim();
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// One element: background, borders, its own text, then its children.
+function paintEl(ctx, el, base) {
+  var cs = window.getComputedStyle(el);
+  if (cs.display === 'none' || cs.visibility === 'hidden') return;
+  var op = parseFloat(cs.opacity);
+  if (!isNaN(op) && op === 0) return;
+  var r = el.getBoundingClientRect();
+  var x = r.left - base.left, y = r.top - base.top;
+  ctx.save();
+  if (!isNaN(op) && op < 1) ctx.globalAlpha *= op;
+
+  if (r.width > 0 && r.height > 0) {
+    var radius = parseFloat(cs.borderTopLeftRadius) || 0;
+    var bg = cs.backgroundColor;
+    if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+      ctx.fillStyle = bg;
+      roundRectPath(ctx, x, y, r.width, r.height, radius);
+      ctx.fill();
+    }
+    // Sides are drawn individually: the card headers and the standings rows
+    // use single-side borders, and a uniform stroke would invent edges.
+    [['Top', x, y, x + r.width, y],
+     ['Right', x + r.width, y, x + r.width, y + r.height],
+     ['Bottom', x, y + r.height, x + r.width, y + r.height],
+     ['Left', x, y, x, y + r.height]].forEach(function(side) {
+      var w = parseFloat(cs['border' + side[0] + 'Width']) || 0;
+      var c = cs['border' + side[0] + 'Color'];
+      if (w <= 0 || !c || c === 'rgba(0, 0, 0, 0)') return;
+      ctx.strokeStyle = c;
+      ctx.lineWidth = w;
+      ctx.beginPath();
+      ctx.moveTo(side[1], side[2]);
+      ctx.lineTo(side[3], side[4]);
+      ctx.stroke();
+    });
+  }
+
+  // Connector SVGs use viewBox "0 0 100 100" with preserveAspectRatio=none,
+  // so a line's coordinates are percentages of the svg box.
+  if (el.tagName === 'svg' && el.classList.contains('conn-svg')) {
+    var lines = el.querySelectorAll('line');
+    for (var li = 0; li < lines.length; li++) {
+      var ln = lines[li];
+      ctx.strokeStyle = window.getComputedStyle(ln).stroke || 'currentColor';
+      ctx.lineWidth = Math.max(1, parseFloat(ln.getAttribute('stroke-width')) || 1);
+      ctx.beginPath();
+      ctx.moveTo(x + (+ln.getAttribute('x1') / 100) * r.width, y + (+ln.getAttribute('y1') / 100) * r.height);
+      ctx.lineTo(x + (+ln.getAttribute('x2') / 100) * r.width, y + (+ln.getAttribute('y2') / 100) * r.height);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;   // trophy/tab icons are decorative; skip their paths
+  }
+  if (el.tagName === 'svg') { ctx.restore(); return; }
+
+  var txt = directText(el);
+  if (txt) {
+    var style = cs.fontStyle === 'italic' ? 'italic ' : '';
+    ctx.font = style + cs.fontWeight + ' ' + cs.fontSize + ' ' + cs.fontFamily;
+    ctx.fillStyle = cs.color;
+    ctx.textBaseline = 'middle';
+    var pl = parseFloat(cs.paddingLeft) || 0, pr = parseFloat(cs.paddingRight) || 0;
+    var align = cs.textAlign;
+    ctx.textAlign = (align === 'center') ? 'center' : (align === 'right' || align === 'end') ? 'right' : 'left';
+    var tx = ctx.textAlign === 'center' ? x + r.width / 2
+           : ctx.textAlign === 'right' ? x + r.width - pr
+           : x + pl;
+    // Elements here hold a single line; clip to the box so a long team name
+    // can't bleed into the next column.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, Math.max(r.width, 1), Math.max(r.height, 1));
+    ctx.clip();
+    ctx.fillText(txt, tx, y + r.height / 2);
+    ctx.restore();
+    if (cs.textDecorationLine && cs.textDecorationLine.indexOf('line-through') !== -1) {
+      var m = ctx.measureText(txt);
+      ctx.strokeStyle = cs.color;
+      ctx.lineWidth = Math.max(1, parseFloat(cs.fontSize) * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(tx - (ctx.textAlign === 'center' ? m.width / 2 : 0), y + r.height / 2);
+      ctx.lineTo(tx + (ctx.textAlign === 'center' ? m.width / 2 : m.width), y + r.height / 2);
+      ctx.stroke();
+    }
+  }
+
+  for (var i = 0; i < el.children.length; i++) paintEl(ctx, el.children[i], base);
+  ctx.restore();
+}
+
+// Paint the bracket currently on screen. withResults=false re-renders against
+// an empty results set first (the blank sheet a TD posts before play starts),
+// then puts the real one back.
+function buildBracketCanvas(withResults) {
+  var root = document.getElementById('bracketRoot');
+  var content = root.firstElementChild;
+  if (!content) return null;
+  var real = null;
+  if (!withResults) {
+    real = results;
+    results = {};
+    renderBracketInner();
+    content = root.firstElementChild;
+  }
+  try {
+    var base = content.getBoundingClientRect();
+    var pad = 28, headH = 74;
+    var scale = Math.min(2, Math.max(1, 2200 / Math.max(base.width, 1)));
+    var W = Math.ceil(base.width + pad * 2);
+    var H = Math.ceil(base.height + pad * 2 + headH);
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.round(W * scale);
+    canvas.height = Math.round(H * scale);
+    var ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
+    var pageCS = window.getComputedStyle(document.body);
+    ctx.fillStyle = pageCS.backgroundColor || '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    // Title band — the image travels without the page around it, so it has
+    // to say which tournament it is on its own.
+    var name = (getSetting('tournamentName') || '').trim();
+    var sub = (getSetting('subtitle') || '').trim();
+    var flight = _bracketFlight === 'A' ? bracketDisplayName('A')
+               : _bracketFlight === 'B' ? bracketDisplayName('B') : '';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    if (name) {
+      ctx.font = "600 26px 'Oswald', sans-serif";
+      ctx.fillStyle = window.getComputedStyle(document.documentElement).getPropertyValue('--gold') || '#c8a24a';
+      ctx.fillText(name + (flight ? '  ·  ' + flight : ''), pad, 34);
+    }
+    if (sub) {
+      ctx.font = "400 14px 'Barlow', sans-serif";
+      ctx.fillStyle = pageCS.color;
+      ctx.globalAlpha = 0.75;
+      ctx.fillText(sub, pad, 56);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.translate(pad, pad + headH);
+    paintEl(ctx, content, base);
+    return canvas;
+  } finally {
+    if (real) { results = real; renderBracket(); }
+  }
+}
+
+function openShareImage() {
+  var ov = document.getElementById('shareOverlay');
+  if (!ov) return;
+  ov.hidden = false;
+  refreshShareImage();
+}
+
+function closeShareImage() {
+  var ov = document.getElementById('shareOverlay');
+  if (ov) ov.hidden = true;
+}
+
+function refreshShareImage() {
+  var img = document.getElementById('sharePreview');
+  var hint = document.getElementById('shareHint');
+  var withRes = document.getElementById('shareResults');
+  if (!img || _shareBusy) return;
+  _shareBusy = true;
+  if (hint) hint.textContent = 'Rendering…';
+  // Let the overlay paint before the (synchronous) canvas work.
+  setTimeout(function() {
+    try {
+      var canvas = buildBracketCanvas(!withRes || withRes.checked);
+      if (!canvas) { if (hint) hint.textContent = 'Nothing to render yet.'; return; }
+      img.src = canvas.toDataURL('image/png');
+      img.dataset.w = canvas.width;
+      img.dataset.h = canvas.height;
+      if (hint) hint.textContent = canvas.width + ' × ' + canvas.height + ' PNG';
+    } catch (e) {
+      if (hint) hint.textContent = 'Could not build the image.';
+    } finally { _shareBusy = false; }
+  }, 30);
+}
+
+function downloadShareImage() {
+  var img = document.getElementById('sharePreview');
+  if (!img || !img.src) return;
+  var name = ((getSetting('tournamentName') || 'bracket')
+    .replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'bracket');
+  if (_bracketFlight === 'A' || _bracketFlight === 'B') name += '-' + _bracketFlight.toLowerCase() + '-bracket';
+  var a = document.createElement('a');
+  a.href = img.src;
+  a.download = name + '.png';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  closeShareImage();
+}
+
 // Show the Open/A/B pill row only for tiered tournaments; keep the active
 // pill and _bracketFlight consistent when a flight has no games (or vanishes
 // after a schedule change).
@@ -1989,7 +2221,7 @@ function renderDesktopBracket(root,dims){
       + '<div class="bcc-stack-rows">'
       +   '<div class="bcc-stack-row">'
       +     sideHTML('L', getSetting('leftLabel'), false)
-      +     '<div class="champ-center--desktop champ-center--stacked" data-css="width:' + (champVw - 1.6) + 'vw;height:' + totalVh + 'vh;margin-top:' + hdrVh + 'vh">'
+      +     '<div class="champ-center--desktop champ-center--stacked" data-css="width:' + (champVw - 1.6) + 'vw;margin-top:' + hdrVh + 'vh">'
       +       champStack
       +     '</div>'
       +   '</div>'
@@ -4221,5 +4453,9 @@ Object.assign(TT_ACTIONS, {
   saveBucketEdit:    function() { saveBucketEdit(); },
   exitBucketEdit:    function() { exitBucketEdit(); },
   setFlight:         function(arg) { setBracketFlight(arg); },
+  openShareImage:    function() { openShareImage(); },
+  closeShareImage:   function() { closeShareImage(); },
+  refreshShareImage: function() { refreshShareImage(); },
+  downloadShareImage:function() { downloadShareImage(); },
   setSchedFlight:    function(arg) { setSchedFlight(arg); },
 });

@@ -2158,6 +2158,10 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 /* The championship sits INSIDE the winners row (its natural home — the
    losers row reads as the lower half of the sheet), centred vertically in
    that row and carrying the whole finals story. */
+/* One panel around the whole finals cluster, hugging its content. Running
+   the tint the full row height instead reads as a layout gap, not emphasis.
+   align-self centres it in the winners row; height:auto overrides the inline
+   row height the renderer sets for the tree columns. */
 .champ-center--stacked,
 .champ-center--flight {
   display: flex;
@@ -2165,8 +2169,22 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
+  align-self: center;
+  height: auto;
+  padding: 1.2em 1vw;
+  background: color-mix(in srgb, var(--gold) 5%, transparent);
+  border: 0.07em solid color-mix(in srgb, var(--gold) 18%, transparent);
+  border-radius: var(--radius-md);
 }
-.champ-center--flight { height: auto; }
+.champ-center--stacked .champ-inner,
+.champ-center--stacked .champ-bc,
+.champ-center--stacked .champ-winner,
+.champ-center--stacked .champ-feeders,
+.champ-center--stacked .champ-lbfinal,
+.champ-center--stacked .champ-center--ifnec,
+.champ-center--flight .champ-inner,
+.champ-center--flight .champ-bc,
+.champ-center--flight .champ-winner { width: 100%; }
 /* Bigger than a round column: this is the thing a visitor looks for first. */
 .champ-center--stacked .champ-title { font-size: 0.92rem; letter-spacing: 0.2em; }
 .champ-center--stacked .champ-trophy { font-size: 2.6em; }
@@ -2232,3 +2250,62 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .bracket-side-label--abs { position: absolute; top: calc(var(--col-hdr-h)*-2.2); }
 .bc.bc--static { position: relative; left: auto; right: auto; }
 .team-path-win-label--loss { color: var(--lose-color); }
+
+/* ── Share bracket as an image ──────────────────────────────────────── */
+.bracket-share { display: flex; justify-content: center; margin: 0 0 0.4em; }
+.share-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1.5em;
+}
+.share-box {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.2em;
+  max-width: min(92vw, 60em);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+}
+.share-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.share-opts { display: flex; flex-wrap: wrap; gap: 1em; }
+.share-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+/* Checkerboard so a transparent-background render is still readable. */
+.share-preview-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+}
+.share-preview { display: block; max-width: 100%; height: auto; }
+.share-actions { display: flex; justify-content: flex-end; gap: 0.6em; flex-wrap: wrap; }
+.share-dl { background: var(--blue); border-color: var(--blue); color: #fff; }
+.share-hint {
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  color: var(--text-mute);
+  text-align: right;
+}

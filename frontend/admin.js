@@ -2081,6 +2081,7 @@ var LOGO_MAX_URI = 48 * 1024;   // matches the server's LOGO_MAX_CHARS cap
 var LOGO_MAX_H = 144;           // ~3x the rendered header height (retina)
 var LOGO_MAX_W = 288;
 var ICON_MAX_URI = 360 * 1024;      // matches the server's ICON_MAX_CHARS cap
+var PWA_MIN_PX = 192;               // Chrome ignores manifest icons below this
 var ICONSRC_MAX_URI = 480 * 1024;   // matches the server's ICONSRC_MAX_CHARS cap
 var ICONSRC_MAX_DIM = 1024;
 
@@ -2228,9 +2229,18 @@ function makeLogoIcon(srcUri, style, cb) {
     var fitBounds = rect ? null : opaqueBounds(img);
     var srcMax = rect ? rect.side
       : Math.max(fitBounds ? fitBounds.w : img.width, fitBounds ? fitBounds.h : img.height);
-    var start = 128;
-    while (start < 1024 && start * 2 <= srcMax * 1.15) start *= 2;
-    for (var size = start; size >= 128; size = size / 2) {
+    // Candidate tile sizes, largest first. NEVER below PWA_MIN_PX: Chrome
+    // ignores a manifest icon under 192x192 for installability, so a small
+    // tile means the installed app silently falls back to a generated icon
+    // — the tournament's logo is simply not used. Upscaling a small logo is
+    // the lesser evil. 512 is the practical target every launcher wants.
+    var ceiling = 256;
+    while (ceiling < 1024 && ceiling * 2 <= srcMax * 1.15) ceiling *= 2;
+    if (ceiling < 512) ceiling = 512;
+    var sizes = [1024, 512, 384, 256, PWA_MIN_PX].filter(function(n) { return n <= ceiling; });
+    if (sizes.indexOf(PWA_MIN_PX) === -1) sizes.push(PWA_MIN_PX);
+    for (var si = 0; si < sizes.length; si++) {
+      var size = sizes[si];
       var canvas = document.createElement('canvas');
       canvas.width = size; canvas.height = size;
       var ctx = canvas.getContext('2d');
@@ -2246,13 +2256,18 @@ function makeLogoIcon(srcUri, style, cb) {
         // otherwise be padded a second time and land tiny on the tile. 2% of
         // breathing room, not 8% — an app icon is already inset by the OS.
         var b = fitBounds || { x: 0, y: 0, w: img.width, h: img.height };
-        var pad = size * 0.02, inner = size - 2 * pad;
+        // 6%: enough safe zone for the rounded corners iOS and Android
+        // launchers apply, without the double-padding that used to make the
+        // art tiny (the transparent margin is already trimmed above).
+        var pad = size * 0.06, inner = size - 2 * pad;
         var scale = Math.min(inner / b.w, inner / b.h);
         var w = b.w * scale, h = b.h * scale;
         ctx.drawImage(img, b.x, b.y, b.w, b.h, (size - w) / 2, (size - h) / 2, w, h);
       }
       var out = canvas.toDataURL('image/png');
-      if (out.length <= ICON_MAX_URI) return cb(out);
+      // The smallest candidate ships even if it overruns the cap — an icon
+      // that is slightly too big still works; one under 192px does not.
+      if (out.length <= ICON_MAX_URI || si === sizes.length - 1) return cb(out);
     }
     cb(null);
   };

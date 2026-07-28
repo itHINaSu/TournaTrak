@@ -1683,7 +1683,13 @@ app.get('/manifest.json', ah(async (req, res) => {
     // checks pass. No 'maskable': Android's mask would zoom-crop a tile
     // that isn't designed for it.
     const dim = pngDataUriSize(tc.icon);
-    manifest.icons = [{ src: '/pwa-icon.png', sizes: dim.w + 'x' + dim.h, type: 'image/png' }];
+    // Chrome ignores a manifest icon below 192x192 for installability, so an
+    // undersized upload would leave the app with NO usable icon at all —
+    // worse than the stock trophy. The admin baker won't produce one that
+    // small any more, but an icon stored before that fix still can be.
+    if (Math.min(dim.w, dim.h) >= 192) {
+      manifest.icons = [{ src: '/pwa-icon.png', sizes: dim.w + 'x' + dim.h, type: 'image/png' }];
+    }
   }
   res.setHeader('Content-Type', 'application/manifest+json');
   res.setHeader('Cache-Control', 'no-cache');

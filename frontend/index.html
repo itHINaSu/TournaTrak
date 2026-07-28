@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.14">
-<link rel="stylesheet" href="/bracket.css?v=3.14">
-<script src="/app-h.js?v=3.14"></script>
+<link rel="stylesheet" href="/base.css?v=3.15">
+<link rel="stylesheet" href="/bracket.css?v=3.15">
+<script src="/app-h.js?v=3.15"></script>
 </head>
 <body>
 
@@ -96,6 +96,24 @@
     <button class="flight-pill" data-action="setFlight" data-arg="A">A Bracket</button>
     <button class="flight-pill" data-action="setFlight" data-arg="B">B Bracket</button>
   </div>
+  <!-- Share the bracket as a static image (social posts, printing) -->
+  <div class="bracket-share" id="bracketShare">
+    <button class="flight-pill" data-action="openShareImage">Save image</button>
+  </div>
+  <div class="share-overlay" id="shareOverlay" hidden>
+    <div class="share-box">
+      <div class="share-title">Save bracket image</div>
+      <div class="share-opts">
+        <label class="share-opt"><input type="checkbox" id="shareResults" checked data-action-change="refreshShareImage"> Include scores and winners</label>
+      </div>
+      <div class="share-preview-wrap"><img id="sharePreview" class="share-preview" alt="Bracket image preview"></div>
+      <div class="share-actions">
+        <button class="admin-clear-btn" data-action="closeShareImage">Cancel</button>
+        <button class="flight-pill share-dl" data-action="downloadShareImage">Download PNG</button>
+      </div>
+      <div class="share-hint" id="shareHint"></div>
+    </div>
+  </div>
   <!-- Project winners: admin-only what-if picks (toggle lives in the header
        next to Edit); nothing is saved or sent. This bar carries the hint and
        the clear button while a projection is active. -->
@@ -158,10 +176,10 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.14"></script>
-<script src="/tt-common.js?v=3.14"></script>
-<script src="/bracket-data.js?v=3.14"></script>
-<script src="/bracket.js?v=3.14"></script>
-<script src="/sw-register.js?v=3.14" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.15"></script>
+<script src="/tt-common.js?v=3.15"></script>
+<script src="/bracket-data.js?v=3.15"></script>
+<script src="/bracket.js?v=3.15"></script>
+<script src="/sw-register.js?v=3.15" data-sw="/sw.js"></script>
 </body>
 </html>
