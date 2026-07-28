@@ -415,3 +415,27 @@ body.print-palette * { box-shadow: none !important; text-shadow: none !important
 .u-mb-06 { margin-bottom: 0.6em; }
 .u-mb-1 { margin-bottom: 1em; }
 .u-maxw-10 { max-width: 10em; }
+
+/* Paper mode, continued: flatten everything that spends ink for decoration
+   only. Field tags carry their colour INLINE (per-tournament field palette),
+   so they need !important to be overridden; the championship tint, the
+   losers-final panel and card-header fills are all just emphasis. Win/loss
+   colours are deliberately KEPT — dark green and dark red are cheap and they
+   carry meaning a photocopy still needs. */
+body.print-palette .game-field-tag {
+  color: var(--text-dim) !important;
+  border-color: var(--border) !important;
+  background: none !important;
+}
+body.print-palette .champ-center--desktop,
+body.print-palette .champ-center--flight,
+body.print-palette .champ-center--ifnec,
+body.print-palette .flight-col--champ,
+body.print-palette .bc-hdr,
+body.print-palette .admin-res-hdr {
+  background: none !important;
+}
+body.print-palette .champ-center--desktop,
+body.print-palette .flight-col--champ {
+  border-color: var(--border) !important;
+}

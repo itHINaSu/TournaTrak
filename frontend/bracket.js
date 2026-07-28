@@ -527,6 +527,12 @@ async function fetchAll(){
   _fetchFingerprint = newFingerprint;
 
   renderActive();
+  // Explicit readiness flag for the offscreen render frame the image
+  // exporter loads (withRenderFrame). It cannot detect readiness by probing
+  // GAMES: bracket-data.js declares it with `const`, and a top-level const
+  // is NOT a property of window. Set on the offline path too, so a frame
+  // that can't reach the API fails fast instead of hanging.
+  window.__ttReady = true;
 }
 var resizeTimer;
 window.addEventListener('resize',function(){
@@ -1908,8 +1914,8 @@ function withRenderFrame(opts, cb) {
     var tries = 0;
     // The frame boots the whole app: wait for its first fetch to land.
     (function ready() {
-      if (++tries > 100) { finish(null, null); return; }
-      if (!win.GAMES || !Object.keys(win.GAMES).length) { setTimeout(ready, 100); return; }
+      if (++tries > 80) { finish(null, null); return; }   // ~8s
+      if (!win.__ttReady) { setTimeout(ready, 100); return; }
       // Force the bracket tab active — a saved tt_tab cookie may have opened
       // the frame on Schedule, and a display:none panel measures as zero.
       doc.querySelectorAll('.view-panel').forEach(function(el) { el.classList.remove('active'); });
