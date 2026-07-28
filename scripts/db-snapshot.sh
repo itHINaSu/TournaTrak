@@ -14,7 +14,7 @@
 set -e
 cd "$(dirname "$0")/.."
 mkdir -p db-snapshot
-docker compose exec -T db pg_dump -U tournatrak --clean --if-exists \
+docker compose exec -T postgres pg_dump -U tournatrak --clean --if-exists \
   --exclude-table-data=sessions tournatrak > db-snapshot/tournatrak.sql
 echo "Wrote db-snapshot/tournatrak.sql ($(wc -c < db-snapshot/tournatrak.sql | tr -d ' ') bytes)."
 echo "Commit and push db-snapshot/ to share this exact instance state."

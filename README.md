@@ -240,7 +240,7 @@ docker compose up -d --build api        # rebuild after API changes
 
 No `.env` is required, and there's no generated password to go find anywhere:
 on first boot the database password and session secret are generated
-automatically (persisted in the `tt-secrets` volume), and the admin account
+automatically (persisted in `./secrets`), and the admin account
 itself is deliberately **not** auto-created — visit `/admin` and you'll see a
 "Create Admin Account" form instead of a login form, since the instance has
 zero users yet. Pick your own username and password right there in the
@@ -260,11 +260,37 @@ double literal `$` to `$$`.
 
 Running a second, independent instance on the same host (e.g. archiving one
 tournament and starting a new one in isolation instead of using built-in
-multi-tournament support): clone into a separate directory and change the
-nginx port in that clone's `compose.yml` (the only host-exposed port in the
-stack). Postgres itself needs no changes — it's never exposed to the host,
-and Compose automatically isolates each clone's containers, network, and
-named volumes by directory name, so two instances never collide.
+multi-tournament support): clone into a separate directory and set `TT_PORT`
+in that clone's `.env` (the nginx port is the only host-exposed port in the
+stack — set it there rather than editing `compose.yml`, which would conflict
+on every pull). Postgres itself needs no changes: it's never exposed to the
+host, and each clone keeps its data in its own directory, so two instances
+never collide.
+
+### Where the data lives
+
+Everything durable is a plain directory beside `compose.yml`:
+
+| path | holds |
+|------|-------|
+| `./pgdata` | the Postgres data directory — the tournament itself |
+| `./secrets` | generated database password and session secret |
+| `./files` | legacy v2 JSON, read-only after the one-time import |
+
+All three are gitignored. They are **host directories rather than Docker
+named volumes on purpose**: `docker compose down -v` deletes named volumes,
+and that is the first thing most people try when a stack misbehaves. Here it
+is harmless — there are no named volumes left to remove.
+
+To back up, stop the stack and copy `./pgdata` (and `./secrets` with it — the
+password Postgres was initialised with lives there). For a portable dump
+instead, run `./scripts/db-snapshot.sh` with the stack up.
+
+Upgrading a machine that ran an older version, whose data is still in named
+volumes: `docker compose down` (**not** `-v`), then
+`./scripts/migrate-to-local-storage.sh`, then `docker compose up -d`. It
+copies both volumes into the new directories and leaves the originals alone,
+so it is reversible.
 
 **Upgrading from v2 (JSON files):** nothing to do — on first boot against an
 empty database the API imports everything from the mounted `./files` directory

@@ -1033,6 +1033,38 @@ fields use `class="styled"` (the `admin-winner-sel` inline-style inconsistency i
   to `#view-teampath` / window.
 - Clickable loss-destination styled as a pill (`.tp-opp-chip`) for tap affordance.
 
+## `docker compose down -v` deleted a tournament (2026-07-28)
+The owner ran `docker compose down -v` on a misbehaving stack. `-v` removes
+named volumes, `pgdata` was one, and the database went with it. **That data
+was not recoverable** — and the backup script that existed would not have
+helped, because `scripts/db-snapshot.sh` and `db-restore.sh` both ran
+`docker compose exec -T db …` while the service is named `postgres`. They had
+never worked. Both were fixed at the same time.
+
+What changed, so it cannot happen the same way again:
+- `compose.yml` has **no named volumes at all**. The database is `./pgdata`,
+  the generated secrets are `./secrets`, both gitignored host directories.
+  `down -v` now has nothing to remove.
+- The secrets moved WITH the database deliberately. Postgres bakes the
+  password it was initialised with into its data directory, so keeping one and
+  regenerating the other leaves the API unable to log in to its own database.
+  They survive or are replaced together.
+- `scripts/migrate-to-local-storage.sh` moves an older machine's data out of
+  the named volumes into the directories. It refuses to overwrite a non-empty
+  target, refuses while the stack is running, and leaves the source volumes
+  alone, so it is reversible.
+
+**A machine that ran the stack before this change still has its data in the
+old volumes and will come up EMPTY until it is migrated.** `docker compose
+down` (no `-v`), run the migration, `docker compose up -d`.
+
+Two things worth carrying beyond this repo. A destructive command that people
+reach for when something is broken should not be able to reach production
+data — the fix was not "tell everyone to be careful", it was removing the
+thing `-v` could delete. And a backup script nobody has ever restored from is
+not a backup: this one had been wrong since it was written, and the first
+person to find out was the person who needed it.
+
 ## Session notes / traps worth inheriting (2026-07-28)
 Things that cost time this session, written down so they don't again.
 
@@ -1232,10 +1264,14 @@ async rejections to the error middleware; **never add a bare async handler**.
   fail immediately with the real message instead of burning the 30s window.
   Also `DATA_DIR` / `FRONTEND_DIR` (default `/data` / `/frontend`; override
   for local dev outside Docker), `TOURNAMENT_SLUG`.
-- Compose: internal-only `postgres` service (postgres:16-alpine, healthcheck,
-  named volume `pgdata`); `POSTGRES_PASSWORD` required in `.env` and passed
-  to the api container as `PGPASSWORD` (verbatim, no URL). The demo stack
-  has its own postgres + `demo-pgdata` with fixed public credentials.
+- Compose: internal-only `postgres` service (postgres:16-alpine, healthcheck)
+  storing to the HOST DIRECTORY `./pgdata`, with generated secrets in
+  `./secrets`. **There are no named volumes in `compose.yml` any more** — see
+  "docker compose down -v deleted a tournament" below. `POSTGRES_PASSWORD` may
+  be set in `.env` and is passed to the api container as `PGPASSWORD`
+  (verbatim, no URL). The demo stack still uses a named `demo-pgdata` ON
+  PURPOSE: it is a sandbox reset from `demo-seed/`, so `down -v` wiping it is
+  a feature there.
 - Demo mode restores each seed file write-whole through the store (users via
   writeUsers); sessions deliberately not seeded.
 - Local verification (no Docker): Postgres 16 cluster in the dev container

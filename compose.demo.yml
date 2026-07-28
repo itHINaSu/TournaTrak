@@ -73,6 +73,10 @@ services:
       POSTGRES_DB: tournatrak
       POSTGRES_PASSWORD: "tournatrak-demo"
     volumes:
+      # A NAMED volume here on purpose, unlike the real stack (which uses
+      # ./pgdata so `down -v` can't destroy a tournament). The demo is a
+      # sandbox reset from demo-seed/ — throwing it away with `down -v` is a
+      # feature, not the accident it would be in production.
       - demo-pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tournatrak -d tournatrak"]

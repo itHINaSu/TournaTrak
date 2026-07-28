@@ -14,6 +14,14 @@ files/*
 demo-files/*
 !demo-files/.gitkeep
 
+# The live database and the generated secrets. These are HOST DIRECTORIES
+# rather than Docker named volumes precisely so `docker compose down -v`
+# cannot delete them — see the note at the bottom of compose.yml. Back up
+# ./pgdata by copying it (with the stack stopped), or use
+# scripts/db-snapshot.sh for a portable SQL dump.
+pgdata/
+secrets/
+
 # Docker and system noise
 # .env holds per-machine SCALARS (TT_PORT, PUID/PGID, secrets).
 # compose.override.yml holds per-machine STRUCTURE (an extra volume, a debug

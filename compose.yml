@@ -1,7 +1,7 @@
 services:
 
   # First-boot secret generation: creates random pg_password / session_secret
-  # in the tt-secrets volume if missing (values from .env win when provided),
+  # in ./secrets if missing (values from .env win when provided),
   # then exits. Runs before postgres and the API. Makes a bare
   # `git clone && docker compose up -d --build` a complete, secure install.
   secrets-init:
@@ -12,7 +12,7 @@ services:
       PUID: "${PUID:-1000}"
       PGID: "${PGID:-1000}"
     volumes:
-      - tt-secrets:/run/tt-secrets
+      - ./secrets:/run/tt-secrets
     command:
       - /bin/sh
       - -ec
@@ -58,7 +58,7 @@ services:
       # against an empty database); persistence lives in Postgres.
       - ./files:/data:ro
       - ./frontend:/frontend:ro
-      - tt-secrets:/run/tt-secrets
+      - ./secrets:/run/tt-secrets
     restart: unless-stopped
     expose:
       - "3000"
@@ -99,8 +99,13 @@ services:
       # bakes this into pgdata on FIRST init; see .env.example.
       POSTGRES_PASSWORD_FILE: /run/tt-secrets/pg_password
     volumes:
-      - pgdata:/var/lib/postgresql/data
-      - tt-secrets:/run/tt-secrets:ro
+      # HOST DIRECTORY, not a named volume. `docker compose down -v` removes
+      # named volumes, and that is a normal thing to reach for when a stack
+      # misbehaves — it took a live tournament with it once. A bind mount is
+      # outside Docker's volume lifecycle, so `down -v` cannot touch it and
+      # the database is a directory you can see, back up and copy.
+      - ./pgdata:/var/lib/postgresql/data
+      - ./secrets:/run/tt-secrets:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tournatrak -d tournatrak"]
       interval: 5s
@@ -108,6 +113,13 @@ services:
       retries: 10
     restart: unless-stopped
 
-volumes:
-  pgdata:
-  tt-secrets:
+# No named volumes. Everything durable lives in host directories next to this
+# file — ./pgdata (the database), ./secrets (generated passwords) and ./files
+# (legacy JSON, read-only). All are gitignored. That is what makes
+# `docker compose down -v` safe here: it removes named volumes, and there are
+# none left to remove.
+#
+# ./secrets moved out of a named volume WITH the database on purpose. The
+# password Postgres was initialised with lives there, so keeping the data but
+# regenerating the secret would leave the API unable to log in to its own
+# database — the two have to survive or be replaced together.
