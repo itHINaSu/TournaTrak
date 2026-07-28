@@ -70,6 +70,16 @@ function roundLabel(round, side) {
     if (g && g.t1 && g.t1.type === 'loser' && g.t1.slot !== 'CHAMP.C.1') return '3rd Place';
     return ROUND_LABELS.CHAMP2;
   }
+  const n = roundIndex(round, side);
+  return n ? 'Round ' + n : (ROUND_LABELS[round] || round);
+}
+
+// How far along its own side a round sits, 1-based, counting only populated
+// rounds. 0 when the round holds nothing on that side. This is the number
+// roundLabel prints, and it is also what pairs a losers round with the
+// winners round it should sit under: the losers bracket starts at R2, so its
+// FIRST round is winners round 1's partner, not round 2's.
+function roundIndex(round, side) {
   let n = 0;
   for (const r of ROUND_ORDER) {
     if (r === 'CHAMP' || r === 'CHAMP2') continue;
@@ -78,9 +88,9 @@ function roundLabel(round, side) {
     const has = Object.keys(GAMES).some(g => GAMES[g].round === r && !GAMES[g].tier
       && (!side || GAMES[g].side === side));
     if (has) n++;
-    if (r === round) return has ? 'Round ' + n : (ROUND_LABELS[round] || round);
+    if (r === round) return has ? n : 0;
   }
-  return ROUND_LABELS[round] || round;
+  return 0;
 }
 
 // GAMES starts empty — populated by applySchedule() on load
@@ -494,7 +504,7 @@ function scheduleHealth(schedule) {
 
 if (typeof module !== 'undefined') {
   module.exports = {
-    GAMES, SLOT_DEFS, ROUND_ORDER, ROUND_LABELS, roundLabel, scheduleHealth,
+    GAMES, SLOT_DEFS, ROUND_ORDER, ROUND_LABELS, roundLabel, roundIndex, scheduleHealth,
     rankStandings, STANDINGS_TIEBREAKS,
     allSlotIds, parseSlotId, tierGameRound, occupiedSlots, slotsForRoundSide,
     resolveSlot, slotLabel, smartLabel, shortName,

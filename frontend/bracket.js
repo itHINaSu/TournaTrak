@@ -3190,38 +3190,37 @@ function renderMobileBracket(root, dims) {
     }));
   }
 
+  // Bucket by each side's OWN round number, not by the shared round key. The
+  // losers bracket starts at R2, so keying on the round put the FIRST losers
+  // games in the same column as winners round 2 — a round they can't have
+  // reached yet, since they got there by losing round 1. Desktop already sits
+  // losers round N under winners round N; this makes the carousel agree, and
+  // it is what stops a column mixing games a full round apart.
+  var buckets = [], byIdx = {};
   rounds.forEach(function(round) {
-    var gids = gidsFor(round);
-    if (round === 'CHAMP' || round === 'CHAMP2') {
-      cols.push({ round: round, label: roundLabel(round), gids: gids, divs: [] });
-      return;
-    }
+    if (round === 'CHAMP' || round === 'CHAMP2') return;
+    ['L', 'R'].forEach(function(side) {
+      var gids = slotsForRoundSide(round, side).filter(function(gid) { return !GAMES[gid].tier; });
+      if (!gids.length) return;
+      var idx = roundIndex(round, side);
+      if (!byIdx[idx]) { byIdx[idx] = { idx: idx, L: [], R: [], rounds: [] }; buckets.push(byIdx[idx]); }
+      byIdx[idx][side] = byIdx[idx][side].concat(gids);
+      if (byIdx[idx].rounds.indexOf(round) < 0) byIdx[idx].rounds.push(round);
+    });
+  });
+  buckets.sort(function(a, b) { return a.idx - b.idx; });
 
-    // Absorb LB-only rounds into the previous column so WB games in adjacent
-    // columns remain visually adjacent. A round is LB-only when none of its games
-    // is a WB game (detected by tracing feeder slots: any 'loser' type feeder
-    // marks a game as LB, regardless of how many bracket sides it spans).
-    var hasWB = gids.some(function(gid){ return isWBGame(gid); });
-
-    if (!hasWB && cols.length > 0) {
-      // Absorb into the previous column under a "Loser's Bracket" divider.
-      // This branch runs only for an LB-ONLY round, so number it on the
-      // losers side — matching the desktop column headers.
-      var prev = cols[cols.length - 1];
-      prev.divs.push({ idx: prev.gids.length, label: roundLabel(round, 'R'), type: 'absorbed' });
-      prev.label = prev.label + ' · ' + roundLabel(round, 'R');
-      gids.forEach(function(gid) { prev.gids.push(gid); });
-      return;
-    }
-
-    // Both sides present: do the intra-round wave split for same-side deps.
+  // Intra-round same-side dependency ordering (an LB final consuming two
+  // same-round LB semis has to come after them). Run per SIDE, so a merged
+  // column never interleaves the two brackets.
+  function waveOrder(gids) {
     var placed = {}, waves = [], remaining = gids.slice();
     while (remaining.length) {
       var wave = remaining.filter(function(gid) {
         var g = GAMES[gid];
         return ![g.t1, g.t2].some(function(s) {
           return s && s.type !== 'fixed' && s.slot && !placed[s.slot]
-            && GAMES[s.slot] && GAMES[s.slot].round === round
+            && GAMES[s.slot] && GAMES[s.slot].round === g.round
             && GAMES[s.slot].side === g.side;
         });
       });
@@ -3230,12 +3229,49 @@ function renderMobileBracket(root, dims) {
       wave.forEach(function(gid) { placed[gid] = 1; });
       remaining = remaining.filter(function(gid) { return !placed[gid]; });
     }
+    return waves;
+  }
+
+  buckets.forEach(function(bucket) {
+    // `round` names the bucket for the championship pass below; the winners
+    // round is the one both sides' games converge on.
+    var round = bucket.rounds[0];
+
+    // A column with no winners-side games is a losers-only tail (the losers
+    // bracket runs more rounds than the winners side). Fold it into the
+    // previous column so the winners games in adjacent columns stay adjacent
+    // and the convergence animation still has feeders to converge on.
+    if (!bucket.L.length && cols.length > 0) {
+      var prev = cols[cols.length - 1];
+      prev.divs.push({ idx: prev.gids.length, label: 'Round ' + bucket.idx, type: 'absorbed' });
+      prev.label = prev.label + ' · Round ' + bucket.idx;
+      bucket.R.forEach(function(gid) { prev.gids.push(gid); });
+      return;
+    }
+
+    // Winners games first, then the losers games UNDER them behind their own
+    // divider. Ordering the merged list as one pool interleaved the brackets,
+    // which is the thing the column split was meant to stop.
     var flat = [], divs = [];
-    waves.forEach(function(wave, wi) {
+    waveOrder(bucket.L).forEach(function(wave, wi) {
       if (wi) divs.push({ idx: flat.length, label: getSetting('playInLabel'), type: 'playin' });
       flat = flat.concat(wave);
     });
-    cols.push({ round: round, label: roundLabel(round), gids: flat, divs: divs });
+    if (bucket.R.length) {
+      divs.push({ idx: flat.length, label: 'Round ' + bucket.idx, type: 'absorbed' });
+      waveOrder(bucket.R).forEach(function(wave, wi) {
+        if (wi) divs.push({ idx: flat.length, label: getSetting('playInLabel'), type: 'playin' });
+        flat = flat.concat(wave);
+      });
+    }
+    cols.push({ round: round, label: 'Round ' + bucket.idx, gids: flat, divs: divs });
+  });
+
+  // Championship columns keep their own round keys and labels.
+  ['CHAMP', 'CHAMP2'].forEach(function(round) {
+    if (rounds.indexOf(round) < 0) return;
+    var gids = gidsFor(round);
+    if (gids.length) cols.push({ round: round, label: roundLabel(round), gids: gids, divs: [] });
   });
 
   // ── Championship-row parity with desktop ─────────────────────────────
