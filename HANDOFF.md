@@ -38,8 +38,9 @@ decision, superseding the 2026-07-04 note that pointed at
 `claude/handoff-continuation-9elo3q` — that branch is merged and dead).
 Work on `main`, commit, push. Do not open PRs unless asked.
 - `main` — everything. Postgres storage, multi-tournament, all formats.
-- `claude/handoff-continuation-9elo3q`, `claude/tournatrak-eval-buildout-sa3mvv`
-  — MERGED into main, do not develop on them. Both are kept only as history.
+- `claude/handoff-continuation-9elo3q`, `claude/tournatrak-eval-buildout-sa3mvv`,
+  `claude/bracket-generation-missing-lines-tbbhro` — MERGED into main, do not
+  develop on them. Kept only as history.
 - `feature/bracket-builder` — merged long ago. Do not develop here.
 - `feature/regional` — parked Postgres prototype; UNRELATED git history (no
   common ancestor with main). Reference-only for the v3 schema. Its committed
@@ -55,7 +56,33 @@ under different hashes. Check whether each apparent gap is a real gap
 deliberate behavioural reversal to the owner instead of silently picking a
 side.
 
-## Outstanding work (what's still needed) — updated 2026-07-28 (merge)
+## Outstanding work (what's still needed) — updated 2026-07-28
+
+**Shipped 2026-07-28 on `main`, newest first.** Every item is detailed below;
+this is the index. `main` is at `212c14d`.
+
+| commit | what |
+|--------|------|
+| `212c14d` | Mobile carousel: `lateY` was cascading round-2 cards off-screen, and bye-fed cards were shoving visible ones aside |
+| `c572ba9` | Bracket Edit rebuilt on a stored POSITION, not a slot index; draft with Save/Discard; A/B flights included |
+| `39f1345` | Project winners dropped picks past round 1 — picks were applied in game-number order, and hand-wired schedules have no game number |
+| `e8b3d76` | Standings tab rebuilt on the Bucket Challenge row card |
+| `eff0aa5` | First cut of Edit mode: offer empty rows to drop into (superseded in part by `c572ba9`) |
+| `7271c57` | Re-verification of `SF4` after the parallel session rebased onto it |
+| `5bd2a87` | `SF4` round added so every losers-bracket round gets its own column |
+
+Note the shape of the list: `c572ba9` largely rewrites `eff0aa5`, shipped
+hours earlier. The first cut fixed the symptom the owner reported (no empty
+rows to drop into) while keeping the model underneath it (a drag is a slot
+swap), and every follow-up complaint — vanishing rows, autosave, no revert,
+the cascade geometry — was that model surfacing again. **When a report keeps
+coming back in new forms, the model is wrong, not the patch.**
+
+The mobile carousel bug (`212c14d`) was NOT a regression from any of this —
+that sweep had been ordering by `earlyY` and cascading since long before.
+It stayed invisible while brackets were small and surfaced once the losers
+side got taller. Long-standing layout code with no test around it is the
+likeliest place for the next one of these.
 
 **✅ DONE 2026-07-28 — the mobile carousel's lateY layout was throwing games
 off-screen.** Owner: "Games from round 1 that feed games in round 2 don't
@@ -216,18 +243,26 @@ merge commit for the full comparison. Lesson for next time: when two
 sessions touch the same area, diff the CHECKS as well as the fixes — the
 better check is worth more than the better patch.
 
-**If you're picking this up cold (updated 2026-07-28):** the build items on
-this list are DONE — health check, route tests, standings tiebreakers, CSV
-export, undo, Swiss byes. What remains needs the OWNER, not a session:
-item 5 (leaked secrets in git history — rotate the token, decide on branch
-cleanup), item 11 (mobile round-combining — needs the desired behaviour
-confirmed before building), and item 10 (sales-site demo URL + contact
-email, placeholders only the owner can fill). Nothing is known-broken.
+**If you're picking this up cold (updated 2026-07-28, end of day):** the
+build items on this list are DONE. What remains needs the OWNER, not a
+session: item 5 (leaked secrets in git history — rotate the token, decide on
+branch cleanup), item 11 (mobile round-combining — needs the desired
+behaviour confirmed before building), and item 10 (sales-site demo URL +
+contact email, placeholders only the owner can fill).
 
-**Shipped 2026-07-28 (this session)** — developed on
-`claude/bracket-generation-missing-lines-tbbhro`, now REBASED ONTO AND
-MERGED INTO `main` (main is at `11fd7ed`, a clean fast-forward). See
-"Rebasing onto a main that moved" below before starting more work — the
+Nothing is known-broken, with one limit the owner already knows about and
+has NOT asked to change: on mobile, a column with more visible cards than
+the previous column has feeders (ISSA round 2 is 14 games fed by 6) cannot
+sit every card level with its feeder — 14 cards need ~2500px. They are
+correctly ordered and centred on their feeders, so scrolling tracks the
+correspondence, but the first screen cannot hold them all. Pagination or
+grouping that column is an open product call, not a bug to go fix.
+
+**Shipped 2026-07-28 by the PARALLEL session** — developed on
+`claude/bracket-generation-missing-lines-tbbhro`, REBASED ONTO AND MERGED
+INTO `main`. (Its own summary called this "this session"; renamed for a
+later reader — the list directly above is the one that continued after it.)
+See "Rebasing onto a main that moved" below before starting more work — that
 branch and main were both live at once this day and the graph shows it.
 - ✅ **The exported image excludes the flight switcher.** A regression from
   the pill move directly below: the pills now live inside `#bracketRoot`,
@@ -785,9 +820,26 @@ Key tokens: `--bg --surface --surface2 --border --blue --blue-lt --gold
 ## Bracket model
 - Two sides: L (left) and R (right) — independent single-elim sides in the
   flagship layout; WB/LB only under builder-generated double-elim formats.
-- `ROUND_ORDER`: R1, R2, QF, QF2, SF, CHAMP, CHAMP2. `ROUND_LABELS` maps these to
-  "Round 1/2/3/4/5, Championship, If Necessary".
+- `ROUND_ORDER`: R0, R1, R2, QF, QF2, SF, SF3, SF4, SF2, CHAMP, CHAMP2.
+  `ROUND_LABELS` numbers them "Round 0–8, Championship, If Necessary" — the
+  names lie about the order, so read `ROUND_ORDER`, never the name: `SF3` is
+  round six and `SF4` is round seven. R0 is drop-bracket (A/B tier) storage
+  and is not part of the tree.
 - Slot ID format: `ROUND.SIDE.NUM` (e.g. `SF.R.1`, `CHAMP.C.1`). SIDE = L|R|C.
+- A round's slot list in `SLOT_DEFS` is deliberately WIDER than any generator
+  needs: it is the set of rows a TD may drag a card into. Nothing reads its
+  length. **Keep `frontend/bracket-data.js` and `api/slot-defs.js` in sync** —
+  the API container cannot import the frontend file.
+- Schedule entry fields that are NOT edited in any form and must be carried
+  through by anything that rebuilds an entry: `num`, `bye`, `swissRound`,
+  `tier`, `layoutRow`. `POST /api/schedule` replaces the WHOLE document, so
+  dropping one of these on a single-game save wipes it. This bit us with
+  `layoutRow` (admin.js `saveSchedGame`) the day it was added.
+- `layoutRow` is where bracket Edit mode placed a card: a fraction of its
+  column's height, 0 = top. Presentation only — it never affects feeds,
+  results or which slot a game holds. Hand-placed cards are ANCHORS in every
+  overlap sweep (`computeLBPositions`, `flightPositions`): neighbours move
+  around them.
 - Card renderers in `bracket.js` (check ALL relevant ones when changing card content):
   - `cardHTML` — desktop bracket `.bc` cards (compact header: game-id, field-tag, time, offset)
   - `champCardHTML` — mobile champ card
@@ -808,13 +860,28 @@ The `.round-game-header` row shows: **[Game ID] [Date] [Field + DOW + Time + Off
   `.bc-offset` span (no "min" suffix due to space). Field tag stays next to game-id there.
 - **Date/field swap rationale:** date = "what game is this" (near game-id), field = "where/when" (near time).
 
-## Mobile bracket peek layout (`renderMobileBracket`)
-- Two-column swipe view with `earlyY` (evenly spaced) ↔ `lateY` (bracket-tree
-  midpoint) convergence as you scroll between rounds.
+## Mobile bracket peek layout (`renderMobileBracket` / `renderMobileColumns`)
+- Two-column swipe view with `earlyY` (evenly spaced, the column's own
+  layout) ↔ `lateY` (converged onto each card's feeders, so you can see what
+  a game leads to while the column to its LEFT is the active one).
 - `anchored[gid]` = has a feeder in the adjacent (previous) column.
-- `selfFed[gid]` = has a feeder in its OWN column (combined/absorbed rounds). Such
-  cards and wave-split play-in cards (`data-playin="1"`) are hidden in lateY and fade
-  in only when their column is active. Applied via `if (selfFed && !anchored) card.dataset.playin = '1'`.
+- `hideInLate[gid] = !anchored[gid]` — **owner rule: a game is hidden in
+  lateY only when neither of its teams is fed by the active column.** It has
+  no converging line and nothing to sit next to. Column 0 and the
+  championship column are exempt (the finals are always shown). Applied as
+  `data-playin="1"`, which fades the card in as its column arrives.
+  This replaced a `selfFed && !anchored` test; `selfFed` is gone, because a
+  same-column feeder never sets `anchored` and so falls out of the simpler
+  rule for free.
+- **The lateY overlap sweep runs over VISIBLE cards only, ordered by where
+  they converged** (their feeders' order — NOT `earlyY` order), pushing
+  overlapping neighbours apart from both sides. Both halves of that matter
+  and both were once wrong: sweeping in `earlyY` order with a one-directional
+  push made the first card's position dictate the whole column (an 11-team
+  double elim came out a perfect STEP-spaced staircase, everything past the
+  third card off-screen), and letting hidden cards take part meant a game fed
+  entirely by byes shoved the visible ones aside. If you change this, test a
+  field WITH byes — that is where both faults showed.
 
 ## Live scoring
 - Admin: each pending result card has **▶ Live** + **Final**. `startLive` / `updateLive` /
@@ -920,6 +987,35 @@ fields use `class="styled"` (the `admin-winner-sel` inline-style inconsistency i
 ## Session notes / traps worth inheriting (2026-07-28)
 Things that cost time this session, written down so they don't again.
 
+- **`GAMES[gid].num` is a DISPLAY label, not an ordering.** `applySchedule`
+  falls back to the SLOT number when a schedule has no `num`, and hand-wired
+  schedules (the whole ISSA transcription — 61 games) have none. So every
+  round gets a game "1" and any `sort((a,b) => num[a] - num[b])` produces
+  `R1.L.1, R2.L.1, QF.L.1, QF2.L.1, SF.L.1…` — every consumer before its own
+  feeder. This is what silently deleted project-winner picks past round 1.
+  **Never order by `num` when you mean dependency order.** Use a fixed-point
+  loop (repeat passes until nothing new resolves): it is a topological walk
+  without building the graph, and it survives cross-side drops, same-column
+  chains and hand-wired topologies that a round ordering does not.
+- **A layout fix and a hide rule are different things — check which you have.**
+  Cards can vanish from a screen two ways: an `opacity`/`hidden` rule, or
+  positions that put them outside the viewport. The mobile report read as
+  "games are hidden"; the cause was a positioning cascade. Dump the computed
+  numbers (see `scratchpad/mob-diag.js` pattern: per column, per card,
+  early/late/offset/flags) before touching either rule — the numbers said
+  "perfect STEP-spaced staircase" immediately and that named the bug.
+- **A derived row index is not a stable coordinate.** Bracket Edit v1 stored
+  a card's position as which SLOT it held, but a column's row count is
+  `max(game count, highest slot in use)` — so every move re-spaced the whole
+  column and an emptied row ceased to exist. Anything a human positions by
+  hand needs an explicit coordinate (here: a fraction of column height), not
+  an index into a grid whose size depends on the contents.
+- **Immediate-write UI has no undo story.** The same v1 wrote on every drag
+  via a route that took no undo snapshot, so "Revert changes" could not reach
+  it and nothing could be abandoned. If an interaction is exploratory, make
+  it a draft and write once — one write is also one undo snapshot, which is
+  the difference between reverting a session and reverting a nudge.
+
 - **NEVER `open(p,'w').write(open(p).read()…)` in Python.** The `'w'` handle
   is opened — and the file truncated — BEFORE the read runs, so it writes
   back an empty string. This silently zeroed `admin/builder/score/lineup.html`
@@ -972,7 +1068,7 @@ Things that cost time this session, written down so they don't again.
   packet". Green with a big skip count is NOT a passing run. Create the role
   once (`su postgres -c "psql -c 'CREATE ROLE root SUPERUSER LOGIN'"` plus a
   matching database) and run with `PGUSER=root PGHOST=/var/run/postgresql`.
-  Full run is **61 tests, 0 skipped**.
+  Full run is **64 tests, 0 skipped**.
 - **`window.GAMES` is undefined even though `GAMES` exists.** Top-level
   `const` does not become a property of `window`, which is why the export
   iframe needs the explicit `window.__ttReady = true` flag at the end of
@@ -1227,18 +1323,20 @@ Static HTML/CSS/JS marketing site — separate nginx:alpine container, port 8081
 See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `index.html`.
 
 ## Current state
-`main` at `11fd7ed` (2026-07-28) holds everything below plus BOTH
-2026-07-28 shipped lists at the top — the `SF4` losers-round fix and this
-branch's work, rebased on top of it. The branch
-`claude/bracket-generation-missing-lines-tbbhro` points at the same commit;
-there is nothing unmerged.
-SW cache version lives in `frontend/sw.js` (currently `tournatrak-v3.20`) —
-read it there, and keep the `?v=` stamps in step with it on ALL FIVE HTML
-files, not just the admin pages. Phase 0 evaluation is in `EVALUATION.md`.
+`main` at `212c14d` (2026-07-28, end of day) holds everything below plus both
+2026-07-28 shipped lists at the top of "Outstanding work" — the parallel
+session's UI work and the seven commits that continued after it. Nothing is
+unmerged; `claude/bracket-generation-missing-lines-tbbhro` is history.
+SW cache version lives in `frontend/sw.js` (at the time of writing
+`tournatrak-v3.25`) — **read it there, don't trust this number**, and keep
+the `?v=` stamps in step with it on ALL FIVE HTML files, not just the admin
+pages. Phase 0 evaluation is in `EVALUATION.md`.
 
 ## Tests
-`node --test` from the repo root — **61 tests**, no arguments, no fixtures
-to set up.
+`node --test` from the `api/` directory — **64 tests**, no arguments, no
+fixtures to set up. Postgres must be reachable or the 38 route tests SKIP
+rather than fail, which reads as green: check the skipped count, not just
+the failure count.
 - `schedule-formats.test.js` — generators, simulated to completion under
   random result sequences at every format × count. Includes full Swiss
   events (round-by-round pairing) for every field 4–32, and (added with
@@ -1529,9 +1627,18 @@ reading first.
 ## TODO / parked: mobile double-elim round combining (NOT done)
 Discussed but never implemented. Capturing the problem so it can be picked up.
 
-**Where it lives:** `renderMobileBracket()` in `frontend/bracket.js` (~line 1280),
-specifically the "Columns" block (~1306–1355). See also the Mobile bracket peek
-layout notes above (`anchored` / `selfFed` / `data-playin`).
+**Where it lives:** `renderMobileBracket()` in `frontend/bracket.js` —
+specifically its "Columns" block (search for `Absorb LB-only rounds`). See
+also the Mobile bracket peek layout notes above (`anchored` / `hideInLate` /
+`data-playin`; `selfFed` no longer exists).
+
+**Related, and possibly the same job:** a column with more visible cards than
+the previous column has feeders cannot sit every card level with its feeder —
+ISSA round 2 is 14 games fed by 6, and 14 cards need ~2500px. Since
+2026-07-28 they are at least correctly ordered and centred on their feeders,
+so scrolling tracks the correspondence. Whether that column should paginate,
+group, or split is the same "how many swipe columns should there be"
+question this item is about.
 
 **Current heuristic (what ships today):**
 - One column per round, with two display-only exceptions:
@@ -1557,8 +1664,8 @@ layout notes above (`anchored` / `selfFed` / `data-playin`).
 
 **Open questions to resolve before implementing:**
 - What's the target? Fixed max column count, or a per-viewport budget?
-- How to keep `anchored`/`selfFed` convergence correct when combining rounds that
-  the current absorb path doesn't touch (both-sides rounds)?
+- How to keep `anchored` / `hideInLate` convergence correct when combining
+  rounds that the current absorb path doesn't touch (both-sides rounds)?
 - Does CHAMP/CHAMP2 (currently always their own columns) participate?
 
 **Note:** the specifics of the earlier verbal discussion weren't preserved in this
