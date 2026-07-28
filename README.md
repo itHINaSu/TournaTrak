@@ -234,18 +234,30 @@ service is internal-only (no host ports).
 
 ```bash
 git clone <repo> && cd TournaTrak
-docker compose up -d --build            # that's it — no configuration needed
-docker compose logs api                 # shows the generated admin password (first boot)
+./up.sh                                 # up -d --build, then prints the admin login
 docker compose up -d --build api        # rebuild after API changes
 ```
 
 No `.env` is required: on first boot the stack generates a random database
 password, session secret, and initial admin password (persisted in the
-`tt-secrets` volume; the admin password is printed once in the api logs and
-recoverable via `docker compose exec api cat /run/tt-secrets/initial_admin_password`
-until you change it). To override any of it, copy `.env.example` to `.env`
-(or run `./init-env.sh`) — explicit values always win. Compose treats a
-single `$` in `.env` as a variable reference; double literal `$` to `$$`.
+`tt-secrets` volume). `./up.sh` waits for that first boot and prints the
+admin username/password directly — no separate `docker compose logs`/`ps`/
+`exec` needed. (You can still run plain `docker compose up -d --build` if
+you prefer; the password is then only visible via `docker compose logs api`
+or `docker compose exec api cat /run/tt-secrets/initial_admin_password`,
+recoverable either way until you change it.) To override any of the
+generated values, copy `.env.example` to `.env` (or run `./init-env.sh`,
+which pins a known default password instead of a random one) — explicit
+values always win. Compose treats a single `$` in `.env` as a variable
+reference; double literal `$` to `$$`.
+
+Running a second, independent instance on the same host (e.g. archiving one
+tournament and starting a new one in isolation instead of using built-in
+multi-tournament support): clone into a separate directory and change the
+nginx port in that clone's `compose.yml` (the only host-exposed port in the
+stack). Postgres itself needs no changes — it's never exposed to the host,
+and Compose automatically isolates each clone's containers, network, and
+named volumes by directory name, so two instances never collide.
 
 **Upgrading from v2 (JSON files):** nothing to do — on first boot against an
 empty database the API imports everything from the mounted `./files` directory
@@ -275,9 +287,10 @@ regenerate `schedule.json` via the Bracket Builder or `generate-schedule.js`).
 
 ## Setup for a new tournament
 
-1. Clone the repo and run `docker compose up -d --build` — secrets are generated on first boot
-2. Log in to `/admin` with the default credentials (admin / TournaTrak) — you
-   will be required to change the password immediately
+1. Clone the repo and run `./up.sh` — secrets are generated on first boot and
+   the admin username/password print directly in the terminal
+2. Log in to `/admin` with those credentials — you will be required to
+   change the password immediately
 3. Go to `/builder` → pick a format, enter teams, and generate the bracket
    schedule (or hand-edit games in the Schedule tab; see
    `files/schedule.example.json` for the format)
