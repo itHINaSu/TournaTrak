@@ -433,6 +433,18 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   overflow-x: auto;
   padding: 0.5em 0.75em 1em;
   max-width: 100%;
+  /* Containing block for the measured connector overlay below. */
+  position: relative;
+}
+/* Connector overlay: sized to the flight's full scroll area and drawn in the
+   same coordinate space as the cards, so it scrolls with them. Painted under
+   the cards (they carry z-index 1) and never intercepts taps. */
+.flight-conn-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
 }
 .flight-col {
   display: flex;
@@ -472,6 +484,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   left: auto;
   right: auto;
   min-height: 0;
+  z-index: 1;   /* above .flight-conn-svg */
 }
 .flight-empty {
   text-align: center;

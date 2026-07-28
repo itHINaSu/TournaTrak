@@ -373,7 +373,7 @@
       "t2type": "winner",
       "t2slot": "QF.R.4"
     },
-    "SF3.R.1": {
+    "SF.R.1": {
       "label": "Game 35",
       "time": "2026-08-01T19:30",
       "field": "Center",
@@ -382,7 +382,7 @@
       "t2type": "winner",
       "t2slot": "QF2.R.2"
     },
-    "SF3.R.2": {
+    "SF.R.2": {
       "label": "Game 36",
       "time": "2026-08-01T20:40",
       "field": "West",
@@ -391,32 +391,32 @@
       "t2type": "winner",
       "t2slot": "QF2.R.4"
     },
-    "SF.R.1": {
+    "SF3.R.1": {
       "label": "Game 37",
       "time": "2026-08-02T09:00",
       "field": "Center",
       "t1type": "loser",
       "t1slot": "QF2.L.2",
       "t2type": "winner",
-      "t2slot": "SF3.R.1"
+      "t2slot": "SF.R.1"
     },
-    "SF.R.2": {
+    "SF3.R.2": {
       "label": "Game 38",
       "time": "2026-08-02T10:10",
       "field": "Center",
       "t1type": "loser",
       "t1slot": "QF2.L.1",
       "t2type": "winner",
-      "t2slot": "SF3.R.2"
+      "t2slot": "SF.R.2"
     },
     "SF2.R.1": {
       "label": "Game 40",
       "time": "2026-08-02T11:20",
       "field": "Center",
       "t1type": "winner",
-      "t1slot": "SF.R.1",
+      "t1slot": "SF3.R.1",
       "t2type": "winner",
-      "t2slot": "SF.R.2"
+      "t2slot": "SF3.R.2"
     },
     "SF2.R.2": {
       "label": "Game 41",

@@ -1426,6 +1426,7 @@ function renderFlightBracket(root, tier) {
   });
   html += '</div>';
   root.innerHTML = html;
+  drawFlightConnectors(root, tier);
 
   // Cross-view jump hook (Team Path card tap) — same contract as the
   // desktop/mobile tree renderers install for their layouts.
@@ -1435,6 +1436,79 @@ function renderFlightBracket(root, tier) {
     card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     holdHighlight(card);
   };
+}
+
+// Connector lines for a flight (A/B) bracket.
+// The Open tree computes its lines from the slot grid (see connLines /
+// buildConnPcts) because every card's position is known in vh before render.
+// A flight is laid out by flexbox instead — column heights and card spacing
+// only exist after layout — so its lines are MEASURED from the rendered cards
+// and drawn into one absolutely-positioned overlay covering the whole
+// (horizontally scrollable) flight. Shape matches the tree: feeder stubs into
+// a vertical spine halfway across the gap, then one line into the consumer.
+// Only same-flight winner feeds get a line; a drop-in from the Open (or from
+// A into B) has no card on screen to draw from, exactly as the tree leaves
+// cross-bracket loser drops unlined.
+function drawFlightConnectors(root, tier) {
+  var wrap = root.querySelector('.flight-bracket');
+  if (!wrap) return;
+  var base = wrap.getBoundingClientRect();
+  // Card rects in the wrapper's SCROLL coordinate space, so the overlay stays
+  // registered with the cards when the flight is scrolled sideways.
+  function box(gid) {
+    var el = wrap.querySelector('.bc[data-gid="' + gid + '"]');
+    if (!el) return null;
+    var r = el.getBoundingClientRect();
+    if (!r.width && !r.height) return null;
+    return {
+      left:  r.left  - base.left + wrap.scrollLeft,
+      right: r.right - base.left + wrap.scrollLeft,
+      mid:   r.top   - base.top  + wrap.scrollTop + r.height / 2
+    };
+  }
+
+  var lw = 1.2, lc = 'var(--line-color)', parts = [];
+  function line(x1, y1, x2, y2) {
+    parts.push('<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '"'
+      + ' x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '"'
+      + ' stroke="' + lc + '" stroke-width="' + lw + '"/>');
+  }
+
+  Object.keys(GAMES).forEach(function(gid) {
+    var g = GAMES[gid];
+    if (g.tier !== tier) return;
+    var dst = box(gid);
+    if (!dst) return;
+    var srcs = [];
+    [g.t1, g.t2].forEach(function(sd) {
+      if (!sd || sd.type !== 'winner' || !sd.slot) return;
+      var fg = GAMES[sd.slot];
+      if (!fg || fg.tier !== tier) return;      // Open/other-flight drop-in
+      var b = box(sd.slot);
+      if (b && b.right <= dst.left) srcs.push(b);  // never draw backwards
+    });
+    if (!srcs.length) return;
+    var edge = Math.max.apply(null, srcs.map(function(b) { return b.right; }));
+    var mx = (edge + dst.left) / 2;
+    srcs.forEach(function(b) { line(b.right, b.mid, mx, b.mid); });
+    if (srcs.length >= 2) {
+      var tops = srcs.map(function(b) { return b.mid; });
+      line(mx, Math.min.apply(null, tops), mx, Math.max.apply(null, tops));
+    } else {
+      line(mx, srcs[0].mid, mx, dst.mid);
+    }
+    line(mx, dst.mid, dst.left, dst.mid);
+  });
+
+  if (!parts.length) return;
+  var w = wrap.scrollWidth, h = wrap.scrollHeight;
+  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'flight-conn-svg');
+  svg.setAttribute('width', w);
+  svg.setAttribute('height', h);
+  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  svg.innerHTML = parts.join('');
+  wrap.appendChild(svg);
 }
 
 // Show the Open/A/B pill row only for tiered tournaments; keep the active

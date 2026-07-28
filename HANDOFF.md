@@ -67,7 +67,31 @@ remaining build, since the two known-but-deferred data bugs below are both
 really symptoms of it), and API-level route tests. Nothing is known-broken
 in production as of 2026-07-15.
 
-**Shipped 2026-07-15 (this session)** — all on `main`:
+**Shipped 2026-07-28 (this session)** — on
+`claude/bracket-generation-missing-lines-tbbhro`:
+- ✅ **ISSA State losers bracket had no connector lines past LB round 3.**
+  `build-issa-state-2026.js` put LB round 4 (games 35/36) in `SF3.R` and LB
+  round 5 (37/38) in `SF.R` — but `ROUND_ORDER` is `… QF2, SF, SF3, SF2 …`,
+  so the renderer drew each feeder to the RIGHT of the game it feeds. Only
+  ADJACENT columns are wired by `buildConnPcts`, so the last three gaps on
+  the losers side rendered empty. Swapped to `35/36 → SF.R`, `37/38 → SF3.R`
+  (which is what `doubleElimSpecs` does for a generated bracket — the
+  generator was never wrong). All five LB gaps now draw.
+  The build script gained a **round-ordering check** that fails on exactly
+  this: no game may be fed from a later `ROUND_ORDER` round (same round is
+  fine only for a lower slot, e.g. the `SF2.R.1 → SF2.R.2` LB-final chain).
+  Tier games all live in R0, so they're checked by slot band instead.
+- ✅ **A/B flight brackets had no connector lines at all** — never a bug in
+  the data, `renderFlightBracket` just never drew any. The Open tree computes
+  lines from the slot grid in vh (`connLines`/`buildConnPcts`); a flight is
+  flexbox, so `drawFlightConnectors()` MEASURES the rendered cards and draws
+  one absolutely-positioned overlay (`.flight-conn-svg`) over the whole
+  flight, same elbow shape. Only same-flight winner feeds get a line — a drop
+  from the Open (or A→B) has no card on screen, exactly as the tree leaves
+  cross-bracket loser drops unlined. Mobile flights use the carousel, which
+  has no connectors on either bracket — unchanged.
+
+**Shipped 2026-07-15** — all on `main`:
 - ✅ **Zero-command install.** `docker compose up -d --build` is now the
   whole quickstart. No admin password is generated or printed anywhere:
   with no `ADMIN_PASSWORD_HASH` set, the instance boots with zero users,
@@ -335,6 +359,16 @@ looks like a renderer bug and isn't. Keep the paper's number in the card
 LABEL (that's what the TD reads) and map it to a tree-ordered slot.
 `build-issa-state-2026.js` does this with an explicit `SLOT` table and
 **fails the build** on any non-adjacent feeder pair; copy that check.
+
+**The other trap: round order ≠ paper round order.** Columns are laid out in
+`ROUND_ORDER` (`R0, R1, R2, QF, QF2, SF, SF3, SF2, CHAMP, CHAMP2`), and
+`buildConnPcts` only wires ADJACENT columns — so a game fed from a round that
+sits LATER in that list gets no connector line at all, and its feeder draws on
+the wrong side of it. A double-elim losers bracket needs `SF.R` for LB round
+N, `SF3.R` for N+1, `SF2.R` for the last two (that's the `doubleElimSpecs`
+layout) — `SF3` is round SIX despite the name reading like a third semifinal.
+The 2026 ISSA build had SF/SF3 swapped and lost its last three losers-side
+gaps; the round-ordering check added 2026-07-28 fails the build on it.
 
 Its other build-time checks, all worth keeping: `validateSchedule`, every
 feed resolving to a real game, no field double-booked at one time, every

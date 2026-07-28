@@ -28,8 +28,11 @@ const SLOT = {
   16: 'R2.R.1', 17: 'R2.R.2', 19: 'R2.R.3', 20: 'R2.R.4', 15: 'R2.R.5', 18: 'R2.R.6',
   21: 'QF.R.1', 22: 'QF.R.2', 23: 'QF.R.3', 24: 'QF.R.4',
   29: 'QF2.R.1', 30: 'QF2.R.2', 31: 'QF2.R.3', 32: 'QF2.R.4',
-  35: 'SF3.R.1', 36: 'SF3.R.2',
-  37: 'SF.R.1', 38: 'SF.R.2',
+  // Rounds must be assigned in ROUND_ORDER sequence (… QF2, SF, SF3, SF2 …):
+  // the renderer lays columns out in that order, so LB round 4 goes in SF,
+  // round 5 in SF3, and rounds 6/7 in SF2 — NOT paper order.
+  35: 'SF.R.1', 36: 'SF.R.2',
+  37: 'SF3.R.1', 38: 'SF3.R.2',
   40: 'SF2.R.1', 41: 'SF2.R.2',
   42: 'CHAMP.C.1', 43: 'CHAMP2.C.1',
   // A bracket (tier A, stored in R0.L). Bands: 1-16 / 17-24 / 25-28 / 29-30.
@@ -218,6 +221,35 @@ for (const g of Object.values(S)) {
     problems.push(`${g.label} feeders ${f[0].r}.${f[0].side}.${lo}/${hi} are not an adjacent pair`);
   }
 }
+// Round ordering: the desktop renderer lays columns out in ROUND_ORDER, so a
+// game must never be fed by a game in a LATER round than its own — that draws
+// the feeder to the RIGHT of its consumer and the gap between them carries no
+// connector line at all (buildConnPcts only pairs adjacent columns). Same
+// round is allowed (an LB final chained after the LB semi in SF2.R.1/2), as
+// long as the feeder holds the lower slot. Tier games all live in R0, so they
+// order by slot band instead — a same-tier feeder must sit in an earlier slot.
+const { ROUND_ORDER } = require(__dirname + '/../frontend/bracket-data.js');
+for (const [sid, g] of Object.entries(S)) {
+  const me = parse(sid);
+  for (const n of [1, 2]) {
+    const src = g['t' + n + 'slot'];
+    if (!src || !S[src]) continue;
+    const f = parse(src);
+    if (g.tier) {
+      // Within a flight, columns come from the slot band (see tierGameRound).
+      if (S[src].tier === g.tier && f.n >= me.n) {
+        problems.push(`${g.label} is fed by ${S[src].label} at a later slot (${src} → ${sid})`);
+      }
+      continue;
+    }
+    const fi = ROUND_ORDER.indexOf(f.r), mi = ROUND_ORDER.indexOf(me.r);
+    if (fi > mi || (fi === mi && f.side === me.side && f.n >= me.n)) {
+      problems.push(`${g.label} is fed by ${S[src].label}, which sits in a later `
+        + `round column (${src} → ${sid}) — no connector line can be drawn`);
+    }
+  }
+}
+
 const named = new Set();
 Object.values(S).forEach(g => { if (g.t1name) named.add(g.t1name); if (g.t2name) named.add(g.t2name); });
 TEAMS.forEach(t => { if (!named.has(t)) problems.push(`team never plays: ${t}`); });
