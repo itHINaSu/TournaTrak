@@ -112,7 +112,9 @@ email, placeholders only the owner can fill). Nothing is known-broken.
 
 **Shipped 2026-07-28 (this session)** — on
 `claude/bracket-generation-missing-lines-tbbhro`:
-- ✅ **Save the bracket as an image** ("Save image" on the Bracket tab).
+- ✅ **Save the bracket as an image** ("Save image" in the header, shown to
+  admin/results only — posting the bracket is a TD job, and a full-width row
+  above the bracket was far too loud for it).
   Renders whichever flight is on screen to a PNG for social posts and
   printing, with an option to omit scores and winners — that path re-renders
   against an EMPTY result set first, so it is a genuinely blank sheet rather
@@ -139,12 +141,24 @@ email, placeholders only the owner can fill). Nothing is known-broken.
   `.round-col` columns with `connLines()` in the gaps. A game with one
   in-flight feeder (an A game taking one team from an Open drop) hangs a
   quarter-gap below it, the same rule the losers bracket uses.
-- ✅ **Championship moved into the winners row** and enlarged, carrying the
-  whole finals story: both feeders spelled out plus a DUPLICATE of the
-  losers-bracket final, because "winner of G.41" is unreadable on a row that
-  doesn't contain G.41. Stacked rows now target one screen of height each,
-  and column width gained `MAX_COL_PX` so a few-round bracket on a wide
-  monitor stops inflating into a zoomed-in fragment.
+- ✅ **Championship moved into the winners row**, with the LOSERS FINAL
+  stood beside the winners final as its own dashed card (`.bc--dup`, captioned
+  with the losers-side label) rather than folded inside the championship
+  panel — so both visibly converge on the title game, connector lines and
+  all, the way a paper double-elim sheet reads. The championship card is
+  anchored to the midpoint of the two, reusing `.champ-anchor` /
+  `.champ-inner--above` from the side-by-side layout. Mobile already pulled
+  both finals into the championship column; they are now LABELLED there, so
+  three cards in a row say which bracket each came from.
+- ✅ **Each stacked half fits one screen.** The height budget is measured
+  from the BRACKET's own top, not from the header: the flight pills, delay
+  banner and project bar sit in between, and sizing against header+tabs
+  overshot by however tall those were. `MIN_CARD_STACKED_PX` (54) is a lower
+  floor than the side-by-side one — stacking exists to buy back WIDTH, so
+  height may compress further before a row stops fitting. Verified fitting
+  at 1080/900/800/760 viewport heights. Column width also gained
+  `MAX_COL_PX` so a few-round bracket on a wide monitor stops inflating into
+  a zoomed-in fragment.
 - ✅ **Standings can replace the Buckets tab.** New setting `fourthTab`:
   `buckets` (default, unchanged) / `standings` / `hidden`. The two share the
   fourth tab slot and only one is ever shown; both keep routable paths, and

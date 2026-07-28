@@ -2158,11 +2158,12 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 /* The championship sits INSIDE the winners row (its natural home — the
    losers row reads as the lower half of the sheet), centred vertically in
    that row and carrying the whole finals story. */
-/* One panel around the whole finals cluster, hugging its content. Running
-   the tint the full row height instead reads as a layout gap, not emphasis.
-   align-self centres it in the winners row; height:auto overrides the inline
-   row height the renderer sets for the tree columns. */
-.champ-center--stacked,
+/* Stacked: the championship column behaves like the side-by-side one — the
+   card is ANCHORED to the row its two feeders enter at (winners final above,
+   losers final below) with the trophy block floating over it, so the
+   connector lines land on the card instead of on a floating panel. */
+.champ-center--stacked { align-items: stretch; }
+/* Flights have a single feeder column, so their championship just centres. */
 .champ-center--flight {
   display: flex;
   flex-direction: column;
@@ -2176,15 +2177,26 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   border: 0.07em solid color-mix(in srgb, var(--gold) 18%, transparent);
   border-radius: var(--radius-md);
 }
-.champ-center--stacked .champ-inner,
-.champ-center--stacked .champ-bc,
-.champ-center--stacked .champ-winner,
-.champ-center--stacked .champ-feeders,
-.champ-center--stacked .champ-lbfinal,
-.champ-center--stacked .champ-center--ifnec,
 .champ-center--flight .champ-inner,
 .champ-center--flight .champ-bc,
 .champ-center--flight .champ-winner { width: 100%; }
+
+/* A card repeated from the other bracket (the losers final shown beside the
+   winners final). Dashed edge so it reads as a reference, not a second game,
+   with its source named above it. */
+.bc.bc--dup { border-style: dashed; }
+.bc-dup-cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  pointer-events: none;
+}
 /* Bigger than a round column: this is the thing a visitor looks for first. */
 .champ-center--stacked .champ-title { font-size: 0.92rem; letter-spacing: 0.2em; }
 .champ-center--stacked .champ-trophy { font-size: 2.6em; }
@@ -2252,7 +2264,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .team-path-win-label--loss { color: var(--lose-color); }
 
 /* ── Share bracket as an image ──────────────────────────────────────── */
-.bracket-share { display: flex; justify-content: center; margin: 0 0 0.4em; }
 .share-overlay {
   position: fixed;
   inset: 0;

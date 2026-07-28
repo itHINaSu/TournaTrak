@@ -622,6 +622,13 @@ var MIN_COL_PX = 150;                    // column width — names need the room
 // fragment rather than a bracket. Roughly the density of a 16-team single
 // elim, which is the familiar reference.
 var MAX_COL_PX = 215;
+// Card-height floor for the STACKED layout only. Stacking exists to buy back
+// column WIDTH, so the height may compress further than the side-by-side
+// floor before a row stops fitting one screen — ~18px per team row, tight
+// but legible, and it only bites on short viewports where the alternative
+// is scrolling a half. Below this the row scrolls instead: fitting a very
+// tall grid on a short screen would overcrowd it.
+var MIN_CARD_STACKED_PX = 54;
 
 /// slotTopVh: positions a card within its round column.
 // n = max(actual game count, highest slot number used) so slots spread evenly
@@ -809,11 +816,20 @@ function stackedDims(nL, nR, availVh, isDesktop, isMobile) {
   var gridH = gridHeight();
   // ONE screen per half — the point of stacking is that each bracket reads
   // as its own sheet, so a row is sized to the viewport and you scroll once
-  // to reach the other. Only the pixel floor overrides, and only when the
-  // grid is too tall to fit legibly.
-  var maxCardVh = (availVh / gridH) * CARD_RATIO;
+  // to reach the other.
+  //
+  // Measured from the BRACKET's own top, not from the header: the flight
+  // pills, the delay banner and the project bar all sit between the tabs and
+  // the bracket, and sizing against availVh (header + tabs only) overshot by
+  // however tall those happened to be — which is why a row could still run
+  // past the fold. The extra 5vh covers the column-header band and the
+  // stack's own padding.
+  var rootEl = document.getElementById('bracketRoot');
+  var topPx = rootEl ? Math.max(rootEl.getBoundingClientRect().top, 0) : 0;
+  var rowAvailVh = Math.max((window.innerHeight - topPx - 24) / vhPx - 5, 20);
+  var maxCardVh = (rowAvailVh / gridH) * CARD_RATIO;
   if (cardVh > maxCardVh) cardVh = maxCardVh;
-  var minCardVh = MIN_CARD_PX / vhPx;
+  var minCardVh = MIN_CARD_STACKED_PX / vhPx;
   if (cardVh < minCardVh) cardVh = minCardVh;
   var slotVh = cardVh / CARD_RATIO;
   return {
@@ -2092,13 +2108,21 @@ function renderDesktopBracket(root,dims){
   // LB game positions derived from feeder midpoints; WB uses slotTopVh directly.
   var lbPosMap = computeLBPositions(slotVh);
 
-  function sideHTML(side,label,isRight){
+  // extra: {gid, topVh, caption} — an additional card appended to the LAST
+  // column. The stacked layout uses it to stand the losers-bracket final
+  // beside the winners final so both visibly feed the championship.
+  function sideHTML(side,label,isRight,extra){
     var cols=buildSideColumns(side);
     var ordCols=isRight?cols.slice().reverse():cols;
     var html='';
     for(var ci=0;ci<ordCols.length;ci++){
       var col=ordCols[ci];
       var cardsHTML='';
+      if (extra && ci === ordCols.length - 1 && GAMES[extra.gid]) {
+        cardsHTML += '<div class="bc bc--dup" data-gid="' + esc(extra.gid) + '" data-css="top:' + extra.topVh + 'vh">'
+          + cardHTML(extra.gid) + '</div>'
+          + '<div class="bc-dup-cap" data-css="top:' + (extra.topVh - 1.9) + 'vh">' + esc(extra.caption) + '</div>';
+      }
       col.games.forEach(function(entry){
         // lbPosMap only ever holds R-side games, so it can be consulted
         // unconditionally — which keeps "where the cards sit" independent of
@@ -2220,66 +2244,67 @@ function renderDesktopBracket(root,dims){
   }
 
   if (dims.stacked) {
-    // The championship lives in the WINNERS row, not floating between the two
-    // brackets: that is where a visitor looks, and the losers row already
-    // reads as the lower half of the sheet. It carries the whole finals
-    // story — both feeders, so you can see WHO plays for it without hunting
-    // the losers bracket for its final.
-    //
-    // The losers-bracket final is DUPLICATED here on purpose. It is the one
-    // card whose absence makes the championship unreadable ("winner of G.41"
-    // means nothing on this row), and a tournament sheet repeats it for the
-    // same reason.
-    var lbFinalGid = null;
+    // ── Finals ────────────────────────────────────────────────────────
+    // The championship belongs in the WINNERS row (where a visitor looks),
+    // and it has to SHOW what feeds it. The losers-bracket final is stood
+    // beside the winners final as its own card — not folded inside the
+    // championship panel — so the two visibly converge on the title game,
+    // which is how a paper double-elim sheet reads.
+    var lbFinalGid = null, wbFinalTop = 3.5 * slotVh;
     if (champG) {
       [champG.t1, champG.t2].forEach(function(sd) {
         if (!sd || sd.type !== 'winner' || !sd.slot) return;
         var fg = GAMES[sd.slot];
-        if (fg && fg.side === 'R') lbFinalGid = sd.slot;
+        if (!fg) return;
+        var p = sd.slot.split('.');
+        if (fg.side === 'R') lbFinalGid = sd.slot;
+        else if (fg.side === 'L') wbFinalTop = slotTopVh(p[0], parseInt(p[2], 10), slotVh, 'L');
       });
     }
-    var feederHTML = '';
-    if (champG) {
-      feederHTML = '<div class="champ-feeders">'
-        + '<div class="champ-feed">'
-        +   '<div class="champ-feed-lbl">' + esc(getSetting('leftLabel')) + '</div>'
-        +   '<div class="champ-feed-team">' + esc(smartLabel(champG.t1, results)) + '</div>'
-        + '</div>'
-        + '<div class="champ-feed-vs">vs</div>'
-        + '<div class="champ-feed">'
-        +   '<div class="champ-feed-lbl">' + esc(getSetting('rightLabel')) + '</div>'
-        +   '<div class="champ-feed-team">' + esc(smartLabel(champG.t2, results)) + '</div>'
-        + '</div>'
-        + '</div>';
-    }
-    var lbFinalHTML = lbFinalGid
-      ? '<div class="champ-lbfinal">'
-        + '<div class="champ-lbfinal-lbl">' + esc(getSetting('rightLabel')) + ' Final</div>'
-        + '<div class="bc bc--static" data-gid="' + esc(lbFinalGid) + '" data-css="height:' + cardVh + 'vh">'
-        + cardHTML(lbFinalGid) + '</div>'
-        + '<div class="champ-lbfinal-note">Its winner advances to the Championship</div>'
-        + '</div>'
-      : '';
+    // Two rows below the winners final: clear of it, still obviously paired.
+    var lbFinalTop = Math.min(wbFinalTop + slotVh * 2, totalVh - slotVh * CARD_RATIO);
+    var champTop = lbFinalGid ? (wbFinalTop + lbFinalTop) / 2 : wbFinalTop;
+    var cardMid = slotVh * CARD_RATIO / 2;
+
     var champStack = champG
-      ? '<div class="champ-inner">'
-        + '<div class="champ-trophy">' + trophySVG() + '</div>'
-        + '<div class="champ-title">Championship</div>'
-        + '<div class="champ-gametime">' + esc(formatTime(champG.time)) + '</div>'
+      ? '<div class="champ-anchor" data-css="top:' + champTop + 'vh">'
+        + '<div class="champ-inner champ-inner--above">'
+        +   '<div class="champ-trophy">' + trophySVG() + '</div>'
+        +   '<div class="champ-title">Championship</div>'
+        +   '<div class="champ-gametime">' + esc(formatTime(champG.time)) + '</div>'
         + '</div>'
         + '<div class="champ-bc" data-css="height:' + cardVh + 'vh"><div class="bc bc--static" data-gid="CHAMP.C.1" data-css="height:' + cardVh + 'vh">' + cardHTML('CHAMP.C.1') + '</div></div>'
         + (showChampWinner ? '<div class="champ-winner">' + esc(cr.winner) + '</div>' : '')
-        + feederHTML
-        + lbFinalHTML
         + ifNecHTML
+        + '</div>'
       : '<div class="champ-inner u-dim30">'
         + '<div class="champ-trophy">' + trophySVG() + '</div>'
         + '<div class="champ-title">Championship</div>'
         + '</div>';
+
+    // Both finals wired into the title game, drawn in the gap between the
+    // winners row's last column and the championship column.
+    var finalConns = [];
+    if (champG) {
+      finalConns.push({ srcPct: (wbFinalTop + cardMid) / totalVh * 100,
+                        dstPct: (champTop + cardMid) / totalVh * 100 });
+      if (lbFinalGid) finalConns.push({ srcPct: (lbFinalTop + cardMid) / totalVh * 100,
+                                        dstPct: (champTop + cardMid) / totalVh * 100 });
+    }
+
+    var extra = lbFinalGid
+      ? { gid: lbFinalGid, topVh: lbFinalTop,
+          caption: (getSetting('rightLabel') || 'Loser\u2019s Bracket') + ' Final' }
+      : null;
+
     root.innerHTML = '<div class="bcc-stack">'
       + '<div class="bcc-stack-rows">'
       +   '<div class="bcc-stack-row">'
-      +     sideHTML('L', getSetting('leftLabel'), false)
-      +     '<div class="champ-center--desktop champ-center--stacked" data-css="width:' + (champVw - 1.6) + 'vw;margin-top:' + hdrVh + 'vh">'
+      +     sideHTML('L', getSetting('leftLabel'), false, extra)
+      +     '<div class="u-relative" data-css="flex-shrink:0;width:' + gapVw + 'vw;height:' + totalVh + 'vh;margin-top:' + hdrVh + 'vh">'
+      +       connLines(finalConns, gapVw, totalVh, lc, false)
+      +     '</div>'
+      +     '<div class="champ-center--desktop champ-center--stacked u-relative" data-css="width:' + (champVw - 1.6) + 'vw;height:' + totalVh + 'vh;margin-top:' + hdrVh + 'vh">'
       +       champStack
       +     '</div>'
       +   '</div>'
@@ -2554,6 +2579,13 @@ function renderMobileBracket(root, dims) {
     cols.forEach(function(c, i) { if (c.round === 'CHAMP') champIdx = i; });
     cols[champIdx].gids = [pulled[0], champGid, pulled[1]];
     cols[champIdx].titleGid = champGid;
+    // Name both finals. Three unlabelled cards in one column don't say which
+    // bracket each came from, which is the whole point of pulling them here:
+    // the winners final and the losers final feed the title game.
+    cols[champIdx].divs = [
+      { idx: 0, label: (getSetting('leftLabel') || 'Winners') + ' Final' },
+      { idx: 2, label: (getSetting('rightLabel') || 'Losers') + ' Final' },
+    ];
   })();
 
   renderMobileColumns(root, cols);
@@ -4418,6 +4450,11 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
   if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));
   if (projectBtn)     projectBtn.hidden = !((_sessionRole === 'admin'));
+  // Saving the bracket image is a tournament-director job (posting to the
+  // league page), so it sits with the other staff controls in the header
+  // rather than taking a full-width row above the bracket.
+  var shareBtn = document.getElementById('shareImageBtn');
+  if (shareBtn) shareBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
   // PWA home preference: redirect to admin if user prefers it and is in standalone mode
   if (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) {
     var pref; try { pref = localStorage.getItem('ttPwaHome'); } catch(e) {}

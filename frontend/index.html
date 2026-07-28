@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.16">
-<link rel="stylesheet" href="/bracket.css?v=3.16">
-<script src="/app-h.js?v=3.16"></script>
+<link rel="stylesheet" href="/base.css?v=3.17">
+<link rel="stylesheet" href="/bracket.css?v=3.17">
+<script src="/app-h.js?v=3.17"></script>
 </head>
 <body>
 
@@ -24,6 +24,7 @@
   </div>
   <div class="header-controls">
     <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
+    <button class="admin-public-btn" id="shareImageBtn" hidden data-action="openShareImage" title="Save the bracket as an image">Save image</button>
     <button class="admin-public-btn" id="bracketEditBtn" hidden data-action="toggleBracketEdit">Edit</button>
     <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
     <a href="/lineup" class="admin-public-btn" id="lineupPortalBtn" hidden>Lineup →</a>
@@ -95,10 +96,6 @@
     <button class="flight-pill active" data-action="setFlight" data-arg="open">Open</button>
     <button class="flight-pill" data-action="setFlight" data-arg="A">A Bracket</button>
     <button class="flight-pill" data-action="setFlight" data-arg="B">B Bracket</button>
-  </div>
-  <!-- Share the bracket as a static image (social posts, printing) -->
-  <div class="bracket-share" id="bracketShare">
-    <button class="flight-pill" data-action="openShareImage">Save image</button>
   </div>
   <div class="share-overlay" id="shareOverlay" hidden>
     <div class="share-box">
@@ -176,10 +173,10 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.16"></script>
-<script src="/tt-common.js?v=3.16"></script>
-<script src="/bracket-data.js?v=3.16"></script>
-<script src="/bracket.js?v=3.16"></script>
-<script src="/sw-register.js?v=3.16" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.17"></script>
+<script src="/tt-common.js?v=3.17"></script>
+<script src="/bracket-data.js?v=3.17"></script>
+<script src="/bracket.js?v=3.17"></script>
+<script src="/sw-register.js?v=3.17" data-sw="/sw.js"></script>
 </body>
 </html>
