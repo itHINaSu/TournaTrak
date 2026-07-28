@@ -18,10 +18,19 @@
 //
 // File shape:
 //   {
+//     "format":    "round-robin",            // optional; see below
 //     "settings":  { ... },                  // optional; merged via POST /settings
 //     "teams":     { "showSeeds": false, "teams": [{"name": "..."}] },  // optional
 //     "schedule":  { "R1.L.2": { label, time, t1name|t1type+t1slot, ... } }
 //   }
+//
+// "format" declares which format the transcribed schedule IS, for the
+// behaviours that hang off it (schedule-first formats render no bracket tree
+// and lead with the Schedule tab; standings only apply to those). Omit it for
+// an ordinary hand-wired bracket — the import then CLEARS any format left
+// over from whatever ran in this tournament before, which is the point:
+// without that step, importing over a round robin left the Bracket tab
+// refusing to draw the bracket it had just been given.
 //
 // Existing results/live scores for the replaced schedule are cleared first
 // (same behavior as generating from the Builder), so stale scores from a
@@ -113,7 +122,23 @@ const REPLACE = process.argv.includes('--replace');
     console.log('teams imported:', (data.teams.teams || []).length);
   }
 
-  // 5. Settings (optional; POST /settings merges over existing)
+  // 5. Format provenance. `settings.format` records which format produced the
+  // schedule that is stored, and the public page hangs real behaviour off it:
+  // a schedule-first format (round robin, pools, Swiss) renders NO bracket
+  // tree and lands on the Schedule tab. Importing over one of those left the
+  // stale value behind — the Bracket tab said "this format plays out on the
+  // schedule" with a perfectly good bracket sitting behind it. An import
+  // replaces the whole schedule, so it always resets this, to `data.format`
+  // when the file declares one (a transcribed round robin would) and to
+  // nothing otherwise, which is what a hand-wired bracket is.
+  // Sent BEFORE /settings so an explicit setting in the file still wins.
+  await req('POST', api.replace(BASE, '') + '/schedule/format', {
+    format: data.format || '',
+    teamCount: (data.teams && data.teams.teams) ? data.teams.teams.length : 0,
+  });
+  console.log('format set to:', data.format ? data.format : '(hand-wired — no generator format)');
+
+  // 6. Settings (optional; POST /settings merges over existing)
   if (data.settings) {
     await req('POST', api.replace(BASE, '') + '/settings', data.settings);
     console.log('settings applied:', Object.keys(data.settings).join(', '));

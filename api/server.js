@@ -1305,6 +1305,62 @@ api.get('/schedule/formats', requireAdmin, (req, res) => {
   }));
 });
 
+// ── Format provenance ─────────────────────────────────────────────────
+// `settings.format` records WHICH format produced the schedule that is
+// currently stored, and several behaviours hang off it: whether the public
+// page renders a bracket tree or leads with the Schedule tab, whether a
+// standings table applies, and whether "pair next round" is allowed. So it
+// belongs to the schedule, and any route that REPLACES the schedule has to
+// reset it — a stale value is not cosmetic. Importing a hand-wired bracket
+// into a tournament that previously ran a round robin left the public
+// Bracket tab saying "this format plays out on the schedule" with a
+// perfectly good bracket sitting behind it, and left `swiss-next-round`
+// armed on a schedule it knew nothing about.
+//
+// `format` may be '' for a hand-wired schedule that no generator produced:
+// every consumer treats an unknown format as "an ordinary bracket", which is
+// the right default.
+async function applyFormatProvenance(tid, format, teamCount) {
+  const fmt = FORMATS[format];
+  const settings = await store.get(tid, 'settings');
+  if (format) settings.format = format; else delete settings.format;
+  // Formats with a true two-bracket split name the sides (WB/LB,
+  // championship/consolation). Single-elim leaves labels alone — its two
+  // sides are just bracket halves.
+  if (fmt && fmt.sideLabels) {
+    settings.leftLabel = fmt.sideLabels[0];
+    settings.rightLabel = fmt.sideLabels[1];
+  }
+  // Swiss round count belongs to a Swiss schedule and nothing else.
+  if (fmt && fmt.swiss) settings.swissRounds = String(swissRounds(teamCount || 0));
+  else delete settings.swissRounds;
+  // Schedule-first formats (round robin, pools) land the public page on the
+  // Schedule tab, where a topology-free schedule actually reads.
+  if (fmt && fmt.scheduleFirst) {
+    settings.defaultTab = 'schedule';
+    settings.defaultTabScope = 'both';
+  } else if (settings.defaultTab === 'schedule') {
+    // A previous schedule-first tournament set the landing tab; anything with
+    // a bracket should land on the bracket again.
+    delete settings.defaultTab;
+    delete settings.defaultTabScope;
+  }
+  await store.put(tid, 'settings', settings);
+  invalidateIndexCache(tid);
+}
+
+// Declare which format the CURRENT schedule came from — or none, for a
+// hand-wired one. `scripts/import-schedule.js` calls this after pushing a
+// transcribed bracket; the generator applies the same reset inline.
+api.post('/schedule/format', requireAdmin, ah(async (req, res) => {
+  const { format, teamCount } = req.body || {};
+  const f = format == null ? '' : String(format);
+  if (f && !FORMATS[f]) return res.status(400).json({ error: 'unknown format: ' + f });
+  const n = parseInt(teamCount, 10);
+  await applyFormatProvenance(req.tid, f, isNaN(n) ? 0 : n);
+  res.json({ ok: true, format: f });
+}));
+
 // Generate a full bracket schedule from a format + teams and REPLACE the
 // current schedule. Destructive — the UI confirms before calling this.
 api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
@@ -1331,35 +1387,7 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
   await store.put(req.tid, 'live', {});
   await store.put(req.tid, 'offsets', {});
 
-  // Format-driven settings defaults: formats with a true two-bracket split
-  // name the sides (WB/LB, championship/consolation); schedule-first formats
-  // (round robin, pools) land the public page on the Schedule tab, where a
-  // topology-free schedule actually reads. Single-elim leaves labels alone —
-  // its two sides are just bracket halves.
-  const fmt = FORMATS[format];
-  {
-    const settings = await store.get(req.tid, 'settings');
-    // Persist which format generated this schedule — the public page uses it
-    // to decide whether a standings table applies (round robin / pools).
-    settings.format = format;
-    if (fmt && fmt.swiss) settings.swissRounds = String(swissRounds((req.body.teams || []).length));
-    else delete settings.swissRounds;
-    if (fmt.sideLabels) {
-      settings.leftLabel = fmt.sideLabels[0];
-      settings.rightLabel = fmt.sideLabels[1];
-    }
-    if (fmt.scheduleFirst) {
-      settings.defaultTab = 'schedule';
-      settings.defaultTabScope = 'both';
-    } else if (settings.defaultTab === 'schedule') {
-      // A previous schedule-first tournament (round robin/pools) set the
-      // landing tab; a bracket format should land on the bracket again.
-      delete settings.defaultTab;
-      delete settings.defaultTabScope;
-    }
-    await store.put(req.tid, 'settings', settings);
-    invalidateIndexCache(req.tid);
-  }
+  await applyFormatProvenance(req.tid, format, (req.body.teams || []).length);
 
   // If the TD opted into seeded display, record the seeded team order.
   // Partial seeding also records how many teams were actually seeded, so the

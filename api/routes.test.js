@@ -165,6 +165,7 @@ describe('auth guards', () => {
       ['POST', '/api/schedule/generate', { format: 'single-elim', teams: ['a', 'b', 'c', 'd'] }],
       ['POST', '/api/schedule/swap', { slotA: 'R1.L.1', slotB: 'R1.L.2' }],
       ['POST', '/api/schedule/layout', { rows: { 'R1.L.1': 0.5 } }],
+      ['POST', '/api/schedule/format', { format: '' }],
       ['POST', '/api/schedule/unpin', {}],
     ];
     for (const [method, url, body] of calls) {
@@ -244,6 +245,51 @@ describe('schedule contract', () => {
   rtest('generate rejects an unknown format', async () => {
     const a = await loginAdmin();
     const r = await a.post('/api/schedule/generate', { format: 'nonsense', teams: ['a', 'b'] });
+    assert.equal(r.status, 400);
+  });
+
+  // settings.format says which format produced the schedule that is CURRENTLY
+  // stored, and the public page renders no bracket tree for a schedule-first
+  // one. Replacing the schedule without resetting it left a hand-wired bracket
+  // behind a "this format plays out on the schedule" message.
+  rtest('declaring a format clears what the last one left behind', async () => {
+    const a = await loginAdmin();
+    // Run a round robin first: schedule-first, so it sets the landing tab.
+    await a.post('/api/schedule/generate', {
+      format: 'round-robin', startDate: '2026-09-01', seedMode: 'order',
+      teams: ['A', 'B', 'C', 'D', 'E', 'F'],
+    });
+    let s = (await a.get('/api/settings')).json;
+    assert.equal(s.format, 'round-robin');
+    assert.equal(s.defaultTab, 'schedule', 'schedule-first format lands on Schedule');
+
+    // Now import a hand-wired bracket over it and declare no format.
+    await a.post('/api/schedule', MINI);
+    const r = await a.post('/api/schedule/format', { format: '' });
+    assert.equal(r.status, 200);
+    s = (await a.get('/api/settings')).json;
+    // `format` has no entry in SETTINGS_DEFAULTS, so cleared reads as absent;
+    // `defaultTab` does, so cleared reads as its default — the bracket.
+    assert.equal(s.format, undefined, 'stale format cleared');
+    assert.equal(s.defaultTab, 'bracket', 'landing tab handed back to the bracket');
+  });
+
+  rtest('declaring swiss sets its round count, and leaving it clears it', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule/format', { format: 'swiss', teamCount: 8 });
+    let s = (await a.get('/api/settings')).json;
+    assert.equal(s.format, 'swiss');
+    assert.ok(parseInt(s.swissRounds, 10) > 0, 'swissRounds set');
+    // swissRounds belongs to a Swiss schedule and nothing else.
+    await a.post('/api/schedule/format', { format: 'double-elim' });
+    s = (await a.get('/api/settings')).json;
+    assert.equal(s.swissRounds, undefined, 'swissRounds cleared with the format');
+    assert.equal(s.leftLabel, 'Winners Bracket', 'side labels follow the format');
+  });
+
+  rtest('an unknown format is rejected rather than stored', async () => {
+    const a = await loginAdmin();
+    const r = await a.post('/api/schedule/format', { format: 'nonsense' });
     assert.equal(r.status, 400);
   });
 
