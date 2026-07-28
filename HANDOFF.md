@@ -112,6 +112,39 @@ email, placeholders only the owner can fill). Nothing is known-broken.
 
 **Shipped 2026-07-28 (this session)** — on
 `claude/bracket-generation-missing-lines-tbbhro`:
+- ✅ **Save the bracket as an image** ("Save image" on the Bracket tab).
+  Renders whichever flight is on screen to a PNG for social posts and
+  printing, with an option to omit scores and winners — that path re-renders
+  against an EMPTY result set first, so it is a genuinely blank sheet rather
+  than a dimmed one, then restores. The image is PAINTED FROM THE LIVE DOM
+  (`paintEl` walks the rendered tree drawing boxes, borders, wrapped text,
+  the connector SVGs and the trophy) rather than re-deriving geometry: one
+  layout implementation, and the image always matches the screen. html2canvas
+  would do the same job but the CSP forbids third-party script.
+- ✅ **PWA icon was silently unusable.** The baker started at 128px and
+  halved, so a tightly cropped or small logo produced a 128/256px tile —
+  and **Chrome ignores a manifest icon under 192×192**, so the installed app
+  fell back to a generated icon and the tournament's logo was never used.
+  Candidates now start at 512 and never drop below 192 (the smallest ships
+  even if it overruns the byte cap — slightly too large still works, under
+  192 does not), and the manifest route refuses to advertise an undersized
+  icon, covering tiles stored before the fix. Fit's padding went 2% → 6%:
+  trimming the transparent margin was the real fix for "the art is too
+  small", but 2% left nothing for the rounded corners launchers apply.
+- ✅ **A/B flights rebuilt on the main tree's geometry.** They were a
+  flexbox column-of-cards with connectors measured off the rendered DOM, so
+  cards spread evenly instead of sitting on the tree and the lines wandered.
+  A flight is just a small single-elim bracket, so it now uses the same
+  markup and math — absolutely positioned cards on a slot grid in
+  `.round-col` columns with `connLines()` in the gaps. A game with one
+  in-flight feeder (an A game taking one team from an Open drop) hangs a
+  quarter-gap below it, the same rule the losers bracket uses.
+- ✅ **Championship moved into the winners row** and enlarged, carrying the
+  whole finals story: both feeders spelled out plus a DUPLICATE of the
+  losers-bracket final, because "winner of G.41" is unreadable on a row that
+  doesn't contain G.41. Stacked rows now target one screen of height each,
+  and column width gained `MAX_COL_PX` so a few-round bracket on a wide
+  monitor stops inflating into a zoomed-in fragment.
 - ✅ **Standings can replace the Buckets tab.** New setting `fourthTab`:
   `buckets` (default, unchanged) / `standings` / `hidden`. The two share the
   fourth tab slot and only one is ever shown; both keep routable paths, and

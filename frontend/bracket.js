@@ -1766,7 +1766,49 @@ function paintEl(ctx, el, base) {
     ctx.restore();
     return;   // trophy/tab icons are decorative; skip their paths
   }
-  if (el.tagName === 'svg') { ctx.restore(); return; }
+  if (el.tagName === 'svg') {
+    // Decorative vector art (the trophy). Map the viewBox onto the element's
+    // box and replay the shapes — a shared image without the trophy over the
+    // championship looks unfinished.
+    var vb = (el.getAttribute('viewBox') || '').split(/[\s,]+/).map(Number);
+    if (vb.length === 4 && vb[2] && vb[3] && r.width && r.height) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(r.width / vb[2], r.height / vb[3]);
+      ctx.translate(-vb[0], -vb[1]);
+      var shapes = el.querySelectorAll('path, line, rect, circle, polyline');
+      for (var si = 0; si < shapes.length; si++) {
+        var sh = shapes[si], scs = window.getComputedStyle(sh);
+        var path;
+        if (sh.tagName === 'path') { try { path = new Path2D(sh.getAttribute('d')); } catch (e) { continue; } }
+        else {
+          path = new Path2D();
+          if (sh.tagName === 'line') {
+            path.moveTo(+sh.getAttribute('x1'), +sh.getAttribute('y1'));
+            path.lineTo(+sh.getAttribute('x2'), +sh.getAttribute('y2'));
+          } else if (sh.tagName === 'rect') {
+            path.rect(+sh.getAttribute('x') || 0, +sh.getAttribute('y') || 0,
+                      +sh.getAttribute('width') || 0, +sh.getAttribute('height') || 0);
+          } else if (sh.tagName === 'circle') {
+            path.arc(+sh.getAttribute('cx') || 0, +sh.getAttribute('cy') || 0,
+                     +sh.getAttribute('r') || 0, 0, Math.PI * 2);
+          } else continue;
+        }
+        var fill = sh.getAttribute('fill') || scs.fill;
+        if (fill && fill !== 'none') { ctx.fillStyle = fill; ctx.fill(path); }
+        var stroke = sh.getAttribute('stroke') || scs.stroke;
+        if (stroke && stroke !== 'none') {
+          ctx.strokeStyle = stroke;
+          ctx.lineWidth = parseFloat(sh.getAttribute('stroke-width')) || 1;
+          ctx.lineCap = sh.getAttribute('stroke-linecap') || 'butt';
+          ctx.stroke(path);
+        }
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+    return;
+  }
 
   var txt = directText(el);
   if (txt) {
@@ -1780,23 +1822,39 @@ function paintEl(ctx, el, base) {
     var tx = ctx.textAlign === 'center' ? x + r.width / 2
            : ctx.textAlign === 'right' ? x + r.width - pr
            : x + pl;
-    // Elements here hold a single line; clip to the box so a long team name
-    // can't bleed into the next column.
+    // Wrap to the element's content width. The DOM wraps these strings (a
+    // long team name in a narrow column, the championship's feeder labels),
+    // and drawing them as one line instead overflows and collides with
+    // whatever sits alongside.
+    var maxW = Math.max(r.width - pl - pr, 1);
+    var lineH = parseFloat(cs.lineHeight);
+    if (!lineH || isNaN(lineH)) lineH = parseFloat(cs.fontSize) * 1.3;
+    var words = txt.split(/\s+/), lines = [], cur = '';
+    for (var wi = 0; wi < words.length; wi++) {
+      var trial = cur ? cur + ' ' + words[wi] : words[wi];
+      if (cur && ctx.measureText(trial).width > maxW) { lines.push(cur); cur = words[wi]; }
+      else cur = trial;
+    }
+    if (cur) lines.push(cur);
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, Math.max(r.width, 1), Math.max(r.height, 1));
     ctx.clip();
-    ctx.fillText(txt, tx, y + r.height / 2);
-    ctx.restore();
-    if (cs.textDecorationLine && cs.textDecorationLine.indexOf('line-through') !== -1) {
-      var m = ctx.measureText(txt);
+    var startY = y + r.height / 2 - (lines.length - 1) * lineH / 2;
+    var strike = cs.textDecorationLine && cs.textDecorationLine.indexOf('line-through') !== -1;
+    lines.forEach(function(line, li) {
+      var ly = startY + li * lineH;
+      ctx.fillText(line, tx, ly);
+      if (!strike) return;
+      var m = ctx.measureText(line);
       ctx.strokeStyle = cs.color;
       ctx.lineWidth = Math.max(1, parseFloat(cs.fontSize) * 0.06);
       ctx.beginPath();
-      ctx.moveTo(tx - (ctx.textAlign === 'center' ? m.width / 2 : 0), y + r.height / 2);
-      ctx.lineTo(tx + (ctx.textAlign === 'center' ? m.width / 2 : m.width), y + r.height / 2);
+      ctx.moveTo(tx - (ctx.textAlign === 'center' ? m.width / 2 : 0), ly);
+      ctx.lineTo(tx + (ctx.textAlign === 'center' ? m.width / 2 : m.width), ly);
       ctx.stroke();
-    }
+    });
+    ctx.restore();
   }
 
   for (var i = 0; i < el.children.length; i++) paintEl(ctx, el.children[i], base);
