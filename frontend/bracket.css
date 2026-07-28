@@ -815,6 +815,16 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   border-top-color: var(--blue);
   opacity: 0.28;
 }
+/* Level with a winner feeder. The default hang is a quarter-gap, which is off
+   the half-step grid, so this is the only way to put a card exactly on its
+   feeder's line — worth calling out as its own kind of row. */
+.bc-drop-row--align {
+  left: 0;
+  right: 0;
+  border-top-style: solid;
+  border-top-color: var(--gold);
+  opacity: 0.45;
+}
 .bc-drop-row.bc-drop-target {
   opacity: 1;
   border-top-color: var(--blue);
@@ -826,6 +836,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
    The class is on <body> so it reaches every column in one toggle. */
 body.bc-drag-active .bc-drop-row          { opacity: 0.75; }
 body.bc-drag-active .bc-drop-row--cascade { opacity: 0.85; border-top-width: 3px; }
+body.bc-drag-active .bc-drop-row--align   { opacity: 0.95; border-top-width: 3px; }
 body.bc-drag-active .bc-drop-row.bc-drop-target { opacity: 1; }
 /* The footprint the dragged card would occupy, centred on the hovered row.
    Sized in px by initBracketDrag from the card being dragged. */

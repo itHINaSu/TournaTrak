@@ -49,7 +49,15 @@ const ROUND_LABELS = {
 // the result is identical to ROUND_LABELS (no change for existing brackets).
 // NOTE: intended for the public bracket, which renders only populated rounds.
 // The admin editor shows every defined round and keeps the static labels.
-function roundLabel(round) {
+// `side` (optional): number the rounds populated on THAT side only. The
+// losers bracket cannot start at R1 — its first games are fed by winners-round
+// losers — so counting rounds across both sides labels the first losers column
+// "Round 2" even though it sits in the same column as winners Round 1 and
+// contains no winner-fed game at all. Numbering each side from its own first
+// populated round is how a paper double-elim sheet reads: Losers Round 1 under
+// Winners Round 1. Omit `side` for anything spanning both (the Schedule tab
+// groups a round's games together regardless of side).
+function roundLabel(round, side) {
   // A TD's custom name always wins, even over the automatic CHAMP2 '3rd
   // Place' relabel below.
   var custom = (typeof getSetting === 'function') ? getSetting('roundName' + round) : '';
@@ -67,7 +75,8 @@ function roundLabel(round) {
     if (r === 'CHAMP' || r === 'CHAMP2') continue;
     // Tiered A/B games are stored in R0 but aren't part of the tree —
     // they must not create or shift bracket round numbers.
-    const has = Object.keys(GAMES).some(g => GAMES[g].round === r && !GAMES[g].tier);
+    const has = Object.keys(GAMES).some(g => GAMES[g].round === r && !GAMES[g].tier
+      && (!side || GAMES[g].side === side));
     if (has) n++;
     if (r === round) return has ? 'Round ' + n : (ROUND_LABELS[round] || round);
   }

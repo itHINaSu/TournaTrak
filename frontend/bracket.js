@@ -1579,7 +1579,7 @@ function computeLBPositions(slotVh) {
 // `prevTops` — the midpoints of the previous column's ADJACENT card pairs,
 // extended at the same spacing to fill the height — are marked so the natural
 // bracket rows still read as the natural bracket rows.
-function editGhostRows(slotVh, gridH, prevTops, fullRows) {
+function editGhostRows(slotVh, gridH, prevTops, fullRows, alignTops) {
   var cardH = slotVh * CARD_RATIO;
   var totalVh = gridH * slotVh;
   var rowsH = Math.max(gridH, fullRows || 0);
@@ -1610,24 +1610,61 @@ function editGhostRows(slotVh, gridH, prevTops, fullRows) {
     // it — whole columns came back with no cascade rows marked at all.
     rows.push({ topVh: t, cascade: !!cascade[key(t)] });
   }
+
+  // Rows level with a WINNER feeder. A game fed by one winner and one
+  // dropping-in loser hangs a quarter-gap below that feeder by default — the
+  // hang reads as "someone arrived from the other bracket" and keeps a
+  // column evenly staggered — but a quarter-gap is off the half-step grid, so
+  // without these there is no way to drag the card back to exactly level.
+  // Only winner feeders get one: aligning to a loser feeder is the thing the
+  // layout is deliberately NOT doing.
+  (alignTops || []).forEach(function(t) {
+    if (t < 0 || t > totalVh - cardH + 0.001) return;
+    if (rows.some(function(r) { return Math.abs(r.topVh - t) < step * 0.25; })) return;
+    rows.push({ topVh: t, cascade: true, align: true });
+  });
+  rows.sort(function(a, b) { return a.topVh - b.topVh; });
   return rows;
+}
+
+// Heights of the feeder-column cards that feed THIS column by WINNER — the
+// positions a card in this column would sit at if it were aligned to its
+// feeder rather than hung a quarter-gap below it. Loser feeds are excluded on
+// purpose: a drop-in from the other bracket is not an advancing line, and
+// aligning to it is exactly what the layout avoids.
+function winnerFeederTops(col, feedCol, feedTops) {
+  if (!col || !feedCol || !feedTops) return [];
+  var out = [];
+  col.games.forEach(function(entry) {
+    var g = GAMES[entry.gid];
+    if (!g) return;
+    [g.t1, g.t2].forEach(function(s) {
+      if (!s || s.type !== 'winner' || !s.slot) return;
+      for (var i = 0; i < feedCol.games.length; i++) {
+        if (feedCol.games[i].gid === s.slot && feedTops[i] !== undefined) { out.push(feedTops[i]); break; }
+      }
+    });
+  });
+  return out;
 }
 
 // Drop rows for one column, minus the ones a card is already sitting on.
 // Shared by the main tree and the A/B flights so Edit behaves identically in
 // both. The row's fraction travels on the element; a drop reads it straight
 // back, so what you aim at is exactly where the card lands.
-function editGhostHTML(colTops, feederTops, slotVh, gridH, fullRows) {
+function editGhostHTML(colTops, feederTops, slotVh, gridH, fullRows, alignTops) {
   var cardH = slotVh * CARD_RATIO;
   var out = '';
-  editGhostRows(slotVh, gridH, feederTops, fullRows).forEach(function(r) {
+  editGhostRows(slotVh, gridH, feederTops, fullRows, alignTops).forEach(function(r) {
     // Rows a card physically covers are unreachable — the card is painted on
     // top and takes the pointer first — so they would only be noise.
     var taken = colTops.some(function(t) { return Math.abs(t - r.topVh) < cardH * 0.5; });
     if (taken) return;
     var row = layoutRowFromTop(r.topVh, slotVh, gridH);
     out += '<div class="bc-drop-row' + (r.cascade ? ' bc-drop-row--cascade' : '')
-      + '" data-row="' + row.toFixed(5) + '" data-css="top:' + (r.topVh + cardH / 2) + 'vh"></div>';
+      + (r.align ? ' bc-drop-row--align' : '')
+      + '"' + (r.align ? ' title="Level with the feeding game"' : '')
+      + ' data-row="' + row.toFixed(5) + '" data-css="top:' + (r.topVh + cardH / 2) + 'vh"></div>';
   });
   return out;
 }
@@ -2600,10 +2637,12 @@ function renderDesktopBracket(root,dims){
         cardsHTML+='<div class="bc'+pinCls+'" data-gid="'+esc(entry.gid)+'"'+rowAttr+' data-css="top:'+colTops[gi]+'vh">'+cardHTML(entry.gid)+'</div>';
       });
       if (_bracketEditMode) {
-        cardsHTML += editGhostHTML(colTops, topsByCol[isRight?ci+1:ci-1], slotVh, gridH, fullBracketRows());
+        var fi = isRight ? ci + 1 : ci - 1;
+        cardsHTML += editGhostHTML(colTops, topsByCol[fi], slotVh, gridH, fullBracketRows(),
+                                   winnerFeederTops(col, ordCols[fi], topsByCol[fi]));
       }
       html+='<div class="round-col" data-css="width:'+colVw+'vw;height:'+totalVh+'vh">'
-        +'<div class="round-col-hdr">'+roundLabel(col.round)+'</div>'+cardsHTML+'</div>';
+        +'<div class="round-col-hdr">'+roundLabel(col.round, col.side)+'</div>'+cardsHTML+'</div>';
       if(ci<ordCols.length-1){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
@@ -2950,9 +2989,11 @@ function renderMobileBracket(root, dims) {
 
     if (!hasWB && cols.length > 0) {
       // Absorb into the previous column under a "Loser's Bracket" divider.
+      // This branch runs only for an LB-ONLY round, so number it on the
+      // losers side — matching the desktop column headers.
       var prev = cols[cols.length - 1];
-      prev.divs.push({ idx: prev.gids.length, label: roundLabel(round), type: 'absorbed' });
-      prev.label = prev.label + ' · ' + roundLabel(round);
+      prev.divs.push({ idx: prev.gids.length, label: roundLabel(round, 'R'), type: 'absorbed' });
+      prev.label = prev.label + ' · ' + roundLabel(round, 'R');
       gids.forEach(function(gid) { prev.gids.push(gid); });
       return;
     }
@@ -3325,7 +3366,13 @@ function renderMobileColumns(root, cols) {
         if (!slot || slot.type === 'fixed') return;
         var srcGid = slot.slot;
         if (srcGid && colOfGid[srcGid] === ri - 1 && earlyY[srcGid] !== undefined) {
-          feeders.push(earlyY[srcGid]);
+          // A card converges on a feeder only when it is fed by that game's
+          // WINNER. A loser dropping down is not an advancing line — pulling
+          // the card onto the WB game it fell out of dragged LB cards across
+          // the column and reordered them against their own bracket. The drop
+          // still ANCHORS the card (it is genuinely fed from the left, so it
+          // must stay visible — see hideInLate); it just doesn't move it.
+          if (slot.type === 'winner') feeders.push(earlyY[srcGid]);
           anchored[gid] = true;
         } else if (srcGid && colOfGid[srcGid] === ri) {
           // Feeder shares this column (combined/absorbed round). No converging
