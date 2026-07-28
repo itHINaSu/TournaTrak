@@ -4352,15 +4352,33 @@ function champBannerHTML(crowned) {
     + '</div>';
 }
 
+// Games already drawn in THIS team-path render. The page is assembled from
+// overlapping chains — the hypothetical win path, then a "Loss to …" section
+// per drop, then those sections' own drops recursively — and the same game
+// legitimately belongs to several of them. Drawing it once per membership
+// produced the same card two or three times over. Reset per render by
+// renderTeamViewInner.
+var _tpSeen = {};
+
 // entryGid (optional): for lose paths, the game whose LOSER feeds chain[0] —
 // lets the projection identify the team's slot in the first LB game.
+// Returns '' when every game in the chain has already been drawn, so callers
+// can drop the section heading with it rather than leaving a bare label.
 function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
   var GREEN = 'var(--win-color)';
+
+  chain = chain.filter(function(gid) { return !_tpSeen[gid]; });
+  if (!chain.length) return '';
 
   var html = '';
 
   for (var i = 0; i < chain.length; i++) {
     var gid = chain[i];
+    // Mark on DRAW, not up front: the loop breaks early at a loss and at the
+    // championship banner, so pre-marking the whole chain claimed games that
+    // were never rendered and no later section could pick them up. That is
+    // how a WB finalist's if-necessary final went missing.
+    _tpSeen[gid] = true;
     var g = GAMES[gid], r = results[gid] || {};
     var teamWon  = r.winner === team;
     var teamLost = r.loser  === team;
@@ -4545,6 +4563,7 @@ function renderTeamView(){
 
 function renderTeamViewInner(realResults){
   var team=teamSel.value, out=document.getElementById('teamOut');
+  _tpSeen = {};
   if(!team){
     var teamNames = [];
     Object.values(GAMES).forEach(function(g){
@@ -4576,10 +4595,24 @@ function renderTeamViewInner(realResults){
     return;
   }
 
+  // Where the team ENTERS the tournament — not merely the first slot in
+  // iteration order that happens to resolve to it. A/B flights are stored in
+  // round R0, and R0 sorts FIRST in ROUND_ORDER, so for any team that dropped
+  // into a flight the old scan started the path at its A-bracket game and
+  // every Open game it had already played simply vanished from the page.
+  // A team is seeded into the bracket at a FIXED slot, so that is its entry;
+  // the resolved scan stays as a fallback for a schedule that names nobody.
   var firstGid=null;
   occupiedSlots().forEach(function(sid){
     if(firstGid) return;
-    if(GAMES[sid].bye) return;   // a bye isn't a real game in the team's path
+    var g=GAMES[sid];
+    if(g.bye) return;            // a bye isn't a real game in the team's path
+    if((g.t1&&g.t1.type==='fixed'&&g.t1.team===team)||
+       (g.t2&&g.t2.type==='fixed'&&g.t2.team===team)) firstGid=sid;
+  });
+  occupiedSlots().forEach(function(sid){
+    if(firstGid) return;
+    if(GAMES[sid].bye) return;
     if(resolveSlot(GAMES[sid].t1,results)===team||resolveSlot(GAMES[sid].t2,results)===team)
       firstGid=sid;
   });
@@ -4680,10 +4713,17 @@ function renderTeamViewInner(realResults){
       if (ln && !_dropRendered[gid]) {
         _dropRendered[gid] = true;
         var opp = lossOppLabel(gid, i > 0 ? chain[i - 1] : null, i === 0 ? entryGid : null);
-        out += '<div class="team-path-divider"></div>';
-        out += '<div class="team-path-label lose-label" id="tp-lose-' + esc(gid) + '">Loss to ' + esc(opp) + '</div>';
-        out += makeVerticalChain(buildWinChain(ln), team, true, true, gid);
-        out += subLossSections(buildWinChain(ln), gid);
+        // Build the body FIRST: if every game in this branch was already
+        // drawn under an earlier section, emitting the heading would leave a
+        // "Loss to …" banner with nothing under it. Order matters — the
+        // continuation must claim its games before its own sub-drops run.
+        var body = makeVerticalChain(buildWinChain(ln), team, true, true, gid);
+        var subs = subLossSections(buildWinChain(ln), gid);
+        if (body || subs) {
+          out += '<div class="team-path-divider"></div>';
+          out += '<div class="team-path-label lose-label" id="tp-lose-' + esc(gid) + '">Loss to ' + esc(opp) + '</div>';
+          out += body + subs;
+        }
       }
       if (teamLostHere) stopped = true;   // real path continues only via this drop
     });
@@ -4721,25 +4761,53 @@ function renderTeamViewInner(realResults){
     } else {
       if(!played||teamLostHere){
         _dropRendered[gid] = true;
-        html+='<div class="team-path-divider"></div>';
-        html+='<div class="team-path-label lose-label" id="tp-lose-'+esc(gid)+'">Loss to '+esc(lossOppLabel(gid, i > 0 ? winChain[i-1] : null, null))+'</div>';
-        // Show the game that put the team on the lose path, then a LOSS connector.
-        // This makes the lose path section self-contained with full context.
-        if(teamLostHere){
-          html+=makeVerticalChain([gid],team,false);
-          html+='<div class="team-path-connector">'
-            +'<div class="team-path-connector-track">'
-            +'<div class="team-path-connector-line lose"></div>'
-            +'</div>'
-            +'<span class="team-path-win-label team-path-win-label--loss">LOSS</span>'
-            +'</div>';
+        // The game that put the team on this path is usually ALREADY on the
+        // page — it is the last card of the Win path above. Re-rendering it
+        // here for "self-contained context" is where the duplicate cards came
+        // from. makeVerticalChain returns '' for an already-drawn game, so
+        // the repeat and its LOSS connector both fall away; when the loss WAS
+        // the team's first game there is no Win path section and the card
+        // legitimately renders here instead.
+        var lossCard = teamLostHere ? makeVerticalChain([gid],team,false) : '';
+        var cont = makeVerticalChain(buildWinChain(ln),team,true,true,gid);
+        var subs = subLossSections(buildWinChain(ln),gid);
+        if(lossCard||cont||subs){
+          html+='<div class="team-path-divider"></div>';
+          html+='<div class="team-path-label lose-label" id="tp-lose-'+esc(gid)+'">Loss to '+esc(lossOppLabel(gid, i > 0 ? winChain[i-1] : null, null))+'</div>';
+          if(lossCard){
+            html+=lossCard;
+            html+='<div class="team-path-connector">'
+              +'<div class="team-path-connector-track">'
+              +'<div class="team-path-connector-line lose"></div>'
+              +'</div>'
+              +'<span class="team-path-win-label team-path-win-label--loss">LOSS</span>'
+              +'</div>';
+          }
+          html+=cont+subs;
         }
-        html+=makeVerticalChain(buildWinChain(ln),team,true,true,gid);
-        html+=subLossSections(buildWinChain(ln),gid);
         if(teamLostHere) teamEliminated=true;
       }
     }
   });
+
+  // Backstop: a game the team actually PLAYED must appear, whatever the
+  // topology. The sections above walk the bracket structurally — win chain,
+  // then a branch per drop — and a structure they don't anticipate silently
+  // loses games. The if-necessary final was one: the win chain stops at CHAMP
+  // to print the champion banner, so a WB finalist who lost CHAMP and played
+  // CHAMP2 never saw it. Rather than special-case each topology, sweep for
+  // anything with a real result that no section claimed and show it. An empty
+  // sweep is the normal case — this only fires where the walk fell short.
+  var strays = Object.keys(GAMES).filter(function(gid){
+    if(_tpSeen[gid]||GAMES[gid].bye) return false;
+    var r=realResults[gid];
+    return !!r && (r.winner===team||r.loser===team);
+  }).sort(function(a,b){ return parseTimeVal(GAMES[a].time)-parseTimeVal(GAMES[b].time); });
+  if(strays.length){
+    html+='<div class="team-path-divider"></div>';
+    html+='<div class="team-path-label lose-label">Also played</div>';
+    strays.forEach(function(gid){ html+=makeVerticalChain([gid],team,false); });
+  }
 
   out.innerHTML=html;
   syncLoseSideWidths();
@@ -4760,7 +4828,17 @@ function renderTeamViewInner(realResults){
       if(!e.target.closest) return;
       var box=e.target.closest('[data-lose-anchor]');
       if(box){
-        var target=document.getElementById(box.getAttribute('data-lose-anchor'));
+        var anchor=box.getAttribute('data-lose-anchor');
+        var target=document.getElementById(anchor);
+        // A section whose games were all drawn under an earlier heading is
+        // dropped rather than left as a bare banner, so its anchor can be
+        // absent. The games themselves are still on the page — jump to the
+        // continuation card instead of doing nothing.
+        if(!target){
+          var srcGid=anchor.replace(/^tp-lose-/,'');
+          var contGid=findNextSlot(srcGid,'loser');
+          target=contGid&&out.querySelector('[data-jump-gid="'+contGid.replace(/"/g,'\\"')+'"]');
+        }
         if(!target) return;
         // Land the "Loss to ..." banner at the top of the visible area.
         // Mobile: .team-panel is the scroll container (no sticky chrome
