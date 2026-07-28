@@ -59,16 +59,48 @@ side.
 Consolidated to-do list; each item points at the detailed section. Ordered
 roughly by priority / by what the owner has been driving.
 
-**If you're picking this up cold, the live open items are:** the two owner
-decisions (item 2's successor questions are settled, but item 5 leaked
-secrets and item 11 mobile round-combining both need the owner), the
-editor "bracket health check" (item under Feature ideas — the highest-value
-remaining build, since the two known-but-deferred data bugs below are both
-really symptoms of it), and API-level route tests. Nothing is known-broken
-in production as of 2026-07-15.
+**If you're picking this up cold (updated 2026-07-28):** the build items on
+this list are DONE — health check, route tests, standings tiebreakers, CSV
+export, undo, Swiss byes. What remains needs the OWNER, not a session:
+item 5 (leaked secrets in git history — rotate the token, decide on branch
+cleanup), item 11 (mobile round-combining — needs the desired behaviour
+confirmed before building), and item 10 (sales-site demo URL + contact
+email, placeholders only the owner can fill). Nothing is known-broken.
 
 **Shipped 2026-07-28 (this session)** — on
 `claude/bracket-generation-missing-lines-tbbhro`:
+- ✅ **Stale admin assets — the cause of two "broken feature" reports.** The
+  admin pages are deliberately NOT service-worker cached (admin-sw.js is
+  network-only), but nginx sent NO cache headers for `.css`/`.js`, so
+  browsers applied HEURISTIC caching and served a fresh `admin.html` against
+  a stale `admin.js`. New markup driving old handlers fails in ways that look
+  like the feature is broken: picking "Crop" fell through to Fit (old JS only
+  knew fit/fill) and just toasted "press Save", and the favicon input did
+  nothing (no `pickFavicon` in the old TT_ACTIONS). Now `Cache-Control:
+  no-cache` on css/js/map, AND `?v=3.08` stamps on the admin/builder/score/
+  lineup pages' own asset URLs so a browser already holding a stale copy
+  picks the fix up without waiting for an nginx redeploy. **Bump that stamp
+  alongside `sw.js` CACHE whenever admin-side JS/CSS changes.**
+- ✅ **Branding saves 413'd once fully populated.** POST /theme-colors now
+  carries logo + app icon + icon source + tab icon + tab icon source — about
+  1.4 MB of data URI at the per-field caps, over BOTH `express.json`'s 1mb
+  limit and nginx's 1m `client_max_body_size` default. Both are 2mb now;
+  a route test asserts a five-field payload is accepted. If you add another
+  branding field, check that budget again.
+- ✅ **Custom crop replaces the app icon's auto-crop**, and the **tab icon
+  has the same crop editor**. One implementation driven by `CROP_TARGETS`
+  in admin.js (state accessor, element ids, what to re-bake). Crop rects are
+  stored in SOURCE-image units (`x`/`y` fractions of width/height, `s` the
+  square's side as a fraction of the shorter edge) so they survive a
+  re-encode or a resize. A null rect bakes centred — which is exactly what
+  the retired `fill` mode produced, so stored `fill` styles migrate to
+  `crop` with byte-identical output (server still accepts `fill` from older
+  clients). Each icon keeps its own upload (`iconSrc` / `faviconSrc`) so the
+  crop can be changed later without re-uploading.
+- ✅ **Uploadable favicon** (`theme_colors.favicon`), served at
+  `/tab-icon.png` and linked from the built index.html; per-tournament, so
+  `/t/:slug` pages get their own. This supersedes the earlier "the tab
+  always shows the gold trophy" decision — owner request.
 - ✅ **ISSA State losers bracket had no connector lines past LB round 3.**
   `build-issa-state-2026.js` put LB round 4 (games 35/36) in `SF3.R` and LB
   round 5 (37/38) in `SF.R` — but `ROUND_ORDER` is `… QF2, SF, SF3, SF2 …`,
@@ -90,6 +122,48 @@ in production as of 2026-07-15.
   from the Open (or A→B) has no card on screen, exactly as the tree leaves
   cross-bracket loser drops unlined. Mobile flights use the carousel, which
   has no connectors on either bracket — unchanged.
+- ✅ **LB final rendered above its own feeder.** The championship-row pin in
+  `computeLBPositions` is absolute, so when the LB semi's natural position
+  landed below it, the overlap sweep pushed the semi DOWN past the final —
+  the final read as being played before its own semifinal.
+  `seatChainAbove()` now walks the same-column chain from the pinned game and
+  stacks each feeder a card above it.
+- ✅ **Bracket health check** (the handoff's highest-value remaining build,
+  and it subsumes both known-but-deferred data bugs). `scheduleHealth()` in
+  bracket-data.js runs over the RAW schedule — `applySchedule` has already
+  discarded exactly the entries worth warning about — and reports incomplete
+  games, dangling feeds, self-feeds, double-consumed feeds (the
+  `_nextSlotMap` last-write-wins case) and later-column feeds (the class of
+  error behind the missing connector lines). Rendered above both schedule
+  editors.
+- ✅ **API-level route tests** — `api/routes.test.js`, 33 tests: auth guards
+  on every mutating route, schedule/results/settings/branding/undo
+  contracts, ETag 304s, live-cleared-on-final, and the empty-score
+  regression the handoff names as the reason this layer needed coverage.
+  The suite CREATES AND DROPS ITS OWN scratch database and skips cleanly
+  when Postgres isn't reachable, so `node --test` is green anywhere.
+  `server.js` gained `PORT` support for it.
+- ✅ **Standings tiebreakers** — documented order: record, head-to-head,
+  head-to-head run differential, overall differential, fewest runs allowed,
+  runs scored, name. Only the TIED GROUP is considered, so an unrelated
+  blowout can't buy position. Printed under every standings table.
+  `rankStandings` lives in bracket-data.js so node can test it
+  (`api/standings.test.js`, 12 tests).
+- ✅ **CSV export** — `/api/export/games.csv` (game log, team names resolved
+  through results) and `/api/export/teams.csv` (per-team record in tiebreak
+  order). Buttons in Settings → Export; scoped through `adminApiBase()`.
+- ✅ **One-step undo** for the two destructive writes (bracket regenerate,
+  whole-schedule save). `snapshotForUndo` stores schedule/results/live/
+  offsets/settings in a new `undo` config domain before the write; the
+  Schedule tab offers to restore it. Deliberately one step with no redo —
+  restoring consumes the snapshot. `config_domain_check` is refreshed every
+  boot the same way `users_role_check` is, so older databases accept it.
+- ✅ **Swiss odd team counts.** `generateSwiss` accepts odd fields (lowest
+  seed sits out round 1); `pairSwissRound` rotates the bye to the
+  lowest-ranked team that hasn't had one, credits it as a win for pairing,
+  and doesn't block on a result that will never come. Standings count it
+  without letting "BYE" into the table. Verified by 6 tests that run whole
+  Swiss events at every field size 4–32.
 
 **Shipped 2026-07-15** — all on `main`:
 - ✅ **Zero-command install.** `docker compose up -d --build` is now the
@@ -164,31 +238,21 @@ in production as of 2026-07-15.
 - ✅ **`parseInt` radix** added to all remaining radix-less calls (cosmetic).
 
 **Known-but-deferred (found in the same review; NOT bugs that misbehave today)**
-- ⬜ **`applySchedule` silently drops half-configured games** (bracket-data.js
-  ~L261: skips entries missing a label or either team). A game saved in the
-  editor with only one side wired vanishes from the public bracket with no
-  warning. Fix is really the "bracket health" feature below (editor-side
-  warning), not a runtime change to applySchedule.
-- ⬜ **`_nextSlotMap` is last-write-wins** (bracket-data.js ~L287): if two
-  games consume the same feed (`loser of X`) — only reachable by hand-wiring
-  — one edge is silently lost, skewing isEliminated / Team Path. Generated
-  brackets never do this; the editor should warn (see health check).
+- ✅ **`applySchedule` silently drops half-configured games** — the runtime
+  behaviour is right and unchanged, but the editor now WARNS instead of
+  losing the game in silence: `scheduleHealth` flags any entry missing a
+  label or a team. Done 2026-07-28.
+- ✅ **`_nextSlotMap` is last-write-wins** — likewise now surfaced as a
+  health-check error naming both consumers. Done 2026-07-28.
 
 **Feature ideas (from the 2026-07-10 review — owner to prioritize)**
-- ⬜ **Bracket "health check" in the editor.** Surface dangling feeds,
-  incomplete games (the applySchedule drop above), and double-consumed
-  feeds as warnings before a TD publishes. Detection logic already exists
-  scattered across the resolvers — this is a presentation layer.
-- ⬜ **RR / pools standings tiebreakers.** Standings sort by W-L then run
-  diff; add head-to-head and a documented tiebreak order (what TDs ask for).
-- ⬜ **CSV / "final results" export** for post-tournament reporting (print
-  stylesheet already exists; this is the data-export sibling).
-- ⬜ **Undo for destructive admin actions** (regenerate, clear-all) — a
-  one-step snapshot/undo, since these wipe results behind only a confirm.
-- ⬜ **API-level integration tests** for the route layer (auth guards, the
-  results/settings/schedule contracts). The generators have strong
-  property-based coverage; the routes have none — which is where the
-  empty-score bug above hid.
+- ✅ Bracket "health check" in the editor — done 2026-07-28.
+- ✅ RR / pools standings tiebreakers — done 2026-07-28.
+- ✅ CSV / "final results" export — done 2026-07-28.
+- ✅ Undo for destructive admin actions — done 2026-07-28. NOTE: there is no
+  "clear all results" action in the app; undo covers the two writes that do
+  destroy work, bracket regenerate and whole-schedule save.
+- ✅ API-level integration tests — done 2026-07-28 (api/routes.test.js).
 
 **Shipped 2026-07-07 (this session, all on the buildout branch / PR #15)**
 Beyond item 1 below (byes): public Schedule flight sub-tabs; schedule-editor
@@ -303,10 +367,11 @@ Swiss odd-counts/byes, 17–20-team pools.
    missing element + null-guards, but the duplication remains). Any new
    builder field must be added to BOTH files. Worth extracting to one shared
    fragment/template.
-4. ⬜ **Deferred format ideas** (lower priority): Swiss ✅ DONE 2026-07-08
-   (even counts 4–32; odd-count byes still open), 17–20 team pools (a pool
-   of 5 needs a second slot column), round-robin STANDINGS table (public
-   view; results are per-game today). See "Bracket format repository" tail.
+4. ⬜ **Deferred format ideas** (lower priority): Swiss ✅ FULLY DONE —
+   even counts 2026-07-08, odd-count byes 2026-07-28. Round-robin standings
+   table ✅ done (with tiebreakers, 2026-07-28). STILL OPEN: 17–20 team
+   pools (a pool of 5 needs a second slot column). See "Bracket format
+   repository" tail.
 
 **Security** (see "Security items" for detail)
 5. ⬜ **Leaked secrets in git history** — `files/users.json` (commit 9960403,
@@ -732,9 +797,11 @@ BracketHQ/youth-TD sheets offer):
     + 9 Playwright checks (tiered-16 = 39 games, tree shows exactly the 31
     Open cards with intact round numbers + WB/LB side labels, By-Round A/B
     groups, a 0-2 team's path continuing into A, isEliminated false at 0-2).
-- Swiss deliberately skipped: pairings depend on live standings each round,
-  which a static schedule topology can't express. Round-robin STANDINGS
-  table (public view) is a natural follow-up; results are per-game today.
+- Swiss: pairings depend on live standings, so only round 1 is generated and
+  the admin's "Pair next round" draws each later round. Odd fields give one
+  team a bye per round — counts as a win, goes to the lowest-ranked team
+  that hasn't had one (generateSwiss / pairSwissRound). The public standings
+  table exists, with a documented tiebreak order (see rankStandings).
 - SW bumped to v2.66 (bracket.js + bracket-data.js precached).
 
 ## Coach passwords (optional, alongside magic links)
@@ -766,8 +833,23 @@ See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `inde
 
 ## Current state
 `main` at `ef3c5e5` (2026-07-15) holds everything below plus the
-2026-07-15 shipped list at the top. SW cache version lives in
-`frontend/sw.js` — read it there. Phase 0 evaluation is in `EVALUATION.md`.
+2026-07-15 shipped list at the top. The 2026-07-28 work is on
+`claude/bracket-generation-missing-lines-tbbhro`, not yet merged.
+SW cache version lives in `frontend/sw.js` — read it there, and keep the
+`?v=` stamps on the admin pages' asset URLs in step with it. Phase 0
+evaluation is in `EVALUATION.md`.
+
+## Tests
+`cd api && node --test` — 60 tests, no arguments, no fixtures to set up.
+- `schedule-formats.test.js` — generators, simulated to completion under
+  random result sequences at every format × count. Includes full Swiss
+  events (round-by-round pairing) for every field 4–32.
+- `routes.test.js` — the HTTP layer over a REAL server. Creates and drops
+  its own scratch database, so it never touches dev data; SKIPS (doesn't
+  fail) when Postgres isn't reachable or the role can't CREATE DATABASE.
+  Needs PG* env vars pointing at a cluster to actually run.
+- `standings.test.js` — the documented tiebreak order.
+Run the suite after ANY generator, route, or standings change.
 
 Deployed by the owner via Docker Compose on their own box (`~/TournaTrak_dev`,
 nginx on host port 3019). A second isolated instance is just another clone
