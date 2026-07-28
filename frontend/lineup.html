@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Team Lineup</title>
+<link rel="icon" href="/icons/trophy-192.png" type="image/png">
+<link rel="stylesheet" href="/fonts.css">
+<link rel="stylesheet" href="/base.css?v=3.11">
+<link rel="stylesheet" href="/admin.css?v=3.11">
+<link rel="stylesheet" href="/lineup.css?v=3.11">
+<script src="/app-h.js?v=3.11"></script>
+</head>
+<body>
+
+<header class="site-header" id="siteHeader">
+  <div class="header-name-block">
+    <h1 id="siteName">Team Lineup</h1>
+  </div>
+  <div class="header-controls">
+    <button class="admin-public-btn" id="coachAccountBtn" hidden data-action="openCoachPw">Password</button>
+    <button class="theme-toggle" id="themeToggle">☀ Light</button>
+  </div>
+</header>
+
+<nav id="lineupNav" hidden></nav>
+
+<div id="lineupInvalid" hidden class="lineup-state">
+  <div class="lineup-state-icon">🔗</div>
+  <div class="lineup-state-title" id="lineupInvalidTitle">Link Invalid or Expired</div>
+  <div class="lineup-state-body" id="lineupInvalidBody">This access link is no longer valid. Contact your tournament administrator for a new link — or sign in below if you've set a password.</div>
+</div>
+
+<!-- Coach password login — shown alongside the invalid/unauthenticated state
+     so coaches who set a password aren't dependent on their magic link. -->
+<div id="coachLoginWrap" hidden class="lineup-state">
+  <form id="coachLoginForm" class="login-box" class="u-mx-auto">
+    <div class="login-title">Coach Sign In</div>
+    <div class="sched-field">
+      <label>Username</label>
+      <input type="text" id="coachLoginUser" autocomplete="username" placeholder="Username">
+    </div>
+    <div class="sched-field">
+      <label>Password</label>
+      <input type="password" id="coachLoginPass" autocomplete="current-password" placeholder="Password">
+    </div>
+    <div class="login-error" id="coachLoginError"></div>
+    <button type="submit" id="coachLoginBtn" class="sched-save-btn login-btn">Sign In</button>
+  </form>
+</div>
+
+<!-- Set/change password modal (coaches, standalone page only) -->
+<div id="coachPwOverlay" class="lineup-modal-overlay" hidden data-action="closeCoachPw">
+  <div class="lineup-modal">
+    <div class="lineup-modal-title" id="coachPwTitle">Set a Password</div>
+    <div class="lineup-modal-body">
+      <div class="lineup-modal-label" id="coachPwDesc">Optional — lets you sign in with a username and password if you lose your access link.</div>
+      <form id="coachPwForm">
+        <div class="sched-field">
+          <label>New Password</label>
+          <input type="password" id="coachPwNew1" autocomplete="new-password" placeholder="At least 8 characters">
+        </div>
+        <div class="sched-field">
+          <label>Confirm Password</label>
+          <input type="password" id="coachPwNew2" autocomplete="new-password" placeholder="Confirm password">
+        </div>
+        <div class="login-error" id="coachPwError"></div>
+      </form>
+    </div>
+    <div class="lineup-modal-footer">
+      <button class="lineup-tool-btn" data-action="saveCoachPw" id="coachPwSaveBtn">Save Password</button>
+      <button class="lineup-tool-btn lineup-tool-btn--cancel" data-action="closeCoachPw">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="lineupLoading" class="lineup-state">
+  <div class="lineup-state-body">Loading…</div>
+</div>
+
+<div id="lineupContent" hidden class="lineup-wrap">
+  <div class="lineup-team-header">
+    <div class="lineup-team-label">Team</div>
+    <div id="lineupTeamName" class="lineup-team-name"></div>
+  </div>
+
+  <!-- Two-column selector row: team (left) + game (right) -->
+  <div id="lineupSelectorsRow" class="lineup-selectors-row" hidden>
+    <div class="lineup-game-info lineup-sel-half">
+      <select id="lineupTeamSel" class="lineup-game-sel"></select>
+    </div>
+    <div class="lineup-game-info lineup-sel-half" id="lineupGameInfo">
+      <span class="lineup-game-sel-placeholder" id="lineupGamePlaceholder">Select a team first</span>
+      <select id="lineupGameSelect" class="lineup-game-sel" hidden></select>
+    </div>
+  </div>
+
+  <div id="lineupReadOnlyBadge" hidden class="lineup-readonly-badge">
+    View Only — Game Complete
+  </div>
+
+  <div id="lineupNoGame" hidden class="lineup-no-game">
+    No upcoming games scheduled for your team.
+  </div>
+
+  <!-- Import modal -->
+  <div id="lineupImportOverlay" class="lineup-modal-overlay" hidden data-action="closeImport">
+    <div class="lineup-modal">
+      <div class="lineup-modal-title">Import Lineup</div>
+      <div class="lineup-modal-body">
+        <div class="lineup-modal-label">Copy lineup from:</div>
+        <select id="lineupImportSel" class="lineup-modal-sel"></select>
+      </div>
+      <div class="lineup-modal-footer">
+        <button class="lineup-tool-btn" data-action="confirmImport">Import</button>
+        <button class="lineup-tool-btn lineup-tool-btn--cancel" data-action="closeImport">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="lineup-form-wrap">
+    <div class="lineup-tools" id="lineupTools" hidden>
+      <button class="lineup-tool-btn lineup-tool-btn--import" id="lineupImportBtn" data-action="openImport">Import Lineup</button>
+      <button class="lineup-tool-btn lineup-tool-btn--right lineup-tool-btn--reorder" id="lineupReorderBtn" data-action="toggleReorder">Reorder</button>
+    </div>
+    <table class="lineup-table">
+      <thead>
+        <!-- Rendered by renderLineupHead() to match the tournament's lineup preset -->
+        <tr id="lineupHead">
+          <th class="lineup-th lineup-th--order"></th>
+          <th class="lineup-th lineup-th--num">#</th>
+          <th class="lineup-th lineup-th--name">Player Name</th>
+          <th class="lineup-th lineup-th--pos">Position</th>
+        </tr>
+      </thead>
+      <tbody id="lineupBody"></tbody>
+    </table>
+    <div class="lineup-actions">
+      <button class="lineup-submit-btn" id="lineupSubmitBtn" data-action="submitLineup">Save Lineup</button>
+      <button class="lineup-sub-add-btn" id="lineupAddSubBtn" data-action="addSubRow" hidden>Add Subs</button>
+      <button class="lineup-sub-del-btn" id="lineupDelSubBtn" data-action="deleteSubRow" hidden>Delete Sub</button>
+      <span class="lineup-status" id="lineupStatus"></span>
+    </div>
+  </div>
+</div>
+
+<script src="/settings-defaults.js?v=3.11"></script>
+<script src="/tt-common.js?v=3.11"></script>
+<script src="/bracket-data.js?v=3.11"></script>
+<script src="/lineup.js?v=3.11"></script>
+</body>
+</html>

@@ -2121,17 +2121,72 @@ function centerCrop(w, h) {
   return { x: (w - side) / (2 * w), y: (h - side) / (2 * h), s: 1 };
 }
 
-// Resolve a stored crop to a pixel rect on a w×h image, clamped so a crop
-// saved against a different encode of the same art can never read outside
-// the bitmap.
+// Largest square that CONTAINS the whole image — the other end of the range
+// from centerCrop. On a wide logo this is the "letterbox it, don't cut it"
+// setting: the parts of the square hanging off the top and bottom bake as
+// background rather than forcing the sides to be cropped away.
+function containCropS(w, h) { return Math.max(w, h) / Math.min(w, h); }
+
+// Resolve a stored crop to a pixel rect on a w×h image.
+//
+// The square is deliberately ALLOWED to extend past the edges: that is what
+// lets a rectangular logo be framed with empty pixels instead of trimmed.
+// Only two things are constrained — the side stays within a usable range,
+// and the square's CENTRE stays on the image, so it can never be dragged
+// somewhere that bakes to nothing.
 function cropRect(crop, w, h) {
   var c = crop || centerCrop(w, h);
-  var side = Math.min(w, h) * Math.min(1, Math.max(0.05, c.s));
-  return {
-    x: Math.min(Math.max(0, c.x * w), w - side),
-    y: Math.min(Math.max(0, c.y * h), h - side),
-    side: side
-  };
+  var short = Math.min(w, h);
+  var side = short * Math.min(cropMaxS(w, h), Math.max(0.05, c.s));
+  var cx = Math.min(Math.max(c.x * w + side / 2, 0), w);
+  var cy = Math.min(Math.max(c.y * h + side / 2, 0), h);
+  return { x: cx - side / 2, y: cy - side / 2, side: side };
+}
+
+// A little past "contains the whole image", so there is room to add breathing
+// space around a logo rather than only just enclosing it.
+function cropMaxS(w, h) { return containCropS(w, h) * 1.25; }
+
+// Bounding box of the non-transparent pixels. A logo exported from a design
+// tool usually carries its own transparent margin; fitting the FULL bitmap
+// then renders the art much smaller than the tile it is sitting on. Sampled
+// at reduced resolution — this is a margin measurement, not a trace.
+// Returns null when the image is fully opaque or fully transparent, or when
+// the pixels can't be read; callers fall back to the full bitmap.
+function opaqueBounds(img) {
+  var W = Math.min(img.width, 400) || 1;
+  var H = Math.max(1, Math.round(img.height * W / img.width));
+  var canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  var ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, 0, 0, W, H);
+  var d;
+  try { d = ctx.getImageData(0, 0, W, H).data; } catch (e) { return null; }
+  var minX = W, minY = H, maxX = -1, maxY = -1;
+  for (var y = 0; y < H; y++) {
+    for (var x = 0; x < W; x++) {
+      if (d[(y * W + x) * 4 + 3] <= 8) continue;   // effectively transparent
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+  }
+  if (maxX < 0) return null;                        // nothing opaque at all
+  var sx = img.width / W, sy = img.height / H;
+  var b = { x: minX * sx, y: minY * sy, w: (maxX - minX + 1) * sx, h: (maxY - minY + 1) * sy };
+  // No meaningful margin — don't bother.
+  if (b.w >= img.width * 0.98 && b.h >= img.height * 0.98) return null;
+  return b;
+}
+
+// Paint `rect` (a square in source-image pixels, possibly extending past the
+// edges) onto the full size×size tile. Scaling the WHOLE image and offsetting
+// it is exact whether or not the square is inside the bitmap — drawImage with
+// an out-of-bounds source rect clips instead, which would shift the art.
+function drawCropped(ctx, img, rect, size) {
+  var k = size / rect.side;
+  ctx.drawImage(img, -rect.x * k, -rect.y * k, img.width * k, img.height * k);
 }
 
 // Accept whatever is stored/posted and return a valid style. Logos saved
@@ -2145,10 +2200,14 @@ function normalizeIconStyle(st) {
     crop: null
   };
   var c = st && st.crop;
+  // x/y may be NEGATIVE and s may exceed 1: the square is allowed to hang off
+  // the image so a rectangular logo can be letterboxed rather than cut (see
+  // cropRect). The bounds here are sanity limits, not the real constraint —
+  // cropRect re-clamps against the actual image every time it bakes.
   if (out.mode === 'crop' && c && typeof c === 'object'
       && [c.x, c.y, c.s].every(function(n) { return typeof n === 'number' && isFinite(n); })) {
-    out.crop = { x: Math.min(1, Math.max(0, c.x)), y: Math.min(1, Math.max(0, c.y)),
-                 s: Math.min(1, Math.max(0.05, c.s)) };
+    out.crop = { x: Math.min(2, Math.max(-2, c.x)), y: Math.min(2, Math.max(-2, c.y)),
+                 s: Math.min(8, Math.max(0.05, c.s)) };
   }
   return out;   // crop stays null for legacy 'fill' → centerCrop at bake time
 }
@@ -2166,7 +2225,9 @@ function makeLogoIcon(srcUri, style, cb) {
   var img = new Image();
   img.onload = function() {
     var rect = st.mode === 'crop' ? cropRect(st.crop, img.width, img.height) : null;
-    var srcMax = rect ? rect.side : Math.max(img.width, img.height);
+    var fitBounds = rect ? null : opaqueBounds(img);
+    var srcMax = rect ? rect.side
+      : Math.max(fitBounds ? fitBounds.w : img.width, fitBounds ? fitBounds.h : img.height);
     var start = 128;
     while (start < 1024 && start * 2 <= srcMax * 1.15) start *= 2;
     for (var size = start; size >= 128; size = size / 2) {
@@ -2177,14 +2238,18 @@ function makeLogoIcon(srcUri, style, cb) {
       ctx.fillStyle = st.bg;
       ctx.fillRect(0, 0, size, size);
       if (rect) {
-        // Chosen square → whole tile. Background still shows through any
-        // transparency inside the crop.
-        ctx.drawImage(img, rect.x, rect.y, rect.side, rect.side, 0, 0, size, size);
+        // Chosen square → whole tile. Background shows through transparency
+        // inside the crop, and wherever the square hangs off the edge.
+        drawCropped(ctx, img, rect, size);
       } else {
-        var pad = size * 0.08, inner = size - 2 * pad;
-        var scale = Math.min(inner / img.width, inner / img.height);
-        var w = img.width * scale, h = img.height * scale;
-        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        // Fit the ART, not the bitmap: a logo's own transparent margin would
+        // otherwise be padded a second time and land tiny on the tile. 2% of
+        // breathing room, not 8% — an app icon is already inset by the OS.
+        var b = fitBounds || { x: 0, y: 0, w: img.width, h: img.height };
+        var pad = size * 0.02, inner = size - 2 * pad;
+        var scale = Math.min(inner / b.w, inner / b.h);
+        var w = b.w * scale, h = b.h * scale;
+        ctx.drawImage(img, b.x, b.y, b.w, b.h, (size - w) / 2, (size - h) / 2, w, h);
       }
       var out = canvas.toDataURL('image/png');
       if (out.length <= ICON_MAX_URI) return cb(out);
@@ -2353,14 +2418,18 @@ function cropDragMove(e) {
   var dx = (e.clientX - d.x0) / d.k, dy = (e.clientY - d.y0) / d.k;  // source px
   var x = d.r.x, y = d.r.y, side = d.r.side;
   if (d.mode === 'move') {
-    x = Math.min(Math.max(0, d.r.x + dx), d.W - side);
-    y = Math.min(Math.max(0, d.r.y + dy), d.H - side);
+    // No clamp here — cropRect keeps the square's centre on the image, which
+    // still allows it to hang off the edges.
+    x = d.r.x + dx;
+    y = d.r.y + dy;
   } else {
-    // Square selection: follow whichever axis the pointer moved further on,
-    // capped by the room left below/right of the box's fixed top-left.
+    // Square selection: follow whichever axis the pointer moved further on.
+    // It may grow PAST the image — that is how a rectangular logo gets
+    // letterboxed instead of cut (cropRect fills the overhang with
+    // background) — so the only cap is the usable range.
     side = d.r.side + Math.max(dx, dy);
-    side = Math.min(Math.max(Math.min(d.W, d.H) * 0.05, side),
-                    Math.min(d.W - d.r.x, d.H - d.r.y));
+    var short = Math.min(d.W, d.H);
+    side = Math.min(Math.max(short * 0.05, side), short * cropMaxS(d.W, d.H));
   }
   CROP_TARGETS[d.name].style().crop =
     { x: x / d.W, y: y / d.H, s: side / Math.min(d.W, d.H) };
@@ -2377,10 +2446,20 @@ function cropDragEnd() {
   CROP_TARGETS[name].rebake(false);
 }
 
-function cropReset(name) {
+// mode 'center' → the largest square INSIDE the image (tightest framing);
+// 'whole' → the smallest square that CONTAINS it, so a rectangular logo is
+// letterboxed with background instead of having its long side cut off.
+function cropPreset(name, which) {
   var t = CROP_TARGETS[name];
   if (!t) return;
-  t.style().crop = null;
+  var img = document.getElementById(t.img);
+  if (which === 'whole' && img && img.naturalWidth) {
+    var w = img.naturalWidth, h = img.naturalHeight;
+    var side = Math.max(w, h);
+    t.style().crop = { x: (w - side) / (2 * w), y: (h - side) / (2 * h), s: containCropS(w, h) };
+  } else {
+    t.style().crop = null;   // null bakes as the centred largest square
+  }
   syncCropEditor(name, false);
   t.rebake(true);
 }
@@ -2517,12 +2596,14 @@ function makeFavicon(srcUri, style, cb) {
     var ctx = canvas.getContext('2d');
     ctx.imageSmoothingQuality = 'high';
     if (st.mode === 'crop') {
-      var r = cropRect(st.crop, img.width, img.height);
-      ctx.drawImage(img, r.x, r.y, r.side, r.side, 0, 0, FAVICON_PX, FAVICON_PX);
+      drawCropped(ctx, img, cropRect(st.crop, img.width, img.height), FAVICON_PX);
     } else {
-      var scale = Math.min(FAVICON_PX / img.width, FAVICON_PX / img.height);
-      var w = img.width * scale, h = img.height * scale;
-      ctx.drawImage(img, (FAVICON_PX - w) / 2, (FAVICON_PX - h) / 2, w, h);
+      // Fit the art, not the bitmap — see makeLogoIcon. No padding at all
+      // here: 16px on screen needs every pixel it can get.
+      var b = opaqueBounds(img) || { x: 0, y: 0, w: img.width, h: img.height };
+      var scale = Math.min(FAVICON_PX / b.w, FAVICON_PX / b.h);
+      var w = b.w * scale, h = b.h * scale;
+      ctx.drawImage(img, b.x, b.y, b.w, b.h, (FAVICON_PX - w) / 2, (FAVICON_PX - h) / 2, w, h);
     }
     var out = canvas.toDataURL('image/png');
     cb(out.length <= FAVICON_MAX_URI ? out : null);
@@ -3931,7 +4012,7 @@ Object.assign(TT_ACTIONS, {
   pickLogo:            function(arg, el) { pickLogo(arg, el); },
   removeLogo:          function() { removeLogo(); },
   onIconStyleChange:   function() { onIconStyleChange(); },
-  cropReset:           function(arg) { cropReset(arg); },
+  cropPreset:          function(arg, el) { cropPreset(arg, el.dataset.arg2); },
   onFaviconStyleChange: function() { onFaviconStyleChange(); },
   exportCsv:           function(arg) { exportCsv(arg); },
   undoLastChange:      function() { undoLastChange(); },

@@ -786,8 +786,13 @@ function stackedDims(nL, nR, availVh, isDesktop, isMobile) {
   // across columns + their gaps + the championship column, inside 97vw.
   var units = across + Math.max(across - 1, 0) * 0.15;
   var colVw = (97 - champVw) / units;
-  if (colVw * vwPx < MIN_COL_PX) colVw = MIN_COL_PX / vwPx;
-  if (colVw > champVw - 1.6) champVw = colVw + 1.6;
+  // With few rounds the columns grow past the championship's width; widen it
+  // to match, re-solving so the total still fits 97vw (champ = col + 1.6 of
+  // fixed padding, hence 95.4 / (units + 1)). Solving after the fact instead
+  // would push the championship off the right edge.
+  if (colVw > champVw - 1.6) { colVw = 95.4 / (units + 1); champVw = colVw + 1.6; }
+  // Below the readability floor the row scrolls sideways rather than shrink.
+  if (colVw * vwPx < MIN_COL_PX) { colVw = MIN_COL_PX / vwPx; champVw = Math.max(champVw, colVw + 1.6); }
   var gapVw = colVw * 0.15;
   var cardVh = (colVw * vwPx / CARD_ASPECT) / vhPx;
   var gridH = gridHeight();
@@ -1872,8 +1877,11 @@ function renderDesktopBracket(root,dims){
     // a large printed double-elim sheet. The championship block here is
     // flow-centred rather than pinned to a feeder row: with the two brackets
     // stacked there is no single row for it to line up with.
+    // Plain .champ-inner, NOT --above: that variant is absolutely positioned
+    // against .champ-anchor, which only exists in the side-by-side layout.
+    // Here the block is an ordinary flex child and stacks above the card.
     var champStack = champG
-      ? '<div class="champ-inner champ-inner--above">'
+      ? '<div class="champ-inner">'
         + '<div class="champ-trophy">' + trophySVG() + '</div>'
         + '<div class="champ-title">Championship</div>'
         + '<div class="champ-gametime">' + esc(formatTime(champG.time)) + '</div>'

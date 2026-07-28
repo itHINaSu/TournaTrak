@@ -1108,9 +1108,13 @@ function cleanIconStyle(st, withBg) {
     out.bg = st.bg;
   }
   const c = st.crop;
+  // x/y may be NEGATIVE and s may exceed 1: the square is allowed to hang off
+  // the image, so a rectangular logo can be letterboxed with background
+  // instead of having its long side cut away. These are sanity bounds — the
+  // client re-clamps against the real image dimensions on every bake.
   if (out.mode === 'crop' && c && typeof c === 'object'
       && ['x', 'y', 's'].every(k => typeof c[k] === 'number' && Number.isFinite(c[k]))
-      && c.x >= 0 && c.x <= 1 && c.y >= 0 && c.y <= 1 && c.s > 0 && c.s <= 1) {
+      && c.x >= -2 && c.x <= 2 && c.y >= -2 && c.y <= 2 && c.s > 0 && c.s <= 8) {
     out.crop = { x: c.x, y: c.y, s: c.s };
   }
   return out;

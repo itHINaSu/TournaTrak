@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Bracket Builder</title>
+<meta name="theme-color" content="#0f1410" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f0f4f1" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/icons/admin-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/icons/admin-180.png">
+<link rel="stylesheet" href="/fonts.css">
+<link rel="stylesheet" href="/base.css?v=3.11">
+<link rel="stylesheet" href="/builder.css?v=3.11">
+<script src="/app-h.js?v=3.11"></script>
+</head>
+<body>
+
+<header class="bld-header">
+  <span class="bld-title">Bracket Builder</span>
+  <a class="bld-back" href="/admin">← Admin</a>
+</header>
+
+<!-- Auth gate — shown when the visitor isn't an admin -->
+<main class="bld-main" id="authGate" hidden>
+  <div class="bld-card bld-gate">
+    <div class="bld-gate-msg" id="authGateMsg">Sign in as an administrator to build a bracket.</div>
+    <a class="bld-btn bld-btn--primary" href="/admin">Go to Admin Login</a>
+  </div>
+</main>
+
+<!-- Loading state while the session check runs -->
+<main class="bld-main" id="loading">
+  <div class="bld-card"><div class="bld-muted">Loading…</div></div>
+</main>
+
+<!-- Builder — shown once an admin session is confirmed -->
+<main class="bld-main" id="builder" hidden>
+</main>
+
+<script src="/sw-register.js?v=3.11" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.11"></script>
+<script src="/tt-common.js?v=3.11"></script>
+<script src="/builder-form.js?v=3.11"></script>
+<script src="/builder.js?v=3.11"></script>
+</body>
+</html>
