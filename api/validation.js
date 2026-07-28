@@ -70,9 +70,19 @@ function validateSchedule(updates) {
     if (entry.tier !== undefined && !['A','B'].includes(entry.tier)) return `invalid tier for ${sid}`;
     // Bye marker: lone team auto-advances; opponent slot renders as BYE.
     if (entry.bye !== undefined && typeof entry.bye !== 'boolean') return `bye for ${sid} must be a boolean`;
-    // Layout pin: this card was placed by hand in bracket Edit mode, so it
-    // renders at its slot row instead of wherever the auto-layout would put
-    // it. Presentation only — it has no effect on feeds or results.
+    // Layout position: where bracket Edit mode placed this card, as a
+    // fraction of its column's height (0 = top edge, 1 = bottom). Absent
+    // means "wherever the automatic layout puts it". A fraction rather than a
+    // row index on purpose — a column's row count changes as games move, so
+    // an index would silently re-space every other card in the column.
+    // Presentation only: no effect on feeds or results.
+    if (entry.layoutRow !== undefined && entry.layoutRow !== null) {
+      const v = entry.layoutRow;
+      if (typeof v !== 'number' || !isFinite(v) || v < 0 || v > 1)
+        return `layoutRow for ${sid} must be a number 0–1`;
+    }
+    // Legacy pin flag from the first cut of Edit mode; superseded by
+    // layoutRow. Still accepted so an older stored schedule validates.
     if (entry.pinned !== undefined && typeof entry.pinned !== 'boolean') return `pinned for ${sid} must be a boolean`;
     // Swiss round bookkeeping: which round this pairing belongs to. A real
     // field so label edits/find-replace can't break "Pair next round".

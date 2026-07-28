@@ -1196,6 +1196,10 @@ async function saveOneGame(sid) {
   if (prev.bye === true)  entry.bye = true;
   // Swiss pairing bookkeeping isn't editable — carry it through like num.
   if (prev.swissRound != null) entry.swissRound = prev.swissRound;
+  // Where bracket Edit mode placed this card. Not editable here, and a whole
+  // -document save would otherwise wipe it — fixing one game's start time
+  // would silently undo the TD's bracket arrangement.
+  if (typeof prev.layoutRow === 'number') entry.layoutRow = prev.layoutRow;
   // Team sides: the occupied card shows a fixed-name input OR the
   // winner/loser dropdowns (sched-src-chk toggles which); only the visible
   // control counts. The empty-slot card shows both with no wrap — there the

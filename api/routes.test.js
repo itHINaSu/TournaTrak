@@ -164,6 +164,7 @@ describe('auth guards', () => {
       ['POST', '/api/offsets', { entries: [], banner: '' }],
       ['POST', '/api/schedule/generate', { format: 'single-elim', teams: ['a', 'b', 'c', 'd'] }],
       ['POST', '/api/schedule/swap', { slotA: 'R1.L.1', slotB: 'R1.L.2' }],
+      ['POST', '/api/schedule/layout', { rows: { 'R1.L.1': 0.5 } }],
       ['POST', '/api/schedule/unpin', {}],
     ];
     for (const [method, url, body] of calls) {
@@ -246,32 +247,65 @@ describe('schedule contract', () => {
     assert.equal(r.status, 400);
   });
 
-  // A drag in bracket Edit mode is a swap, and the whole point of the drag is
-  // that the card STAYS where it was dropped — the losers bracket otherwise
-  // recomputes every position from feeder midpoints and the move is invisible.
-  // The pin is what carries that intent to the renderer.
-  rtest('swapping into an empty slot pins the moved game to its new row', async () => {
+  // Bracket Edit stores WHERE a card is drawn, never which slot it holds —
+  // the losers bracket derives its positions from feeder midpoints and would
+  // otherwise put a dragged card straight back. Because it is presentation
+  // only, a save must leave the topology completely alone.
+  rtest('saving a layout stores positions and touches nothing else', async () => {
     const a = await loginAdmin();
     await a.post('/api/schedule', MINI);
 
-    const s = await a.post('/api/schedule/swap', { slotA: 'R1.L.2', slotB: 'R1.L.6' });
+    const s = await a.post('/api/schedule/layout', { rows: { 'R1.L.2': 0.75 } });
     assert.equal(s.status, 200);
+    assert.equal(s.json.changed, 1);
 
     const sched = (await a.get('/api/schedule')).json;
-    assert.equal(sched['R1.L.2'], undefined, 'game left its old slot');
-    assert.equal(sched['R1.L.6'].label, 'Game 2');
-    assert.equal(sched['R1.L.6'].pinned, true, 'moved game is pinned');
-    // Feeds follow the game, and the game that did not move stays unpinned.
-    assert.equal(sched['R2.L.1'].t2slot, 'R1.L.6');
-    assert.ok(!sched['R1.L.1'].pinned, 'untouched game keeps automatic placement');
+    assert.equal(sched['R1.L.2'].layoutRow, 0.75);
+    assert.equal(sched['R1.L.2'].label, 'Game 2', 'the game did not move slots');
+    assert.equal(sched['R2.L.1'].t2slot, 'R1.L.2', 'feeds untouched');
+    assert.equal(sched['R1.L.1'].layoutRow, undefined, 'untouched game stays automatic');
 
-    // Reset drops the pins but leaves the moves themselves alone.
+    // null hands one card back without disturbing the others.
+    await a.post('/api/schedule/layout', { rows: { 'R1.L.1': 0.2 } });
+    const r = await a.post('/api/schedule/layout', { rows: { 'R1.L.2': null } });
+    assert.equal(r.status, 200);
+    const mid = (await a.get('/api/schedule')).json;
+    assert.equal(mid['R1.L.2'].layoutRow, undefined, 'cleared');
+    assert.equal(mid['R1.L.1'].layoutRow, 0.2, 'the other placement survives');
+
+    // Reset clears every placement at once.
     const u = await a.post('/api/schedule/unpin', {});
     assert.equal(u.status, 200);
     assert.equal(u.json.cleared, 1);
     const after = (await a.get('/api/schedule')).json;
-    assert.ok(!after['R1.L.6'].pinned, 'pin cleared');
-    assert.equal(after['R1.L.6'].label, 'Game 2', 'game stays in the slot it was moved to');
+    assert.equal(after['R1.L.1'].layoutRow, undefined);
+    assert.equal(after['R1.L.1'].label, 'Game 1', 'games are all still where they were');
+  });
+
+  rtest('a layout row outside 0–1 is rejected', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    // NaN is deliberately absent: JSON.stringify turns it into null, which is
+    // the legitimate "hand this card back to the automatic layout" value.
+    for (const bad of [1.5, -0.2, 'middle', true]) {
+      const r = await a.post('/api/schedule/layout', { rows: { 'R1.L.1': bad } });
+      assert.equal(r.status, 400, String(bad) + ' should be rejected');
+    }
+    const r2 = await a.post('/api/schedule/layout', { rows: { 'ZZ.Q.9': 0.5 } });
+    assert.equal(r2.status, 400, 'unknown slot rejected');
+  });
+
+  // A save is one write for a whole editing session, so Revert reaches the
+  // arrangement as it was before the session rather than before the last nudge.
+  rtest('saving a layout is revertible', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.post('/api/schedule/layout', { rows: { 'R1.L.1': 0.9, 'R1.L.2': 0.1 } });
+    assert.equal((await a.get('/api/undo')).json.available, true);
+    assert.equal((await a.post('/api/undo', {})).status, 200);
+    const after = (await a.get('/api/schedule')).json;
+    assert.equal(after['R1.L.1'].layoutRow, undefined, 'both placements reverted');
+    assert.equal(after['R1.L.2'].layoutRow, undefined);
   });
 
 });

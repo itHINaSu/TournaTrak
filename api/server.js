@@ -1192,13 +1192,6 @@ api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
   };
   const sched = await store.get(req.tid, 'schedule');
   swapKeys(sched);
-  // Both games moved because a TD dragged them, so both are now placed by
-  // hand: pin them to their new slot rows. Without this the losers bracket
-  // would put them straight back where its feeder-midpoint layout wants
-  // them and the drag would appear to do nothing. Presentation only.
-  for (const sid of [slotA, slotB]) {
-    if (sched[sid] && sched[sid].clear !== true) sched[sid].pinned = true;
-  }
   // Feeds pointing AT the swapped slots must follow the games: any other
   // game's winner/loser source that referenced slotA now finds that game
   // living at slotB (and vice versa). Without this, moving a game silently
@@ -1225,17 +1218,57 @@ api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// Drop every hand-placed layout pin, handing the whole bracket back to the
-// automatic layout. Cards keep the slots they were dragged to — only the
-// "render me at my slot row" flag goes — so this is a presentation reset,
-// not an undo of the moves themselves.
+// Commit a batch of hand-placed card positions from bracket Edit mode.
+//
+// A batch, not one call per drag: Edit mode is a DRAFT the TD can abandon, so
+// nothing is written until Save — and one write means one undo snapshot, so
+// "Revert changes" restores the whole editing session rather than the last
+// nudge. Positions only: no slot changes, no feed rewiring, no results moved.
+// `null` for a slot hands that card back to the automatic layout.
+api.post('/schedule/layout', requireAdmin, ah(async (req, res) => {
+  const { rows } = req.body || {};
+  if (!rows || typeof rows !== 'object' || Array.isArray(rows))
+    return res.status(400).json({ error: 'rows must be an object' });
+  const entries = Object.entries(rows);
+  if (entries.length > 400) return res.status(400).json({ error: 'too many entries' });
+  for (const [sid, v] of entries) {
+    if (!isValidSlotId(sid)) return res.status(400).json({ error: `invalid slot ID: ${sid}` });
+    // typeof, not Number(): a bare `true` coerces to 1 and would sail through
+    // a range check as a legitimate bottom-of-column position.
+    if (v === null) continue;
+    if (typeof v !== 'number' || !isFinite(v) || v < 0 || v > 1)
+      return res.status(400).json({ error: `layoutRow for ${sid} must be a number 0–1` });
+  }
+  const sched = await store.get(req.tid, 'schedule');
+  let changed = 0;
+  for (const [sid, v] of entries) {
+    const e = sched[sid];
+    if (!e || e.clear === true) continue;          // no game there to place
+    if (v === null) { if (e.layoutRow !== undefined) { delete e.layoutRow; changed++; } }
+    else { e.layoutRow = Number(v); changed++; }
+    delete e.pinned;                                // superseded by layoutRow
+  }
+  if (changed) {
+    await snapshotForUndo(req.tid, 'bracket layout');
+    await store.put(req.tid, 'schedule', sched);
+  }
+  res.json({ ok: true, changed });
+}));
+
+// Hand every card back to the automatic layout. Snapshots first, so this is
+// itself revertible — a TD who resets by mistake has not lost the arrangement.
 api.post('/schedule/unpin', requireAdmin, ah(async (req, res) => {
   const sched = await store.get(req.tid, 'schedule');
   let cleared = 0;
   for (const entry of Object.values(sched)) {
-    if (entry && entry.pinned) { delete entry.pinned; cleared++; }
+    if (!entry) continue;
+    if (entry.layoutRow !== undefined) { delete entry.layoutRow; cleared++; }
+    if (entry.pinned) { delete entry.pinned; cleared++; }
   }
-  if (cleared) await store.put(req.tid, 'schedule', sched);
+  if (cleared) {
+    await snapshotForUndo(req.tid, 'bracket layout reset');
+    await store.put(req.tid, 'schedule', sched);
+  }
   res.json({ ok: true, cleared });
 }));
 

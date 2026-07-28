@@ -302,12 +302,14 @@ function applySchedule(schedule) {
       // NOT the bracket tree (their R0 storage slots would otherwise render
       // as extra leading columns and shift the Open's round numbering).
       tier:  (ov.tier === 'A' || ov.tier === 'B') ? ov.tier : null,
-      // Set when a TD drags this card in bracket Edit mode: "I placed this
-      // one, leave it where I put it". The losers bracket otherwise derives
-      // every position from feeder midpoints and ignores slot numbers
-      // entirely, so without this a move there changes storage and nothing
-      // on screen. See computeLBPositions in bracket.js.
-      pinned: ov.pinned === true,
+      // Where bracket Edit mode placed this card, as a fraction of its
+      // column's height (0 = top, 1 = bottom); null means "wherever the
+      // automatic layout puts it". A fraction rather than a row index because
+      // a column's row count changes as games move, and an index would
+      // silently re-space every other card in the column.
+      layoutRow: (typeof ov.layoutRow === 'number' && isFinite(ov.layoutRow))
+        ? Math.max(0, Math.min(1, ov.layoutRow))
+        : null,
       t1: ov.t1name
         ? { type:'fixed', team:ov.t1name }
         : { type:(ov.t1type||'winner'), slot:ov.t1slot },

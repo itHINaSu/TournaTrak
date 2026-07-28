@@ -789,18 +789,37 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 /* ── Admin drag-and-drop ── */
 .bc-dragging    { opacity: 0.3; pointer-events: none; }
 .bc-drop-target { box-shadow: 0 0 0 2px var(--blue), 0 0 12px color-mix(in srgb, var(--blue-lt) 35%, transparent); }
-.bc-empty-slot  {
-  border: 2px dashed var(--line-color);
-  border-radius: 6px;
-  background: transparent;
-  opacity: 0.45;
+/* Drop rows are thin BARS, not card-sized outlines. The grid is half a
+   bracket row apart — fine enough to express a game centred between two games
+   that are themselves off-grid — and card-sized ghosts at that pitch would
+   overlap each other and bury the cards underneath. `top` addresses the row's
+   centre line, hence the translate. */
+.bc-drop-row {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  height: 0.5em;
+  transform: translateY(-50%);
+  border-top: 2px dashed var(--line-color);
+  opacity: 0.35;
   pointer-events: all;
   cursor: default;
 }
-.bc-empty-slot.bc-drop-target {
-  border-color: var(--blue);
-  opacity: 0.75;
-  box-shadow: 0 0 0 2px var(--blue), 0 0 12px color-mix(in srgb, var(--blue-lt) 35%, transparent);
+/* Rows the bracket cascade actually lands on — the midpoints of the feeding
+   column's cards — read stronger, so the natural shape stays visible while a
+   TD is free to ignore it. */
+.bc-drop-row--cascade {
+  left: 2%;
+  right: 2%;
+  border-top-style: solid;
+  border-top-color: var(--blue);
+  opacity: 0.28;
+}
+.bc-drop-row.bc-drop-target {
+  opacity: 1;
+  border-top-color: var(--blue);
+  border-top-width: 3px;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--blue-lt) 55%, transparent);
 }
 /* Placed by hand — this card renders at its slot row instead of wherever the
    automatic layout would put it. The class is only emitted while editing
@@ -2201,6 +2220,13 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   cursor: pointer;
 }
 .project-clear:hover { color: var(--text); border-color: var(--text-dim); }
+/* Save in the Edit bar: the one affirmative action among discards, so it
+   borrows the accent rather than the destructive red the base class uses. */
+.project-clear--primary {
+  border-color: var(--blue);
+  color: var(--blue-lt);
+}
+.project-clear--primary:hover { color: var(--text); border-color: var(--blue-lt); }
 .project-hint {
   flex-basis: 100%;
   text-align: center;

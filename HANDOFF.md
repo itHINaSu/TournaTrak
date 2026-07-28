@@ -57,10 +57,54 @@ side.
 
 ## Outstanding work (what's still needed) — updated 2026-07-28 (merge)
 
-**✅ DONE 2026-07-28 — bracket Edit mode actually moves cards now.** Owner
-report: "the Edit button is functionally worthless — its main purpose was to
-move to empty slots when byes created funny visuals, almost specifically for
-the LB." Correct, and for two compounding reasons:
+**✅ DONE 2026-07-28 (second pass) — Edit mode stores a POSITION, not a slot.**
+The first pass below fixed the drop targets but kept the old "a drag is a
+slot swap" model, and the owner found three things wrong with it that all
+trace to that one decision:
+- *"When a row is emptied it completely disappears with no way to bring it
+  back."* A column's row count was `max(game count, highest slot in use)`, so
+  moving a card re-spaced the whole column. A row only existed while
+  something occupied it or sat below it.
+- *"Not saving doesn't revert, it's like it autosaves on a move."* It did —
+  every drag POSTed `/schedule/swap` immediately, and that route takes no
+  undo snapshot, so Revert could not reach it either.
+- *"Each round should alternate so slots to the right are centred between
+  slots to the left… the cascade changes based on what's filled. If column 2
+  uses 1.5 and 3.5 then the centre between those is 2.5, not 2."* Exactly —
+  and no slot index on a variable-length grid can express 2.5.
+
+Now: `layoutRow` on the schedule entry, a FRACTION of the column height
+(0 = top, 1 = bottom). A drag never changes a slot, never rewires a feed and
+never moves a result — it records where the card is drawn. Dropping on
+another card exchanges the two positions.
+- `POST /schedule/layout {rows:{slot: number|null}}` commits a whole editing
+  session in one write, `null` clearing a card. One write = one undo
+  snapshot, so **Revert restores the session, not the last nudge**.
+  `POST /schedule/unpin` (Reset layout) clears every placement and snapshots
+  too. Both are admin-only and covered by `routes.test.js`.
+- Edit mode is a DRAFT (`_layoutDraft` in bracket.js). Nothing is written
+  until Save; Discard throws it away; leaving Edit with unsaved moves prompts.
+- Drop rows are half a bracket row apart — fine enough for the midpoint of
+  two off-grid cards — and drawn as thin BARS, since card-sized ghosts at
+  that pitch would overlap. Rows the cascade actually lands on (midpoints of
+  the FEEDING column's real card positions, extended to fill the height) are
+  drawn stronger, so the bracket shape stays readable while a TD is free to
+  ignore it. `editGhostRows` / `editGhostHTML` in bracket.js.
+- **A/B flights are editable on the same terms** (owner report: "the A and B
+  brackets did not receive your edit fixes"). `renderFlightBracket` stamps
+  `data-row`, emits the same drop rows, honours `layoutRowOf` over the
+  cascade, and anchors hand-placed cards against its overlap sweep.
+- Every hand-placed card is an ANCHOR in both overlap sweeps: neighbours move
+  around it, and a column-wide overflow shift skips it.
+- `admin.js` `saveSchedGame` now carries `layoutRow` through. `POST
+  /schedule` is a whole-document replace, so without that, fixing one game's
+  start time in the Advanced editor silently undid the whole arrangement.
+  The quick editor already copied the stored entry, so it was safe.
+
+**✅ DONE 2026-07-28 (first pass) — bracket Edit mode offers empty rows.**
+Owner report: "the Edit button is functionally worthless — its main purpose
+was to move to empty slots when byes created funny visuals, almost
+specifically for the LB." Correct, and for two compounding reasons:
 1. **The losers bracket ignores slot numbers entirely.** `computeLBPositions`
    derives every LB card's top from its feeders' midpoints, so dragging an LB
    game changed where it was STORED and nothing about where it was DRAWN.
@@ -71,19 +115,10 @@ the LB." Correct, and for two compounding reasons:
    already "covered" by an occupied card, which in the LB is nearly all of
    them since feeder-derived tops don't sit on slot rows.
 
-The fix, per owner decision (drag = manual override; column grows to fit):
-- A dragged card is `pinned` (new boolean on the schedule entry, set by
-  `POST /schedule/swap` on BOTH games it moved). Pinned cards render at their
-  slot row and are treated as ANCHORS by the overlap sweep — neighbours move
-  around them. Pins also outrank the championship-row alignment and
-  `seatChainAbove`. Presentation only: no effect on feeds or results.
-- `POST /schedule/unpin` clears every pin ("Reset layout" in the edit bar).
-  It drops the pins, NOT the moves — cards keep the slots they were dragged
-  to, they just go back on automatic placement.
-- **Edit mode lays the whole tree back onto its slot grid** (`buildEditPosMap`)
-  at a width wide enough to expose every droppable slot, so cards, ghosts and
-  connector lines all agree on where a row is. Leaving Edit returns unpinned
-  cards to the automatic layout.
+The fix, since SUPERSEDED by the position model above — the `pinned` boolean
+and `buildEditPosMap` are gone, though `pinned` is still accepted by
+`validation.js` so an older stored schedule validates. What survives from
+this pass:
 - `SLOT_DEFS` late rounds widened to 8 per side in BOTH copies. A round that
   defines only as many slots as it has games can never be rearranged, which
   was the "forces games into the limited number of slots that exist" half of
