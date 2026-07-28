@@ -100,7 +100,6 @@ A self-hosted tournament bracket web app supporting single- and double-eliminati
 ├── files/                 # legacy v2 JSON data — gitignored; now only the one-time
 │   │                      # import source, mounted read-only at /data
 │   └── schedule.example.json   # documents the schedule format (tracked)
-├── init-env.sh            # first-run bootstrap: creates .env with generated secrets
 ├── compose.yml            # nginx + api + postgres (internal-only)
 └── compose.demo.yml       # public demo sandbox stack
 ```
@@ -252,11 +251,18 @@ completed this step — same expectation as any other self-hosted app with a
 first-run setup screen.)
 
 To skip the browser step entirely for scripted/automated deployments, set
-`ADMIN_PASSWORD_HASH` (via `.env`, or `./init-env.sh` for a quick default of
-`admin` / `TournaTrak`) — an explicit hash bootstraps the admin account at
-first boot exactly like before, and `/admin` goes straight to the normal
-login form. Compose treats a single `$` in `.env` as a variable reference;
-double literal `$` to `$$`.
+`ADMIN_PASSWORD_HASH` in `.env` — an explicit hash bootstraps the admin
+account at first boot and `/admin` goes straight to the normal login form.
+Generate one with `docker compose run --rm api node generate-hash.js
+'yourpassword'`. Compose treats a single `$` in `.env` as a variable
+reference; double literal `$` to `$$`.
+
+There is no longer a shipped default login. `.env.example` used to carry an
+active hash for the password `TournaTrak`, which meant anyone who copied it
+got a publicly-known credential; every line in that file is now commented out
+and shows the default you get by leaving it alone. (`init-env.sh` is gone too
+— it existed to write generated secrets into `.env`, which the stack now does
+for itself on first boot.)
 
 Running a second, independent instance on the same host (e.g. archiving one
 tournament and starting a new one in isolation instead of using built-in

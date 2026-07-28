@@ -552,9 +552,12 @@ branch and main were both live at once this day and the graph shows it.
   exists yet to gate it) but **self-closing** — it 403s the moment any user
   exists, so it can't add a second admin or take over a configured box.
   An explicit `ADMIN_PASSWORD_HASH` still bootstraps immediately with no
-  wizard (scripted deploys, `compose.demo.yml`) — unchanged. `up.sh` (a
-  short-lived wrapper that printed the generated password) was deleted;
-  `init-env.sh` stays, it pins a known password for CI/scripted use.
+  wizard (scripted deploys, `compose.demo.yml`) — unchanged. Both `up.sh` (a
+  wrapper that printed the generated password) and `init-env.sh` (which wrote
+  generated secrets into `.env`, and left behind a "quick default" login of
+  admin/TournaTrak — a published credential) are DELETED: `secrets-init`
+  generates the same secrets on first boot, and there is no default account
+  to hand out (2026-07-28).
 - ✅ **Drop-bracket byes were broken.** `buildFeedBracket` packed entrants
   at the front and left nulls trailing, so an even-but-not-power-of-two
   entrant count paired the empty slots with EACH OTHER — nobody got a bye,
