@@ -444,6 +444,17 @@ function activeView(){
   var t=document.querySelector('.view-tab.active');
   return t?t.dataset.view:null;
 }
+// The tab a fresh visit lands on, given the admin's defaultTab setting and
+// its scope: 'both' applies the default everywhere, 'mobile' applies it only
+// below the desktop breakpoint (desktop then keeps the HTML default,
+// Bracket). Shared by the first-load restore in fetchAll and by goHome, so
+// clicking the logo lands exactly where a fresh visit would.
+function landingTab(){
+  if (getSetting('defaultTabScope') === 'both' || window.innerWidth < 1280) {
+    return getSetting('defaultTab') || 'bracket';
+  }
+  return 'bracket';
+}
 document.querySelectorAll('.view-tab').forEach(function(tab){
   tab.addEventListener('click',function(){
     document.querySelectorAll('.view-tab').forEach(function(t){t.classList.remove('active');});
@@ -564,19 +575,13 @@ async function fetchAll(){
   // path segment (only on the FIRST fetchAll — later calls come from our own
   // tab clicks, which already set the cookie and pushed the new path) beats
   // ?view=, which beats the saved cookie. With no saved preference, fall back
-  // to the admin-configured default tab. Its scope decides reach: 'both'
-  // applies the default everywhere; 'mobile' applies it only below the
-  // desktop breakpoint (desktop then keeps the HTML default, Bracket).
+  // to landingTab() — the admin-configured default, scoped per its setting.
   var savedTab = qView || getCookie('tt_tab');
   if (!_routeTabApplied) {
     _routeTabApplied = true;
     if (TT_ROUTE.tab) { savedTab = TT_ROUTE.tab; setCookie('tt_tab', savedTab); }
   }
-  if (!savedTab) {
-    if (getSetting('defaultTabScope') === 'both' || window.innerWidth < 1280) {
-      savedTab = getSetting('defaultTab');
-    }
-  }
+  if (!savedTab) savedTab = landingTab();
   if (savedTab) {
     var targetTab   = document.querySelector('.view-tab[data-view="' + savedTab + '"]');
     var targetPanel = document.getElementById('view-' + savedTab);
@@ -4337,12 +4342,18 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
     }
     var t1html = slotHTML(g.t1, t1r);
     var t2html = slotHTML(g.t2, t2r);
-    var c1  = !t1r ? 'tbd' : (r.winner===t1r ? 'won' : r.loser===t1r ? 'lost' : '');
-    var c2  = !t2r ? 'tbd' : (r.winner===t2r ? 'won' : r.loser===t2r ? 'lost' : '');
+    // A projected game is "played" for layout purposes — the path has to run
+    // through it — but it must never look like a settled result. Same
+    // convention as the bracket card: blue + italic instead of green/red,
+    // plus a PICK chip.
+    var proj = !!r.projected;
+    var pj = proj ? ' projected' : '';
+    var c1  = !t1r ? 'tbd' : (r.winner===t1r ? 'won' + pj : r.loser===t1r ? 'lost' + pj : '');
+    var c2  = !t2r ? 'tbd' : (r.winner===t2r ? 'won' + pj : r.loser===t2r ? 'lost' + pj : '');
 
     var borderColor = 'var(--border)';
-    if (played && teamWon)  borderColor = GREEN;
-    if (played && teamLost) borderColor = 'var(--lose-color)';
+    if (played && teamWon)  borderColor = proj ? 'var(--blue-lt)' : GREEN;
+    if (played && teamLost) borderColor = proj ? 'var(--blue-lt)' : 'var(--lose-color)';
     if (!played && i === 0 && !isLosePath) borderColor = 'var(--blue-lt)';
 
     var ft2 = formatTime(g.time), mft2 = ft2.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
@@ -4364,10 +4375,15 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
         + '<span class="round-lose-dest' + (canNav ? '' : ' out') + '">' + esc(destText) + '</span>'
         + '</div>';
     } else if (teamWon) {
-      loseSide = '<div class="round-win-side">'
-        + '<img src="/icons/victory.png" class="round-win-img" alt="">'
-        + '<span class="round-win-tag">WON</span>'
-        + '</div>';
+      // No victory art for a pick — that badge is for games actually won.
+      loseSide = proj
+        ? '<div class="round-win-side round-win-side--proj">'
+          + '<span class="round-win-tag">PICKED</span>'
+          + '</div>'
+        : '<div class="round-win-side">'
+          + '<img src="/icons/victory.png" class="round-win-img" alt="">'
+          + '<span class="round-win-tag">WON</span>'
+          + '</div>';
     } else if (teamLost) {
       var ln = findNextSlot(gid, 'loser');
       if (ln && !champElim) {
@@ -4390,6 +4406,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       + gameDateHTML(dt2)
       + timeOrLiveHTML(gid, dt2, dw2, tm2)
       + '<span class="round-game-id u-push-right">' + esc(gameLabel(gid)) + '</span>'
+      + (proj ? '<span class="bc-proj-chip">pick</span>' : '')
       + '</div>'
       + '<div class="round-team-row">'
       + '<span class="round-team-name ' + c1 + '">' + t1html + '</span>'
@@ -4451,7 +4468,21 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
   return html;
 }
 
+// Team Path honours projections the same way the bracket does: swap the
+// results global for the merged view for the duration of the (synchronous)
+// render, so every chain/label helper below sees picked winners without
+// threading a parameter through all of them. Without this a pick made on the
+// bracket left the path unchanged, which reads as the picker being broken —
+// the whole point of a what-if is following a team through it. Listeners
+// installed during the render call renderTeamView() again, so they re-enter
+// this wrapper and get a fresh merge rather than a stale snapshot.
 function renderTeamView(){
+  var _real = results;
+  results = mergedResults();
+  try { renderTeamViewInner(); } finally { results = _real; }
+}
+
+function renderTeamViewInner(){
   var team=teamSel.value, out=document.getElementById('teamOut');
   if(!team){
     var teamNames = [];
@@ -4965,6 +4996,26 @@ Object.assign(TT_ACTIONS, {
     _projected = {};
     renderBracket();
     updateProjectBar();
+  },
+  // Logo / tournament name / subtitle act as the wordmark link back to the
+  // landing tab. DESKTOP ONLY: on mobile the header wraps into a cramped two
+  // row block, a stray tap on the name would read as a misfire, and the tab
+  // bar is pinned on screen there anyway. Delegating to the tab's own click
+  // handler keeps one code path for the cookie, the pushed path, the edit
+  // mode teardown and the refetch.
+  goHome: function() {
+    if (window.innerWidth < 1280) return;
+    var want = landingTab();
+    var tab = document.querySelector('.view-tab[data-view="' + want + '"]');
+    // The fourth slot is shared by Buckets and Standings, so the configured
+    // default may be the one currently switched off (applyFourthTab hides
+    // it). Bracket is the guaranteed-present fallback.
+    if (!tab || tab.hidden) tab = document.querySelector('.view-tab[data-view="bracket"]');
+    if (!tab) return;
+    // Already home: don't push a duplicate history entry — go to the top,
+    // which is what a wordmark click does on a page you're already on.
+    if (tab.classList.contains('active')) window.scrollTo({ top: 0, behavior: 'smooth' });
+    else tab.click();
   },
   toggleBracketEdit: function() { toggleBracketEdit(); },
   resetBracketLayout: function() { if (_sessionRole === 'admin') resetBracketLayout(); },

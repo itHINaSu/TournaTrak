@@ -2241,6 +2241,15 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 /* Projected picks: tinted blue + italic, distinct from a real (green) win */
 .bc-team.won.projected { color: var(--blue-lt); }
 .bc-team.won.projected .bc-name { font-style: italic; }
+/* Same convention on the Team Path chain, which renders projections too. */
+.round-team-name.won.projected,
+.round-team-name.lost.projected { color: var(--blue-lt); font-style: italic; }
+.round-team-row:has(.round-team-name.projected) .game-score { color: var(--blue-lt); }
+.round-win-side--proj {
+  border-left-color: var(--blue-lt);
+  background: color-mix(in srgb, var(--blue-lt) 10%, transparent);
+}
+.round-win-side--proj .round-win-tag { color: var(--blue-lt); }
 .bc-proj-chip {
   font-family: 'Oswald', sans-serif;
   font-size: 0.52rem;

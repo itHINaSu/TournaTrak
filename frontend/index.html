@@ -10,17 +10,19 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.25">
-<link rel="stylesheet" href="/bracket.css?v=3.25">
-<script src="/app-h.js?v=3.25"></script>
+<link rel="stylesheet" href="/base.css?v=3.26">
+<link rel="stylesheet" href="/bracket.css?v=3.26">
+<script src="/app-h.js?v=3.26"></script>
 </head>
 <body>
 
 <header class="site-header" id="siteHeader">
-  <img id="siteLogo" class="site-logo" alt="" hidden>
+  <!-- Logo and name double as a "home" link back to the landing tab on
+       desktop (goHome in bracket.js, which no-ops below the breakpoint). -->
+  <img id="siteLogo" class="site-logo" alt="" hidden data-action="goHome" title="Back to the main view">
   <div class="header-name-block">
-    <h1 id="siteName">Tournament Bracket</h1>
-    <div id="siteSubtitle" class="site-subtitle"></div>
+    <h1 id="siteName" data-action="goHome" title="Back to the main view">Tournament Bracket</h1>
+    <div id="siteSubtitle" class="site-subtitle" data-action="goHome" title="Back to the main view"></div>
   </div>
   <div class="header-controls">
     <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
@@ -188,10 +190,10 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.25"></script>
-<script src="/tt-common.js?v=3.25"></script>
-<script src="/bracket-data.js?v=3.25"></script>
-<script src="/bracket.js?v=3.25"></script>
-<script src="/sw-register.js?v=3.25" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.26"></script>
+<script src="/tt-common.js?v=3.26"></script>
+<script src="/bracket-data.js?v=3.26"></script>
+<script src="/bracket.js?v=3.26"></script>
+<script src="/sw-register.js?v=3.26" data-sw="/sw.js"></script>
 </body>
 </html>
