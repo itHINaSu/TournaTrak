@@ -69,6 +69,19 @@ email, placeholders only the owner can fill). Nothing is known-broken.
 
 **Shipped 2026-07-28 (this session)** — on
 `claude/bracket-generation-missing-lines-tbbhro`:
+- ✅ **Standings can replace the Buckets tab.** New setting `fourthTab`:
+  `buckets` (default, unchanged) / `standings` / `hidden`. The two share the
+  fourth tab slot and only one is ever shown; both keep routable paths, and
+  `applyFourthTab()` falls back to Bracket when a saved cookie or a pasted
+  URL points at the one that is switched off. The table ranks EVERY team by
+  the same documented chain the pool tables use (`rankStandings`) and is the
+  same computation as `teams.csv`, so the three can't disagree — but unlike
+  `standingsGroups()` it is format-agnostic, counting any played game with
+  both sides resolved, so it works on a bracket. Teams that haven't played
+  are listed unranked at the BOTTOM: on record alone 0-0 outranks 0-1, which
+  would strand ranked teams below a block of dashes and read as a bug.
+  Adding a tab means touching four places — `TAB_PATHS` (server.js),
+  `TT_TAB_PATHS` (tt-common.js), and BOTH nginx location regexes.
 - ✅ **Edit a finalized score** instead of clearing and re-entering it.
   Clearing briefly unfeeds every downstream game and throws away the scores
   when a TD only wanted to fix a digit. Edit reopens the card's inputs
@@ -671,10 +684,15 @@ Things that cost time this session, written down so they don't again.
   /schedule/generate sets it. A stale `format` from earlier testing makes
   `renderBracketInner` short-circuit to the schedule-first empty state,
   which looks exactly like a broken renderer — check the setting first.
-- **Two caches can serve stale admin JS**: the browser HTTP cache (now
-  `no-cache` via nginx + the `?v=` stamps) and the service worker. When a
-  new admin feature "does nothing", confirm the browser actually has the new
-  `admin.js` before debugging the feature.
+- **Two caches can serve stale JS**: the browser HTTP cache (now `no-cache`
+  via nginx + the `?v=` stamps on EVERY page including index.html) and the
+  service worker. This bit twice in one session — the "custom crop doesn't
+  open" and "the bracket didn't stack" reports were both a stale asset, not
+  a broken feature. When something new "does nothing", confirm the browser
+  actually has the new file before debugging the feature. **Bump the `?v=`
+  stamps together with `sw.js` CACHE on every frontend change** (all five
+  HTML files), and note the SW matches with `ignoreSearch` so a stamped URL
+  still resolves to its precached entry offline.
 - **`getSetting`/`ttConfirm`/`apiFetch` conventions**: `apiFetch` runs the
   URL through `scopedUrl()`, which rewrites a leading `/api` to the current
   tournament's base. Pass `'/api/thing'`, NOT `adminApiBase() + '/thing'` —

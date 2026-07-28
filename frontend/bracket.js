@@ -3182,7 +3182,14 @@ function allTeamStandings() {
       if (known) { h2h[me][opp].rf += p[2]; h2h[me][opp].ra += p[3]; }
     });
   });
-  return rankStandings(Object.keys(teams).map(function(n) { return teams[n]; }), h2h);
+  // Teams that haven't played go LAST, not wherever an 0-0 record happens to
+  // sort. On record alone 0-0 outranks 0-1 (fewer losses), which would drop
+  // ranked teams below a block of unranked ones and read as a numbering bug.
+  var all = Object.keys(teams).map(function(n) { return teams[n]; });
+  var played = all.filter(function(t) { return t.gp > 0; });
+  var idle = all.filter(function(t) { return !t.gp; })
+    .sort(function(a, b) { return a.name < b.name ? -1 : 1; });
+  return rankStandings(played, h2h).concat(idle);
 }
 
 function renderStandingsView() {
