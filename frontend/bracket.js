@@ -1964,8 +1964,17 @@ function paintBracketCanvas(win, doc, opts) {
   var root = doc.getElementById('bracketRoot');
   var content = root && root.firstElementChild;
   if (!content) return null;
+  // The Open/A/B switcher sits inside the bracket shell so it tracks the
+  // bracket's own width on screen, but it is a control, not bracket content:
+  // a row of buttons in a shared PNG reads as a botched screenshot. Hide it
+  // BEFORE measuring, so its height doesn't reserve a blank band either. The
+  // flight is named in the title band instead.
+  var pills = doc.getElementById('bracketFlights');
+  var pillsDisplay = pills ? pills.style.display : null;
+  if (pills) pills.style.display = 'none';
   var base = content.getBoundingClientRect();
-  if (!base.width || !base.height) return null;
+  function restorePills() { if (pills) pills.style.display = pillsDisplay; }
+  if (!base.width || !base.height) { restorePills(); return null; }
   var pad = 28, headH = 74;
   var scale = Math.min(2, Math.max(1, 2200 / base.width));
   var W = Math.ceil(base.width + pad * 2);
@@ -2005,6 +2014,7 @@ function paintBracketCanvas(win, doc, opts) {
 
   ctx.translate(pad, pad + headH);
   paintEl(ctx, content, base, win);
+  restorePills();
   return canvas;
 }
 
