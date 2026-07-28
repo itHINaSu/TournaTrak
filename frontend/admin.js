@@ -425,15 +425,33 @@ function renderAdmin() {
       + '</div></div>';
 
     if (set) {
+      var s1v = (r.t1score !== undefined && r.t1score !== null) ? String(r.t1score) : '';
+      var s2v = (r.t2score !== undefined && r.t2score !== null) ? String(r.t2score) : '';
+      // Correcting a score used to mean CLEARING the game and re-entering it,
+      // which briefly unfeeds every downstream game. Editing in place keeps
+      // the bracket intact while the TD fixes the number.
+      if (_editingResults[sid]) {
+        return '<div class="admin-res-card admin-res-card--editing">' + hdr
+          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
+          + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" value="' + esc(s1v) + '" placeholder="Score" data-selectall></div>'
+          + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t2) + '</span>'
+          + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" value="' + esc(s2v) + '" placeholder="Score" data-selectall></div>'
+          + '<div class="admin-res-footer">'
+          + '<button class="admin-clear-btn" data-action="cancelEditResult" data-arg="' + esc(sid) + '">Cancel</button>'
+          + '<button class="admin-save-btn" data-action="saveResult" data-arg="' + esc(sid) + '">Save</button>'
+          + '</div></div>';
+      }
       var c1 = r.winner === t1 ? 'won' : 'lost';
       var c2 = r.winner === t2 ? 'won' : 'lost';
-      var sc1 = (r.t1score !== undefined && r.t1score !== null) ? '<span class="admin-score-disp">' + r.t1score + '</span>' : '';
-      var sc2 = (r.t2score !== undefined && r.t2score !== null) ? '<span class="admin-score-disp">' + r.t2score + '</span>' : '';
+      var sc1 = s1v !== '' ? '<span class="admin-score-disp">' + esc(s1v) + '</span>' : '';
+      var sc2 = s2v !== '' ? '<span class="admin-score-disp">' + esc(s2v) + '</span>' : '';
       return '<div class="admin-res-card">' + hdr
         + '<div class="admin-res-team-row"><span class="admin-res-team ' + c1 + '">' + esc(t1) + '</span>' + sc1 + '</div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team ' + c2 + '">' + esc(t2) + '</span>' + sc2 + '</div>'
-        + '<div class="admin-res-footer"><button class="admin-clear-btn" data-action="clearResult" data-arg="' + esc(sid) + '">Clear</button></div>'
-        + '</div>';
+        + '<div class="admin-res-footer">'
+        + '<button class="admin-edit-btn" data-action="editResult" data-arg="' + esc(sid) + '">Edit</button>'
+        + '<button class="admin-clear-btn" data-action="clearResult" data-arg="' + esc(sid) + '">Clear</button>'
+        + '</div></div>';
     }
 
     if (_liveGames[sid]) {
@@ -518,21 +536,75 @@ function endLive(sid) {
   apiFetch('/api/live/' + sid, { method: 'DELETE' });
 }
 
+// ── Editing a finalized result ────────────────────────────────────────
+// sid -> true while its card is in edit mode. Purely local UI state; the
+// stored result is untouched until Save.
+var _editingResults = {};
+
+function editResult(sid) { _editingResults[sid] = true; renderAdmin(); }
+function cancelEditResult(sid) { delete _editingResults[sid]; renderAdmin(); }
+
+// Every game downstream of `sid` that ALREADY has a result. Changing who won
+// `sid` sends a different team down the bracket, so any of these were played
+// by teams that may no longer belong there — the TD has to know before the
+// correction lands, because nothing else in the app will tell them.
+function downstreamWithResults(sid) {
+  var out = [], seen = {}, queue = [sid];
+  while (queue.length) {
+    var cur = queue.shift();
+    ['winner', 'loser'].forEach(function(type) {
+      var next = findNextSlot(cur, type);
+      if (!next || seen[next]) return;
+      seen[next] = true;
+      if (results[next] && results[next].winner) out.push(next);
+      queue.push(next);
+    });
+  }
+  return out;
+}
+
 async function saveResult(sid) {
   var g  = GAMES[sid];
   var t1 = resolveSlot(g.t1, results);
   var t2 = resolveSlot(g.t2, results);
+  var prev = results[sid] || {};
+  var editing = !!_editingResults[sid];
   var sc1el = document.getElementById('sc1-' + sid);
   var sc2el = document.getElementById('sc2-' + sid);
   var s1 = (sc1el && sc1el.value !== '') ? parseInt(sc1el.value, 10) : null;
   var s2 = (sc2el && sc2el.value !== '') ? parseInt(sc2el.value, 10) : null;
-  if (s1 === null || s2 === null || isNaN(s1) || isNaN(s2)) {
-    showToast('Enter scores for both teams', true); return;
+  var winner, loser, payload;
+  var blank = (s1 === null && s2 === null);
+  // Editing a result that was recorded winner-only (the API allows it, e.g.
+  // from a forfeit) must not force scores in just to save an unrelated fix.
+  if (editing && blank && prev.winner) {
+    winner = prev.winner;
+    loser  = prev.loser || (prev.winner === t1 ? t2 : t1);
+    payload = { game: sid, winner: winner, loser: loser, t1score: '', t2score: '' };
+  } else {
+    if (s1 === null || s2 === null || isNaN(s1) || isNaN(s2)) {
+      showToast('Enter scores for both teams', true); return;
+    }
+    if (s1 === s2) { showToast('Scores are tied — cannot determine winner', true); return; }
+    winner = s1 > s2 ? t1 : t2;
+    loser  = s1 > s2 ? t2 : t1;
+    payload = { game: sid, winner: winner, loser: loser, t1score: s1, t2score: s2 };
   }
-  if (s1 === s2) { showToast('Scores are tied — cannot determine winner', true); return; }
-  var winner = s1 > s2 ? t1 : t2;
-  var loser  = s1 > s2 ? t2 : t1;
-  var payload = { game: sid, winner: winner, loser: loser, t1score: s1, t2score: s2 };
+
+  // A correction that flips the winner rewrites who advanced. Games already
+  // played further down were played by the old teams.
+  if (editing && prev.winner && prev.winner !== winner) {
+    var stale = downstreamWithResults(sid);
+    var msg = 'This changes the winner from ' + prev.winner + ' to ' + winner + '.';
+    if (stale.length) {
+      msg += '\n\n' + stale.length + ' later game' + (stale.length === 1 ? '' : 's')
+        + ' already have results and were played by the teams that advanced under the '
+        + 'old winner: ' + stale.map(gameLabel).join(', ')
+        + '.\n\nThey are NOT cleared — review them after saving.';
+    }
+    if (!await ttConfirm(msg, { okLabel: 'Change winner', danger: true })) return;
+  }
+
   try {
     var r = await apiFetch('/api/results', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -540,9 +612,12 @@ async function saveResult(sid) {
     });
     if (!r) return;
     if (!r.ok) throw new Error();
-    results[sid] = { winner: winner, loser: loser, t1score: s1, t2score: s2 };
+    results[sid] = blank && editing
+      ? { winner: winner, loser: loser }
+      : { winner: winner, loser: loser, t1score: s1, t2score: s2 };
     delete _liveGames[sid];
-    showToast(gameLabel(sid) + ' saved — ' + winner + ' wins');
+    delete _editingResults[sid];
+    showToast(gameLabel(sid) + (editing ? ' updated — ' : ' saved — ') + winner + ' wins');
     renderAdmin();
   } catch(e) { showToast('Save failed', true); }
 }
@@ -3810,6 +3885,8 @@ Object.assign(TT_ACTIONS, {
   // results tab
   setResultsMode:      function(arg) { setResultsMode(arg); },
   clearResult:         function(arg) { clearResult(arg); },
+  editResult:          function(arg) { editResult(arg); },
+  cancelEditResult:    function(arg) { cancelEditResult(arg); },
   saveResult:          function(arg) { saveResult(arg); },
   startLive:           function(arg) { startLive(arg); },
   updateLive:          function(arg) { updateLive(arg); },

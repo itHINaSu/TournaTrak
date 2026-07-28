@@ -125,6 +125,13 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) var(--btn-pad-h-compact); border-radius: var(--radius-xs); border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
 .admin-clear-btn:hover,
 .admin-clear-btn:active { background: color-mix(in srgb, var(--lose-color) 10%, transparent); }
+/* Edit a finalized score. Same outline shape as Clear but in the interactive
+   accent, not the destructive one — it corrects the game, it doesn't undo it. */
+.admin-edit-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) var(--btn-pad-h-compact); border-radius: var(--radius-xs); border: 0.07em solid var(--blue-lt); background: transparent; color: var(--blue-lt); cursor: pointer; }
+.admin-edit-btn:hover,
+.admin-edit-btn:active { background: color-mix(in srgb, var(--blue-lt) 12%, transparent); }
+/* A card being edited is visually distinct from a settled one. */
+.admin-res-card--editing { border-color: var(--blue-lt); }
 
 
 /* ── Delays admin chips ── */
