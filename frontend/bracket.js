@@ -4625,11 +4625,18 @@ function buildWinChain(sid){
 
 // Celebratory championship banner for the team path. crowned=true once the
 // team has actually won it (drops the "WIN →" prefix).
-function champBannerHTML(crowned) {
+// `tier` — which bracket this would crown them of. A tiered tournament hands
+// out three trophies, so a bare "Champion" on the A-bracket path claims the
+// wrong one. Named explicitly on every flight, including Open, so the three
+// can't be confused; a tournament with no flights keeps the plain word.
+function champBannerHTML(crowned, tier) {
+  var label = 'Champion';
+  if (tier === 'A' || tier === 'B') label = bracketDisplayName(tier) + ' Champion';
+  else if (shareFlights().length > 1) label = 'Open Champion';
   return '<div class="team-path-champion' + (crowned ? ' is-crowned' : '') + '">'
     + (crowned ? '' : '<span class="tpc-pre">WIN</span><span class="tpc-pre">→</span>')
     + '<span class="tpc-trophy">'+trophySVG()+'</span>'
-    + '<span class="tpc-word">Champion</span>'
+    + '<span class="tpc-word">' + esc(label) + '</span>'
     + '</div>';
 }
 
@@ -4684,12 +4691,11 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
     // jumps to the game it comes from ("who might I play?"). Separate tap
     // targets from the card itself, which jumps to this game.
     function slotHTML(slot, resolved) {
-      if (resolved) {
-        if (resolved === team) return esc(resolved);
-        return '<span class="tp-opp-chip" role="button" tabindex="0" title="View this team\'s path"'
-          + ' data-opp-team="' + esc(resolved) + '">'
-          + esc(resolved) + '<span class="tp-opp-chevron">&#8250;</span></span>';
-      }
+      // A resolved name is just a name. It used to be a chip that swapped the
+      // whole page over to THAT team's path — an easy mis-tap that silently
+      // changed which team you were reading, with the only clue a selector
+      // above the fold.
+      if (resolved) return esc(resolved);
       if (isTeamSlot(slot)) return esc(team);
       var lbl = smartLabel(slot, results);
       var srcGid = slot && slot.type !== 'fixed' ? slot.slot : null;
@@ -4798,7 +4804,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
     // CHAMP2 only applies if they LOSE CHAMP — that continuation is shown via the
     // loser path in renderTeamView. LB finalist (isLosePath=true) continues past CHAMP.
     if (!isLosePath && g && g.round === 'CHAMP') {
-      html += champBannerHTML(teamWon);
+      html += champBannerHTML(teamWon, g.tier);
       break;
     }
 
@@ -4820,7 +4826,8 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
           + '<span class="color-win">' + esc(gameLabel(wn)) + '</span>'
           + '</div>';
       } else {
-        html += champBannerHTML(teamWon);
+        // Nowhere left to advance: this game ends whichever bracket it is in.
+        html += champBannerHTML(teamWon, g.tier);
       }
     }
   }
@@ -5354,18 +5361,6 @@ function renderTeamViewInner(realResults){
         target.classList.remove('tp-target-flash');
         void target.offsetWidth; // restart the highlight animation
         target.classList.add('tp-target-flash');
-        return;
-      }
-      // A known team name re-projects the path onto that team.
-      var tn=e.target.closest('[data-opp-team]');
-      if(tn){
-        var t=tn.getAttribute('data-opp-team');
-        if(teamSel) teamSel.value=t;
-        setCookie('tt_team', t);
-        history.replaceState(null, '', window.location.pathname + '?team=' + encodeURIComponent(t));
-        renderTeamView();
-        updateShareBtn();
-        scrollTeamPathTop();
         return;
       }
       // Only the opponent chip navigates — tapping the card itself does nothing.
