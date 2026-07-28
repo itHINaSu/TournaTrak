@@ -211,6 +211,21 @@ async function fetchAll() {
 function applySettingsToPage() {
   document.title = getSetting('pageTitle') + ' — Admin';
   document.getElementById('adminSiteName').textContent = getSetting('adminName');
+  applyBucketsVisibility();
+}
+
+// The Bucket Challenge shares the public page's fourth tab with Standings, and
+// a tournament that isn't running one switches it off in Settings. Results
+// then still offered a "Bucket Challenge" mode for a feature the public page
+// doesn't show — so hide it here too, and don't leave Results sitting on a
+// mode that just disappeared.
+function applyBucketsVisibility() {
+  var on = (getSetting('fourthTab') || 'buckets') === 'buckets';
+  ['modeBucketsBtn', 'qModeBucketsBtn'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.hidden = !on;
+  });
+  if (!on && _resultsMode === 'buckets') setResultsMode('games');
 }
 
 function populateSettingsFields() {
