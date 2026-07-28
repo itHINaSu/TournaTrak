@@ -529,6 +529,17 @@ Swiss odd-counts/byes, 17–20-team pools.
    attributes to classes — a real refactor. Tracked follow-up.
 
 **Ops / deploy**
+- ⚠️ **`docker compose up -d --build` does NOT pick up `nginx/nginx.conf`.**
+  The nginx service runs the stock `nginx:alpine` image with the config
+  BIND-MOUNTED read-only — nothing to build, and Compose only recreates a
+  container when its image or service definition changes, which editing a
+  mounted file is not. nginx reads its config once at startup, so the old one
+  stays live. Use `docker compose restart nginx` (or `up -d --force-recreate
+  nginx`) after any nginx.conf change. By contrast `./frontend` is also
+  bind-mounted, so FRONTEND edits serve immediately with no restart, and the
+  `api` service has a real `build:`, so `--build` does rebuild + recreate it.
+  Pending nginx.conf changes as of 2026-07-28: css/js `no-cache`,
+  `client_max_body_size 2m`, the `/standings` tab route and `/tab-icon.png`.
 7. ✅ **Real `docker compose up` on the owner's box** — done; it's the live
    deployment (`~/TournaTrak_dev`, nginx host port 3019) and has survived
    many rebuild cycles. NOTE: there is still no Docker daemon in the dev
