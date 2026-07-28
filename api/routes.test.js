@@ -685,3 +685,114 @@ describe('lineup access and rules', () => {
     assert.equal(off.status, 200, 'rule off: no number needed');
   });
 });
+
+// ── Team lineup links ─────────────────────────────────────────────────
+// A link, not an account: it grants edit access to exactly one team's
+// lineups in one tournament and nothing else.
+describe('team lineup links', () => {
+  async function linkFor(a, team) {
+    const r = await a.post('/api/team-links/' + encodeURIComponent(team), {});
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.match(r.json.token, /^[a-f0-9]{64}$/);
+    return r.json.token;
+  }
+  async function redeem(token) {
+    const c = agent();
+    const hit = await c.req('GET', '/api/team-link/' + token, undefined, { manual: true });
+    assert.equal(hit.status, 302);
+    return c;
+  }
+
+  rtest('the same link can be handed out again, and regenerating replaces it', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const first = await linkFor(a, 'Alpha');
+
+    // Asking again returns the SAME token — the point of the feature is that
+    // a TD can resend a link already sitting in a team's group chat.
+    assert.equal(await linkFor(a, 'Alpha'), first, 'issuing twice is idempotent');
+    const listed = await a.get('/api/team-links');
+    assert.equal(listed.json.Alpha.token, first, 'listed for copying later');
+
+    const second = (await a.post('/api/team-links/Alpha', { regenerate: true })).json.token;
+    assert.notEqual(second, first, 'regenerate issues a new token');
+    const dead = await agent().req('GET', '/api/team-link/' + first, undefined, { manual: true });
+    assert.match(dead.headers.get('location') || '', /invalid=1/, 'the old link stops working');
+  });
+
+  rtest('a link edits its own team only, and is not an account', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.del('/api/results/R1.L.1');
+    await a.post('/api/settings', { lineupRequireNumbers: 'false' });
+    const c = await redeem(await linkFor(a, 'Alpha'));
+
+    const who = await c.get('/api/session');
+    assert.equal(who.json.authenticated, true);
+    assert.equal(who.json.role, 'team');
+    assert.equal(who.json.teamName, 'Alpha');
+    assert.equal(who.json.username, null, 'there is no account behind it');
+    assert.equal(who.json.viaTeamLink, true);
+
+    assert.equal((await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '7', name: 'Jordan', position: 'SS' }] })).status, 200, 'edits its own team');
+    assert.equal((await c.get('/api/lineups/game/R1.L.1/Alpha')).status, 200);
+
+    assert.equal((await c.get('/api/lineups/game/R1.L.1/Beta')).status, 403, "cannot read another team");
+    assert.equal((await c.post('/api/lineups/game/R1.L.1/Beta', { rows: [] })).status, 403);
+
+    // It is not a login: every role-guarded route still refuses it.
+    for (const [m, u, b] of [
+      ['POST', '/api/settings', { tournamentName: 'Hacked' }],
+      ['POST', '/api/results', { game: 'R1.L.1', winner: 'Alpha', loser: 'Beta' }],
+      ['GET',  '/api/users', undefined],
+      ['GET',  '/api/team-links', undefined],
+    ]) {
+      const r = await c.req(m, u, b);
+      assert.ok(r.status === 401 || r.status === 403, m + ' ' + u + ' should refuse a link session, got ' + r.status);
+    }
+  });
+
+  rtest('revoking a link locks it out', async () => {
+    const a = await loginAdmin();
+    const token = await linkFor(a, 'Gamma');
+    const c = await redeem(token);
+    assert.equal((await c.get('/api/session')).json.teamName, 'Gamma');
+
+    assert.equal((await a.del('/api/team-links/Gamma')).status, 200);
+    const dead = await agent().req('GET', '/api/team-link/' + token, undefined, { manual: true });
+    assert.match(dead.headers.get('location') || '', /invalid=1/);
+  });
+
+  rtest('link tokens never appear on the public teams endpoint', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const token = await linkFor(a, 'Alpha');
+    const pub = await agent().get('/api/teams');
+    assert.equal(pub.status, 200);
+    assert.ok(!('links' in pub.json), 'no links key on the public payload');
+    assert.ok(!JSON.stringify(pub.json).includes(token), 'the token itself must not leak');
+    // And the admin save path must not wipe them.
+    await a.post('/api/teams', { showSeeds: false, teams: [{ name: 'Alpha' }, { name: 'Beta' }] });
+    assert.equal((await a.get('/api/team-links')).json.Alpha.token, token, 'survives a teams save');
+  });
+
+  rtest('dropping a team from the roster kills its link', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const token = await linkFor(a, 'Alpha');
+
+    // Renaming is a removal as far as the link is concerned — it's keyed by
+    // name, and a live credential for a team that no longer exists is worse
+    // than one the TD has to reissue.
+    const saved = await a.post('/api/teams', { showSeeds: false, teams: [{ name: 'Alpha FC' }, { name: 'Beta' }] });
+    assert.deepEqual(saved.json.linksDropped, ['Alpha'], 'the TD is told which links went');
+    assert.ok(!(await a.get('/api/team-links')).json.Alpha, 'link gone');
+
+    const dead = await agent().req('GET', '/api/team-link/' + token, undefined, { manual: true });
+    assert.match(dead.headers.get('location') || '', /invalid=1/);
+
+    // Put the roster back so later runs of the suite start from the same place.
+    await a.post('/api/teams', { showSeeds: false, teams: [{ name: 'Alpha' }, { name: 'Beta' }] });
+  });
+});

@@ -63,6 +63,11 @@ this is the index.
 
 | commit | what |
 |--------|------|
+| (this branch) | Per-team lineup links; coaches no longer offered other teams; `startSession` fixes the sign-in save race |
+| `7af0ae0` | Lineup position dropdown groups what's already taken; optional required player numbers |
+| `3c48624` | Bucket Challenge hidden in Admin → Results when the tournament isn't running one |
+| `c022e87` | ISSA losers round-3 column ordered by its feeders, not by paper game number |
+| `bc93c27` `80f0c4d` | Rolling `./backups` dumps + a restore path that works (both scripts named the wrong service and had NEVER run) |
 | `c6dee73` | Logo/name click returns to the landing tab (desktop); Team Path renders through projections |
 | `212c14d` | Mobile carousel: `lateY` was cascading round-2 cards off-screen, and bye-fed cards were shoving visible ones aside |
 | `c572ba9` | Bracket Edit rebuilt on a stored POSITION, not a slot index; draft with Save/Discard; A/B flights included |
@@ -979,8 +984,18 @@ Admin Results tab → Delays panel (also reachable via "→ Delays" button in th
   only rewrites the expiry, not the payload. Prunes expired rows every 60 s.
   Cookie `maxAge` = 30 days. (Replaced the v2 FileSessionStore; active
   sessions are carried over by the one-time migration import.)
-- Login: POST `/api/login` → bcrypt verify → `req.session.regenerate()`.
+- Login: POST `/api/login` → bcrypt verify → `startSession()`.
+- **`startSession(req, patch, done, fail)`** is the ONLY way a session should
+  begin. It regenerates, applies `patch`, and calls `done` **after
+  `req.session.save()` resolves**. Every sign-in path used to reply straight
+  out of `regenerate()`, which let express-session write the row from its
+  `res.end` hook — i.e. WHILE the response flushed. A magic link's redirect
+  target could then ask `/api/session` and beat the write, landing signed out.
+  It presented as a flaky test (`routes.test.js` failing a different assertion
+  each run), and it was a real bug for real users on a slow database. Four
+  call sites: `/login`, `/setup`, `/team-access/:token`, `/team-link/:token`.
 - `/api/session` GET: returns `{ authenticated, username, role, teamName, teams, mustChangePassword }`.
+  A team-link session adds `viaTeamLink: true` and reports `username: null`.
 - Rate limiter is still **in-memory** (resets on restart) — see security items below.
 
 ## PWA home preference (Account settings)
@@ -1441,6 +1456,38 @@ Coaches auth primarily by magic link, but may OPTIONALLY set a password:
   validation, password sign-in for default- and non-default-tournament
   coaches (incl. the ?t= redirect), magic link still valid afterward.
 
+## Team lineup links (2026-07-28)
+A per-team, per-tournament link that edits ONE team's lineups with no account
+behind it. The TD sends it to a team; anyone on the team can use it, and
+several people can collaborate on the same lineup.
+
+- Stored in the `teams` config domain as `links: { "<team>": { token, createdAt } }`.
+  `GET /api/teams` is public and builds its response explicitly
+  (`{ showSeeds, seedCount?, teams }`), so `links` never rides along —
+  **if you ever change that route to spread the stored object, you leak every
+  team's credential to anonymous callers.** There is a test for exactly this.
+- Routes: `GET /team-links` (admin, the whole map), `POST /team-links/:teamName`
+  (idempotent — returns the EXISTING token unless `{regenerate:true}`),
+  `DELETE /team-links/:teamName`, and public `GET /team-link/:token` which
+  scans tournaments, sets `req.session.teamLink = { tid, team }` via
+  `startSession`, and redirects to `/lineup` (with `?t=` when not the default).
+- **Tokens are stored in the CLEAR**, unlike coach `accessToken`s which are
+  hashed. Deliberate: a hash can't be shown twice, so the only recovery would
+  be regenerating — which silently breaks the link already sitting in a team's
+  group chat. "Copy it again" was the explicit requirement. The exposure is
+  bounded (one team's lineups, revocable) but DB dumps contain working links.
+- `req.teamLink` is set by middleware only when the session's `tid` matches the
+  current mount. `requireLineupAccess` short-circuits on it: same team → next,
+  anything else → 403. `req.user` stays null, so every `requireRole` check
+  still refuses these sessions — a test walks settings/results/users/team-links
+  and asserts 401-or-403 on each.
+- `POST /api/teams` prunes links whose team is no longer in the roster and
+  returns `linksDropped: [names]`; admin.js toasts it. A rename IS a removal
+  here — links are keyed by name.
+- Admin UI: `renderTeamsEditor()` row gets a 🔗 button (`.team-ed-link`, lit
+  `--on` when a link exists) that expands `teamLinkPanel()` — a full-width
+  flex child, which is why `.team-ed-row` is now `flex-wrap: wrap`.
+
 ## Lineup: softball-specific — needs v3 attention
 Lineup fields (`jersey`, `name`, `position`) are sport-specific. For v3 multi-sport,
 these need to be configurable or abstracted. **Do not change in v2.**
@@ -1460,10 +1507,11 @@ the `?v=` stamps in step with it on ALL FIVE HTML files, not just the admin
 pages. Phase 0 evaluation is in `EVALUATION.md`.
 
 ## Tests
-`node --test` from the `api/` directory — **64 tests**, no arguments, no
-fixtures to set up. Postgres must be reachable or the 38 route tests SKIP
-rather than fail, which reads as green: check the skipped count, not just
-the failure count.
+`node --test api/routes.test.js api/schedule-formats.test.js api/standings.test.js`
+— **74 tests**, no fixtures to set up. List the files; `node --test api/`
+tries to execute `server.js` as a test and dies on the `/frontend` require.
+Postgres must be reachable or the 48 route tests SKIP rather than fail, which
+reads as green: check the skipped count, not just the failure count.
 - `schedule-formats.test.js` — generators, simulated to completion under
   random result sequences at every format × count. Includes full Swiss
   events (round-by-round pairing) for every field 4–32, and (added with

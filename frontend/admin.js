@@ -4,6 +4,8 @@
 window.__builderEmbedded = true;
 var results = {}, schedule = {}, settings = {}, buckets = {}, _offsets = { entries: [] }, _fieldColors = {}, _themeColors = {};
 var _teamsData = { showSeeds: false, teams: [] };  // loaded from /api/teams
+var _teamLinks = {};      // team name -> { token, createdAt }, from /api/team-links
+var _teamLinkOpen = null; // team name whose link panel is expanded, if any
 var currentRole = null;
 var currentTeamName = null;
 var _bucketTeams = [];
@@ -120,6 +122,16 @@ async function loadTeams() {
     var r = await fetch(scopedUrl('/api/teams'));
     if (r.ok) { _teamsData = await r.json(); renderTeamsEditor(); }
   } catch (e) { /* keep the current snapshot on network error */ }
+  loadTeamLinks();
+}
+
+// Lineup links live on their own admin-only endpoint — /api/teams is public,
+// and these tokens ARE the credential.
+async function loadTeamLinks() {
+  try {
+    var r = await apiFetch('/api/team-links');
+    if (r && r.ok) { _teamLinks = await r.json(); renderTeamsEditor(); }
+  } catch (e) { /* leave the panel showing "no link yet" */ }
 }
 
 function openSettingsSidebar() {
@@ -3871,14 +3883,39 @@ function renderTeamsEditor() {
   var showS = !!_teamsData.showSeeds;
 
   list.innerHTML = teams.map(function(t, i) {
+    var hasLink = !!_teamLinks[t.name];
+    var open = _teamLinkOpen === t.name;
     return '<div class="team-ed-row" draggable="true" data-idx="' + i + '">' +
       '<span class="team-ed-handle" aria-hidden="true">&#8942;</span>' +
       (showS ? '<span class="team-ed-seed">(' + (i + 1) + ')</span>' : '') +
       '<input type="text" class="team-ed-name" data-idx="' + i + '" value="' + esc(t.name) + '" maxlength="100" aria-label="Team name">' +
+      '<button type="button" class="team-ed-link' + (hasLink ? ' team-ed-link--on' : '') + '"' +
+        ' data-team="' + esc(t.name) + '" aria-expanded="' + (open ? 'true' : 'false') +
+        '" aria-label="Lineup link for ' + esc(t.name) + (hasLink ? ' (active)' : ' (none yet)') + '"' +
+        ' title="Lineup link">&#128279;</button>' +
       '<button type="button" class="team-ed-up" data-idx="' + i + '" aria-label="Move up" ' + (i === 0 ? 'disabled' : '') + '">↑</button>' +
       '<button type="button" class="team-ed-down" data-idx="' + i + '" aria-label="Move down" ' + (i === teams.length - 1 ? 'disabled' : '') + '">↓</button>' +
+      (open ? teamLinkPanel(t.name) : '') +
     '</div>';
   }).join('');
+
+  // Link panel: expand/collapse, and its own buttons.
+  list.querySelectorAll('.team-ed-link').forEach(function(b) {
+    b.addEventListener('click', function() {
+      _teamLinkOpen = (_teamLinkOpen === b.dataset.team) ? null : b.dataset.team;
+      renderTeamsEditor();
+    });
+  });
+  list.querySelectorAll('[data-tl-act]').forEach(function(b) {
+    b.addEventListener('click', function() { teamLinkAction(b.dataset.tlAct, b.dataset.team); });
+  });
+  // The row is draggable, so a plain click inside the URL field would start a
+  // drag instead of selecting the text. Select-all on focus makes it copyable
+  // by hand on browsers where the clipboard API is unavailable.
+  list.querySelectorAll('.team-ed-linkurl').forEach(function(inp) {
+    inp.addEventListener('focus', function() { inp.select(); });
+    inp.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+  });
 
   // Up/down buttons
   list.querySelectorAll('.team-ed-up').forEach(function(b) {
@@ -3900,6 +3937,71 @@ function renderTeamsEditor() {
 
   // HTML5 drag-and-drop reorder
   wireTeamsDragAndDrop(list);
+}
+
+function teamLinkUrl(token) {
+  return window.location.origin + '/api/team-link/' + token;
+}
+
+// The expanded panel under a team row. Deliberately shows the URL in full:
+// the token is stored in the clear precisely so a TD can hand the same link
+// out again rather than break the copy already in a team's group chat.
+function teamLinkPanel(team) {
+  var link = _teamLinks[team];
+  if (!link) {
+    return '<div class="team-ed-linkpanel">' +
+      '<p class="team-ed-linknote">No lineup link yet. Anyone with the link can fill in <strong>' + esc(team) + '</strong>’s lineups — and nothing else.</p>' +
+      '<div class="team-ed-linkbtns">' +
+        '<button type="button" class="admin-edit-btn" data-tl-act="create" data-team="' + esc(team) + '">Create link</button>' +
+      '</div>' +
+    '</div>';
+  }
+  var when = link.createdAt ? new Date(link.createdAt) : null;
+  return '<div class="team-ed-linkpanel">' +
+    '<input type="text" class="team-ed-linkurl" readonly value="' + esc(teamLinkUrl(link.token)) + '" aria-label="Lineup link for ' + esc(team) + '">' +
+    '<div class="team-ed-linkbtns">' +
+      '<button type="button" class="admin-edit-btn" data-tl-act="copy" data-team="' + esc(team) + '">Copy</button>' +
+      '<button type="button" class="admin-clear-btn" data-tl-act="regenerate" data-team="' + esc(team) + '">New link</button>' +
+      '<button type="button" class="admin-clear-btn" data-tl-act="revoke" data-team="' + esc(team) + '">Revoke</button>' +
+    '</div>' +
+    (when && !isNaN(when) ? '<p class="team-ed-linknote">Created ' + esc(when.toLocaleString()) + '</p>' : '') +
+  '</div>';
+}
+
+async function teamLinkAction(act, team) {
+  if (act === 'copy') {
+    var have = _teamLinks[team];
+    if (!have) return;
+    copyText(teamLinkUrl(have.token));
+    showToast('Lineup link for ' + team + ' copied');
+    return;
+  }
+  if (act === 'revoke') {
+    if (!await ttConfirm('Revoke the lineup link for "' + team + '"?\nAnyone still holding it loses access immediately.', { okLabel: 'Revoke', danger: true })) return;
+    var d = await apiFetch('/api/team-links/' + encodeURIComponent(team), { method: 'DELETE' });
+    if (!d || !d.ok) { showToast('Revoke failed', true); return; }
+    delete _teamLinks[team];
+    _teamLinkOpen = team;
+    renderTeamsEditor();
+    showToast('Link revoked');
+    return;
+  }
+  if (act === 'regenerate' &&
+      !await ttConfirm('Issue a new link for "' + team + '"?\nThe current one stops working — everyone who already has it will need the new link.', { okLabel: 'New link', danger: true })) return;
+
+  var r = await apiFetch('/api/team-links/' + encodeURIComponent(team), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ regenerate: act === 'regenerate' }),
+  });
+  if (!r) return;
+  var data = await r.json().catch(function() { return {}; });
+  if (!r.ok) { showToast(data.error || 'Could not create link', true); return; }
+  _teamLinks[team] = { token: data.token, createdAt: data.createdAt };
+  _teamLinkOpen = team;
+  renderTeamsEditor();
+  copyText(teamLinkUrl(data.token));
+  showToast(act === 'regenerate' ? 'New link copied' : 'Link created and copied');
 }
 
 function teamsMove(idx, dir) {
@@ -3970,7 +4072,15 @@ async function saveTeams() {
       body: JSON.stringify({ showSeeds: _teamsData.showSeeds, teams: _teamsData.teams }),
     });
     if (!r || !r.ok) throw new Error();
+    var saved = await r.json().catch(function() { return {}; });
     showToast('Teams saved');
+    // A rename or removal takes that team's lineup link with it — say so,
+    // because the next thing to notice would be a coach whose link died.
+    var dropped = saved.linksDropped || [];
+    if (dropped.length) {
+      dropped.forEach(function(n) { delete _teamLinks[n]; });
+      showToast('Lineup link removed for ' + dropped.join(', '), true);
+    }
     if (status) { status.textContent = '✓ Saved'; setTimeout(function() { status.textContent = ''; }, 3000); }
     renderTeamsEditor();
   } catch(e) {

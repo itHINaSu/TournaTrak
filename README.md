@@ -57,6 +57,8 @@ A self-hosted tournament bracket web app supporting single- and double-eliminati
 - bcrypt password hashing (cost 12), rate-limited login (10 attempts / 15-min window)
 - Session-based auth with httpOnly + sameSite:strict cookies
 - Four roles: `admin`, `results`, `team` (coach — lineup + own-team access), `buckets`
+- Per-team lineup links — a TD hands a team one URL and anyone on it can fill in
+  that team's lineups with no account at all (see below)
 
 **PWA** — service worker precaches the public bracket for offline use on spotty tournament-field Wi-Fi
 
@@ -455,7 +457,38 @@ the way you would the password file.
    `files/schedule.example.json` for the format)
 4. Go to Settings → set tournament name, date formats, default tab, field colors, etc.
 5. Create user accounts for scorekeepers (results role) and coaches (team role)
-6. As games complete, post results (or run live scoring) in the Results tab
+6. Hand out lineup links (Schedule → Teams → 🔗 on a team) so teams can fill in
+   their own lineups
+7. As games complete, post results (or run live scoring) in the Results tab
+
+### Team lineup links
+
+Most people filling in a lineup are not going to make an account, and the person
+who actually knows the batting order changes between games. So a lineup link is
+a link, not a login: in **Schedule → Teams**, the 🔗 button on a team creates a
+URL that grants edit access to that one team's lineups in that one tournament,
+and nothing else. Send it to the whole team — a group chat is the normal case —
+and whoever is free can fill it in.
+
+- **Copy** hands out the same link again. It is deliberately re-showable, so
+  resending it never breaks the copy already circulating.
+- **New link** issues a fresh one and kills the old one. Everybody who has the
+  old link needs the new one, so only do this if it leaked.
+- **Revoke** removes access entirely.
+
+Because links are keyed by team name, renaming or removing a team drops that
+team's link — a save that does this says so in a toast, and the team needs a new
+link afterwards.
+
+Anyone holding a link can read and write only their own team's lineups. It is
+not an account: it cannot post results, change settings, see the user list, or
+read another team's lineup. The tokens are stored unhashed (that's what makes
+Copy possible), so a database dump contains working links — `./backups` is
+gitignored and should be treated as sensitive, the same as it holds password
+hashes.
+
+Coach accounts still exist for people who want a username and password, and both
+kinds of access land on the same lineup page.
 
 ---
 

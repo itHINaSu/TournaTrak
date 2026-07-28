@@ -1017,6 +1017,9 @@ input[type="time"]:focus {
 .team-ed-row {
   display: flex;
   align-items: center;
+  /* The lineup-link panel is a full-width child that wraps onto its own line
+     under the row's controls. */
+  flex-wrap: wrap;
   gap: 0.4em;
   background: var(--surface);
   border: 0.07em solid var(--border);
@@ -1055,7 +1058,7 @@ input[type="time"]:focus {
   border-radius: var(--radius-xs);
 }
 .team-ed-name:focus { outline: 1px solid var(--blue); background: var(--bg); }
-.team-ed-up, .team-ed-down {
+.team-ed-up, .team-ed-down, .team-ed-link {
   flex: none;
   background: transparent;
   border: 0.07em solid var(--border);
@@ -1069,6 +1072,36 @@ input[type="time"]:focus {
 }
 .team-ed-up:disabled, .team-ed-down:disabled { opacity: 0.2; cursor: not-allowed; }
 .team-ed-up:not(:disabled):hover, .team-ed-down:not(:disabled):hover { color: var(--text); border-color: var(--text-dim); }
+/* Lit when the team already has a link, so a TD can see at a glance which
+   teams have been sent one. */
+.team-ed-link--on { color: var(--blue); border-color: var(--blue); }
+.team-ed-link:hover { color: var(--text); border-color: var(--text-dim); }
+.team-ed-link[aria-expanded="true"] { color: var(--text); border-color: var(--text-dim); }
+.team-ed-linkpanel {
+  flex: 0 0 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  margin-top: 0.15em;
+  padding: 0.5em;
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-xs);
+  cursor: default;
+}
+.team-ed-linkurl {
+  width: 100%;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  padding: 0.4em 0.5em;
+  color: var(--text);
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-xs);
+}
+.team-ed-linkbtns { display: flex; flex-wrap: wrap; gap: 0.4em; }
+.team-ed-linknote { margin: 0; font-size: 0.72rem; color: var(--text-mute); line-height: 1.4; }
 
 
 /* Builder embedded in schedule tab — fill the full panel width */
@@ -1212,7 +1245,7 @@ input[type="time"]:focus {
 /* Small icon buttons need real touch targets on phones/tablets — mouse
    users keep the compact sizes above. */
 @media (pointer: coarse) {
-  .team-ed-up, .team-ed-down { width: 2.75rem; height: 2.75rem; font-size: 0.95rem; }
+  .team-ed-up, .team-ed-down, .team-ed-link { width: 2.75rem; height: 2.75rem; font-size: 0.95rem; }
   .coach-team-remove { padding: 0.55em 0.7em; margin: -0.55em -0.35em; }
   .delay-offset-del { min-height: 2.6rem; padding: 0.2em 0.9em; }
 }

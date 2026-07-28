@@ -288,6 +288,12 @@ const api = express.Router();
 // Attach the logged-in user record (null when unauthenticated / deleted).
 api.use(ah(async (req, res, next) => {
   req.user = req.session.username ? await store.findUser(req.session.username) : null;
+  // A redeemed team lineup link grants ONE team in ONE tournament, with no
+  // user record behind it. Only honoured on the tournament it was issued for,
+  // so a link cannot follow the visitor to another mount. req.user stays null,
+  // which means every requireRole check keeps failing for these sessions.
+  const tl = req.session.teamLink;
+  req.teamLink = (tl && tl.tid === req.tid && tl.team) ? tl : null;
   next();
 }));
 
@@ -322,6 +328,11 @@ function requireSuperadmin(req, res, next) {
 // Lineup access: team users can only read/write their own team (in this
 // tournament); admin and results can access any.
 function requireLineupAccess(req, res, next) {
+  // A team lineup link: no account, exactly one team, this tournament only.
+  if (req.teamLink) {
+    if (req.params.teamName === req.teamLink.team) return next();
+    return res.status(403).json({ error: 'Access denied' });
+  }
   if (!req.user)                   return res.status(401).json({ error: 'Authentication required' });
   if (req.user.mustChangePassword) return res.status(403).json({ error: 'Password change required', mustChangePassword: true });
   const role = roleFor(req);
@@ -349,6 +360,16 @@ api.get('/session', ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const u = req.user;
   if (!u) {
+    // A redeemed team lineup link: authenticated for exactly one team's
+    // lineups, with no account. Reported as the 'team' role so the lineup
+    // page needs no special case, but with no username to show.
+    if (req.teamLink) {
+      return res.json({
+        authenticated: true, mustChangePassword: false,
+        username: null, role: 'team', teamName: req.teamLink.team,
+        teams: [req.teamLink.team], viaTeamLink: true, setupRequired: false,
+      });
+    }
     // No session AND no users at all → the admin page shows the "create
     // your admin account" form (POST /api/setup) instead of a login form.
     const setupRequired = (await store.allUsers()).length === 0;
@@ -392,6 +413,23 @@ api.get('/session', ah(async (req, res) => {
 // random throwaway value at startup guarantees validity and matching cost.
 const SENTINEL_HASH = bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 12);
 
+// Starts a fresh session carrying `patch`, then calls `done` — but only once
+// the session row is actually in the store.
+//
+// express-session normally writes that row from its res.end hook, i.e. WHILE
+// the response is being flushed. Replying straight out of regenerate() is
+// therefore a race: the client can fire its next request (a magic link's
+// redirect target asking /api/session who it is) and lose to the pending
+// write, landing signed out at random. Saving explicitly first costs one
+// round-trip to Postgres and removes the race everywhere sessions begin.
+function startSession(req, patch, done, fail) {
+  req.session.regenerate((err) => {
+    if (err) return fail(err);
+    Object.assign(req.session, patch);
+    req.session.save((saveErr) => (saveErr ? fail(saveErr) : done()));
+  });
+}
+
 api.post('/login', loginRateLimit, ah(async (req, res) => {
   const { username, password } = req.body || {};
   if (typeof username !== 'string' || typeof password !== 'string') {
@@ -411,9 +449,7 @@ api.post('/login', loginRateLimit, ah(async (req, res) => {
   }
   if (req._loginEntry) req._loginEntry.count = 0;
   const eff = store.effectiveRole(user, req.tid);
-  req.session.regenerate(err => {
-    if (err) return res.status(500).json({ error: 'Session error' });
-    req.session.username = user.username;
+  startSession(req, { username: user.username }, () => {
     res.json({
       ok:                 true,
       mustChangePassword: !!user.mustChangePassword,
@@ -421,7 +457,7 @@ api.post('/login', loginRateLimit, ah(async (req, res) => {
       role:               eff === 'superadmin' ? 'admin' : eff,
       superadmin:         user.role === 'superadmin',
     });
-  });
+  }, () => res.status(500).json({ error: 'Session error' }));
 }));
 
 api.post('/logout', (req, res) => {
@@ -455,11 +491,9 @@ api.post('/setup', loginRateLimit, ah(async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 12);
   await store.createUser({ username, passwordHash, role: 'superadmin', mustChangePassword: false }, store.tid);
   const user = await store.findUser(username);
-  req.session.regenerate(err => {
-    if (err) return res.status(500).json({ error: 'Session error' });
-    req.session.username = user.username;
-    res.json({ ok: true, username: user.username, role: 'admin', superadmin: true });
-  });
+  startSession(req, { username: user.username },
+    () => res.json({ ok: true, username: user.username, role: 'admin', superadmin: true }),
+    () => res.status(500).json({ error: 'Session error' }));
 }));
 
 api.post('/change-password', ah(async (req, res) => {
@@ -691,11 +725,9 @@ api.get('/setup-password/:token', ah(async (req, res) => {
   const hashed = store.hashToken(token);
   const user = (await store.allUsers()).find(u => u.setupToken === hashed && u.mustChangePassword);
   if (!user) return res.redirect('/admin?setup=invalid');
-  req.session.regenerate(err => {
-    if (err) return res.redirect('/admin?setup=invalid');
-    req.session.username = user.username;
-    res.redirect('/admin?setup=1');
-  });
+  startSession(req, { username: user.username },
+    () => res.redirect('/admin?setup=1'),
+    () => res.redirect('/admin?setup=invalid'));
 }));
 
 api.get('/team-access/:token', ah(async (req, res) => {
@@ -719,11 +751,9 @@ api.get('/team-access/:token', ah(async (req, res) => {
     const t = (await store.listTournaments()).find(x => x.id === destTid);
     if (t) dest = '/lineup?t=' + encodeURIComponent(t.slug);
   }
-  req.session.regenerate(err => {
-    if (err) return res.redirect('/lineup?invalid=1');
-    req.session.username = user.username;
-    res.redirect(dest);
-  });
+  startSession(req, { username: user.username },
+    () => res.redirect(dest),
+    () => res.redirect('/lineup?invalid=1'));
 }));
 
 // ── Tournament management ─────────────────────────────────────────────
@@ -1531,8 +1561,92 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
     clean.push({ name });
   }
   const prev = await store.get(req.tid, 'teams');
-  await store.put(req.tid, 'teams', { ...prev, showSeeds: !!showSeeds, teams: clean });
+  // Lineup links are keyed by team name, so a rename or a removal would leave
+  // a working credential pointing at a team that no longer exists. Drop those
+  // rather than let them linger — and report which, so the TD finds out from a
+  // toast instead of from a coach whose link stopped working.
+  const links = { ...((prev && prev.links) || {}) };
+  const roster = new Set(clean.map(t => t.name));
+  const linksDropped = Object.keys(links).filter(name => !roster.has(name));
+  linksDropped.forEach(name => { delete links[name]; });
+  await store.put(req.tid, 'teams', { ...prev, showSeeds: !!showSeeds, teams: clean, links });
+  res.json({ ok: true, linksDropped });
+}));
+
+// ── Team lineup links ─────────────────────────────────────────────────
+//
+// A per-team, per-tournament link that grants edit access to that ONE team's
+// lineups and nothing else. There is no account behind it: the TD sends it to
+// whoever is filling the lineup in, and anyone on the team can use it and
+// collaborate. Coach accounts still exist for people who want a login.
+//
+// The token is stored in the CLEAR, unlike coach account tokens which are
+// hashed. That is a deliberate trade and worth understanding: a hash cannot be
+// shown twice, so the only recovery is to regenerate — which silently breaks
+// the link for everyone it was already sent to, typically a team group chat.
+// A link that can be handed out again is the whole point of this feature. The
+// exposure is bounded: one team's lineup in one tournament, no read of anyone
+// else's, and revocable at any time. Database dumps therefore contain working
+// team links — ./backups is gitignored and documented as sensitive for the
+// same reason it holds password hashes.
+const TEAM_TOKEN_RE = /^[a-f0-9]{64}$/;
+
+async function teamLinks(tid) {
+  const teams = await store.get(tid, 'teams');
+  return (teams && teams.links) || {};
+}
+
+// Every team's link for this tournament, so the Teams editor can offer Copy
+// on the ones that have one. Admin-only — these ARE the credential.
+api.get('/team-links', requireAdmin, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json(await teamLinks(req.tid));
+}));
+
+// Issue a link, or hand back the existing one. Idempotent on purpose: the
+// common case is "send it again", not "make a new one".
+api.post('/team-links/:teamName', requireAdmin, ah(async (req, res) => {
+  const name = String(req.params.teamName || '').trim();
+  if (!name || name.length > 100) return res.status(400).json({ error: 'invalid team name' });
+  const teams = await store.get(req.tid, 'teams');
+  const links = (teams && teams.links) || {};
+  const regenerate = !!(req.body && req.body.regenerate);
+  if (!links[name] || regenerate) {
+    links[name] = { token: crypto.randomBytes(32).toString('hex'), createdAt: new Date().toISOString() };
+    await store.put(req.tid, 'teams', { ...teams, links });
+  }
+  res.json({ ok: true, team: name, ...links[name] });
+}));
+
+// Revoke. Anyone still holding the old link lands back on the sign-in page.
+api.delete('/team-links/:teamName', requireAdmin, ah(async (req, res) => {
+  const name = String(req.params.teamName || '').trim();
+  const teams = await store.get(req.tid, 'teams');
+  const links = (teams && teams.links) || {};
+  if (!links[name]) return res.status(404).json({ error: 'no link for that team' });
+  delete links[name];
+  await store.put(req.tid, 'teams', { ...teams, links });
   res.json({ ok: true });
+}));
+
+// Redeem a link: attaches the team grant to the SESSION, with no user behind
+// it. Every requireRole check still fails for these sessions because req.user
+// stays null — the only thing they can reach is their own team's lineups.
+api.get('/team-link/:token', ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const { token } = req.params;
+  if (!TEAM_TOKEN_RE.test(token || '')) return res.redirect('/lineup?invalid=1');
+  const tournaments = await store.listTournaments();
+  for (const t of tournaments) {
+    const links = await teamLinks(t.id);
+    const hit = Object.entries(links).find(([, v]) => v && v.token === token);
+    if (!hit) continue;
+    const team = hit[0];
+    return startSession(req, { teamLink: { tid: t.id, team } },
+      () => res.redirect(t.id === store.tid ? '/lineup' : '/lineup?t=' + encodeURIComponent(t.slug)),
+      () => res.redirect('/lineup?invalid=1'));
+  }
+  res.redirect('/lineup?invalid=1');
 }));
 
 // ── Lineup endpoints ──────────────────────────────────────────────────
@@ -1575,7 +1689,9 @@ api.post('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, 
   const { slotId, teamName } = req.params;
   if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
   if (teamName.length > 100) return res.status(400).json({ error: 'teamName too long' });
-  if (roleFor(req) === 'team') {
+  // A link user is a coach for locking purposes: once the game is final the
+  // lineup is the record of what was played, and only an admin may touch it.
+  if (roleFor(req) === 'team' || req.teamLink) {
     const results = await store.get(req.tid, 'results');
     if (results[slotId] && results[slotId].winner) {
       return res.status(403).json({ error: 'Game is complete — lineup is locked' });
@@ -1588,7 +1704,7 @@ api.post('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, 
   // as well as in the page, because the page check is a courtesy to the coach
   // and this one is the actual rule. Admins editing on a team's behalf are
   // exempt — they are often filling in what a coach phoned through.
-  if (roleFor(req) === 'team') {
+  if (roleFor(req) === 'team' || req.teamLink) {
     const settings = await store.get(req.tid, 'settings');
     if (settings.lineupRequireNumbers === 'true') {
       const bad = rows

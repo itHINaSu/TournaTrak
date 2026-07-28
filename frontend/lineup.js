@@ -3,6 +3,7 @@
 var currentTeamName = null; // coach's primary team (from session)
 var myTeams         = [];   // all teams this user may edit
 var isAdmin         = false;
+var viaTeamLink     = false; // signed in by a team lineup link, not an account
 var viewedTeamName  = null;
 var currentSlotId   = null;
 var isReadOnly      = false;
@@ -736,7 +737,10 @@ async function lineupInit() {
 
     isAdmin         = session.role === 'admin' || session.role === 'results';
     buildNavBar(session.role);
-    if (session.role === 'team') setupCoachAccountBtn(!!session.hasPassword);
+    // A team-link session has no account behind it, so there is no password to
+    // set — offering the button would open a form with nothing to save to.
+    viaTeamLink = !!session.viaTeamLink;
+    if (session.role === 'team' && !viaTeamLink) setupCoachAccountBtn(!!session.hasPassword);
     currentTeamName = session.teamName || null;
     myTeams = isAdmin
       ? [] // admin can edit any team — checked in isSlotEditable
@@ -776,21 +780,18 @@ async function lineupInit() {
           return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
         }).join('');
       } else {
-        var otherTeams = allTeams.filter(function(t) { return myTeams.indexOf(t) === -1; });
-        var html = '';
-        if (myTeams.length) {
-          html += '<optgroup label="Your Teams">'
-            + myTeams.map(function(t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('')
-            + '</optgroup>';
-        }
-        if (otherTeams.length) {
-          html += '<optgroup label="Other Teams">'
-            + otherTeams.map(function(t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('')
-            + '</optgroup>';
-        }
-        teamSel.innerHTML = html;
+        // Only the teams this session may actually edit. The server 403s a
+        // coach reading anyone else's lineup, so listing "Other Teams" here
+        // was offering a menu of errors.
+        teamSel.innerHTML = myTeams.map(function(t) {
+          return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+        }).join('');
         if (currentTeamName) teamSel.value = currentTeamName;
       }
+      // Nothing to switch between — the header above already names the team,
+      // so drop the half and let the game selector have the whole row.
+      var teamHalf = document.getElementById('lineupTeamHalf');
+      if (teamHalf) teamHalf.hidden = !isAdmin && myTeams.length < 2;
     }
 
     document.getElementById('lineupSelectorsRow').hidden = false;
