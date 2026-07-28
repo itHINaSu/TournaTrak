@@ -34,7 +34,11 @@ services:
   nginx:
     image: nginx:alpine
     ports:
-      - "3019:80"
+      # Host port for the public site. Override per-machine by putting
+      # TT_PORT=3029 in .env (gitignored) rather than editing this line —
+      # a local edit here conflicts on every pull, and `git pull` then stops
+      # with "Your local changes would be overwritten".
+      - "${TT_PORT:-3019}:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./frontend:/usr/share/nginx/html:ro

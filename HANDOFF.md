@@ -1123,6 +1123,30 @@ Things that cost time this session, written down so they don't again.
   iframe needs the explicit `window.__ttReady = true` flag at the end of
   `fetchAll()` to know the frame has data. Don't "simplify" that away.
 
+## Recovering a deploy box after a force-push (2026-07-28)
+A rebase rewrites commits, so a machine holding the OLD branch tip sees
+"diverged, N and M different commits" on the next fetch. The old commits are
+not lost work — they are the pre-rebase originals of commits already on the
+remote, same subjects, replayed onto a newer base. **Merging them back is
+wrong** and produces a conflict in every file the rebase touched (it did:
+HANDOFF, bracket.js, sw.js and all five HTML files at once, because the
+cache-stamp bump touches them on both sides).
+
+Check, then reset:
+```
+git log --oneline origin/<branch>..HEAD      # what would be discarded
+git reset --hard origin/<branch>             # also aborts an in-progress merge
+```
+If those commit SUBJECTS all appear in `git log origin/<branch>`, the reset
+loses nothing. `git reset --hard` clears MERGE_HEAD too, so there is no need
+to `git merge --abort` first.
+
+The second-order trap: a deploy box usually carries one local edit
+(`compose.yml`'s host port). That edit is what makes `git pull` refuse to run
+at all, and deleting the file to get past it silently reverts the port. The
+port is now `${TT_PORT:-3019}` — put `TT_PORT=` in `.env` instead, and the
+working tree stays clean forever.
+
 ## Rebasing onto a main that moved (2026-07-28)
 Two sessions worked this repo the same day and the graph is worth reading
 before the next one starts.
@@ -1409,10 +1433,15 @@ transcription and fails the build on a game fed from a later round column
 or a same-round same-side feed. It should print "all checks clean".
 
 Deployed by the owner via Docker Compose on their own box (`~/TournaTrak_dev`,
-nginx on host port 3019). A second isolated instance is just another clone
-in its own directory with a different nginx port — Compose namespaces the
-containers, network, and volumes by directory name, and Postgres is never
-exposed to the host, so nothing else needs changing. (Multi-tournament
+nginx on host port 3019 by default). A second isolated instance is just
+another clone in its own directory with a different nginx port — Compose
+namespaces the containers, network, and volumes by directory name, and
+Postgres is never exposed to the host, so nothing else needs changing.
+**Set the port with `TT_PORT=3029` in that clone's `.env`, never by editing
+`compose.yml`.** `.env` is gitignored; an edit to the tracked file conflicts
+on every single pull, which is exactly how a deploy box ends up mid-merge
+with `git pull` refusing to run (it happened, twice — see the git-recovery
+note in "Session notes / traps"). (Multi-tournament
 support also exists in-app via `/t/:slug` + the superadmin Tournaments
 panel, which is the lighter option when full isolation isn't needed.)
 
