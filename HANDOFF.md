@@ -57,22 +57,37 @@ side.
 
 ## Outstanding work (what's still needed) — updated 2026-07-28 (merge)
 
-**⬜ TOP ITEM — the losers bracket is one round short.** The last piece of
-the 2026-07-28 "missing lines / not enough rounds" report. A 22-team double
-elim needs SEVEN losers-side columns. The vocabulary
-(`ROUND_ORDER` = R0 R1 R2 QF QF2 SF SF3 SF2 CHAMP CHAMP2) offers R1..SF2 =
+**✅ DONE 2026-07-28 — the losers bracket was one round short; `SF4` added.**
+The last piece of the 2026-07-28 "missing lines / not enough rounds"
+report. A 22-team double elim needs SEVEN losers-side columns. The old
+vocabulary (`R0 R1 R2 QF QF2 SF SF3 SF2 CHAMP CHAMP2`) offered R1..SF2 =
 seven, but the losers bracket cannot start at R1: its round-1 games are fed
 by winners ROUND 2 losers (the bye teams enter there), and the cross-side
 rule in `scripts/build-issa-state-2026.js` correctly rejects a game drawn
 to the left of its own feeder — no connector can be drawn. Starting at R2
-leaves only six columns, so ISSA games 40 and 41 share the last one with 41
-depending on 40. That's what reads as a missing round.
-FIX: add one round between SF3 and SF2 (say `SF4`) to `ROUND_ORDER` +
-`ROUND_LABELS` in `frontend/bracket-data.js`, and to `SLOT_DEFS` in BOTH
-`frontend/bracket-data.js` and `api/slot-defs.js` (they must stay in sync);
-give it `{ R:[1,2] }`. Then map ISSA 40 → `SF3.R.1`, 41 → `SF4.R.1`.
-Do NOT "fix" it by moving the losers bracket back to R1 — that was tried
-and the cross-side check rejects it for good reason.
+left only six columns, so ISSA games 40 and 41 shared the last one with 41
+depending on 40. That's what read as a missing round.
+FIXED by adding a round `SF4` between `SF3` and `SF2` — `ROUND_ORDER` +
+`ROUND_LABELS` in `frontend/bracket-data.js`, `SLOT_DEFS` in BOTH
+`frontend/bracket-data.js` and `api/slot-defs.js` (they must stay in sync),
+`roundNameSF4` in `frontend/settings-defaults.js`, the by-round schedule
+grouping and `scrollToLastCompletedCard` lists in `frontend/bracket.js`,
+`RR_SLOTS` in `api/schedule-formats.js`, and the ROUND row in `README.md`.
+ISSA now maps 40 → `SF4.R.1`, 41 → `SF2.R.1`; verified rendering shows
+seven losers columns (Rounds 2–8), each round alone in its column, with
+37/38 → 40 → 41 connectors drawn.
+Do NOT "fix" a future recurrence by moving the losers bracket back to R1 —
+that was tried and the cross-side check rejects it for good reason.
+The build check in `build-issa-state-2026.js` is now STRICT about this: a
+non-tier game may not be fed by a same-round, same-side game at all (a
+same-round CROSS-side feed is the normal winners→losers drop and is fine),
+so a future bracket that runs out of losers columns fails the build instead
+of silently stacking two games in one column.
+
+Note: game 41 legitimately appears TWICE on the desktop stacked layout —
+once in its own column and once inside the championship cluster
+(`champ-lbfinal`, `frontend/bracket.js` ~2175). That duplication is
+deliberate and commented; it is not the column bug.
 
 Consolidated to-do list; each item points at the detailed section. Ordered
 roughly by priority / by what the owner has been driving.
@@ -509,14 +524,17 @@ LABEL (that's what the TD reads) and map it to a tree-ordered slot.
 **fails the build** on any non-adjacent feeder pair; copy that check.
 
 **The other trap: round order ≠ paper round order.** Columns are laid out in
-`ROUND_ORDER` (`R0, R1, R2, QF, QF2, SF, SF3, SF2, CHAMP, CHAMP2`), and
+`ROUND_ORDER` (`R0, R1, R2, QF, QF2, SF, SF3, SF4, SF2, CHAMP, CHAMP2`), and
 `buildConnPcts` only wires ADJACENT columns — so a game fed from a round that
 sits LATER in that list gets no connector line at all, and its feeder draws on
-the wrong side of it. A double-elim losers bracket needs `SF.R` for LB round
-N, `SF3.R` for N+1, `SF2.R` for the last two (that's the `doubleElimSpecs`
-layout) — `SF3` is round SIX despite the name reading like a third semifinal.
-The 2026 ISSA build had SF/SF3 swapped and lost its last three losers-side
-gaps; the round-ordering check added 2026-07-28 fails the build on it.
+the wrong side of it. A feeder in the SAME column on the same side is just as
+broken: the two cards stack with no room for a line. A double-elim losers
+bracket needs `SF.R` for LB round N, `SF3.R` for N+1, `SF4.R` for N+2 and
+`SF2.R` for the last — one round per column, never two — and the names lie:
+`SF3` is round SIX and `SF4` is round SEVEN despite reading like extra
+semifinals. The 2026 ISSA build had SF/SF3 swapped and lost its last three
+losers-side gaps, then ran 40 and 41 into a shared `SF2` column; the
+round-ordering check added 2026-07-28 fails the build on both.
 
 Its other build-time checks, all worth keeping: `validateSchedule`, every
 feed resolving to a real game, no field double-booked at one time, every

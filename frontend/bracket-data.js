@@ -18,15 +18,17 @@ const SLOT_DEFS = {
   QF2:  { L:[1,2],                                     R:[1,2,3,4] },
   SF:   { L:[1,2,3],                                   R:[1,2,3,4] },
   SF3:  {                                               R:[1,2] },
+  SF4:  {                                               R:[1,2] },
   SF2:  { L:[1],                                       R:[1,2] },
   CHAMP:  { C:[1] },
   CHAMP2: { C:[1] }
 };
 
-const ROUND_ORDER  = ['R0','R1','R2','QF','QF2','SF','SF3','SF2','CHAMP','CHAMP2'];
+const ROUND_ORDER  = ['R0','R1','R2','QF','QF2','SF','SF3','SF4','SF2','CHAMP','CHAMP2'];
 const ROUND_LABELS = {
   R0:'Round 0', R1:'Round 1', R2:'Round 2', QF:'Round 3', QF2:'Round 4',
-  SF:'Round 5', SF3:'Round 6', SF2:'Round 7', CHAMP:'Championship', CHAMP2:'If Necessary'
+  SF:'Round 5', SF3:'Round 6', SF4:'Round 7', SF2:'Round 8',
+  CHAMP:'Championship', CHAMP2:'If Necessary'
 };
 
 // roundLabel — display name for a round, numbered by the populated rounds only.

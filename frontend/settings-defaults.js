@@ -44,6 +44,7 @@ const SETTINGS_DEFAULTS = {
   roundNameQF2:    '',
   roundNameSF:     '',
   roundNameSF3:    '',
+  roundNameSF4:    '',
   roundNameSF2:    '',
   roundNameCHAMP:  '',
   roundNameCHAMP2: '',

@@ -13,6 +13,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { generateSchedule, resolveSeeding } = require('./schedule-formats');
+const { ROUND_ORDER } = require('../frontend/bracket-data.js');
 
 // Deterministic PRNG so a failing case is reproducible from its seed.
 function mulberry32(seed) {
@@ -85,6 +86,46 @@ function assertNoDanglingFeeds(schedule, label) {
     }
   }
 }
+
+// The desktop renderer lays columns out in ROUND_ORDER and buildConnPcts only
+// wires ADJACENT columns, so a feed that points at a LATER round draws the
+// feeder to the right of the game it feeds with no line between them. A feed
+// from the SAME column on the same side is just as broken: the two cards stack
+// with nowhere to put a line. A same-round CROSS-side feed is the normal
+// winners→losers drop and is fine, and tier games all live in R0 (they order
+// by slot band, not round), so both are exempt.
+function assertFeedsDrawLeftToRight(schedule, label) {
+  const parse = s => { const p = s.split('.'); return { r: p[0], side: p[1], n: +p[2] }; };
+  for (const [sid, g] of Object.entries(schedule)) {
+    if (g.tier) continue;
+    const me = parse(sid);
+    for (const n of [1, 2]) {
+      const src = g['t' + n + 'slot'];
+      if (!src || !schedule[src] || schedule[src].tier) continue;
+      const f = parse(src);
+      const fi = ROUND_ORDER.indexOf(f.r), mi = ROUND_ORDER.indexOf(me.r);
+      assert.ok(fi < mi || (fi === mi && f.side !== me.side),
+        `${label}: ${sid} is fed by ${src} — no connector line can be drawn`);
+    }
+  }
+}
+
+test('every generated bracket draws its feeds left to right', () => {
+  const forEachSize = (format, lo, hi) => {
+    for (let N = lo; N <= hi; N++) {
+      const { schedule } = generateSchedule(format, {
+        teams: names(N), seedMode: 'order', startDate: '2026-08-01', ifNecessary: true,
+      });
+      assertFeedsDrawLeftToRight(schedule, `${format} N=${N}`);
+    }
+  };
+  forEachSize('double-elim', 4, 32);
+  forEachSize('single-elim', 4, 32);
+  forEachSize('consolation', 4, 32);
+  forEachSize('three-game', 8, 32);
+  forEachSize('tiered', 8, 32);
+  forEachSize('pools', 6, 16);
+});
 
 test('double elimination: 2-loss elimination holds for every 4..32 field', () => {
   for (let N = 4; N <= 32; N++) {

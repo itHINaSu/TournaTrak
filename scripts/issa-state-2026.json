@@ -409,7 +409,7 @@
       "t2type": "winner",
       "t2slot": "SF.R.2"
     },
-    "SF2.R.1": {
+    "SF4.R.1": {
       "label": "Game 40",
       "time": "2026-08-02T11:20",
       "field": "Center",
@@ -418,14 +418,14 @@
       "t2type": "winner",
       "t2slot": "SF3.R.2"
     },
-    "SF2.R.2": {
+    "SF2.R.1": {
       "label": "Game 41",
       "time": "2026-08-02T12:30",
       "field": "Center",
       "t1type": "loser",
       "t1slot": "SF.L.1",
       "t2type": "winner",
-      "t2slot": "SF2.R.1"
+      "t2slot": "SF4.R.1"
     },
     "CHAMP.C.1": {
       "label": "Game 42",
@@ -434,7 +434,7 @@
       "t1type": "winner",
       "t1slot": "SF.L.1",
       "t2type": "winner",
-      "t2slot": "SF2.R.2"
+      "t2slot": "SF2.R.1"
     },
     "CHAMP2.C.1": {
       "label": "Game 43",

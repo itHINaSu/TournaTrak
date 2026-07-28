@@ -213,7 +213,7 @@ A self-hosted tournament bracket web app supporting single- and double-eliminati
 
 | Segment | Values |
 |---------|--------|
-| ROUND | `R0` `R1` `R2` `QF` `QF2` `SF` `SF3` `SF2` `CHAMP` `CHAMP2` |
+| ROUND | `R0` `R1` `R2` `QF` `QF2` `SF` `SF3` `SF4` `SF2` `CHAMP` `CHAMP2` |
 | SIDE | `L` (left side) `R` (right side) `C` (championship) |
 | NUM | 1-based integer |
 

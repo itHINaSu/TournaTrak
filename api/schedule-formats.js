@@ -305,11 +305,14 @@ function defaultSequentialTimes(startDate, count) {
 // Losers drop one round back with a cross-half pairing to delay rematches.
 // Optional "if necessary" bracket-reset game (CHAMP2).
 //
+// Every losers round gets its OWN column — a game sharing a column with the
+// game that feeds it renders as two stacked cards with no connector line.
+//
 // Slot layout per bracket size:
-//   B= 4: WB[QF.L, SF.L]         LB[SF.R.1, SF.R.2]           →  6 games
+//   B= 4: WB[QF.L, SF.L]         LB[SF.R.1, SF3.R.1]          →  6 games
 //   B= 8: WB[R1.L, R2.L, QF.L]   LB[R1.R, R2.R, QF.R, SF.R.1]→ 14 games
-//   B=16: WB[R1.L, R2.L, QF.L, QF2.L]  LB[...SF.R.1-2]        → 30 games
-//   B=32: WB[R1.L…SF.L]          LB[…SF.R.1-2, SF3.R.1-2, SF2.R.1-2] → 62 games
+//   B=16: WB[R1.L, R2.L, QF.L, QF2.L]  LB[…SF.R.1, SF3.R.1]   → 30 games
+//   B=32: WB[R1.L…SF.L]     LB[…SF.R.1-2, SF3.R.1-2, SF4.R.1, SF2.R.1] → 62 games
 // Build the spec list for a B-team double elimination (B ∈ {4,8,16,32}) over
 // seeded positions `pos`. Shared by the plain double-elim format and the
 // Open bracket of the tiered Open→A→B format.
@@ -328,10 +331,12 @@ function doubleElimSpecs(B, pos, ifNecessary) {
     add('SF.R.1', l('QF.L.1'), l('QF.L.2'));
     // WB Final (1 game)
     add('SF.L.1', w('QF.L.1'), w('QF.L.2'));
-    // LB Final (1 game)
-    add('SF.R.2', w('SF.R.1'), l('SF.L.1'));
+    // LB Final (1 game) — its own column: a game may never share a column
+    // with the game that feeds it, or the two cards stack with no room for a
+    // connector line.
+    add('SF3.R.1', w('SF.R.1'), l('SF.L.1'));
     // Championship
-    add('CHAMP.C.1', w('SF.L.1'), w('SF.R.2'));
+    add('CHAMP.C.1', w('SF.L.1'), w('SF3.R.1'));
     if (ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
 
   } else if (B === 8) {
@@ -384,10 +389,10 @@ function doubleElimSpecs(B, pos, ifNecessary) {
     add('QF2.R.2', w('QF.R.2'), l('QF.L.1'));
     // LB R5 (1 game — pair LB R4 winners)
     add('SF.R.1', w('QF2.R.1'), w('QF2.R.2'));
-    // LB Final (1 game — LB R5 winner vs WB Final loser)
-    add('SF.R.2', w('SF.R.1'), l('QF2.L.1'));
+    // LB Final (1 game — LB R5 winner vs WB Final loser) — own column
+    add('SF3.R.1', w('SF.R.1'), l('QF2.L.1'));
     // Championship
-    add('CHAMP.C.1', w('QF2.L.1'), w('SF.R.2'));
+    add('CHAMP.C.1', w('QF2.L.1'), w('SF3.R.1'));
     if (ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
 
   } else { // B === 32
@@ -432,12 +437,12 @@ function doubleElimSpecs(B, pos, ifNecessary) {
     // LB R6 (2 games — LB R5 winners vs WB Final loser, cross) — uses SF3 column
     add('SF3.R.1', w('SF.R.1'), l('QF2.L.2'));
     add('SF3.R.2', w('SF.R.2'), l('QF2.L.1'));
-    // LB R7 (1 game — pair LB R6 winners)
-    add('SF2.R.1', w('SF3.R.1'), w('SF3.R.2'));
-    // LB Final (1 game — LB R7 winner vs WB Final loser → LB champ)
-    add('SF2.R.2', w('SF2.R.1'), l('SF.L.1'));
+    // LB R7 (1 game — pair LB R6 winners) — uses SF4 column
+    add('SF4.R.1', w('SF3.R.1'), w('SF3.R.2'));
+    // LB Final (1 game — LB R7 winner vs WB Final loser → LB champ) — own column
+    add('SF2.R.1', w('SF4.R.1'), l('SF.L.1'));
     // Championship
-    add('CHAMP.C.1', w('SF.L.1'), w('SF2.R.2'));
+    add('CHAMP.C.1', w('SF.L.1'), w('SF2.R.1'));
     if (ifNecessary !== false) add('CHAMP2.C.1', w('CHAMP.C.1'), l('CHAMP.C.1'));
   }
 
@@ -610,8 +615,13 @@ function emitSpecs(specs, opts) {
 // With byes, only losers of REAL first-round games enter consolation (a team
 // that had a first-round bye and loses in round 2 is out — the standard
 // consolation rule).
+// The two chains run in LOCKSTEP: consolation column k takes the losers of
+// main column k, so it must sit in the SAME round column (cross-side, which
+// is how the renderer draws a drop) — never in an earlier one, which would
+// put the feeder to the right of the game it feeds. Both are sliced from the
+// tail by the same bracket depth for exactly that reason.
 const MAIN_CHAIN = [['R1','L'], ['R2','L'], ['QF','L'], ['QF2','L'], ['CHAMP','C']];
-const CONS_CHAIN = [['R2','R'], ['QF','R'], ['QF2','R'], ['SF','R']];
+const CONS_CHAIN = [['R1','R'], ['R2','R'], ['QF','R'], ['QF2','R']];
 
 function generateConsolation(opts) {
   const orderedTeams = resolveSeeding(opts);
@@ -635,7 +645,12 @@ function generateConsolation(opts) {
   let consSpecs = [];
   if (consEntrants.length >= 2) {
     const consDepth = Math.round(Math.log2(nextPow2(consEntrants.length)));
-    consSpecs = buildFeedBracket(consEntrants, CONS_CHAIN.slice(0, consDepth), false)
+    // Same tail offset as the main chain, so consolation column 0 lands in the
+    // same round column as main column 0 (whose losers it takes) rather than
+    // to its left. consDepth <= depth - 1, so the slice always fits.
+    const consStart = CONS_CHAIN.length - (depth - 1);
+    const consChain = CONS_CHAIN.slice(consStart, consStart + consDepth);
+    consSpecs = buildFeedBracket(consEntrants, consChain, false)
       .map(s => ({ ...s, cons: true }));
   }
 
@@ -658,7 +673,7 @@ const RR_SLOTS = (() => {
   const cols = [
     ['R1','L',16], ['R1','R',8], ['R2','L',8], ['R2','R',8],
     ['QF','L',4], ['QF','R',4], ['QF2','L',2], ['QF2','R',4],
-    ['SF','L',3], ['SF','R',4], ['SF3','R',2], ['SF2','L',1], ['SF2','R',2],
+    ['SF','L',3], ['SF','R',4], ['SF3','R',2], ['SF4','R',2], ['SF2','L',1], ['SF2','R',2],
     ['R0','L',16], ['R0','R',16],
   ];
   const out = [];

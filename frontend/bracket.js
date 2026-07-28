@@ -3274,7 +3274,7 @@ function stickyNavH() {
 }
 
 function scrollToLastCompletedCard() {
-  var rounds = ['R1','R2','QF','QF2','SF','CHAMP','CHAMP2'];
+  var rounds = ['R1','R2','QF','QF2','SF','SF3','SF4','SF2','CHAMP','CHAMP2'];
   var lastSid = null;
   rounds.forEach(function(round) {
     Object.keys(GAMES)
@@ -3640,7 +3640,7 @@ function renderScheduleView() {
       groups.push({ id: k || 'tbd', label: k ? dayGroupLabel(k) : 'TBD', sids: byDay[k] });
     });
   } else if (scheduleMode === 'round') {
-    ['R1','R2','QF','QF2','SF','SF3','SF2','CHAMP','CHAMP2'].forEach(function(round) {
+    ['R1','R2','QF','QF2','SF','SF3','SF4','SF2','CHAMP','CHAMP2'].forEach(function(round) {
       var sids = allSids.filter(function(s) { return GAMES[s].round === round && !GAMES[s].tier; });
       if (sids.length) groups.push({ id: round, label: roundLabel(round), sids: sids });
     });
