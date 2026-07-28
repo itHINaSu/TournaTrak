@@ -821,6 +821,25 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   border-top-width: 3px;
   box-shadow: 0 0 10px color-mix(in srgb, var(--blue-lt) 55%, transparent);
 }
+/* While a card is in the air the rows stop being background furniture — they
+   are the thing being aimed at, so bring them up out of their resting wash.
+   The class is on <body> so it reaches every column in one toggle. */
+body.bc-drag-active .bc-drop-row          { opacity: 0.75; }
+body.bc-drag-active .bc-drop-row--cascade { opacity: 0.85; border-top-width: 3px; }
+body.bc-drag-active .bc-drop-row.bc-drop-target { opacity: 1; }
+/* The footprint the dragged card would occupy, centred on the hovered row.
+   Sized in px by initBracketDrag from the card being dragged. */
+.bc-slot-preview {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border: 2px dashed var(--blue);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--blue) 14%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--blue-lt) 40%, transparent);
+  pointer-events: none;
+  z-index: 3;
+}
 /* Placed by hand — this card renders at its slot row instead of wherever the
    automatic layout would put it. The class is only emitted while editing
    (see sideHTML), so the published bracket carries no extra ink. */

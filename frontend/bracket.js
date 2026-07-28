@@ -758,6 +758,48 @@ function gridHeight() {
   return max;
 }
 
+// How many rows the FULL bracket has in its first round, from the size of the
+// FIELD rather than the number of games.
+//
+// Byes are not games. A 22-team field plays six first-round games and sends
+// the other ten teams straight to round 2, so counting games says "6" where
+// the paper bracket has 16 first-round lines with ten of them byes. Counting
+// games is right for LAYOUT — empty lines would just be whitespace — but
+// wrong for EDIT, where those lines are exactly the positions a TD wants to
+// drop a card onto. So Edit builds its grid on this instead: 14 teams get a
+// 16-team bracket's 8 rows, 17–31 teams get a 32-team bracket's 16.
+//
+// The roster is the truth when there is one; a hand-wired tournament may have
+// no roster loaded, so fall back to counting the distinct named teams the
+// schedule actually places.
+var _fieldSizeCache = { gen: -1, val: 0 };
+function fieldSize() {
+  var curGen = gamesGeneration;
+  if (_fieldSizeCache.gen === curGen) return _fieldSizeCache.val;
+  var roster = (_teamsData && Array.isArray(_teamsData.teams)) ? _teamsData.teams.length : 0;
+  var names = {};
+  Object.keys(GAMES).forEach(function(gid) {
+    var g = GAMES[gid];
+    if (!g || g.tier) return;
+    [g.t1, g.t2].forEach(function(s) {
+      if (s && s.type === 'fixed' && s.team) names[s.team] = true;
+    });
+  });
+  var val = Math.max(roster, Object.keys(names).length);
+  _fieldSizeCache = { gen: curGen, val: val };
+  return val;
+}
+function pow2Ceil(n) {
+  var size = 1;
+  while (size < n) size *= 2;
+  return size;
+}
+function fullBracketRows() {
+  var n = fieldSize();
+  if (n < 2) return 0;
+  return pow2Ceil(n) / 2;   // first-round slots in the smallest bracket that seats the field
+}
+
 // _slotNCache memoizes the computed n per (round|side) key, keyed by gamesGeneration
 // so it is automatically invalidated whenever applySchedule() rebuilds GAMES.
 var _slotNCache = { gen: -1, data: {} };
@@ -1526,13 +1568,22 @@ function computeLBPositions(slotVh) {
 // cascade (a winner from the left meeting a loser dropping in from another
 // bracket has no midpoint to sit on).
 //
-// `cascadeTops` — the midpoints of the previous column's ADJACENT card pairs,
+// `fullRows` is the first-round row count of the full bracket for this FIELD
+// (fullBracketRows) — the paper bracket's line count, byes included. The
+// whole-step grid is built on that rather than on gridH, which counts games:
+// with 22 teams gridH is 8 (the biggest column that exists) while the bracket
+// really has 16 first-round lines, and a TD dropping a card onto "the 13th
+// line" needs that line to exist. Half steps are then offered between those,
+// in every column.
+//
+// `prevTops` — the midpoints of the previous column's ADJACENT card pairs,
 // extended at the same spacing to fill the height — are marked so the natural
 // bracket rows still read as the natural bracket rows.
-function editGhostRows(slotVh, gridH, prevTops) {
+function editGhostRows(slotVh, gridH, prevTops, fullRows) {
   var cardH = slotVh * CARD_RATIO;
   var totalVh = gridH * slotVh;
-  var step = totalVh / gridH / 2;              // half of one bracket row
+  var rowsH = Math.max(gridH, fullRows || 0);
+  var step = totalVh / rowsH / 2;              // half of one full-bracket row
   var cascade = {};
   var key = function(v) { return Math.round(v / step); };
 
@@ -1551,7 +1602,13 @@ function editGhostRows(slotVh, gridH, prevTops) {
 
   var rows = [];
   for (var t = 0; t <= totalVh - cardH + 0.001; t += step) {
-    rows.push({ topVh: t, cascade: !!cascade[key(t + cardH / 2)] });
+    // Compare TOP to TOP. `mids` are midpoints of the feeders' tops, and a
+    // card dropped on this row gets top = t, so a card centred between its
+    // feeders sits at t === mid. Testing t + cardH/2 here compared a top
+    // against a centre; at the old coarse pitch key()'s rounding happened to
+    // swallow the half-card, and the finer full-bracket grid stopped hiding
+    // it — whole columns came back with no cascade rows marked at all.
+    rows.push({ topVh: t, cascade: !!cascade[key(t)] });
   }
   return rows;
 }
@@ -1560,10 +1617,12 @@ function editGhostRows(slotVh, gridH, prevTops) {
 // Shared by the main tree and the A/B flights so Edit behaves identically in
 // both. The row's fraction travels on the element; a drop reads it straight
 // back, so what you aim at is exactly where the card lands.
-function editGhostHTML(colTops, feederTops, slotVh, gridH) {
+function editGhostHTML(colTops, feederTops, slotVh, gridH, fullRows) {
   var cardH = slotVh * CARD_RATIO;
   var out = '';
-  editGhostRows(slotVh, gridH, feederTops).forEach(function(r) {
+  editGhostRows(slotVh, gridH, feederTops, fullRows).forEach(function(r) {
+    // Rows a card physically covers are unreachable — the card is painted on
+    // top and takes the pointer first — so they would only be noise.
     var taken = colTops.some(function(t) { return Math.abs(t - r.topVh) < cardH * 0.5; });
     if (taken) return;
     var row = layoutRowFromTop(r.topVh, slotVh, gridH);
@@ -1958,7 +2017,9 @@ function renderFlightBracket(root, tier) {
     // Flights are editable on exactly the same terms as the main tree — they
     // are just small single-elim brackets, and a flight fed by Open drop-ins
     // is if anything MORE likely to want a card nudged off the cascade.
-    if (_bracketEditMode) cards += editGhostHTML(flightTops[ci], flightTops[ci - 1], dims.slotVh, gridH);
+    // A flight is its own small bracket, so its full-row count comes from its
+    // own biggest column rounded up to a power of two, not the main field.
+    if (_bracketEditMode) cards += editGhostHTML(flightTops[ci], flightTops[ci - 1], dims.slotVh, gridH, pow2Ceil(gridH));
     html += '<div class="round-col" data-css="width:' + dims.colVw + 'vw;height:' + totalVh + 'vh">'
       + '<div class="round-col-hdr">' + esc(colLabel(ci, gids)) + '</div>' + cards + '</div>';
     if (ci < treeCols.length - 1) {
@@ -2539,7 +2600,7 @@ function renderDesktopBracket(root,dims){
         cardsHTML+='<div class="bc'+pinCls+'" data-gid="'+esc(entry.gid)+'"'+rowAttr+' data-css="top:'+colTops[gi]+'vh">'+cardHTML(entry.gid)+'</div>';
       });
       if (_bracketEditMode) {
-        cardsHTML += editGhostHTML(colTops, topsByCol[isRight?ci+1:ci-1], slotVh, gridH);
+        cardsHTML += editGhostHTML(colTops, topsByCol[isRight?ci+1:ci-1], slotVh, gridH, fullBracketRows());
       }
       html+='<div class="round-col" data-css="width:'+colVw+'vw;height:'+totalVh+'vh">'
         +'<div class="round-col-hdr">'+roundLabel(col.round)+'</div>'+cardsHTML+'</div>';
@@ -4797,6 +4858,7 @@ function initBracketDrag(root) {
   var dragState = null;
   var ghost     = null;
   var overEl    = null;
+  var preview   = null;   // card-sized outline of the slot a drop would fill
 
   root.querySelectorAll('.bc[data-gid]').forEach(function(card) {
     card.style.cursor = 'grab';
@@ -4821,6 +4883,13 @@ function initBracketDrag(root) {
       + 'left:' + (e.clientX - dragState.offX) + 'px;top:' + (e.clientY - dragState.offY) + 'px;';
     document.body.appendChild(ghost);
     card.classList.add('bc-dragging');
+    // Lifts every drop row out of its resting near-transparency for the
+    // duration of the drag — at rest the lines are deliberately faint so the
+    // bracket stays readable, but while aiming a card they are the thing you
+    // need to see.
+    document.body.classList.add('bc-drag-active');
+    dragState.w = rect.width;
+    dragState.h = rect.height;
 
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup',   onUp);
@@ -4847,6 +4916,33 @@ function initBracketDrag(root) {
     if (overEl && overEl !== target) overEl.classList.remove('bc-drop-target');
     overEl = target;
     if (overEl) overEl.classList.add('bc-drop-target');
+    showPreview(target);
+  }
+
+  // A drop row is a thin bar, so highlighting the bar alone still leaves you
+  // guessing how the CARD will sit on it. Draw the card's actual footprint,
+  // centred on the row, inside the row's own column — so you are aiming at a
+  // slot, not a line. Skipped when hovering another card: that gesture swaps
+  // two cards rather than filling an empty slot, and the ring on the target
+  // card already says so.
+  function showPreview(target) {
+    if (!target || !dragState || target.dataset.row === undefined) { hidePreview(); return; }
+    var col = target.parentElement;
+    if (!col) { hidePreview(); return; }
+    if (!preview) {
+      preview = document.createElement('div');
+      preview.className = 'bc-slot-preview';
+    }
+    if (preview.parentElement !== col) col.appendChild(preview);
+    var colRect = col.getBoundingClientRect();
+    var rowRect = target.getBoundingClientRect();
+    var centre = rowRect.top + rowRect.height / 2 - colRect.top;
+    preview.style.top = (centre - dragState.h / 2) + 'px';
+    preview.style.height = dragState.h + 'px';
+  }
+
+  function hidePreview() {
+    if (preview && preview.parentElement) preview.remove();
   }
 
   // A drop records a POSITION in the draft — nothing is written and no slot
@@ -4884,6 +4980,9 @@ function initBracketDrag(root) {
   function onCancel() { cleanup(); }
 
   function cleanup() {
+    hidePreview();
+    preview = null;
+    document.body.classList.remove('bc-drag-active');
     if (ghost)     { ghost.remove(); ghost = null; }
     if (dragState) { dragState.el.classList.remove('bc-dragging'); dragState = null; }
     if (overEl)    { overEl.classList.remove('bc-drop-target'); overEl = null; }
