@@ -264,14 +264,43 @@ and shows the default you get by leaving it alone. (`init-env.sh` is gone too
 — it existed to write generated secrets into `.env`, which the stack now does
 for itself on first boot.)
 
+### Changing the port or file ownership
+
+Only two settings normally need changing, and neither is required unless the
+default doesn't suit the machine:
+
+| setting | default | change it when |
+|---------|---------|----------------|
+| `TT_PORT` | `3019` | something else already uses that port, or you're running a second instance |
+| `PUID` / `PGID` | `1000` / `1000` | you want `./secrets` owned by your account — check with `id -u` and `id -g` |
+
+There is no `.env` in a fresh clone, so **create one by copying the example**
+and uncommenting what you need:
+
+```bash
+cp .env.example .env        # every line is commented out: copying it changes nothing
+$EDITOR .env                # uncomment TT_PORT and/or PUID/PGID
+docker compose up -d        # re-run after editing — Compose reads .env at startup
+```
+
+`.env.example` is tracked and lists every available setting with its default;
+`.env` is gitignored, so your edits never conflict on a `git pull`. **Set the
+port here rather than editing `compose.yml`** — a local edit to a tracked file
+is what makes `git pull` refuse to run, which is how a deploy box ends up
+unable to update.
+
+`PUID`/`PGID` is the user the API container runs as, and it's the ownership
+`./secrets` gets on the host. Getting it wrong isn't fatal — the containers
+agree with each other either way, since the same value sets both — it just
+means the generated secrets belong to some other user id and you need `sudo`
+to look at them.
+
 Running a second, independent instance on the same host (e.g. archiving one
 tournament and starting a new one in isolation instead of using built-in
-multi-tournament support): clone into a separate directory and set `TT_PORT`
-in that clone's `.env` (the nginx port is the only host-exposed port in the
-stack — set it there rather than editing `compose.yml`, which would conflict
-on every pull). Postgres itself needs no changes: it's never exposed to the
-host, and each clone keeps its data in its own directory, so two instances
-never collide.
+multi-tournament support): clone into a separate directory and give that
+clone its own `TT_PORT` as above. Postgres itself needs no changes: it's
+never exposed to the host, and each clone keeps its data in its own
+directory, so two instances never collide.
 
 ### Where the data lives
 

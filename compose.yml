@@ -48,10 +48,10 @@ services:
 
   api:
     build: ./api
-    # Run the container as the host user that owns ./files so bind-mounted
-    # data is written with matching ownership (avoids root-owned files the
-    # node user can't overwrite). Defaults to 1000:1000 — override by setting
-    # PUID/PGID in your shell or .env, e.g. `PUID=1001 PGID=1001`.
+    # Run as a host user rather than root. The same PUID/PGID is what
+    # secrets-init chowns ./secrets to, so the two always agree. ./files is
+    # mounted read-only (it is only the one-time legacy import source), so
+    # nothing here writes to it. Defaults to 1000:1000 — override in .env.
     user: "${PUID:-1000}:${PGID:-1000}"
     volumes:
       # /data is only read now (one-time legacy JSON import on first boot
