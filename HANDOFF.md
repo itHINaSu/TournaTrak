@@ -9,41 +9,118 @@ freely; this is a working note, not documentation. See also `ROADMAP.md`
 Tournament bracket web app (softball/baseball origin, multi-format). The
 flagship layout is a **32-team, two-sided single-elimination** bracket — two
 independent 16-team sides (L/R) feeding one championship game, winners-only
-advancement. The Bracket Builder additionally generates true single-elim
-(4–64 teams, byes) and double-elim (4/8/16/32) schedules; topology is defined
-per game in schedule.json, not hardcoded.
+advancement. The Bracket Builder additionally generates single-elim (4–64,
+byes), double-elim (4–32, byes), consolation, round-robin (single/double),
+pools, Swiss, and the two drop-bracket formats (tiered Open/A/B and
+three-game A/B) — see "Bracket format repository". Topology is defined per
+game in schedule.json, not hardcoded.
 Plain JS frontend (no framework, no build step), Node/Express API. Storage is
-**PostgreSQL as of the buildout branch** (v2 on `main` still uses JSON files);
-see "Persistence (v3)". PWA with a service worker. Role-based auth (bcrypt,
-rate-limited login): roles are `admin`, `results`, `team` (coach), `buckets`.
+**PostgreSQL** (see "Persistence (v3)"). PWA with a service worker. Role-based
+auth (bcrypt, rate-limited login): roles are `admin`, `results`, `team`
+(coach), `buckets`, plus a global `superadmin`.
 
 ## START OF SESSION PROMPT (always do this first)
-At the start of every new session (or when told to "get up to speed"), ask:
+`git checkout main && git pull` — then check for drift before you start:
 
-> "Which branch should I work on this session? (default: the leading branch
-> `claude/handoff-continuation-9elo3q` — see Branch rule)"
+```
+git fetch origin --prune
+git for-each-ref --sort=-committerdate refs/remotes/origin \
+  --format='%(committerdate:iso8601) %(refname:short)'
+```
 
-Then `git checkout <branch>`, `git fetch`, and fast-forward to its tip before
-touching anything. Do not assume `main`.
+If any `claude/*` branch is newer than `main`, another session has been
+working there — diff it before assuming `main` is current (this has bitten
+twice; see Branch rule).
 
 ## Branch rule
-**Leading branch as of 2026-07-04: `claude/handoff-continuation-9elo3q`**
-(owner decision). Other Claude sessions — including the one that previously
-led on `claude/tournatrak-eval-buildout-sa3mvv` — PULL from this branch to
-stay current; do not push to a branch you weren't assigned. Before starting
-work, `git fetch` and fast-forward onto the leading branch's tip to avoid
-the parallel-Phase-C style divergence that happened on 2026-07-02/03.
-Commit and push when a change is complete. Do not open PRs unless asked.
-- `main` — production-ready v2. All pre-buildout features land here.
-- `feature/bracket-builder` — MERGED into the buildout branch (formats engine,
-  /builder UI, teams/seeding, drag-and-drop, theme colors). Do not develop here.
+**`main` is the leading/integration branch as of 2026-07-15** (owner
+decision, superseding the 2026-07-04 note that pointed at
+`claude/handoff-continuation-9elo3q` — that branch is merged and dead).
+Work on `main`, commit, push. Do not open PRs unless asked.
+- `main` — everything. Postgres storage, multi-tournament, all formats.
+- `claude/handoff-continuation-9elo3q`, `claude/tournatrak-eval-buildout-sa3mvv`
+  — MERGED into main, do not develop on them. Both are kept only as history.
+- `feature/bracket-builder` — merged long ago. Do not develop here.
 - `feature/regional` — parked Postgres prototype; UNRELATED git history (no
   common ancestor with main). Reference-only for the v3 schema. Its committed
   files/users.json contains real leaked secrets — see Security items.
 
-## Outstanding work (what's still needed) — updated 2026-07-07 (evening)
+**Parallel-session hazard (happened twice — read this).** Two sessions
+working different branches produced the same feature twice and made
+*opposite* product calls on it (project-winners public vs admin-only). When
+merging a divergent `claude/*` branch, compare by CONTENT not by commit —
+`git log main..origin/<branch>` shows commits that may already exist in main
+under different hashes. Check whether each apparent gap is a real gap
+(`git show origin/main:path | grep …`) before porting it, and flag any
+deliberate behavioural reversal to the owner instead of silently picking a
+side.
+
+## Outstanding work (what's still needed) — updated 2026-07-15
 Consolidated to-do list; each item points at the detailed section. Ordered
 roughly by priority / by what the owner has been driving.
+
+**If you're picking this up cold, the live open items are:** the two owner
+decisions (item 2's successor questions are settled, but item 5 leaked
+secrets and item 11 mobile round-combining both need the owner), the
+editor "bracket health check" (item under Feature ideas — the highest-value
+remaining build, since the two known-but-deferred data bugs below are both
+really symptoms of it), and API-level route tests. Nothing is known-broken
+in production as of 2026-07-15.
+
+**Shipped 2026-07-15 (this session)** — all on `main`:
+- ✅ **Zero-command install.** `docker compose up -d --build` is now the
+  whole quickstart. No admin password is generated or printed anywhere:
+  with no `ADMIN_PASSWORD_HASH` set, the instance boots with zero users,
+  `GET /api/session` reports `setupRequired`, and `/admin` shows a "Create
+  Admin Account" form (`POST /api/setup`) where the operator picks their
+  own credentials and is logged straight in. The route is public (no auth
+  exists yet to gate it) but **self-closing** — it 403s the moment any user
+  exists, so it can't add a second admin or take over a configured box.
+  An explicit `ADMIN_PASSWORD_HASH` still bootstraps immediately with no
+  wizard (scripted deploys, `compose.demo.yml`) — unchanged. `up.sh` (a
+  short-lived wrapper that printed the generated password) was deleted;
+  `init-env.sh` stays, it pins a known password for CI/scripted use.
+- ✅ **Drop-bracket byes were broken.** `buildFeedBracket` packed entrants
+  at the front and left nulls trailing, so an even-but-not-power-of-two
+  entrant count paired the empty slots with EACH OTHER — nobody got a bye,
+  the round played one game too many, and a team got a free pass in the
+  next round. Now places entrants at `seedOrder()` positions like every
+  other generator. (A 14-entrant A bracket played 7 round-1 games; now 6.)
+- ✅ **Tiered B-feed policy RESOLVED** (was item 2 below, open since
+  2026-07-05): every A round-1 loser feeds B, not just the 0-2 subset.
+  Settled against the real 2026 ISSA State bracket, not from memory.
+- ✅ **A/B chain offsets were a hardcoded 4-entry table** sized for 16
+  entrants; a 5-round drop bracket (reachable from a 32-team Open) ran off
+  the end and emitted a game fed by a nonexistent slot (N=25 tiered).
+  Replaced by `feedChain()`, derived from the round's capacity so a slot's
+  band always equals its column; `R0` widened 16 → 32 slots per side in
+  BOTH `SLOT_DEFS` copies; `tierGameRound`'s hardcoded 8/12/14 boundaries
+  became `tierBand()`, derived the same way.
+- ✅ **Desktop bracket scrolls instead of compressing.** getDims shrank the
+  whole bracket to fit the viewport height with readability floors written
+  in `vh` — so the floor shrank with the window (2.4vh = 26px at 1100px
+  tall, 19px at 800px) and a 43-game bracket collapsed until the connector
+  lines had no room. Floors are now PIXELS (`MIN_ROW_PX` 26 / card 78 /
+  `MIN_COL_PX` 150) and the page scrolls once it no longer fits. Small
+  brackets never reach the floor, so 8–16 team fit-on-one-screen is intact.
+  Added `overflow-x` on the bracket panel + `min-width:min-content`.
+- ✅ **Mobile carousel no longer resets to Round 1** on the 20s live poll
+  (`_mbcActiveRound` survives the re-render, keyed by column round id), and
+  the mobile championship card is legible in light mode (its gradient had a
+  hardcoded dark endpoint instead of a theme token).
+- ✅ **Magic links work on first click.** Session cookie was
+  `sameSite:'strict'`, which withholds the just-issued cookie on the
+  cross-site top-level navigation a link click from email/SMS actually is —
+  so the first click always landed on the sign-in gate ("works after
+  refresh"). Now `lax`; every mutating route is POST/DELETE so CSRF posture
+  is unchanged. Same commit: stale `showSeeds` surviving into a new
+  bracket, the admin Reset Password button that existed but was never
+  rendered, and row-scoped `putSlot`/`deleteSlot` writes so two concurrent
+  scorekeepers can't drop each other's save.
+- ✅ **2026 ISSA State bracket** transcribed (`scripts/issa-state-2026.json`
+  + `build-issa-state-2026.js`). See "Paper-bracket transcription" below —
+  read it before transcribing another sheet, it documents the slot-ordering
+  trap that cost this session two rounds of debugging.
 
 **Shipped 2026-07-10 (code-review deep dive — fixes)** — on `main`:
 - ✅ **Empty-string scores no longer 400.** `validateResult` rejected
@@ -133,8 +210,16 @@ rgba()→color-mix migration (item 9 ✅); iOS zoom + touch-target fixes.
 SW cache at v2.83. NOT done: tiered B-feed policy (item 2, owner call),
 Swiss odd-counts/byes, 17–20-team pools.
 
-0a. ✅ **"Project winners" (public, device-local).** Viewers step through the
-    bracket picking who they think wins each game. Constraints from owner:
+0a. ✅ **"Project winners" (ADMIN-ONLY, device-local).**
+    ⚠️ **Visibility is settled: ADMIN-ONLY** (owner, 2026-07-15). This
+    flip-flopped twice — built public, changed to admin-only in `e8f9f50`,
+    then a parallel branch reverted it to public in `64ebe84`. That revert
+    was deliberately NOT merged. The toggle is an `admin-public-btn` in the
+    header next to Edit, hidden unless `_sessionRole === 'admin'`, with a
+    matching role check inside the `toggleProject` action. Do not "restore"
+    it to public without asking.
+    Viewers step through the bracket picking who they think wins each game.
+    Constraints from owner:
     never synced to the server; must NOT survive a hard refresh; MUST survive
     the auto-refresh. That means plain in-memory state — `var _projected =
     {}` (slot → winner name) in bracket.js, NO localStorage, nothing POSTed.
@@ -182,11 +267,12 @@ Swiss odd-counts/byes, 17–20-team pools.
    schedule now also clears results/live/offsets (stale scores used to bleed
    into the new bracket). Play-test suites live in the session scratchpad
    (`test-byes.js`, `test-threegame.js`).
-2. ⬜ **Tiered B-feed policy — owner decision pending.** Current build honors
-   the owner's "1-2 teams get no B" rule → B ≈ 4 teams for a 32 Open. The
-   ISSA banner instead appears to feed EVERY A round-1 loser to B (≈7). If
-   the owner wants banner behavior, it's a one-line change (drop the
-   `.slice(0, zeroTwoGames)` in `generateTiered`). See tiered section.
+2. ✅ **Tiered B-feed policy — RESOLVED 2026-07-15.** Every A round-1 loser
+   feeds B (banner behavior), not just the 0-2-vs-0-2 subset. Confirmed
+   against the real 2026 ISSA State sheet, whose B bracket takes all six
+   A round-1 losers: `L-A1 … L-A6`. The old `.slice(0, zeroTwoGames)` is
+   gone from `generateTiered`. For a 22-team field this yields Major 43 /
+   A 13 / B 5, matching the paper game-for-game.
 3. ✅ **Single-source the builder markup.** (done 2026-07-08 — builder-form.js) `builder.html` (standalone) and
    `admin.html` (embedded) duplicate the entire builder form. This drift
    caused the "builder stuck loading" bug (fixed 2026-07-05 by adding the
@@ -209,10 +295,13 @@ Swiss odd-counts/byes, 17–20-team pools.
    attributes to classes — a real refactor. Tracked follow-up.
 
 **Ops / deploy**
-7. ⬜ **Real `docker compose up` smoke test on the owner's box.** No Docker
-   daemon in the dev container, so both compose files are only
-   `docker compose config`-validated. A genuine up (main + demo stacks,
-   fresh + upgrade-from-JSON) should be run once.
+7. ✅ **Real `docker compose up` on the owner's box** — done; it's the live
+   deployment (`~/TournaTrak_dev`, nginx host port 3019) and has survived
+   many rebuild cycles. NOTE: there is still no Docker daemon in the dev
+   container, so anything compose-related can only be `docker compose
+   config`-validated here — changes to `compose.yml` / `entrypoint.sh` /
+   `nginx.conf` must be verified by the owner on their box, and should be
+   reasoned about carefully rather than trial-and-error'd.
 
 **Polish / deferred batches** (from ROADMAP v2 backlog — none blocking)
 8. ✅ Accessibility: focus-trapping on overlays + Escape-to-close, keyboard
@@ -224,6 +313,36 @@ Swiss odd-counts/byes, 17–20-team pools.
 11. ⬜ **Mobile double-elim round combining** — parked; needs owner to confirm
     desired behavior before building. See the "TODO / parked" section at the
     bottom.
+
+## Paper-bracket transcription (READ BEFORE DOING ANOTHER ONE)
+Two real tournaments are committed as importable JSON, each with a build
+script that regenerates and self-validates it:
+- `scripts/carroll-substate-2026.json` / (built by hand, 2026-07-10)
+- `scripts/issa-state-2026.json` + `scripts/build-issa-state-2026.js`
+
+Import with `scripts/import-schedule.js` (pushes through the normal admin
+API, so validation and cache invalidation apply; refuses to clobber an
+existing schedule without `--replace`; password via `TT_ADMIN_PASS`).
+
+**The trap: slot order ≠ paper game order.** The desktop renderer derives a
+card's vertical position from its SLOT NUMBER, so a game's two feeders must
+occupy an ADJACENT slot pair (2k-1, 2k) — `QF.L.1` must be fed by `R2.L.1`
+and `R2.L.2`, not `R2.L.3` and `R2.L.1`. Paper sheets number games by PLAY
+ORDER, which is a different ordering (ISSA games 9 and 7 pair into game 25,
+so they take round-2 slots 1 and 2). Assigning slots in paper order draws
+cards at the wrong height with connector lines pointing at nothing — it
+looks like a renderer bug and isn't. Keep the paper's number in the card
+LABEL (that's what the TD reads) and map it to a tree-ordered slot.
+`build-issa-state-2026.js` does this with an explicit `SLOT` table and
+**fails the build** on any non-adjacent feeder pair; copy that check.
+
+Its other build-time checks, all worth keeping: `validateSchedule`, every
+feed resolving to a real game, no field double-booked at one time, every
+game starting strictly after both its feeders, and the team list
+reconciling in both directions. The chronology check is what proves a
+transcription is coherent; the double-booking check caught the one genuine
+error in the ISSA sheet (game A12 has no day printed — it's Sunday, the
+only slot where West is free while Center and East are booked).
 
 ## Layout
 - `frontend/` — static assets served by the API
@@ -397,9 +516,9 @@ fields use `class="styled"` (the `admin-winner-sel` inline-style inconsistency i
 - Theme toggle: admin.js claims it via `window.__ttThemeManaged = true`.
 - Mobile inputs: `inputmode="numeric" pattern="[0-9]*"` + `onfocus="this.select()"`.
 - `.admin-res-footer button` uses fixed `height` for even boxes.
-- **Bump `sw.js` `CACHE` whenever a precached asset changes.** Currently `tournatrak-v2.58`.
-  Precached: `/`, `index.html`, `fonts.css`, `base.css`, `bracket.css`, `bracket-data.js`,
-  `bracket.js`, `/lineup`, `lineup.html`, `lineup.css`, `lineup.js`.
+- **Bump `sw.js` `CACHE` whenever a precached asset changes.** Read the
+  current version and the precache list from `frontend/sw.js` — don't trust
+  a number written here, it goes stale within a session.
   `admin.*` / `admin-sw.js` are NOT in `sw.js` precache (they have their own `admin-sw.js`).
 - Bucket drag on mobile: `.bucket-drag-handle` has `touch-action: none` (eliminates
   long-press delay) and `user-select: none` (prevents text selection during drag).
@@ -521,26 +640,23 @@ BracketHQ/youth-TD sheets offer):
     • 1-2 (won an LB game, then lost — LB round 2) → drop to A, NOT B-eligible.
     • 2-2 and deeper: stay/place in the Open (already have 4+ games).
   A therefore holds ≈ B/2 teams (0-2 and 1-2), matching the banner's ~15-team
-  A for a 32-slot Open. To keep 1-2 teams out of B with static topology, A's
-  round 1 pairs 0-2 vs 0-2 and 1-2 vs 1-2, and only the 0-2-vs-0-2 losers feed
-  B. This yields a genuine **4-game guarantee** (structural min: lose
+  A for a 32-slot Open. A's round 1 still pairs 0-2 vs 0-2 then 1-2 vs 1-2.
+  This yields a genuine **4-game guarantee** (structural min: lose
   everything from the top → WB, LB1, A, B; verified over 40 random
   playthroughs per size, min = 4 for n≥16, 3 for n=8 where B can't form).
-  A/B sizes now: n=8 → A=3,B=0; n=16 → A=7,B=1; n=32 → A=15,B=3 games.
-  NOTE vs banner: the banner's B is bigger (~7) because it appears to feed
-  ALL A round-1 losers to B; this build honors the owner's "1-2 teams get no
-  B" rule instead, so B only takes the 0-2-vs-0-2 losers (~4 for a 32 Open).
-  If the owner wants banner-B (all A-R1 losers → B), it's a one-line change
-  (drop the `.slice(0, zeroTwoGames)` in generateTiered).
-  REMAINING: Arbitrary team counts (e.g. the real ISSA Major = 23 teams,
-  "byes slotted as needed"): needs double-elim-WITH-BYES, which
-  doubleElimSpecs (power-of-two only) doesn't do yet. validCounts stays
-  [8,16,32] until then. This is the meatier follow-up — bye teams propagate
-  PHANTOM slots through the LOSERS bracket (not just round 1 like single-elim),
-  which must collapse cleanly while still fitting the fixed SLOT_DEFS grid.
-  Scoped to NOT touch the working power-of-two hardcoded tables (add a
-  separate bye-aware path for non-powers-of-two). Lean on the structural
-  simulation suite (scratchpad formatstest.js) — it play-tests every bracket.
+  **B-FEED SETTLED 2026-07-15:** every A round-1 loser feeds B (banner
+  behavior). The earlier "1-2 teams get no B" restriction — which limited B
+  to the 0-2-vs-0-2 losers via `.slice(0, zeroTwoGames)` — is REMOVED; the
+  real 2026 ISSA State sheet feeds all six of its A round-1 losers to B,
+  which is the authority here. A 22-team field now gives Major 43 / A 13 /
+  B 5, matching that sheet game-for-game.
+  ✅ Arbitrary team counts DONE 2026-07-07 (`simplifyDoubleElim`, item 1) —
+  tiered accepts 8–32, not just powers of two. Drop-bracket byes inside the
+  A/B feed trees were separately broken until 2026-07-15 (`buildFeedBracket`
+  packed entrants instead of seeding them; see the shipped list at the top).
+  Both paths are covered by `api/schedule-formats.test.js`, which simulates
+  every format at every count under hundreds of random result sequences —
+  run `node --test api/schedule-formats.test.js` after any generator change.
   ✅ **Open/A/B DISPLAY TABS DONE 2026-07-05** (SW v2.67): a pill row
   (`#bracketFlights` in index.html, `.flight-pill` / `data-action="setFlight"`)
   above `#bracketRoot`, shown only when tier games exist (updateFlightTabs()).
@@ -615,8 +731,22 @@ Static HTML/CSS/JS marketing site — separate nginx:alpine container, port 8081
 See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `index.html`.
 
 ## Current state
-Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
-`tournatrak-v2.58`.** Phase 0 evaluation is in `EVALUATION.md` (repo root).
+`main` at `ef3c5e5` (2026-07-15) holds everything below plus the
+2026-07-15 shipped list at the top. SW cache version lives in
+`frontend/sw.js` — read it there. Phase 0 evaluation is in `EVALUATION.md`.
+
+Deployed by the owner via Docker Compose on their own box (`~/TournaTrak_dev`,
+nginx on host port 3019). A second isolated instance is just another clone
+in its own directory with a different nginx port — Compose namespaces the
+containers, network, and volumes by directory name, and Postgres is never
+exposed to the host, so nothing else needs changing. (Multi-tournament
+support also exists in-app via `/t/:slug` + the superadmin Tournaments
+panel, which is the lighter option when full isolation isn't needed.)
+
+**The rest of this file is historical build log** — accurate, but written
+as it happened. The per-area reference sections above ("Bracket model",
+"Persistence", "Bracket format repository", etc.) are the parts worth
+reading first.
 
 **Completed this buildout (Phase 1, each its own commit):**
 - Merged `feature/bracket-builder` (conflicts resolved by hand in sw.js /
@@ -655,7 +785,7 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
   across restart, results/live/lineups/buckets/offsets/settings round-trips,
   ETag 304s, live-cleared-on-final, team access token, setup flows,
   index-title cache invalidation, DEMO_MODE seed restore.
-- ⬜ NEXT: multi-tournament. Design DECIDED by owner 2026-07-02 (see ROADMAP
+- ✅ multi-tournament — ALL THREE PHASES DONE (A/B/C below). Design DECIDED by owner 2026-07-02 (see ROADMAP
   v3 Goals): public `/t/:slug` + default tournament at `/`; single `/admin`
   with a tournament switcher; global `superadmin` + per-tournament
   admin/results/team/buckets grants (`user_roles`); path-based tabs built
@@ -858,7 +988,10 @@ Branch `claude/tournatrak-eval-buildout-sa3mvv` pushed. **SW cache at
 ## Git
 - Commit messages end with the Claude Code session URL line (harness convention).
 - Do NOT put model IDs in commits/PRs/code.
-- Push: `git push -u origin claude/tournatrak-eval-buildout-sa3mvv`. Do not open PRs unless asked.
+- Push: `git push origin main` (see Branch rule — main is the integration
+  branch as of 2026-07-15). Do not open PRs unless asked.
+- `git fetch origin` before pushing; if another `claude/*` branch is ahead,
+  read the parallel-session hazard note under Branch rule first.
 
 ## TODO / parked: mobile double-elim round combining (NOT done)
 Discussed but never implemented. Capturing the problem so it can be picked up.
