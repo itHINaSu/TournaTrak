@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.35">
-<link rel="stylesheet" href="/bracket.css?v=3.35">
-<script src="/app-h.js?v=3.35"></script>
+<link rel="stylesheet" href="/base.css?v=3.36">
+<link rel="stylesheet" href="/bracket.css?v=3.36">
+<script src="/app-h.js?v=3.36"></script>
 </head>
 <body>
 
@@ -180,7 +180,20 @@
       <select class="styled" id="teamSelect">
         <option value="">— select a team —</option>
       </select>
-      <button class="team-share-btn" id="teamShareBtn" title="Copy shareable link" hidden>Share</button>
+      <!-- Share: hands off to the phone's own share sheet where one exists
+           (navigator.share), and falls back to this menu everywhere else.
+           Every target is a plain GET link — script-src is 'self', so a
+           vendor SDK could not load even if we wanted one. -->
+      <span class="team-share-wrap">
+        <button class="team-share-btn" id="teamShareBtn" title="Share this team's path" hidden>Share</button>
+        <div class="share-menu" id="teamShareMenu" hidden>
+          <button class="share-menu-item" data-action="shareCopy">Copy link</button>
+          <a class="share-menu-item" id="shareFb" target="_blank" rel="noopener noreferrer">Facebook</a>
+          <a class="share-menu-item" id="shareX" target="_blank" rel="noopener noreferrer">X</a>
+          <a class="share-menu-item" id="shareSms" hidden>Text message</a>
+          <a class="share-menu-item" id="shareEmail">Email</a>
+        </div>
+      </span>
       <button class="team-share-btn" id="pathProjectBtn" data-action="togglePathProject" title="Play out this team's path">What if?</button>
     </div>
   </div>
@@ -219,10 +232,10 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.35"></script>
-<script src="/tt-common.js?v=3.35"></script>
-<script src="/bracket-data.js?v=3.35"></script>
-<script src="/bracket.js?v=3.35"></script>
-<script src="/sw-register.js?v=3.35" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.36"></script>
+<script src="/tt-common.js?v=3.36"></script>
+<script src="/bracket-data.js?v=3.36"></script>
+<script src="/bracket.js?v=3.36"></script>
+<script src="/sw-register.js?v=3.36" data-sw="/sw.js"></script>
 </body>
 </html>

@@ -2270,6 +2270,39 @@ body.bc-drag-active .bc-drop-row.bc-drop-target { opacity: 1; }
 @media (pointer: coarse) { .project-clear { min-height: 44px; } }
 @media print { .project-bar { display: none !important; } }
 
+/* ── Share menu (desktop fallback for navigator.share) ── */
+.team-share-wrap { position: relative; display: inline-flex; }
+.share-menu {
+  position: absolute;
+  top: calc(100% + 0.4em);
+  right: 0;
+  z-index: 200;
+  min-width: 11em;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0.5em 1.6em rgba(0,0,0,0.35);
+  overflow: hidden;
+}
+.share-menu-item {
+  padding: 0.7em 1em;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-sm);
+  color: var(--text);
+  text-align: left;
+  text-decoration: none;
+  background: none;
+  border: 0;
+  border-bottom: 0.07em solid var(--border);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.share-menu-item:last-child { border-bottom: 0; }
+.share-menu-item:hover { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue-lt); }
+@media (pointer: coarse) { .share-menu-item { min-height: 44px; display: flex; align-items: center; } }
+
 /* ── Team Path "What if?" stepper ── */
 .pathproj-box { max-width: 30rem; }
 .pathproj-step {

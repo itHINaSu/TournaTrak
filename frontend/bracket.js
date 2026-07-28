@@ -4570,21 +4570,86 @@ function updateShareBtn() {
   var team = teamSel ? teamSel.value : '';
   _shareBtn.hidden = !(team);
 }
+function teamShareUrl() {
+  var team = teamSel ? teamSel.value : '';
+  if (!team) return '';
+  return window.location.origin + window.location.pathname + '?team=' + encodeURIComponent(team);
+}
+
+function teamShareText() {
+  var team = teamSel ? teamSel.value : '';
+  var name = (getSetting('tournamentName') || '').trim();
+  return team + (name ? ' at ' + name : '') + ' — bracket, schedule and results';
+}
+
+function copyToClipboard(text, okMsg) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() { showToast(okMsg); });
+    return;
+  }
+  // execCommand path for browsers without the async clipboard (and for any
+  // insecure-origin deployment, where navigator.clipboard is undefined).
+  var ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); showToast(okMsg); } catch (e) { showToast(text); }
+  document.body.removeChild(ta);
+}
+
+function closeShareMenu() {
+  var menu = document.getElementById('teamShareMenu');
+  if (menu) menu.hidden = true;
+}
+
+// Point the menu's links at the current team before showing it. All four are
+// documented GET endpoints with no SDK, no key and no script — which is the
+// only kind that can work under script-src 'self' anyway, and the only kind
+// with no maintenance beyond a vendor retiring the URL.
+function openShareMenu() {
+  var url = teamShareUrl();
+  if (!url) return;
+  var menu = document.getElementById('teamShareMenu');
+  if (!menu) return;
+  var text = teamShareText();
+  var eUrl = encodeURIComponent(url), eText = encodeURIComponent(text);
+  var set = function(id, href) { var el = document.getElementById(id); if (el) el.href = href; };
+  set('shareFb', 'https://www.facebook.com/sharer/sharer.php?u=' + eUrl);
+  set('shareX',  'https://twitter.com/intent/tweet?url=' + eUrl + '&text=' + eText);
+  set('shareEmail', 'mailto:?subject=' + eText + '&body=' + eUrl);
+  set('shareSms', 'sms:?&body=' + encodeURIComponent(text + ' ' + url));
+  // SMS only where there's a messaging app to hand it to.
+  var sms = document.getElementById('shareSms');
+  if (sms) sms.hidden = !window.matchMedia('(pointer: coarse)').matches;
+  menu.hidden = false;
+}
+
 if (_shareBtn) {
   _shareBtn.addEventListener('click', function() {
-    var team = teamSel ? teamSel.value : '';
-    if (!team) return;
-    var url = window.location.origin + window.location.pathname + '?team=' + encodeURIComponent(team);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(url).then(function() { showToast('Link copied!'); });
-    } else {
-      // Fallback for older browsers
-      var ta = document.createElement('textarea');
-      ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); showToast('Link copied!'); } catch(e) { showToast(url); }
-      document.body.removeChild(ta);
+    var url = teamShareUrl();
+    if (!url) return;
+    var menu = document.getElementById('teamShareMenu');
+    if (menu && !menu.hidden) { closeShareMenu(); return; }
+    // Phones, tablets and installed PWAs have a share sheet that already
+    // knows every app the user actually messages people in — offer that
+    // rather than a list we guessed at. Desktop Chrome and Firefox have no
+    // sheet, so they get the menu.
+    if (navigator.share) {
+      navigator.share({ title: teamShareText(), text: teamShareText(), url: url })
+        .catch(function(err) {
+          // A cancelled sheet is not a failure; anything else falls back.
+          if (err && err.name === 'AbortError') return;
+          openShareMenu();
+        });
+      return;
     }
+    openShareMenu();
+  });
+  // Any tap outside closes it, including on the button itself (handled above).
+  document.addEventListener('click', function(e) {
+    var menu = document.getElementById('teamShareMenu');
+    if (!menu || menu.hidden) return;
+    if (e.target.closest && e.target.closest('.team-share-wrap')) return;
+    closeShareMenu();
   });
 }
 
@@ -5698,6 +5763,7 @@ Object.assign(TT_ACTIONS, {
     updatePathProjectBar();
     renderTeamView();
   },
+  shareCopy: function() { copyToClipboard(teamShareUrl(), 'Link copied!'); closeShareMenu(); },
   toggleBracketEdit: function() { toggleBracketEdit(); },
   resetBracketLayout: function() { if (_sessionRole === 'admin') resetBracketLayout(); },
   saveBracketLayout: function() { if (_sessionRole === 'admin') saveBracketLayout(); },
