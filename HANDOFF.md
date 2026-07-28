@@ -69,6 +69,48 @@ email, placeholders only the owner can fill). Nothing is known-broken.
 
 **Shipped 2026-07-28 (this session)** — on
 `claude/bracket-generation-missing-lines-tbbhro`:
+- ✅ **Edit a finalized score** instead of clearing and re-entering it.
+  Clearing briefly unfeeds every downstream game and throws away the scores
+  when a TD only wanted to fix a digit. Edit reopens the card's inputs
+  prefilled; nothing is written until Save. Two cases worth knowing: a
+  winner-only result (a forfeit, which the API allows) saves with both
+  fields left blank rather than demanding scores; and a correction that
+  FLIPS the winner confirms first, naming any later games that already have
+  results, since those were played by the teams that advanced under the old
+  result. It does NOT clear them — which of those are actually invalid is a
+  TD judgement, and silently wiping an afternoon of scores is the worse
+  failure. `downstreamWithResults()` in admin.js walks the feed graph.
+- ✅ **Stacked desktop layout for large winners/losers brackets.** A
+  functionally-32-team double elim is 12 round columns plus the
+  championship; side by side every column fell under `MIN_COL_PX` AND the
+  sheet still scrolled. Now winners stack over losers, both reading LEFT TO
+  RIGHT, championship at the right edge — the canonical big printed
+  double-elim layout. Halving the columns across buys the width back; the
+  cost is height, which the page scrolls.
+  - Triggered by the readability floor itself, not a column count: stack
+    only when side-by-side columns would come out under `MIN_COL_PX`. Small
+    double elims are untouched; a 2560px monitor still gets side-by-side.
+  - **Only for real winners/losers structures.** The flagship 32-team layout
+    is two INDEPENDENT single-elim halves that must keep facing each other.
+    `isWinnersLosersLayout()` tells them apart structurally — a cross-side
+    feed means winners/losers — rather than by a format flag.
+  - `sideHTML`'s `isRight` used to drive BOTH mirroring and whether to use
+    the losers-bracket position map; those are now separate (lbPosMap only
+    ever holds R-side games, so it is consulted unconditionally).
+  - Watch out: `.champ-inner--above` is absolutely positioned against
+    `.champ-anchor`, which only exists in the side-by-side layout. The
+    stacked championship uses plain `.champ-inner`.
+- ✅ **Icon Fit was rendering the art too small, and Crop couldn't
+  letterbox.** Fit padded twice — a logo carries its own transparent margin,
+  and fitting the whole BITMAP added 8% on top. Fit now measures the
+  bounding box of non-transparent pixels (`opaqueBounds()`) and fits THAT,
+  with 2% of breathing room; favicons use none. Crop now allows the square
+  to extend PAST the image, so a rectangular logo is letterboxed with
+  background instead of having its long side cut — `drawCropped()` scales
+  the whole image and offsets it rather than handing drawImage an
+  out-of-bounds source rect (which clips and shifts instead). The square's
+  centre must stay on the image; that is the only positional constraint.
+  A "Fit whole logo" button does it in one click.
 - ✅ **Stale admin assets — the cause of two "broken feature" reports.** The
   admin pages are deliberately NOT service-worker cached (admin-sw.js is
   network-only), but nginx sent NO cache headers for `.css`/`.js`, so
@@ -609,6 +651,41 @@ fields use `class="styled"` (the `admin-winner-sel` inline-style inconsistency i
 - `scrollTeamPathTop()` resets `#teamOut` (mobile overflow-y container) in addition
   to `#view-teampath` / window.
 - Clickable loss-destination styled as a pill (`.tp-opp-chip`) for tap affordance.
+
+## Session notes / traps worth inheriting (2026-07-28)
+Things that cost time this session, written down so they don't again.
+
+- **NEVER `open(p,'w').write(open(p).read()…)` in Python.** The `'w'` handle
+  is opened — and the file truncated — BEFORE the read runs, so it writes
+  back an empty string. This silently zeroed `admin/builder/score/lineup.html`
+  in one commit (the admin UI was completely dead) and wasn't caught until a
+  grep came back empty two commits later. Read into a variable first. In
+  general, prefer the Edit tool over shell rewrites of tracked files, and
+  `git status` after any scripted edit — a truncated file shows as modified
+  with a huge deletion count.
+- **Restart the API after editing `api/*.js`.** A long-running dev server
+  will happily keep serving the OLD validation while the browser runs new
+  client code, which reads exactly like "the field won't save".
+- **`format` is server-managed and NOT in the settings allowlist.** POSTing
+  it to /api/settings is silently dropped (by design). Only
+  /schedule/generate sets it. A stale `format` from earlier testing makes
+  `renderBracketInner` short-circuit to the schedule-first empty state,
+  which looks exactly like a broken renderer — check the setting first.
+- **Two caches can serve stale admin JS**: the browser HTTP cache (now
+  `no-cache` via nginx + the `?v=` stamps) and the service worker. When a
+  new admin feature "does nothing", confirm the browser actually has the new
+  `admin.js` before debugging the feature.
+- **`getSetting`/`ttConfirm`/`apiFetch` conventions**: `apiFetch` runs the
+  URL through `scopedUrl()`, which rewrites a leading `/api` to the current
+  tournament's base. Pass `'/api/thing'`, NOT `adminApiBase() + '/thing'` —
+  the latter double-prefixes to `/api/t/x/t/x/thing`. Only use
+  `adminApiBase()` for plain navigations (e.g. the CSV export links).
+- **Playwright**: slot ids contain dots, so `#sc1-R1.L.1` is an invalid
+  selector — use `[id="sc1-R1.L.1"]`. Elements far down the settings page
+  are outside the viewport and can't be clicked or dragged until
+  `scrollIntoViewIfNeeded()`. `ttConfirm` is an in-app dialog
+  (`.tt-dialog-btn--primary`), not `window.confirm`, so `page.on('dialog')`
+  never fires.
 
 ## Conventions / gotchas
 - `upcoming` cards use dashed border only — do NOT add `opacity`.
