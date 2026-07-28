@@ -146,17 +146,25 @@ async function buildIndexHtml(tid, origin) {
   // and the PWA installs against start_url '/'.
   let hasCustomIcon = false;
   let iconSize = { w: 512, h: 512 };
+  const tcAny = await store.get(tid, 'theme_colors');
   if (tid === store.tid) {
-    const tc = await store.get(tid, 'theme_colors');
-    if (tc && tc.icon) {
+    if (tcAny && tcAny.icon) {
       hasCustomIcon = true;
-      iconSize = pngDataUriSize(tc.icon);
+      iconSize = pngDataUriSize(tcAny.icon);
       html = html.replace(/<link rel="apple-touch-icon" href="[^"]*">/,
         '<link rel="apple-touch-icon" href="/pwa-icon.png">');
-      // rel="icon" (browser tab) deliberately stays the gold trophy —
-      // owner preference: the tab shows the championship trophy, while
-      // the uploaded art covers home-screen installs and og:image.
     }
+  }
+  // The browser-tab icon is a SEPARATE upload from the app icon (the app
+  // icon is baked from the logo; a logo rarely reads at 16px). Unlike the
+  // PWA icon it is per-tournament — /t/:slug pages get their own — because
+  // it only affects the served HTML, not an installed app's identity. With
+  // no upload the tab keeps the stock gold trophy.
+  if (tcAny && tcAny.favicon) {
+    const t = tid === store.tid ? null : await store.tournamentById(tid);
+    const tabHref = (t ? '/t/' + encodeURIComponent(t.slug) : '') + '/tab-icon.png';
+    html = html.replace(/<link rel="icon" href="[^"]*"[^>]*>/,
+      `<link rel="icon" href="${tabHref}" type="image/png">`);
   }
   // og:image must be an ABSOLUTE url — scrapers don't resolve relative
   // paths. The stock trophy is the fallback so shares always get an image.
@@ -903,6 +911,104 @@ api.post('/offsets', requireAdmin, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// ── CSV export ────────────────────────────────────────────────────────
+// Post-tournament reporting. The print stylesheet covers "hand the bracket
+// to someone"; this covers "put the results in a spreadsheet" — the league
+// report, the newsletter, the ISSA submission. Two views because TDs ask for
+// two different things: the game log, and the per-team record.
+//
+// Excel decides a bare UTF-8 CSV is Latin-1 unless it sees a BOM, which
+// mangles every accented team name, so one is prepended.
+function csvCell(v) {
+  const s = v === undefined || v === null ? '' : String(v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function csvBody(rows) {
+  return '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+}
+function sendCsv(res, name, rows) {
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="' + name + '"');
+  res.setHeader('Cache-Control', 'no-store');
+  res.send(csvBody(rows));
+}
+
+// Resolve a game's two sides to real team names where the results allow it,
+// so the export reads like a finished scoresheet rather than a topology dump.
+function exportRows(schedule, results) {
+  const bd = require(FRONTEND_DIR + '/bracket-data.js');
+  bd.applySchedule(schedule);
+  const games = Object.keys(bd.GAMES)
+    .sort((a, b) => bd.parseTimeVal(bd.GAMES[a].time) - bd.parseTimeVal(bd.GAMES[b].time));
+  const rows = [['Game', 'Bracket', 'Round', 'Slot', 'Date', 'Time', 'Field',
+                 'Team 1', 'Team 2', 'Score 1', 'Score 2', 'Winner', 'Loser']];
+  for (const sid of games) {
+    const g = bd.GAMES[sid];
+    const r = results[sid] || {};
+    const t1 = bd.resolveSlot(g.t1, results) || bd.slotLabel(g.t1);
+    const t2 = bd.resolveSlot(g.t2, results) || bd.slotLabel(g.t2);
+    const [date, time] = (g.time || '').split('T');
+    rows.push([g.label, g.tier ? g.tier + ' Bracket' : 'Open', bd.roundLabel(g.round), sid,
+               date || '', time || '', g.field || '', t1, t2,
+               r.t1score ?? '', r.t2score ?? '', r.winner || '', r.loser || '']);
+  }
+  return rows;
+}
+
+// Per-team record over every game the team actually played, ordered by the
+// same documented tiebreak chain the public standings table uses so the two
+// never disagree.
+function teamRows(schedule, results) {
+  const bd = require(FRONTEND_DIR + '/bracket-data.js');
+  bd.applySchedule(schedule);
+  const teams = {}, h2h = {};
+  const seen = (nm) => (teams[nm] = teams[nm] || { name: nm, w: 0, l: 0, rf: 0, ra: 0 });
+  for (const [sid, g] of Object.entries(bd.GAMES)) {
+    const r = results[sid];
+    if (g.bye || !r || !r.winner) continue;
+    const a = bd.resolveSlot(g.t1, results), b = bd.resolveSlot(g.t2, results);
+    if (!a || !b) continue;
+    seen(a); seen(b);
+    if (teams[r.winner]) teams[r.winner].w++;
+    if (teams[r.loser])  teams[r.loser].l++;
+    const s1 = parseInt(r.t1score, 10), s2 = parseInt(r.t2score, 10);
+    const known = !isNaN(s1) && !isNaN(s2);
+    if (known) { teams[a].rf += s1; teams[a].ra += s2; teams[b].rf += s2; teams[b].ra += s1; }
+    for (const [me, opp, mf, ma] of [[a, b, s1, s2], [b, a, s2, s1]]) {
+      h2h[me] = h2h[me] || {};
+      h2h[me][opp] = h2h[me][opp] || { w: 0, l: 0, rf: 0, ra: 0 };
+      if (r.winner === me) h2h[me][opp].w++; else if (r.loser === me) h2h[me][opp].l++;
+      if (known) { h2h[me][opp].rf += mf; h2h[me][opp].ra += ma; }
+    }
+  }
+  const ranked = bd.rankStandings(Object.values(teams), h2h);
+  const rows = [['Rank', 'Team', 'W', 'L', 'Runs For', 'Runs Against', 'Differential']];
+  ranked.forEach((t, i) => rows.push([i + 1, t.name, t.w, t.l, t.rf, t.ra, t.rf - t.ra]));
+  return rows;
+}
+
+// Filenames carry the tournament name so a TD running several events doesn't
+// end up with four files called results.csv.
+function csvName(settings, kind) {
+  const base = (settings.tournamentName || 'tournament')
+    .replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'tournament';
+  return base + '-' + kind + '.csv';
+}
+
+api.get('/export/games.csv', requireResults, ah(async (req, res) => {
+  const [schedule, results, settings] = await Promise.all([
+    store.get(req.tid, 'schedule'), store.get(req.tid, 'results'), store.get(req.tid, 'settings'),
+  ]);
+  sendCsv(res, csvName(settings || {}, 'games'), exportRows(schedule || {}, results || {}));
+}));
+
+api.get('/export/teams.csv', requireResults, ah(async (req, res) => {
+  const [schedule, results, settings] = await Promise.all([
+    store.get(req.tid, 'schedule'), store.get(req.tid, 'results'), store.get(req.tid, 'settings'),
+  ]);
+  sendCsv(res, csvName(settings || {}, 'teams'), teamRows(schedule || {}, results || {}));
+}));
+
 api.get('/field-colors', ah(async (req, res) => {
   res.set('Cache-Control', 'public, max-age=60');
   res.json(await store.get(req.tid, 'field_colors') || {});
@@ -935,6 +1041,10 @@ const LOGO_MAX_CHARS = 48 * 1024;
 // changes, self-heal) don't have to upscale the tiny header logo.
 const ICON_MAX_CHARS = 360 * 1024;
 const ICONSRC_MAX_CHARS = 480 * 1024;
+// The browser-tab icon is its own upload (a wordmark logo rarely reads at
+// 16px), squared and downscaled to 64px client-side. PNG only, so /tab-icon.png
+// can serve the bytes straight out of the data URI with a fixed content type.
+const FAVICON_MAX_CHARS = 32 * 1024;
 function validLogoDataUri(v, maxChars, pngOnly) {
   if (typeof v !== 'string' || !v || v.length > (maxChars || LOGO_MAX_CHARS)) return false;
   const m = LOGO_DATAURI_RE.exec(v);
@@ -969,13 +1079,26 @@ api.post('/theme-colors', requireAdmin, ah(async (req, res) => {
   if (validLogoDataUri(incoming.logo)) clean.logo = incoming.logo;
   if (validLogoDataUri(incoming.icon, ICON_MAX_CHARS, true)) clean.icon = incoming.icon;
   if (validLogoDataUri(incoming.iconSrc, ICONSRC_MAX_CHARS)) clean.iconSrc = incoming.iconSrc;
+  if (validLogoDataUri(incoming.favicon, FAVICON_MAX_CHARS, true)) clean.favicon = incoming.favicon;
   // How the app icon is baked from the logo (kept so the admin UI can
   // re-render the baker with the TD's choices): fit = whole logo on a
-  // colored tile, fill = crop to cover the square.
+  // colored tile, crop = the TD's chosen square. 'fill' was the old
+  // auto-centre-crop mode; it is still ACCEPTED (an older admin bundle may
+  // post it, and stored docs carry it) and stored as the equivalent crop —
+  // a null crop bakes centred, which is exactly what fill did.
   const st = incoming.iconStyle;
-  if (st && typeof st === 'object' && ['fit', 'fill'].includes(st.mode)
+  if (st && typeof st === 'object' && ['fit', 'fill', 'crop'].includes(st.mode)
       && typeof st.bg === 'string' && /^#[0-9a-f]{6}$/i.test(st.bg)) {
-    clean.iconStyle = { mode: st.mode, bg: st.bg };
+    const mode = st.mode === 'fit' ? 'fit' : 'crop';
+    clean.iconStyle = { mode, bg: st.bg };
+    const c = st.crop;
+    // Crop rect in source-image units: x/y are fractions of width/height,
+    // s is the square's side as a fraction of the shorter edge.
+    if (mode === 'crop' && c && typeof c === 'object'
+        && ['x', 'y', 's'].every(k => typeof c[k] === 'number' && Number.isFinite(c[k]))
+        && c.x >= 0 && c.x <= 1 && c.y >= 0 && c.y <= 1 && c.s > 0 && c.s <= 1) {
+      clean.iconStyle.crop = { x: c.x, y: c.y, s: c.s };
+    }
   }
   await store.put(req.tid, 'theme_colors', clean);
   // The served index.html carries an apple-touch-icon link that follows
@@ -1460,6 +1583,22 @@ app.get('/pwa-icon.png', ah(async (req, res) => {
   res.sendFile(FRONTEND_DIR + '/icons/trophy-512.png');
 }));
 
+// Browser-tab icon. Per-tournament (unlike /pwa-icon.png, which brands the
+// one installed PWA): the scoped page's rel="icon" points at the scoped
+// path. Falls back to the stock trophy so the route always renders.
+async function sendTabIcon(tid, res) {
+  const tc = await store.get(tid, 'theme_colors') || {};
+  res.setHeader('Cache-Control', 'no-cache');
+  const m = tc.favicon && /^data:image\/png;base64,(.+)$/.exec(tc.favicon);
+  if (m) {
+    res.setHeader('Content-Type', 'image/png');
+    return res.send(Buffer.from(m[1], 'base64'));
+  }
+  res.sendFile(FRONTEND_DIR + '/icons/trophy-tab-192.png');
+}
+app.get('/tab-icon.png', ah(async (req, res) => sendTabIcon(store.tid, res)));
+app.get('/t/:slug/tab-icon.png', resolveSlug, ah(async (req, res) => sendTabIcon(req.tid, res)));
+
 app.get('/manifest.json', ah(async (req, res) => {
   const manifest = JSON.parse(fs.readFileSync(FRONTEND_DIR + '/manifest.json', 'utf8'));
   const [tc, s] = await Promise.all([
@@ -1574,7 +1713,10 @@ async function restoreDemoSeed() {
                 DEMO_RESET_MINUTES * 60 * 1000).unref();
     console.log('DEMO_MODE on — resetting every ' + DEMO_RESET_MINUTES + ' min from ' + DEMO_SEED_DIR);
   }
-  app.listen(3000, () => console.log('API listening on :3000'));
+  // Port is fixed at 3000 in the container (nginx proxies to it); PORT is an
+  // override for local dev and for the route tests, which need a free port.
+  const port = parseInt(process.env.PORT, 10) || 3000;
+  app.listen(port, () => console.log('API listening on :' + port));
 })().catch(err => {
   console.error('Fatal startup error:', err);
   process.exit(1);

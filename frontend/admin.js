@@ -225,11 +225,9 @@ function populateSettingsFields() {
   _logoDataUri = (_themeColors && _themeColors.logo) || null;
   _logoIconUri = (_themeColors && _themeColors.icon) || null;
   _iconSrcUri  = (_themeColors && _themeColors.iconSrc) || null;
-  var st = _themeColors && _themeColors.iconStyle;
-  _iconStyle = {
-    mode: st && st.mode === 'fill' ? 'fill' : 'fit',
-    bg: (st && st.bg) || '#ffffff',
-  };
+  _faviconUri  = (_themeColors && _themeColors.favicon) || null;
+  // Migrates the retired 'fill' (auto centre-crop) to an explicit crop.
+  _iconStyle = normalizeIconStyle(_themeColors && _themeColors.iconStyle);
   // Self-heal: logos uploaded before the PWA-icon feature existed have no
   // baked icon, so /pwa-icon.png and the manifest still serve the stock
   // trophy. Bake one from the best stored source and persist it
@@ -282,6 +280,7 @@ async function saveSettings() {
   if (_logoDataUri) themeColors.logo = _logoDataUri;
   if (_logoIconUri) { themeColors.icon = _logoIconUri; themeColors.iconStyle = _iconStyle; }
   if (_iconSrcUri) themeColors.iconSrc = _iconSrcUri;
+  if (_faviconUri) themeColors.favicon = _faviconUri;
   var fieldColors = {};
   document.querySelectorAll('.field-color-picker:not(.theme-color-picker)').forEach(function(inp) {
     if (inp.dataset.field) fieldColors[inp.dataset.field] = inp.value;
@@ -798,7 +797,43 @@ async function clearSlot(sid) {
 // stay hidden until revealed one at a time via the "+ Add game" buttons.
 var _revealedSlots = {}; // sid -> true, for empty slots manually revealed
 
+// ── Bracket health ────────────────────────────────────────────────────
+// A TD publishes straight from this editor, and the failure modes are all
+// silent on the public page — a half-wired game simply isn't there, a
+// double-consumed feed quietly drops one edge. scheduleHealth() (in
+// bracket-data.js) does the detection over the RAW schedule; this renders
+// it above the editor. Called after every load and every save so it always
+// reflects what is actually published.
+function renderSchedHealth() {
+  var el = document.getElementById('schedHealth');
+  if (!el || typeof scheduleHealth !== 'function') return;
+  var issues = scheduleHealth(schedule);
+  if (!Object.keys(schedule || {}).length) { el.hidden = true; return; }
+  el.hidden = false;
+  if (!issues.length) {
+    el.className = 'sched-health sched-health--ok';
+    el.innerHTML = '<div class="sched-health-hdr">Bracket looks healthy — every game is complete and every feed resolves.</div>';
+    return;
+  }
+  var errors = issues.filter(function(i) { return i.level === 'error'; }).length;
+  el.className = 'sched-health' + (errors ? ' sched-health--error' : ' sched-health--warn');
+  var head = errors
+    ? errors + (errors === 1 ? ' problem' : ' problems') + ' will affect the published bracket'
+    : issues.length + (issues.length === 1 ? ' warning' : ' warnings');
+  var extra = issues.length - errors;
+  if (errors && extra) head += ' (plus ' + extra + ' warning' + (extra === 1 ? '' : 's') + ')';
+  el.innerHTML = '<div class="sched-health-hdr">' + esc(head) + '</div>'
+    + '<ul class="sched-health-list">'
+    + issues.map(function(i) {
+        return '<li class="sched-health-item sched-health-item--' + i.level + '">'
+          + '<span class="sched-health-slot">' + esc(i.label) + '</span> '
+          + esc(i.message) + '</li>';
+      }).join('')
+    + '</ul>';
+}
+
 function renderScheduleEditor() {
+  renderSchedHealth();
   var wrap = document.getElementById('scheduleEditor');
   // A revealed slot that now has a real game no longer needs tracking.
   Object.keys(_revealedSlots).forEach(function(sid){
@@ -1903,7 +1938,13 @@ var _logoIconUri = null;        // square PNG PWA/home-screen/share icon derived
 var _iconSrcUri  = null;        // high-res baking source (original upload, ≤1024px) — icons
                                 // re-bake from THIS, never from the tiny header logo, so
                                 // link-share previews stay sharp
-var _iconStyle = { mode: 'fit', bg: '#ffffff' };  // how the icon is baked (TD's choice)
+// How the icon is baked (TD's choice). `crop` carries the custom crop
+// rectangle in source-image units that survive a re-encode: `s` is the
+// square's side as a fraction of the image's SHORTER edge, `x`/`y` its
+// top-left as fractions of the image width/height. `{x:0,y:0,s:1}` is
+// therefore the largest square anchored top-left, and centerCrop() below
+// gives the centered one.
+var _iconStyle = { mode: 'fit', bg: '#ffffff', crop: null };
 var LOGO_MAX_URI = 48 * 1024;   // matches the server's LOGO_MAX_CHARS cap
 var LOGO_MAX_H = 144;           // ~3x the rendered header height (retina)
 var LOGO_MAX_W = 288;
@@ -1940,20 +1981,60 @@ function makeIconSrc(origUri, cb) {
   img.src = origUri;
 }
 
+// The centered largest square — the default crop, and what the old "Fill"
+// (auto-crop-to-cover) mode produced, so a logo saved under Fill re-bakes
+// byte-identically after the migration in normalizeIconStyle().
+function centerCrop(w, h) {
+  var side = Math.min(w, h);
+  return { x: (w - side) / (2 * w), y: (h - side) / (2 * h), s: 1 };
+}
+
+// Resolve a stored crop to a pixel rect on a w×h image, clamped so a crop
+// saved against a different encode of the same art can never read outside
+// the bitmap.
+function cropRect(crop, w, h) {
+  var c = crop || centerCrop(w, h);
+  var side = Math.min(w, h) * Math.min(1, Math.max(0.05, c.s));
+  return {
+    x: Math.min(Math.max(0, c.x * w), w - side),
+    y: Math.min(Math.max(0, c.y * h), h - side),
+    side: side
+  };
+}
+
+// Accept whatever is stored/posted and return a valid style. Logos saved
+// before the custom crop existed carry mode 'fill' (auto center-crop to
+// cover) — map those to the equivalent explicit crop so the icon does not
+// change under the TD.
+function normalizeIconStyle(st) {
+  var out = {
+    mode: (st && (st.mode === 'crop' || st.mode === 'fill')) ? 'crop' : 'fit',
+    bg: (st && typeof st.bg === 'string' && /^#[0-9a-f]{6}$/i.test(st.bg)) ? st.bg : '#ffffff',
+    crop: null
+  };
+  var c = st && st.crop;
+  if (out.mode === 'crop' && c && typeof c === 'object'
+      && [c.x, c.y, c.s].every(function(n) { return typeof n === 'number' && isFinite(n); })) {
+    out.crop = { x: Math.min(1, Math.max(0, c.x)), y: Math.min(1, Math.max(0, c.y)),
+                 s: Math.min(1, Math.max(0.05, c.s)) };
+  }
+  return out;   // crop stays null for legacy 'fill' → centerCrop at bake time
+}
+
 // Render the logo as a square PNG PWA / home-screen / link-share icon:
 //   fit  — whole logo centered on a colored tile (background color shows)
-//   fill — logo scaled up to cover the tile, overflow cropped
+//   crop — the TD's chosen square area of the logo, filling the tile
 // Always PNG — iOS ignores WebP touch icons — and an opaque background
 // because iOS composites transparency onto black. The tile is sized near
 // the source's own resolution (capped at 1024) so the art is never
 // stretched up, and shrinks if a very complex image overruns the cap.
 // cb(uri) or cb(null).
 function makeLogoIcon(srcUri, style, cb) {
-  var mode = (style && style.mode) === 'fill' ? 'fill' : 'fit';
-  var bg = (style && style.bg) || '#ffffff';
+  var st = normalizeIconStyle(style);
   var img = new Image();
   img.onload = function() {
-    var srcMax = Math.max(img.width, img.height);
+    var rect = st.mode === 'crop' ? cropRect(st.crop, img.width, img.height) : null;
+    var srcMax = rect ? rect.side : Math.max(img.width, img.height);
     var start = 128;
     while (start < 1024 && start * 2 <= srcMax * 1.15) start *= 2;
     for (var size = start; size >= 128; size = size / 2) {
@@ -1961,15 +2042,18 @@ function makeLogoIcon(srcUri, style, cb) {
       canvas.width = size; canvas.height = size;
       var ctx = canvas.getContext('2d');
       ctx.imageSmoothingQuality = 'high';
-      ctx.fillStyle = bg;
+      ctx.fillStyle = st.bg;
       ctx.fillRect(0, 0, size, size);
-      var pad = mode === 'fill' ? 0 : size * 0.08;
-      var inner = size - 2 * pad;
-      var scale = mode === 'fill'
-        ? Math.max(inner / img.width, inner / img.height)
-        : Math.min(inner / img.width, inner / img.height);
-      var w = img.width * scale, h = img.height * scale;
-      ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      if (rect) {
+        // Chosen square → whole tile. Background still shows through any
+        // transparency inside the crop.
+        ctx.drawImage(img, rect.x, rect.y, rect.side, rect.side, 0, 0, size, size);
+      } else {
+        var pad = size * 0.08, inner = size - 2 * pad;
+        var scale = Math.min(inner / img.width, inner / img.height);
+        var w = img.width * scale, h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+      }
       var out = canvas.toDataURL('image/png');
       if (out.length <= ICON_MAX_URI) return cb(out);
     }
@@ -1979,22 +2063,31 @@ function makeLogoIcon(srcUri, style, cb) {
   img.src = srcUri;
 }
 
-// Re-bake the icon after a style change (mode/background). Uses the stored
-// logo — the original upload isn't kept around after a reload.
-function onIconStyleChange() {
-  var modeSel = document.getElementById('iconModeSel');
-  var bgInp = document.getElementById('iconBgInput');
-  _iconStyle = {
-    mode: modeSel && modeSel.value === 'fill' ? 'fill' : 'fit',
-    bg: (bgInp && bgInp.value) || '#ffffff',
-  };
+// Re-bake the icon after a style change (mode/background/crop). Uses the
+// high-res baking source when we have one, else the stored header logo.
+function rebakeIcon(toast) {
   if (!_iconSrcUri && !_logoDataUri) return;
   makeLogoIcon(_iconSrcUri || _logoDataUri, _iconStyle, function(icon) {
     if (!icon) return;
     _logoIconUri = icon;
     syncLogoUI();
-    showToast('Icon updated — press Save to apply');
+    if (toast) showToast('Icon updated — press Save to apply');
   });
+}
+
+function onIconStyleChange() {
+  var modeSel = document.getElementById('iconModeSel');
+  var bgInp = document.getElementById('iconBgInput');
+  var wasMode = _iconStyle.mode;
+  _iconStyle = normalizeIconStyle({
+    mode: modeSel && modeSel.value,
+    bg: bgInp && bgInp.value,
+    crop: _iconStyle.crop
+  });
+  // A null crop bakes as the centered largest square (cropRect's default);
+  // the editor fills it in as soon as it knows the image's dimensions.
+  syncCropEditor(wasMode !== _iconStyle.mode);
+  rebakeIcon(true);
 }
 
 // Draw the image onto a shrinking canvas until the encoded data URI fits
@@ -2030,10 +2123,126 @@ function _logoBrand() {
   if (_logoDataUri) out.logo = _logoDataUri;
   if (_logoIconUri) { out.icon = _logoIconUri; out.iconStyle = _iconStyle; }
   if (_iconSrcUri) out.iconSrc = _iconSrcUri;
+  if (_faviconUri) out.favicon = _faviconUri;
   return out;
 }
 
+// ── Crop editor ───────────────────────────────────────────────────────
+// The stage shows the whole baking source letterboxed; the selection box is
+// positioned over it from _iconStyle.crop, and drags are converted back into
+// SOURCE-image pixels before being stored, so the crop is independent of the
+// editor's on-screen size and survives a window resize or a re-encode.
+var _cropDrag = null;
+
+function cropSrcUri() { return _iconSrcUri || _logoDataUri || ''; }
+
+function drawCropBox() {
+  var stage = document.getElementById('iconCropStage');
+  var img   = document.getElementById('iconCropImg');
+  var boxEl = document.getElementById('iconCropBox');
+  if (!stage || !img || !boxEl || !img.naturalWidth) return;
+  var sr = stage.getBoundingClientRect(), ir = img.getBoundingClientRect();
+  var k = ir.width / img.naturalWidth;              // display px per source px
+  var r = cropRect(_iconStyle.crop, img.naturalWidth, img.naturalHeight);
+  boxEl.style.left   = (ir.left - sr.left + r.x * k) + 'px';
+  boxEl.style.top    = (ir.top  - sr.top  + r.y * k) + 'px';
+  boxEl.style.width  = (r.side * k) + 'px';
+  boxEl.style.height = (r.side * k) + 'px';
+}
+
+function syncCropEditor(reload) {
+  var ed  = document.getElementById('iconCropEditor');
+  var img = document.getElementById('iconCropImg');
+  if (!ed || !img) return;
+  var on = _iconStyle.mode === 'crop' && !!cropSrcUri();
+  ed.hidden = !on;
+  if (!on) return;
+  var src = cropSrcUri();
+  if (reload || img.getAttribute('src') !== src) {
+    // A null crop means "centred largest square" everywhere (see cropRect),
+    // so the icon is already right — this only materialises it for the box.
+    img.onload = function() {
+      if (!_iconStyle.crop) _iconStyle.crop = centerCrop(img.naturalWidth, img.naturalHeight);
+      drawCropBox();
+    };
+    img.src = src;
+  } else if (img.complete && img.naturalWidth) {
+    if (!_iconStyle.crop) _iconStyle.crop = centerCrop(img.naturalWidth, img.naturalHeight);
+    drawCropBox();
+  }
+}
+
+function cropDragStart(mode, e) {
+  var img = document.getElementById('iconCropImg');
+  if (!img || !img.naturalWidth) return;
+  e.preventDefault();
+  var ir = img.getBoundingClientRect();
+  _cropDrag = {
+    mode: mode, x0: e.clientX, y0: e.clientY,
+    k: ir.width / img.naturalWidth,
+    r: cropRect(_iconStyle.crop, img.naturalWidth, img.naturalHeight),
+    W: img.naturalWidth, H: img.naturalHeight
+  };
+  window.addEventListener('pointermove', cropDragMove);
+  window.addEventListener('pointerup', cropDragEnd);
+  window.addEventListener('pointercancel', cropDragEnd);
+}
+
+function cropDragMove(e) {
+  var d = _cropDrag;
+  if (!d) return;
+  var dx = (e.clientX - d.x0) / d.k, dy = (e.clientY - d.y0) / d.k;  // source px
+  var x = d.r.x, y = d.r.y, side = d.r.side;
+  if (d.mode === 'move') {
+    x = Math.min(Math.max(0, d.r.x + dx), d.W - side);
+    y = Math.min(Math.max(0, d.r.y + dy), d.H - side);
+  } else {
+    // Square selection: follow whichever axis the pointer moved further on,
+    // capped by the room left below/right of the box's fixed top-left.
+    side = d.r.side + Math.max(dx, dy);
+    side = Math.min(Math.max(Math.min(d.W, d.H) * 0.05, side),
+                    Math.min(d.W - d.r.x, d.H - d.r.y));
+  }
+  _iconStyle.crop = { x: x / d.W, y: y / d.H, s: side / Math.min(d.W, d.H) };
+  drawCropBox();
+}
+
+function cropDragEnd() {
+  if (!_cropDrag) return;
+  _cropDrag = null;
+  window.removeEventListener('pointermove', cropDragMove);
+  window.removeEventListener('pointerup', cropDragEnd);
+  window.removeEventListener('pointercancel', cropDragEnd);
+  rebakeIcon(false);
+}
+
+function cropReset() {
+  _iconStyle.crop = null;
+  syncCropEditor(false);
+  rebakeIcon(true);
+}
+
+function initCropEditor() {
+  var boxEl  = document.getElementById('iconCropBox');
+  var handle = document.getElementById('iconCropHandle');
+  if (!boxEl || !handle) return;
+  boxEl.addEventListener('pointerdown', function(e) {
+    if (e.target === handle) return;          // handled below
+    cropDragStart('move', e);
+  });
+  handle.addEventListener('pointerdown', function(e) {
+    e.stopPropagation();
+    cropDragStart('resize', e);
+  });
+  window.addEventListener('resize', function() {
+    if (_iconStyle.mode === 'crop') drawCropBox();
+  });
+}
+
 function syncLogoUI() {
+  // The tab icon is its own upload with no dependency on the logo — sync it
+  // before any of the logo-specific early returns below.
+  syncFaviconUI();
   var img = document.getElementById('logoPreview');
   var rm  = document.getElementById('logoRemoveBtn');
   if (!img || !rm) return;
@@ -2051,6 +2260,7 @@ function syncLogoUI() {
   }
   if (modeSel) modeSel.value = _iconStyle.mode;
   if (bgInp) bgInp.value = _iconStyle.bg;
+  syncCropEditor(false);
 }
 
 function pickLogo(val, el) {
@@ -2064,11 +2274,14 @@ function pickLogo(val, el) {
   var reader = new FileReader();
   reader.onload = function() {
     var uri = reader.result;
+    // A crop chosen for the PREVIOUS logo means nothing on new art — drop it
+    // so the new upload starts from the centred square.
+    _iconStyle.crop = null;
     // The PWA/share icon renders from the ORIGINAL image (full resolution),
     // independent of the header-logo downscale — and a ≤1024px copy of the
     // original is kept as the re-bake source for later style changes.
     makeLogoIcon(uri, _iconStyle, function(icon) { _logoIconUri = icon; syncLogoUI(); });
-    makeIconSrc(uri, function(src) { _iconSrcUri = src; });
+    makeIconSrc(uri, function(src) { _iconSrcUri = src; syncCropEditor(true); });
     if (uri.length <= LOGO_MAX_URI) {
       _logoDataUri = uri;
       syncLogoUI();
@@ -2093,10 +2306,81 @@ function removeLogo() {
   _logoDataUri = null;
   _logoIconUri = null;
   _iconSrcUri = null;
+  _iconStyle.crop = null;
   var inp = document.getElementById('logoFileInput');
   if (inp) inp.value = '';
   syncLogoUI();
   showToast('Logo will be removed on Save');
+}
+
+// ── Browser tab icon (favicon) ────────────────────────────────────────
+// Independent of the logo: a TD's wordmark rarely reads at 16px, so the tab
+// icon is its own upload rather than another bake of the logo. Squared and
+// downscaled to FAVICON_PX here; the server re-validates format and size and
+// serves it at /tab-icon.png, which the built index.html points rel="icon" at.
+var _faviconUri = null;
+var FAVICON_PX = 64;
+var FAVICON_MAX_URI = 32 * 1024;   // matches the server's FAVICON_MAX_CHARS cap
+
+// Non-square art is letterboxed rather than cropped — a tab icon is too
+// small for a crop UI to be worth it, and a squashed logo reads worse than
+// a small centred one. Transparency is preserved (PNG), unlike the app icon
+// where iOS forces an opaque tile.
+function makeFavicon(srcUri, cb) {
+  var img = new Image();
+  img.onload = function() {
+    var canvas = document.createElement('canvas');
+    canvas.width = canvas.height = FAVICON_PX;
+    var ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    var scale = Math.min(FAVICON_PX / img.width, FAVICON_PX / img.height);
+    var w = img.width * scale, h = img.height * scale;
+    ctx.drawImage(img, (FAVICON_PX - w) / 2, (FAVICON_PX - h) / 2, w, h);
+    var out = canvas.toDataURL('image/png');
+    cb(out.length <= FAVICON_MAX_URI ? out : null);
+  };
+  img.onerror = function() { cb(null); };
+  img.src = srcUri;
+}
+
+function syncFaviconUI() {
+  var img = document.getElementById('faviconPreview');
+  var rm  = document.getElementById('faviconRemoveBtn');
+  if (!img || !rm) return;
+  if (_faviconUri) { img.src = _faviconUri; img.hidden = false; rm.hidden = false; }
+  else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
+}
+
+function pickFavicon(val, el) {
+  var f = el.files && el.files[0];
+  if (!f) return;
+  if (['image/png', 'image/jpeg', 'image/webp'].indexOf(f.type) === -1) {
+    showToast('Tab icon must be PNG, JPEG, or WebP', true);
+    el.value = '';
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function() {
+    makeFavicon(reader.result, function(out) {
+      if (!out) {
+        showToast('Could not process that image — try a simpler one', true);
+        el.value = '';
+        return;
+      }
+      _faviconUri = out;
+      syncFaviconUI();
+      showToast('Tab icon ready — press Save to apply');
+    });
+  };
+  reader.readAsDataURL(f);
+}
+
+function removeFavicon() {
+  _faviconUri = null;
+  var inp = document.getElementById('faviconFileInput');
+  if (inp) inp.value = '';
+  syncFaviconUI();
+  showToast('Tab icon will be removed on Save');
 }
 
 // ── Theme & field color management ─────────────────────────────────────
@@ -3061,6 +3345,7 @@ async function swissPairNextRound() {
 }
 
 function renderQuickEditor() {
+  renderSchedHealth();
   var list = document.getElementById('quickEditorList');
   if (!list) return;
   var html = '';
@@ -3414,6 +3699,9 @@ Object.assign(TT_ACTIONS, {
   pickLogo:            function(arg, el) { pickLogo(arg, el); },
   removeLogo:          function() { removeLogo(); },
   onIconStyleChange:   function() { onIconStyleChange(); },
+  cropReset:           function() { cropReset(); },
+  pickFavicon:         function(arg, el) { pickFavicon(arg, el); },
+  removeFavicon:       function() { removeFavicon(); },
   resetOneFieldColor:  function(arg, el) { resetOneFieldColor(el); },
   // users
   addUser:             function() { addUser(); },
@@ -3447,4 +3735,5 @@ Object.assign(TT_ACTIONS, {
     if (panel) panel.hidden = !(this.checked);
     if (this.checked) renderThemeSection();
   });
+  initCropEditor();
 })();

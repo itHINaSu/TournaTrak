@@ -1134,6 +1134,9 @@ function computeLBPositions(slotVh) {
   // same position, so both CHAMP feeders are at the same height. Since CHAMP
   // is already hardcoded at 3.5*slotVh and the WB SF (n=1) is also naturally
   // at 3.5*slotVh, this produces the canonical paper-bracket look.
+  // One card height — the minimum gap between two cards in a column. Used
+  // by the championship pin below as well as the overlap sweep after it.
+  var minSep = slotVh * CARD_RATIO * 1.06;
   var champG = GAMES['CHAMP.C.1'];
   if (champG) {
     var wbSFTops = [];
@@ -1156,6 +1159,30 @@ function computeLBPositions(slotVh) {
       // below treats this as an ANCHOR: siblings move out of ITS way.
       posMap[slotDef.slot] = clamp(wbSFMidTop);
       _lbAnchored[slotDef.slot] = true;
+      seatChainAbove(slotDef.slot, 0);
+    });
+  }
+
+  // The championship pin is absolute, so it can drop the LB final ON TOP OF
+  // the same-column game that feeds it (the LB semi): the final then reads
+  // as being played before its own semifinal, and its connector runs
+  // backwards up the column. Every other same-column chain hangs the
+  // consumer BELOW its feeder (see the `f.round === col.round` branch
+  // above) — this restores that order around the pin by walking the chain
+  // and stacking each feeder a card above, anchoring them so the overlap
+  // sweep preserves the order instead of pushing them back down.
+  function seatChainAbove(gid, depth) {
+    var g = GAMES[gid];
+    if (!g || depth > 8) return;   // depth guard: hand-wired cycles
+    [g.t1, g.t2].forEach(function(slotDef) {
+      if (!slotDef || (slotDef.type !== 'winner' && slotDef.type !== 'loser')) return;
+      var fg = GAMES[slotDef.slot];
+      if (!fg || fg.side !== 'R' || fg.round !== g.round) return;  // same column only
+      if (posMap[slotDef.slot] === undefined) return;
+      var want = posMap[gid] - minSep;
+      if (posMap[slotDef.slot] > want) posMap[slotDef.slot] = clamp(want);
+      _lbAnchored[slotDef.slot] = true;
+      seatChainAbove(slotDef.slot, depth + 1);
     });
   }
 
@@ -1166,7 +1193,6 @@ function computeLBPositions(slotVh) {
   // (championship-row pin) hold position and displace neighbors upward;
   // everything else pushes downward. Repeated passes settle cascades,
   // then the whole column shifts back up if it ran past the grid bottom.
-  var minSep = slotVh * CARD_RATIO * 1.06;
   cols.forEach(function(col) {
     var placed = col.games
       .filter(function(e) { return posMap[e.gid] !== undefined; })
@@ -2950,7 +2976,7 @@ function standingsGroups() {
       if (!m) return;
       key = m[1]; label = m[1];
     }
-    if (!groups[key]) { groups[key] = { label: label, teams: {} }; order.push(key); }
+    if (!groups[key]) { groups[key] = { label: label, teams: {}, h2h: {} }; order.push(key); }
     var t = groups[key].teams;
     [g.t1.team, g.t2.team].forEach(function (nm) {
       if (!t[nm]) t[nm] = { name: nm, w: 0, l: 0, rf: 0, ra: 0 };
@@ -2964,19 +2990,22 @@ function standingsGroups() {
       t[g.t1.team].rf += s1; t[g.t1.team].ra += s2;
       t[g.t2.team].rf += s2; t[g.t2.team].ra += s1;
     }
+    // Per-opponent record, for the head-to-head tiebreak. Keyed both ways so
+    // a lookup never has to care which side a team batted on.
+    var h = groups[key].h2h;
+    [[g.t1.team, g.t2.team, s1, s2], [g.t2.team, g.t1.team, s2, s1]].forEach(function (p) {
+      var me = p[0], opp = p[1];
+      if (!h[me]) h[me] = {};
+      if (!h[me][opp]) h[me][opp] = { w: 0, l: 0, rf: 0, ra: 0 };
+      if (r.winner === me) h[me][opp].w++; else if (r.loser === me) h[me][opp].l++;
+      if (!isNaN(p[2]) && !isNaN(p[3])) { h[me][opp].rf += p[2]; h[me][opp].ra += p[3]; }
+    });
   });
   if (!order.length) return null;
   order.sort();
   return order.map(function (k) {
     var rows = Object.keys(groups[k].teams).map(function (nm) { return groups[k].teams[nm]; });
-    rows.sort(function (a, b) {
-      if (b.w !== a.w) return b.w - a.w;
-      var da = a.rf - a.ra, db = b.rf - b.ra;
-      if (db !== da) return db - da;
-      if (b.rf !== a.rf) return b.rf - a.rf;
-      return a.name < b.name ? -1 : 1;
-    });
-    return { label: groups[k].label, rows: rows };
+    return { label: groups[k].label, rows: rankStandings(rows, groups[k].h2h) };
   });
 }
 
@@ -2998,7 +3027,9 @@ function standingsHTML() {
         + '<td class="' + (diff > 0 ? 'standings-diff-pos' : diff < 0 ? 'standings-diff-neg' : '') + '">'
         + (diff > 0 ? '+' : '') + diff + '</td></tr>';
     });
-    html += '</tbody></table></div></div>';
+    html += '</tbody></table>'
+      + '<div class="standings-tiebreaks">' + esc(STANDINGS_TIEBREAKS) + '</div>'
+      + '</div></div>';
   });
   return html + '</div>';
 }

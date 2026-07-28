@@ -457,6 +457,10 @@ async function tournamentBySlug(slug) {
   return (await listTournaments()).find(t => t.slug === slug) || null;
 }
 
+async function tournamentById(id) {
+  return (await listTournaments()).find(t => t.id === id) || null;
+}
+
 function _invalidateTournaments() { cache.delete('tournaments'); }
 
 async function createTournament({ slug, name, isPublic = true }) {
@@ -597,7 +601,7 @@ module.exports = {
   createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
   grantRole, revokeRole,
   hashToken, hashTokenIfRaw,
-  listTournaments, tournamentBySlug, createTournament, updateTournament, deleteTournament,
+  listTournaments, tournamentBySlug, tournamentById, createTournament, updateTournament, deleteTournament,
   setDefaultTournament,
   SessionStore: PgSessionStore,
   _saveDomain, _withTransaction,

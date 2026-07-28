@@ -313,9 +313,161 @@ function applySchedule(schedule) {
   }
 }
 
+// ── Tiebreak order (documented; STANDINGS_TIEBREAKS is shown under the table)
+// 1. Record — most wins, then fewest losses.
+// 2. Head-to-head record among the teams that are still tied.
+// 3. Run differential in those head-to-head games.
+// 4. Overall run differential.
+// 5. Fewest runs allowed.
+// 6. Most runs scored.
+// 7. Team name, so the order is stable rather than accidental.
+//
+// Steps 2 and 3 are computed WITHIN the tied group only, which is what makes
+// them a tiebreak rather than another season stat: a team's record against
+// opponents that aren't tied with it is irrelevant to breaking this tie. A
+// three-way tie that head-to-head only partly resolves falls through to the
+// later steps for whatever is still level, exactly like a paper sheet.
+var STANDINGS_TIEBREAKS = 'Ties broken by: head-to-head record, then head-to-head run '
+  + 'differential, then overall run differential, then fewest runs allowed, then runs scored.';
+
+function rankStandings(rows, h2h) {
+  // Group by identical record first — everything below only applies inside
+  // one of these groups.
+  var sorted = rows.slice().sort(function (a, b) {
+    if (b.w !== a.w) return b.w - a.w;
+    return a.l - b.l;
+  });
+  var out = [];
+  for (var i = 0; i < sorted.length;) {
+    var j = i;
+    while (j < sorted.length && sorted[j].w === sorted[i].w && sorted[j].l === sorted[i].l) j++;
+    var tied = sorted.slice(i, j);
+    if (tied.length > 1) {
+      var names = tied.map(function (r) { return r.name; });
+      var mini = {};
+      tied.forEach(function (r) {
+        var w = 0, l = 0, rf = 0, ra = 0;
+        names.forEach(function (opp) {
+          var rec = opp !== r.name && h2h[r.name] && h2h[r.name][opp];
+          if (!rec) return;
+          w += rec.w; l += rec.l; rf += rec.rf; ra += rec.ra;
+        });
+        // Win pct, not raw wins: inside a partly played group two tied teams
+        // may have met a different number of the others.
+        mini[r.name] = { pct: (w + l) ? w / (w + l) : -1, diff: rf - ra };
+      });
+      tied.sort(function (a, b) {
+        var ma = mini[a.name], mb = mini[b.name];
+        if (mb.pct !== ma.pct) return mb.pct - ma.pct;
+        if (mb.diff !== ma.diff) return mb.diff - ma.diff;
+        var da = a.rf - a.ra, db = b.rf - b.ra;
+        if (db !== da) return db - da;
+        if (a.ra !== b.ra) return a.ra - b.ra;
+        if (b.rf !== a.rf) return b.rf - a.rf;
+        return a.name < b.name ? -1 : 1;
+      });
+    }
+    out = out.concat(tied);
+    i = j;
+  }
+  return out;
+}
+
+// ── scheduleHealth ────────────────────────────────────────────────────
+// Pre-publish check over a RAW schedule object (not GAMES — applySchedule
+// has already thrown away exactly the entries this is meant to catch).
+// Returns [{ level:'error'|'warning', slot, label, message }], worst first.
+//
+// Every rule here corresponds to a real failure the app used to absorb in
+// silence:
+//   • incomplete    — applySchedule skips any entry missing a label or a
+//                     team, so a half-wired game vanishes from the public
+//                     bracket with no warning at all.
+//   • dangling      — a feed pointing at a slot with no game can never
+//                     resolve; the card shows "R2.L.3 (deleted game)".
+//   • duplicate     — _nextSlotMap is last-write-wins, so two games
+//                     consuming the same feed silently drop one edge and
+//                     skew isEliminated + Team Path.
+//   • self          — a game feeding itself never resolves.
+//   • backwards     — the renderer lays columns out in ROUND_ORDER and only
+//                     wires ADJACENT ones, so a feeder in a later round
+//                     draws on the wrong side of its consumer with no
+//                     connector line between them.
+function scheduleHealth(schedule) {
+  const out = [];
+  const entries = Object.entries(schedule || {})
+    .filter(([, ov]) => ov && typeof ov === 'object' && !ov.clear);
+  const labelOf = (sid) => (schedule[sid] && schedule[sid].label) || sid;
+  const add = (level, slot, message) =>
+    out.push({ level, slot, label: labelOf(slot), message });
+
+  // A game only reaches the bracket if applySchedule keeps it.
+  const live = new Set(entries
+    .filter(([, ov]) => ov.label && (ov.t1name || ov.t1slot) && (ov.t2name || ov.t2slot))
+    .map(([sid]) => sid));
+
+  const consumers = {};   // 'slot|type' → [consuming slot ids]
+
+  for (const [sid, ov] of entries) {
+    const me = parseSlotId(sid);
+    const missing = [];
+    if (!ov.label) missing.push('a name');
+    if (!ov.t1name && !ov.t1slot) missing.push('a first team');
+    if (!ov.t2name && !ov.t2slot) missing.push('a second team');
+    if (missing.length) {
+      add('error', sid, 'Needs ' + missing.join(' and ')
+        + ' — until then this game is left off the public bracket.');
+    }
+
+    for (const n of [1, 2]) {
+      const src = ov['t' + n + 'slot'];
+      if (!src) continue;
+      const type = ov['t' + n + 'type'] === 'loser' ? 'loser' : 'winner';
+      if (src === sid) {
+        add('error', sid, 'Team ' + n + ' is fed by this same game.');
+        continue;
+      }
+      if (!live.has(src)) {
+        add('error', sid, 'Team ' + n + ' comes from ' + src
+          + ', which has no game — that slot will never fill.');
+        continue;
+      }
+      (consumers[src + '|' + type] = consumers[src + '|' + type] || []).push(sid);
+
+      // Column ordering. Tier (A/B) games all live in R0 and are laid out by
+      // slot band instead, so they compare by slot number within their tier.
+      const f = parseSlotId(src);
+      const srcTier = schedule[src].tier;
+      if (ov.tier) {
+        if (srcTier === ov.tier && f.num >= me.num) {
+          add('warning', sid, 'Fed by ' + labelOf(src)
+            + ', which sits in a later column — no connector line is drawn.');
+        }
+      } else if (!srcTier) {
+        const fi = ROUND_ORDER.indexOf(f.round), mi = ROUND_ORDER.indexOf(me.round);
+        if (fi > mi || (fi === mi && f.side === me.side && f.num >= me.num)) {
+          add('warning', sid, 'Fed by ' + labelOf(src)
+            + ' (' + src + '), which sits in a later column — no connector line is drawn.');
+        }
+      }
+    }
+  }
+
+  for (const [key, users] of Object.entries(consumers)) {
+    if (users.length < 2) continue;
+    const [src, type] = key.split('|');
+    users.forEach(sid => add('error', sid, 'The ' + type + ' of ' + labelOf(src)
+      + ' also feeds ' + users.filter(u => u !== sid).map(labelOf).join(', ')
+      + ' — only one of them will receive the team.'));
+  }
+
+  return out.sort((a, b) => (a.level === b.level) ? 0 : (a.level === 'error' ? -1 : 1));
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
-    GAMES, SLOT_DEFS, ROUND_ORDER, ROUND_LABELS, roundLabel,
+    GAMES, SLOT_DEFS, ROUND_ORDER, ROUND_LABELS, roundLabel, scheduleHealth,
+    rankStandings, STANDINGS_TIEBREAKS,
     allSlotIds, parseSlotId, tierGameRound, occupiedSlots, slotsForRoundSide,
     resolveSlot, slotLabel, smartLabel, shortName,
     isEliminated, findNextSlot, applySchedule,

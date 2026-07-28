@@ -211,6 +211,8 @@
       <button class="results-mode-btn" id="modeSchedTeamsBtn" data-action="setSchedMode" data-arg="teams">Teams</button>
       <button class="results-mode-btn" id="modeScheduleBtn" data-action="setSchedMode" data-arg="editor">Advanced</button>
     </div>
+    <!-- Bracket health: pre-publish warnings, shared by Edit and Advanced -->
+    <div class="sched-health" id="schedHealth" hidden></div>
     <div id="schedQuickPanel">
       <div class="admin-subtitle">Quick edit — change names, times, fields, and team names in bulk, then Save all changes. Wiring, adding games, and slot moves live under Advanced.</div>
       <div class="sched-names-toolbar">
@@ -400,11 +402,32 @@
                   <img id="iconPreview" class="icon-preview" alt="App icon preview">
                   <select class="styled" id="iconModeSel" data-action-change="onIconStyleChange">
                     <option value="fit">Fit — whole logo on a colored square</option>
-                    <option value="fill">Fill — crop the logo to fill the square</option>
+                    <option value="crop">Crop — pick the square to use</option>
                   </select>
                   <input type="color" class="field-color-picker theme-color-picker" id="iconBgInput" value="#ffffff" data-action-change="onIconStyleChange" title="Icon background color">
                 </div>
+                <div class="icon-crop" id="iconCropEditor" hidden>
+                  <div class="icon-crop-stage" id="iconCropStage">
+                    <img class="icon-crop-img" id="iconCropImg" alt="">
+                    <div class="icon-crop-box" id="iconCropBox">
+                      <span class="icon-crop-handle" id="iconCropHandle"></span>
+                    </div>
+                  </div>
+                  <div class="icon-crop-side">
+                    <div class="field-hint">Drag the square to move it, or its corner to resize. The area inside becomes the app icon.</div>
+                    <button type="button" class="admin-clear-btn" data-action="cropReset">Reset crop</button>
+                  </div>
+                </div>
                 <div class="field-hint">Background shows behind the logo in Fit mode (and through transparent areas). Devices refresh the icon when the app is reinstalled.</div>
+              </div>
+              <div class="settings-field">
+                <label>Browser Tab Icon <span class="field-label-hint">(favicon — PNG/JPEG/WebP, square works best)</span></label>
+                <div class="logo-picker-row">
+                  <img id="faviconPreview" class="favicon-preview" alt="Favicon preview" hidden>
+                  <input type="file" id="faviconFileInput" accept="image/png,image/jpeg,image/webp" data-action-change="pickFavicon">
+                  <button class="admin-clear-btn" id="faviconRemoveBtn" data-action="removeFavicon" hidden>Remove</button>
+                </div>
+                <div class="field-hint">Shown in the browser tab and bookmarks. Resized to 64×64 automatically; leave empty to keep the gold trophy.</div>
               </div>
               <label class="adv-toggle-label">
                 <input type="checkbox" id="themeAdvancedToggle">

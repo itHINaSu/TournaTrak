@@ -1020,6 +1020,13 @@ reading first.
 - When usage is near a limit or the user asks to wrap up: pause, commit, push, regenerate this `HANDOFF.md`.
 
 ## Git
+- **PUSH BEFORE TESTING, THEN PUSH AGAIN AFTER** (owner directive,
+  2026-07-28). Commit and push the work to the remote branch FIRST, then run
+  the tests / browser verification. Whatever the testing turns up, fix it and
+  push again. Two pushes per change is the expected rhythm, not a mistake —
+  the point is that the remote always holds the work in progress, so nothing
+  is stranded in a container that gets reclaimed. Never hold a commit back
+  waiting for a green test run.
 - Commit messages end with the Claude Code session URL line (harness convention).
 - Do NOT put model IDs in commits/PRs/code.
 - Push: `git push origin main` (see Branch rule — main is the integration
