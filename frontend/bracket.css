@@ -2086,6 +2086,15 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   box-sizing: border-box;
   padding: calc(var(--col-hdr-h)*2.5) 0 1em;
 }
+/* Stacked layout (large double elim): winners row above, losers row below,
+   both reading left-to-right, championship to the right on the seam between
+   them. Engaged by getDims().stacked only when side-by-side can't fit. */
+.bcc-stackrows { display: flex; flex-direction: column; flex: 0 0 auto; }
+/* The two rows are independent trees, so left-align them rather than
+   centering each one — round 1 of both should start at the same x. */
+.bcc-outerflex--stacked .bcc-sideflex { justify-content: flex-start; }
+.bcc-outerflex--stacked .bracket-side-label--abs { right: auto; left: 0; }
+
 /* Desktop: a large field (22+ team double elim) needs more room than the
    window has once the readability floors in getDims() kick in. Scroll rather
    than shrink — the fit-to-viewport sizing was built for 8-16 team brackets. */

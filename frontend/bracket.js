@@ -636,11 +636,27 @@ function gridHeight() {
   return max;
 }
 
+// Tallest column on ONE side. The stacked layout gives each bracket its own
+// vertical band, so the losers row isn't padded out to the winners' height
+// (and vice versa). Side-by-side keeps using the global gridHeight() so both
+// sides share one row grid, exactly as before.
+function sideGridHeight(side) {
+  var counts = {};
+  Object.keys(GAMES).forEach(function(gid) {
+    var g = GAMES[gid];
+    if (g.round === 'CHAMP' || g.round === 'CHAMP2' || g.tier || g.side !== side) return;
+    counts[g.round] = (counts[g.round] || 0) + 1;
+  });
+  var max = 2;
+  Object.keys(counts).forEach(function(k) { if (counts[k] > max) max = counts[k]; });
+  return max;
+}
+
 // _slotNCache memoizes the computed n per (round|side) key, keyed by gamesGeneration
 // so it is automatically invalidated whenever applySchedule() rebuilds GAMES.
 var _slotNCache = { gen: -1, data: {} };
-function slotTopVh(round, slot, slotVh, side) {
-  var gridH = gridHeight();
+function slotTopVh(round, slot, slotVh, side, gridHOverride) {
+  var gridH = gridHOverride || gridHeight();
   if (round === 'CHAMP' || round === 'CHAMP2') return (gridH / 2 - 0.5) * slotVh;
   var s = side || 'L';
   var cacheKey = round + '|' + s;
@@ -688,6 +704,18 @@ function getDims(){
     // unit and the championship sits at the seam between the two brackets,
     // even when the sides have different round counts.
     var units=nL+nR+(Math.max(nL-1,0)+Math.max(nR-1,0))*0.15;
+    // STACKED layout. Side by side, a large double elim needs nL+nR columns
+    // across (5 + 7 for a 22-team field ≈ 2300px at the readable column
+    // floor) — wider than any normal desktop. Stacking the brackets —
+    // winners row above, losers row below, both reading left-to-right, the
+    // championship at the right where the two rows converge — needs only
+    // max(nL,nR) columns. Engaged ONLY when side-by-side genuinely doesn't
+    // fit, so small brackets keep the classic mirrored layout unchanged.
+    var stacked = (units + 1) * MIN_COL_PX > winW * 0.97;
+    if (stacked) {
+      var nMax = Math.max(nL, nR);
+      units = nMax + Math.max(nMax - 1, 0) * 0.15;
+    }
     // Championship column has 1.6vw of fixed padding/margin, so its inner
     // width = champVw - 1.6.  When there are few rounds, colVw grows large;
     // in that case expand champVw so the championship card matches the rest.
@@ -715,7 +743,7 @@ function getDims(){
     if(cardVh<minCardVh){ cardVh=minCardVh; }
     var rowVh=cardVh/3;
     var slotVh=cardVh/CARD_RATIO;
-    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*gridH,isDesktop,isMobile};
+    return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*gridH,stacked,isDesktop,isMobile};
   }
 
   if(isMobile){
@@ -1025,14 +1053,19 @@ function buildSideColumns(side){
 //     With one real feeder, the phantom mirrors it at half the feeder
 //     column's game gap (above when the drop-in is t1, below when t2),
 //     so the game lands a quarter-gap off its real feeder.
-function computeLBPositions(slotVh) {
+// gridHOverride: the LB band's own row grid in the stacked layout.
+// skipChampPin: in the stacked layout the two brackets are separate bands,
+// so pinning the LB final to the WB final's row (a mirrored-layout idea)
+// would drag it out of its own band — the championship instead sits on the
+// seam between the rows, positioned by the caller.
+function computeLBPositions(slotVh, gridHOverride, skipChampPin) {
   var posMap = {};
   // Games whose position is pinned (championship-row alignment); the
   // overlap sweep moves neighbors around these instead of moving them.
   var _lbAnchored = {};
   var cols = buildSideColumns('R');
   if (!cols.length) return posMap;
-  var gridH = gridHeight();
+  var gridH = gridHOverride || gridHeight();
   var maxTop = gridH * slotVh - slotVh * CARD_RATIO; // keep cards inside the column
 
   function clamp(v) { return Math.max(0, Math.min(v, maxTop)); }
@@ -1135,7 +1168,7 @@ function computeLBPositions(slotVh) {
   // is already hardcoded at 3.5*slotVh and the WB SF (n=1) is also naturally
   // at 3.5*slotVh, this produces the canonical paper-bracket look.
   var champG = GAMES['CHAMP.C.1'];
-  if (champG) {
+  if (champG && !skipChampPin) {
     var wbSFTops = [];
     [champG.t1, champG.t2].forEach(function(slotDef) {
       if (!slotDef || slotDef.type !== 'winner') return;
@@ -1193,12 +1226,12 @@ function computeLBPositions(slotVh) {
   return posMap;
 }
 
-function buildConnPcts(srcCol, dstCol, slotVh, posMap) {
-  var totalVh = slotVh * gridHeight(), conns = [];
+function buildConnPcts(srcCol, dstCol, slotVh, posMap, gridHOverride) {
+  var totalVh = slotVh * (gridHOverride || gridHeight()), conns = [];
   function getTop(col, entry) {
     return (posMap && posMap[entry.gid] !== undefined)
       ? posMap[entry.gid]
-      : slotTopVh(col.round, entry.slot, slotVh, col.side);
+      : slotTopVh(col.round, entry.slot, slotVh, col.side, gridHOverride);
   }
   dstCol.games.forEach(function(dstEntry) {
     var dstMid = (getTop(dstCol, dstEntry) + slotVh * CARD_RATIO / 2) / totalVh * 100;
@@ -1558,20 +1591,32 @@ function renderDesktopBracket(root,dims){
   var colVw=dims.colVw, gapVw=dims.gapVw, champVw=dims.champVw;
   var totalVh=dims.totalVh, lc='var(--line-color)', hdrVh=1.8;
 
-  // LB game positions derived from feeder midpoints; WB uses slotTopVh directly.
-  var lbPosMap = computeLBPositions(slotVh);
+  // Stacked layout: each bracket is an independent left-to-right tree in its
+  // own vertical band, so it gets its own row grid.
+  var stacked = !!dims.stacked;
+  function gridFor(side){ return stacked ? sideGridHeight(side) : gridHeight(); }
+  function heightFor(side){ return slotVh * gridFor(side); }
+
+  // LB game positions derived from feeder midpoints; WB uses slotTopVh
+  // directly. The LB needs this in BOTH layouts — it isn't a clean binary
+  // tree (winners-side drop-ins mean a round can have any number of games),
+  // so slot-number spacing alone puts games nowhere near where their feeders
+  // converge. Stacked passes the LB's own grid and skips the WB pin.
+  var lbPosMap = computeLBPositions(slotVh, stacked ? gridFor('R') : null, stacked);
 
   function sideHTML(side,label,isRight){
     var cols=buildSideColumns(side);
     var ordCols=isRight?cols.slice().reverse():cols;
+    var gridH=gridFor(side), totalVh=heightFor(side);
+    var posMap=(side==='R') ? lbPosMap : null;
     var html='';
     for(var ci=0;ci<ordCols.length;ci++){
       var col=ordCols[ci];
       var cardsHTML='';
       col.games.forEach(function(entry){
-        var topVh = isRight && lbPosMap[entry.gid] !== undefined
-          ? lbPosMap[entry.gid]
-          : slotTopVh(col.round,entry.slot,slotVh,col.side);
+        var topVh = (posMap && posMap[entry.gid] !== undefined)
+          ? posMap[entry.gid]
+          : slotTopVh(col.round,entry.slot,slotVh,col.side,gridH);
         cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" data-css="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
       });
       if (_bracketEditMode) {
@@ -1579,9 +1624,9 @@ function renderDesktopBracket(root,dims){
         var occTops = [];
         col.games.forEach(function(e) {
           usedSlots[e.slot] = true;
-          occTops.push(isRight && lbPosMap[e.gid] !== undefined
-            ? lbPosMap[e.gid]
-            : slotTopVh(col.round, e.slot, slotVh, col.side));
+          occTops.push((posMap && posMap[e.gid] !== undefined)
+            ? posMap[e.gid]
+            : slotTopVh(col.round, e.slot, slotVh, col.side, gridH));
         });
         // slotTopVh's row grid only counts OCCUPIED slots, so an empty slot
         // numbered past the grid (SF.R.3 in a 2-row column) would land below
@@ -1595,7 +1640,7 @@ function renderDesktopBracket(root,dims){
         var slotNums = (SLOT_DEFS[col.round] && SLOT_DEFS[col.round][col.side]) || [];
         slotNums.forEach(function(sn) {
           if (usedSlots[sn] || sn > colN) return;
-          var topVh = slotTopVh(col.round, sn, slotVh, col.side);
+          var topVh = slotTopVh(col.round, sn, slotVh, col.side, gridH);
           var covered = occTops.some(function(t) {
             return Math.abs(t - topVh) < slotVh * CARD_RATIO;
           });
@@ -1610,7 +1655,7 @@ function renderDesktopBracket(root,dims){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
         html+='<div class="u-relative" data-css="flex-shrink:0;width:'+gapVw+'vw;height:'+totalVh+'vh">'
-          +connLines(buildConnPcts(srcCol,dstCol,slotVh,isRight?lbPosMap:null),gapVw,totalVh,lc,isRight)+'</div>';
+          +connLines(buildConnPcts(srcCol,dstCol,slotVh,posMap,gridH),gapVw,totalVh,lc,isRight)+'</div>';
       }
     }
     var labelAlign=isRight?'right:0':'left:0';
@@ -1625,9 +1670,16 @@ function renderDesktopBracket(root,dims){
 
   var champG=GAMES['CHAMP.C.1'],  cr=results['CHAMP.C.1']||{};
   var champ2G=GAMES['CHAMP2.C.1'], cr2=results['CHAMP2.C.1']||{};
+  // Vertical gap between the two stacked rows — room for the lower row's
+  // side label and round headers.
+  var STACK_GAP_VH = hdrVh * 4;
+  // The champ column spans both rows when stacked, one row otherwise.
+  var champColVh = stacked
+    ? heightFor('L') + STACK_GAP_VH + heightFor('R')
+    : totalVh;
   var champHTML;
   if(!champG){
-    champHTML='<div class="champ-center--desktop" data-css="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
+    champHTML='<div class="champ-center--desktop" data-css="width:'+(champVw-1.6)+'vw;height:'+champColVh+'vh;margin-top:'+hdrVh+'vh">'
       +'<div class="champ-inner u-dim30">'
       +'<div class="champ-trophy">'+trophySVG()+'</div>'
       +'<div class="champ-title">Championship</div>'
@@ -1657,7 +1709,9 @@ function renderDesktopBracket(root,dims){
     // feeder games (WB final + pinned LB final) enter at — with the
     // trophy/title block floating above it. Derived from the WB feeder's
     // slot position, mirroring the LB pin in computeLBPositions.
-    var champRowVh = (function() {
+    // Stacked: the two rows converge on the championship from above and
+    // below, so it sits on the seam between them rather than on a WB row.
+    var champRowVh = stacked ? (heightFor('L') + STACK_GAP_VH / 2 - cardVh / 2) : (function() {
       var tops = [];
       [champG.t1, champG.t2].forEach(function(sd) {
         if (!sd || sd.type !== 'winner') return;
@@ -1670,7 +1724,7 @@ function renderDesktopBracket(root,dims){
         ? tops.reduce(function(a, b) { return a + b; }, 0) / tops.length
         : 3.5 * slotVh;
     })();
-    champHTML='<div class="champ-center--desktop u-relative" data-css="width:'+(champVw-1.6)+'vw;height:'+totalVh+'vh;margin-top:'+hdrVh+'vh">'
+    champHTML='<div class="champ-center--desktop u-relative" data-css="width:'+(champVw-1.6)+'vw;height:'+champColVh+'vh;margin-top:'+hdrVh+'vh">'
       +'<div class="champ-anchor" data-css="top:'+champRowVh+'vh">'
       +'<div class="champ-inner champ-inner--above">'
       +'<div class="champ-trophy">'+trophySVG()+'</div>'
@@ -1684,11 +1738,25 @@ function renderDesktopBracket(root,dims){
       +'</div>';
   }
 
-  root.innerHTML='<div class="bcc-outerflex">'
-    +sideHTML('L',getSetting('leftLabel'),false)
-    +champHTML
-    +sideHTML('R',getSetting('rightLabel'),true)
-    +'</div>';
+  if (stacked) {
+    // Winners row above, losers row below, both left-to-right; the
+    // championship sits to the right on the seam between them, which is
+    // where its two feeders (WB final, LB final) actually converge.
+    root.innerHTML='<div class="bcc-outerflex bcc-outerflex--stacked">'
+      +'<div class="bcc-stackrows">'
+      +sideHTML('L',getSetting('leftLabel'),false)
+      +'<div data-css="height:'+STACK_GAP_VH+'vh"></div>'
+      +sideHTML('R',getSetting('rightLabel'),false)
+      +'</div>'
+      +champHTML
+      +'</div>';
+  } else {
+    root.innerHTML='<div class="bcc-outerflex">'
+      +sideHTML('L',getSetting('leftLabel'),false)
+      +champHTML
+      +sideHTML('R',getSetting('rightLabel'),true)
+      +'</div>';
+  }
 
   shrinkFieldTags(root);
 
