@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.30">
-<link rel="stylesheet" href="/bracket.css?v=3.30">
-<script src="/app-h.js?v=3.30"></script>
+<link rel="stylesheet" href="/base.css?v=3.31">
+<link rel="stylesheet" href="/bracket.css?v=3.31">
+<script src="/app-h.js?v=3.31"></script>
 </head>
 <body>
 
@@ -174,6 +174,28 @@
         <option value="">— select a team —</option>
       </select>
       <button class="team-share-btn" id="teamShareBtn" title="Copy shareable link" hidden>Share</button>
+      <button class="team-share-btn" id="pathProjectBtn" data-action="togglePathProject" title="Play out this team's path">What if?</button>
+    </div>
+  </div>
+  <!-- Path projection is scoped to THIS tab on purpose: picks made here never
+       reach the Bracket or Standings, so nobody can screenshot a bracket full
+       of someone's hypotheticals. -->
+  <div class="project-bar" id="pathProjectBar" hidden>
+    <button class="project-clear" id="pathProjectClear" type="button" data-action="clearPathProject" hidden>Clear picks</button>
+    <span class="project-hint" id="pathProjectHint"></span>
+  </div>
+  <!-- "What if?" stepper. Walks the team's remaining games in the order they
+       are actually played, one at a time: by the time each question is asked
+       the game's teams are known, because the previous answer decided them. -->
+  <div class="share-overlay" id="pathProjOverlay" hidden>
+    <div class="share-box pathproj-box">
+      <div class="share-title" id="pathProjTitle">What if?</div>
+      <div class="pathproj-step" id="pathProjStep"></div>
+      <div class="pathproj-body" id="pathProjBody"></div>
+      <div class="share-actions pathproj-actions">
+        <button class="admin-clear-btn" data-action="pathProjBack" id="pathProjBackBtn">Back</button>
+        <button class="admin-clear-btn" data-action="closePathProject">Done</button>
+      </div>
     </div>
   </div>
   <div class="team-panel" id="teamOut"></div>
@@ -190,10 +212,10 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.30"></script>
-<script src="/tt-common.js?v=3.30"></script>
-<script src="/bracket-data.js?v=3.30"></script>
-<script src="/bracket.js?v=3.30"></script>
-<script src="/sw-register.js?v=3.30" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.31"></script>
+<script src="/tt-common.js?v=3.31"></script>
+<script src="/bracket-data.js?v=3.31"></script>
+<script src="/bracket.js?v=3.31"></script>
+<script src="/sw-register.js?v=3.31" data-sw="/sw.js"></script>
 </body>
 </html>

@@ -14,7 +14,11 @@ var _bracketEditMode = false;
 // never in localStorage — so picks survive the 20s live poll (which only
 // rebuilds results/schedule) but NOT a hard refresh.
 var _projectMode = false;
-var _projected = {};   // slot id -> picked winner name
+var _projected = {};   // slot id -> picked winner name (bracket-wide, admin)
+// Team Path's own projector, open to every visitor. Kept SEPARATE from
+// _projected so path picks can never render on the Bracket or in Standings —
+// a stranger's what-if must not be screenshottable as a result.
+var _pathProjected = {};
 var scheduleMode = null; // null = uninitialised; set from settings on first render
 
 // Mobile bracket carousel: which column the viewer last landed on, so the
@@ -1722,18 +1726,35 @@ var _schedFlight = 'open';
 // That is a topological walk without building the graph, and unlike a round
 // ordering it copes with the cross-side drops, same-column chains and
 // hand-wired topologies a double elim actually contains.
-function mergedResults(){
-  if (!Object.keys(_projected).length) return results;
+// The bracket-wide projector (admin only). Drives Bracket and Standings.
+function mergedResults(){ return mergedResultsFrom([_projected]); }
+
+// Team Path additionally honours the path projector, which ANY visitor can
+// use. Deliberately one-way: path picks reach this view and nothing else, so
+// a screenshot of the Bracket or the Standings table can never show a
+// stranger's hypotheticals as if they were results.
+function mergedPathResults(){ return mergedResultsFrom([_projected, _pathProjected]); }
+
+// `sets` are pick objects in precedence order. A pick that can no longer
+// happen is deleted from whichever set owns it, so both projectors self-clean
+// without either knowing about the other.
+function mergedResultsFrom(sets){
+  var owner = {};
+  sets.forEach(function(s){
+    Object.keys(s).forEach(function(gid){ owner[gid] = s; });
+  });
+  var gids = Object.keys(owner);
+  if (!gids.length) return results;
   var merged = {};
   Object.keys(results).forEach(function(k){ merged[k] = results[k]; });
 
   // Order-independent drops first, so the loop below only has to reason
   // about whether a pick's game has resolved yet.
   var pending = [];
-  Object.keys(_projected).forEach(function(sid){
+  gids.forEach(function(sid){
     var g = GAMES[sid];
-    if (!g || g.bye) { delete _projected[sid]; return; }
-    if (merged[sid] && merged[sid].winner) { delete _projected[sid]; return; }
+    if (!g || g.bye) { delete owner[sid][sid]; return; }
+    if (merged[sid] && merged[sid].winner) { delete owner[sid][sid]; return; }
     pending.push(sid);
   });
 
@@ -1742,7 +1763,7 @@ function mergedResults(){
     progress = false;
     var waiting = [];
     for (var i = 0; i < pending.length; i++) {
-      var sid = pending[i], g = GAMES[sid], pick = _projected[sid];
+      var sid = pending[i], g = GAMES[sid], pick = owner[sid][sid];
       var p1 = resolveSlot(g.t1, merged), p2 = resolveSlot(g.t2, merged);
       if (pick === p1 || pick === p2) {
         // The other side may still be unknown — picking the known team in a
@@ -1752,7 +1773,7 @@ function mergedResults(){
       } else if (p1 && p2) {
         // Both teams are known and neither was picked: an upstream pick
         // changed and this one can no longer happen.
-        delete _projected[sid];
+        delete owner[sid][sid];
       } else {
         waiting.push(sid);   // still waiting on a feed to resolve
       }
@@ -1761,8 +1782,23 @@ function mergedResults(){
   }
   // Whatever is still waiting once the loop stops making progress depends on
   // a game that will never resolve under the current picks.
-  pending.forEach(function(sid){ delete _projected[sid]; });
+  pending.forEach(function(sid){ delete owner[sid][sid]; });
   return merged;
+}
+
+function updatePathProjectBar(){
+  var btn = document.getElementById('pathProjectBtn');
+  var bar = document.getElementById('pathProjectBar');
+  var clr = document.getElementById('pathProjectClear');
+  var hint = document.getElementById('pathProjectHint');
+  var n = Object.keys(_pathProjected).length;
+  if (btn) btn.classList.toggle('admin-btn-active', !!n);
+  if (clr) { clr.hidden = !n; clr.textContent = 'Clear picks (' + n + ')'; }
+  if (hint) {
+    hint.textContent = n + ' projected result' + (n === 1 ? '' : 's')
+      + ' shown — on this device, and only on this tab';
+  }
+  if (bar) bar.hidden = !n;
 }
 
 function updateProjectBar(){
@@ -4622,13 +4658,152 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
 // this wrapper and get a fresh merge rather than a stale snapshot.
 function renderTeamView(){
   var _real = results;
-  results = mergedResults();
+  results = mergedPathResults();
   try { renderTeamViewInner(_real); } finally { results = _real; }
+}
+
+// Mark `team` the winner of every unplayed game on its path up to and
+// including `gid`. Picking "we win the final" three rounds out is meaningless
+// unless the rounds before it are won too — and on this page those earlier
+// games show the team's name already, as a projection. One tap therefore
+// means "we run the table to here", which is the question a team is actually
+// asking. Walks the same chain the page is drawn from, so it can only ever
+// pick games this team could genuinely reach.
+// ── "What if?" stepper ────────────────────────────────────────────────
+// Asks about one game at a time, in the order the games are played. That
+// ordering is not cosmetic: a bracket game's teams are only known once the
+// games feeding it are decided, so asking out of order means asking about a
+// game whose participants are still "Winner of 25 / Winner of 26" — a pick
+// that cannot be placed and would be silently discarded. Walking forward,
+// every question is answerable when it is asked, and each answer decides the
+// next question. Picking a loss is a legitimate answer and simply moves the
+// team onto its drop branch, which the very next question reflects.
+var _pathProjHistory = [];   // gids picked, newest last — powers Back
+
+// The next question for `team`: the earliest undecided game the team is
+// currently placed in, plus a prerequisite hop when the opponent is unknown.
+function pathProjNext(team) {
+  var merged = mergedPathResults();
+  var best = null, bestT = Infinity;
+  Object.keys(GAMES).forEach(function(gid) {
+    var g = GAMES[gid];
+    if (!g || g.bye) return;
+    if (merged[gid] && merged[gid].winner) return;         // already decided
+    var p1 = resolveSlot(g.t1, merged), p2 = resolveSlot(g.t2, merged);
+    if (p1 !== team && p2 !== team) return;                // team not in it yet
+    var t = parseTimeVal(g.time);
+    if (t < bestT) { bestT = t; best = { gid: gid, p1: p1, p2: p2 }; }
+  });
+  if (!best) return null;
+  if (best.p1 && best.p2) return best;
+
+  // Opponent unknown: the question that has to be answered FIRST is somewhere
+  // up the other side of the draw. Descend to the nearest game that can
+  // actually be answered — both its teams known — which may be several rounds
+  // back. Answering it cascades forward and the stepper returns here.
+  var unknown = !best.p1 ? GAMES[best.gid].t1 : GAMES[best.gid].t2;
+  var q = firstAnswerable(unknown, merged, 0);
+  return q ? { gid: q.gid, p1: q.p1, p2: q.p2, prereq: true, forGid: best.gid } : null;
+}
+
+// Walk a slot's feeder chain to the first game whose two teams are both
+// known. Depth-capped: a malformed schedule must not spin here.
+function firstAnswerable(slot, merged, depth) {
+  if (!slot || slot.type === 'fixed' || !slot.slot || depth > 12) return null;
+  var g = GAMES[slot.slot];
+  if (!g || g.bye) return null;
+  if (merged[slot.slot] && merged[slot.slot].winner) return null;   // already decided
+  var p1 = resolveSlot(g.t1, merged), p2 = resolveSlot(g.t2, merged);
+  if (p1 && p2 && p1 !== p2) return { gid: slot.slot, p1: p1, p2: p2 };
+  // Prefer descending the side that is actually missing.
+  return firstAnswerable(!p1 ? g.t1 : g.t2, merged, depth + 1)
+      || firstAnswerable(!p1 ? g.t2 : g.t1, merged, depth + 1);
+}
+
+function openPathProject() {
+  var team = teamSel && teamSel.value;
+  if (!team) return;
+  _pathProjHistory = [];
+  var ov = document.getElementById('pathProjOverlay');
+  if (ov) ov.hidden = false;
+  renderPathProjStep();
+}
+
+function closePathProject() {
+  var ov = document.getElementById('pathProjOverlay');
+  if (ov) ov.hidden = true;
+  updatePathProjectBar();
+  renderTeamView();
+}
+
+function pathProjPick(gid, name) {
+  _pathProjected[gid] = name;
+  _pathProjHistory.push(gid);
+  renderPathProjStep();
+}
+
+function pathProjBack() {
+  var last = _pathProjHistory.pop();
+  if (last) delete _pathProjected[last];
+  renderPathProjStep();
+}
+
+function renderPathProjStep() {
+  var team = teamSel && teamSel.value;
+  var body = document.getElementById('pathProjBody');
+  var step = document.getElementById('pathProjStep');
+  var back = document.getElementById('pathProjBackBtn');
+  var title = document.getElementById('pathProjTitle');
+  if (!body) return;
+  if (back) back.hidden = !_pathProjHistory.length;
+  if (title) title.textContent = 'What if — ' + team;
+
+  var q = pathProjNext(team);
+  if (!q) {
+    // No further question: either the team's run is over under these picks,
+    // or the next game's other half can't be determined yet.
+    var elim = isEliminated(team, mergedPathResults());
+    if (step) step.textContent = _pathProjHistory.length
+      ? _pathProjHistory.length + ' game' + (_pathProjHistory.length === 1 ? '' : 's') + ' called'
+      : '';
+    body.innerHTML = '<div class="pathproj-done">'
+      + '<div class="pathproj-done-line">' + (elim
+          ? esc(team) + ' is out under these picks.'
+          : 'Nothing left to call for ' + esc(team) + ' right now.')
+      + '</div>'
+      + '<div class="pathproj-done-sub">Close to see the path with these results.</div>'
+      + '</div>';
+    return;
+  }
+
+  var g = GAMES[q.gid];
+  // Always name the game being called. A prerequisite run can be a dozen
+  // questions deep into the other half of the draw, and labelling them all
+  // "this decides who you'd play" tells the viewer nothing about WHICH game
+  // they are answering.
+  if (step) step.textContent = gameLabel(q.gid) + (g.time ? ' · ' + formatTime(g.time) : '');
+  function opt(name) {
+    var own = name === team;
+    return '<button class="pathproj-opt' + (own ? ' pathproj-opt--own' : '') + '"'
+      + ' data-action="pathProjPick" data-arg="' + esc(q.gid) + '" data-arg2="' + esc(name) + '">'
+      + esc(name) + '</button>';
+  }
+  body.innerHTML = '<div class="pathproj-q">Who wins?</div>'
+    + '<div class="pathproj-opts">' + opt(q.p1) + '<span class="pathproj-vs">vs</span>' + opt(q.p2) + '</div>'
+    + '<div class="pathproj-note">'
+    + (q.prereq
+        ? 'Neither team is in ' + esc(team) + '’s game yet — this decides who they’d face in '
+          + esc(gameLabel(q.forGid)) + '.'
+        : esc(team) + '’s game' + (g.field ? ' · ' + esc(g.field) : ''))
+    + '</div>';
 }
 
 function renderTeamViewInner(realResults){
   var team=teamSel.value, out=document.getElementById('teamOut');
   _tpSeen = {};
+  updatePathProjectBar();
+  var pbtn=document.getElementById('pathProjectBtn');
+  if(pbtn) pbtn.hidden = !team;   // nothing to project until a team is chosen
   if(!team){
     var teamNames = [];
     Object.values(GAMES).forEach(function(g){
@@ -5263,6 +5438,18 @@ Object.assign(TT_ACTIONS, {
     // which is what a wordmark click does on a page you're already on.
     if (tab.classList.contains('active')) window.scrollTo({ top: 0, behavior: 'smooth' });
     else tab.click();
+  },
+  togglePathProject: function() { openPathProject(); },
+  closePathProject:  function() { closePathProject(); },
+  pathProjBack:      function() { pathProjBack(); },
+  // data-arg carries the game, data-arg2 the picked team (the dispatcher only
+  // forwards arg, so the second comes off the element).
+  pathProjPick:      function(gid, el) { pathProjPick(gid, el.dataset.arg2); },
+  clearPathProject: function() {
+    _pathProjected = {};
+    _pathProjHistory = [];
+    updatePathProjectBar();
+    renderTeamView();
   },
   toggleBracketEdit: function() { toggleBracketEdit(); },
   resetBracketLayout: function() { if (_sessionRole === 'admin') resetBracketLayout(); },

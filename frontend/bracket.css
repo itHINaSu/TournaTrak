@@ -2270,6 +2270,72 @@ body.bc-drag-active .bc-drop-row.bc-drop-target { opacity: 1; }
 @media (pointer: coarse) { .project-clear { min-height: 44px; } }
 @media print { .project-bar { display: none !important; } }
 
+/* ── Team Path "What if?" stepper ── */
+.pathproj-box { max-width: 30rem; }
+.pathproj-step {
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  color: var(--text-mute);
+  text-align: center;
+  margin-bottom: 0.9em;
+}
+.pathproj-q {
+  font-family: 'Oswald', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: var(--text-xs);
+  color: var(--text-mute);
+  text-align: center;
+  margin-bottom: 0.6em;
+}
+.pathproj-opts {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 0.6em;
+  flex-wrap: wrap;
+}
+.pathproj-opt {
+  flex: 1 1 9em;
+  min-height: 3.4em;
+  padding: 0.7em 0.8em;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-md);
+  font-weight: 700;
+  color: var(--text);
+  background: var(--surface);
+  border: 0.11em solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.pathproj-opt:hover { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 12%, transparent); }
+/* The viewed team reads as the "us" option so a fan can pick their own side
+   without reading both labels every round. */
+.pathproj-opt--own { border-color: var(--gold); color: var(--gold-lt); }
+.pathproj-opt--own:hover { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 14%, transparent); }
+.pathproj-vs {
+  align-self: center;
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-mute);
+}
+.pathproj-note, .pathproj-done-sub {
+  margin-top: 0.8em;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  color: var(--text-mute);
+  text-align: center;
+}
+.pathproj-done { padding: 0.8em 0 0.2em; text-align: center; }
+.pathproj-done-line {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-md);
+  color: var(--gold-lt);
+}
+.pathproj-actions { justify-content: space-between; }
+
 /* Projected picks: tinted blue + italic, distinct from a real (green) win */
 .bc-team.won.projected { color: var(--blue-lt); }
 .bc-team.won.projected .bc-name { font-style: italic; }
