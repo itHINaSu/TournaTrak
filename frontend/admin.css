@@ -125,6 +125,13 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) var(--btn-pad-h-compact); border-radius: var(--radius-xs); border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
 .admin-clear-btn:hover,
 .admin-clear-btn:active { background: color-mix(in srgb, var(--lose-color) 10%, transparent); }
+/* Edit a finalized score. Same outline shape as Clear but in the interactive
+   accent, not the destructive one — it corrects the game, it doesn't undo it. */
+.admin-edit-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) var(--btn-pad-h-compact); border-radius: var(--radius-xs); border: 0.07em solid var(--blue-lt); background: transparent; color: var(--blue-lt); cursor: pointer; }
+.admin-edit-btn:hover,
+.admin-edit-btn:active { background: color-mix(in srgb, var(--blue-lt) 12%, transparent); }
+/* A card being edited is visually distinct from a settled one. */
+.admin-res-card--editing { border-color: var(--blue-lt); }
 
 
 /* ── Delays admin chips ── */
@@ -317,6 +324,57 @@ input, select, textarea { font-size: max(1rem, 16px); }
 /* sched-save-btn: base styles from base.css primary-button rule */
 .sched-status { font-size: 0.74rem; color: var(--win-color); margin-left: 0.5em; }
 .sched-status:empty { display: none; }
+
+/* Export buttons sit side by side and wrap on a phone. */
+.export-row { display: flex; gap: 0.6em; flex-wrap: wrap; }
+
+/* Undo offer for the last destructive write. Gold rather than red — it is a
+   safety net being offered, not an error being reported. */
+.sched-undo {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  flex-wrap: wrap;
+  border: 0.07em solid var(--border);
+  border-left: 0.28em solid var(--gold-lt);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  padding: 0.6em 0.9em;
+  margin-bottom: 0.8em;
+}
+.sched-undo-text {
+  flex: 1 1 16em;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+/* Bracket health panel — pre-publish warnings above the schedule editor.
+   Left border carries the severity so the panel reads at a glance. */
+.sched-health {
+  border: 0.07em solid var(--border);
+  border-left-width: 0.28em;
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  padding: 0.7em 0.9em;
+  margin-bottom: 1.1em;
+}
+.sched-health--ok    { border-left-color: var(--win-color); }
+.sched-health--warn  { border-left-color: var(--gold-lt); }
+.sched-health--error { border-left-color: var(--lose-color); }
+.sched-health-hdr {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+.sched-health--ok .sched-health-hdr { color: var(--text-dim); font-weight: 400; }
+.sched-health-list { list-style: none; margin: 0.6em 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.4em; }
+.sched-health-item { font-size: 0.76rem; line-height: 1.45; color: var(--text-dim); }
+.sched-health-item--error .sched-health-slot { color: var(--lose-color); }
+.sched-health-item--warning .sched-health-slot { color: var(--gold-lt); }
+.sched-health-slot { font-family: 'Oswald', sans-serif; font-weight: 500; }
 .sched-action-row { display: flex; align-items: center; gap: 0.5em; flex-wrap: wrap; }
 /* Top action row: identical layout to the results-tab nav bar — equal-width
    segmented buttons in a bar that sticks below the header while scrolling. */
@@ -1096,6 +1154,60 @@ input[type="time"]:focus {
 .icon-preview { width: 64px; height: 64px; border-radius: 14px; border: 0.07em solid var(--border); flex-shrink: 0; }
 .icon-style-row select { flex: 0 1 auto; width: auto; }
 .icon-style-row input[type="color"] { width: 3.2em; height: 2.2em; padding: 0.15em; flex-shrink: 0; }
+/* Favicon preview at roughly tab size, doubled so it's actually inspectable. */
+.favicon-preview {
+  width: 32px; height: 32px;
+  border-radius: 0.2em;
+  border: 0.07em solid var(--border);
+  background: var(--surface2);
+  padding: 0.15em;
+  flex-shrink: 0;
+}
+
+/* Custom crop editor: the whole logo letterboxed in a square stage with a
+   draggable square selection over it. Positions are set in JS from the crop
+   rectangle (source-image pixels), so nothing here assumes a stage size. */
+.icon-crop { display: flex; gap: 1em; align-items: flex-start; flex-wrap: wrap; margin-top: 0.7em; }
+.icon-crop-stage {
+  position: relative;
+  width: 240px; height: 240px;
+  flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface2);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  touch-action: none;          /* pointer drags must not scroll the panel */
+  user-select: none;
+}
+/* The image sits at ~68% of the stage so there is visible room around it for
+   the selection square to be dragged BEYOND the artwork — that overhang is
+   what letterboxes a rectangular logo instead of cutting its long side. */
+.icon-crop-img { max-width: 68%; max-height: 68%; display: block; pointer-events: none; }
+.icon-crop-actions { display: flex; gap: 0.5em; flex-wrap: wrap; }
+.icon-crop-box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 0.14em solid var(--blue-lt);
+  /* Dims everything outside the selection without extra elements. */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+  cursor: move;
+  touch-action: none;
+}
+.icon-crop-handle {
+  position: absolute;
+  right: -0.5em; bottom: -0.5em;
+  width: 1em; height: 1em;
+  background: var(--blue-lt);
+  border: 0.14em solid var(--surface);
+  border-radius: 50%;
+  cursor: nwse-resize;
+  touch-action: none;
+}
+.icon-crop-side { display: flex; flex-direction: column; gap: 0.6em; align-items: flex-start; max-width: 20em; }
+@media (pointer: coarse) {
+  .icon-crop-handle { width: 1.6em; height: 1.6em; right: -0.8em; bottom: -0.8em; }
+}
 
 /* Small icon buttons need real touch targets on phones/tablets — mouse
    users keep the compact sizes above. */

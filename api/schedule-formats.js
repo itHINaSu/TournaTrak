@@ -584,7 +584,7 @@ function emitSpecs(specs, opts) {
   for (const sp of specs) {
     let entry;
     if (sp.bye) {
-      entry = { label: 'Bye', bye: true, time: '' };
+      entry = { label: sp.label || 'Bye', bye: true, time: '' };
     } else {
       n++;
       const st = slotTimes[n - 1] || {};
@@ -717,17 +717,31 @@ function makeRoundRobin(passes) {
 // label suffix is display-only, so editor renames/find-replace can't break
 // the pairing bookkeeping. (Schedules generated before the field existed
 // are still read via the label suffix as a fallback.)
+// Odd fields are supported: one team sits out each round with a bye that
+// counts as a win, which is how Swiss has always handled odd counts. Round 1
+// gives it to the LOWEST seed \u2014 the least disruptive place to start \u2014
+// and pairSwissRound then rotates it down the standings, never twice to the
+// same team while anyone is still without one.
 function generateSwiss(opts) {
   const teams = resolveSeeding(opts);
   const N = teams.length;
-  if (N % 2) throw new Error('Swiss needs an even number of teams — add or drop one');
-  const half = N / 2;
+  const odd = N % 2 === 1;
+  const playing = odd ? teams.slice(0, N - 1) : teams;
+  const half = playing.length / 2;
   const specs = [];
   for (let i = 0; i < half; i++) {
     specs.push({
       slot: RR_SLOTS[i], col: 0,
-      t1: { name: teams[i] }, t2: { name: teams[i + half] },
+      t1: { name: playing[i] }, t2: { name: playing[i + half] },
       labelSuffix: ' \u00b7 Round 1',
+      swissRound: 1,
+    });
+  }
+  if (odd) {
+    specs.push({
+      slot: RR_SLOTS[half], col: 0,
+      t1: { name: teams[N - 1] }, bye: true,
+      label: 'Bye \u00b7 Round 1',
       swissRound: 1,
     });
   }
@@ -761,7 +775,8 @@ function pairSwissRound(schedule, results, totalRounds) {
     throw new Error('All ' + totalRounds + ' rounds are already paired \u2014 standings decide the winner');
   }
   const cur = games.filter(x => x.round === curRound);
-  const missing = cur.filter(x => !(results[x.sid] && results[x.sid].winner));
+  // A bye is never played, so it never blocks the next pairing.
+  const missing = cur.filter(x => !x.g.bye && !(results[x.sid] && results[x.sid].winner));
   if (missing.length) {
     throw new Error('Round ' + curRound + ' isn\u2019t finished \u2014 missing results for: '
       + missing.map(x => x.g.label).join(', '));
@@ -771,15 +786,24 @@ function pairSwissRound(schedule, results, totalRounds) {
   // tiebreak so pairing is deterministic.
   const rec = {};   // name -> { w, l, rf, ra, seed }
   const played = new Set();
+  const hadBye = new Set();   // teams that have already sat out a round
   let seedIdx = 0;
   games.filter(x => x.round === 1)
     .sort((a, b) => (a.g.num || 0) - (b.g.num || 0))
     .forEach(x => {
-      for (const nm of [x.g.t1name, x.g.t2name]) {
+      for (const nm of (x.g.bye ? [x.g.t1name] : [x.g.t1name, x.g.t2name])) {
         if (!rec[nm]) rec[nm] = { w: 0, l: 0, rf: 0, ra: 0, seed: seedIdx++ };
       }
     });
   for (const x of games) {
+    // A bye is a free win for the team that sat out, and is recorded so the
+    // next one goes to somebody else.
+    if (x.g.bye) {
+      if (!rec[x.g.t1name]) rec[x.g.t1name] = { w: 0, l: 0, rf: 0, ra: 0, seed: seedIdx++ };
+      rec[x.g.t1name].w++;
+      hadBye.add(x.g.t1name);
+      continue;
+    }
     const r = results[x.sid];
     if (!r || !r.winner) continue;
     const a = x.g.t1name, b = x.g.t2name;
@@ -804,6 +828,18 @@ function pairSwissRound(schedule, results, totalRounds) {
   // played. Fields are <= 32 teams, so the search is trivial. If no
   // rematch-free perfect matching exists (late rounds of a tiny field),
   // fall back to pairing straight down the standings rather than failing.
+  // Odd field: one team sits out. It goes to the lowest-ranked team that
+  // hasn't had a bye yet (standard Swiss); once everyone has had one, the
+  // lowest-ranked team overall takes another.
+  let byeTeam = null;
+  if (order.length % 2) {
+    for (let i = order.length - 1; i >= 0; i--) {
+      if (!hadBye.has(order[i])) { byeTeam = order[i]; break; }
+    }
+    if (byeTeam === null) byeTeam = order[order.length - 1];
+    order.splice(order.indexOf(byeTeam), 1);
+  }
+
   const isRematch = (a, b) => played.has(a < b ? a + '\u0000' + b : b + '\u0000' + a);
   function match(pool) {
     if (!pool.length) return [];
@@ -827,7 +863,9 @@ function pairSwissRound(schedule, results, totalRounds) {
   // times in the editor, this just keeps them ordered).
   const usedSlots = new Set(Object.keys(schedule));
   const freeSlots = RR_SLOTS.filter(sl => !usedSlots.has(sl));
-  if (freeSlots.length < pairs.length) throw new Error('Not enough free slots for another round');
+  if (freeSlots.length < pairs.length + (byeTeam ? 1 : 0)) {
+    throw new Error('Not enough free slots for another round');
+  }
   let maxNum = 0, lastTime = null;
   for (const g of Object.values(schedule)) {
     if (g.num > maxNum) maxNum = g.num;
@@ -850,6 +888,19 @@ function pairSwissRound(schedule, results, totalRounds) {
       swissRound: nextRound,
     };
   });
+  if (byeTeam) {
+    // Same shape the elimination generators use for a bye: no number, no
+    // time, t2name 'BYE'. applySchedule flags it and the standings credit
+    // the win without inventing an opponent.
+    entries[freeSlots[pairs.length]] = {
+      label: 'Bye \u00b7 Round ' + nextRound,
+      bye: true,
+      time: '',
+      t1name: byeTeam,
+      t2name: 'BYE',
+      swissRound: nextRound,
+    };
+  }
   return { entries, round: nextRound };
 }
 
@@ -1113,7 +1164,7 @@ const FORMATS = {
   'swiss': {
     id: 'swiss',
     label: 'Swiss System',
-    description: 'Everyone plays every round, always against an opponent with the same record \u2014 no elimination, no rematches, standings decide it. Generate creates Round 1 (seeded top half vs bottom half); after each round finishes, use "Pair next round" on the admin Schedule tab to draw the next round from the standings. 4\u201332 teams, even counts only. Recommended rounds: ceil(log2(teams)).',
+    description: 'Everyone plays every round, always against an opponent with the same record \u2014 no elimination, no rematches, standings decide it. Generate creates Round 1 (seeded top half vs bottom half); after each round finishes, use "Pair next round" on the admin Schedule tab to draw the next round from the standings. 4\u201332 teams. With an odd number, one team sits out each round with a bye that counts as a win \u2014 it goes to the lowest-ranked team that hasn\'t had one. Recommended rounds: ceil(log2(teams)).',
     minTeams: 4,
     maxTeams: 32,
     noByes: true,

@@ -22,22 +22,18 @@ const SLOT = {
   25: 'QF.L.1', 26: 'QF.L.2', 27: 'QF.L.3', 28: 'QF.L.4',
   33: 'QF2.L.1', 34: 'QF2.L.2',
   39: 'SF.L.1',
-  // Major, losers side — SEVEN rounds, so it starts at R1.R (not R2.R) to
-  // leave a distinct round for each: R1 R2 QF QF2 SF SF3 SF2. Packing two
-  // rounds into one (games 40 and 41 both in SF2.R) renders them stacked in
-  // a single column with 41 depending on 40, which reads as a missing round.
-  // Round order MUST follow ROUND_ORDER (R1,R2,QF,QF2,SF,SF3,SF2) — SF comes
-  // BEFORE SF3, so the round-4 games go in QF2/SF, not SF3/SF.
-  // Round 1 ordered so the round-2 games taking a pair of round-1 winners get
-  // them adjacent: 23←(16,17) 24←(19,20); 15 and 18 feed alone (each pairs
-  // with a winners-side drop).
-  16: 'R1.R.1', 17: 'R1.R.2', 19: 'R1.R.3', 20: 'R1.R.4', 15: 'R1.R.5', 18: 'R1.R.6',
-  21: 'R2.R.1', 22: 'R2.R.2', 23: 'R2.R.3', 24: 'R2.R.4',
-  29: 'QF.R.1', 30: 'QF.R.2', 31: 'QF.R.3', 32: 'QF.R.4',
-  35: 'QF2.R.1', 36: 'QF2.R.2',
-  37: 'SF.R.1', 38: 'SF.R.2',
-  40: 'SF3.R.1',
-  41: 'SF2.R.1',
+  // Major, losers side. Round 1 ordered so the two round-2 games that take
+  // a pair of round-1 winners get them adjacent: 23←(16,17) 24←(19,20).
+  // Games 15 and 18 feed alone (each pairs with a winners-side drop).
+  16: 'R2.R.1', 17: 'R2.R.2', 19: 'R2.R.3', 20: 'R2.R.4', 15: 'R2.R.5', 18: 'R2.R.6',
+  21: 'QF.R.1', 22: 'QF.R.2', 23: 'QF.R.3', 24: 'QF.R.4',
+  29: 'QF2.R.1', 30: 'QF2.R.2', 31: 'QF2.R.3', 32: 'QF2.R.4',
+  // Rounds must be assigned in ROUND_ORDER sequence (… QF2, SF, SF3, SF2 …):
+  // the renderer lays columns out in that order, so LB round 4 goes in SF,
+  // round 5 in SF3, and rounds 6/7 in SF2 — NOT paper order.
+  35: 'SF.R.1', 36: 'SF.R.2',
+  37: 'SF3.R.1', 38: 'SF3.R.2',
+  40: 'SF2.R.1', 41: 'SF2.R.2',
   42: 'CHAMP.C.1', 43: 'CHAMP2.C.1',
   // A bracket (tier A, stored in R0.L). Bands: 1-16 / 17-24 / 25-28 / 29-30.
   A1: 'R0.L.1', A2: 'R0.L.2', A3: 'R0.L.3', A4: 'R0.L.4', A5: 'R0.L.5', A6: 'R0.L.6',
@@ -225,32 +221,35 @@ for (const g of Object.values(S)) {
     problems.push(`${g.label} feeders ${f[0].r}.${f[0].side}.${lo}/${hi} are not an adjacent pair`);
   }
 }
-// Round order WITHIN a side: the winners and losers brackets render as two
-// independent column tracks (buildSideColumns filters by side), so a
-// cross-side drop — a winners-side loser falling into the losers bracket —
-// carries no ordering constraint and is skipped here. But two games on the
-// SAME side must sit in different rounds, later after earlier, or the
-// column order is wrong: a same-round pair stacks two dependent games in one
-// column (reads as a missing round), and an inverted pair draws a game to
-// the right of its own successor. ROUND_ORDER puts SF before SF3 before SF2,
-// which is easy to get backwards by hand — both mistakes were live here.
-const ROUND_ORDER = ['R0', 'R1', 'R2', 'QF', 'QF2', 'SF', 'SF3', 'SF2', 'CHAMP', 'CHAMP2'];
+// Round ordering: the desktop renderer lays columns out in ROUND_ORDER, so a
+// game must never be fed by a game in a LATER round than its own — that draws
+// the feeder to the RIGHT of its consumer and the gap between them carries no
+// connector line at all (buildConnPcts only pairs adjacent columns). Same
+// round is allowed (an LB final chained after the LB semi in SF2.R.1/2), as
+// long as the feeder holds the lower slot. Tier games all live in R0, so they
+// order by slot band instead — a same-tier feeder must sit in an earlier slot.
+const { ROUND_ORDER } = require(__dirname + '/../frontend/bracket-data.js');
 for (const [sid, g] of Object.entries(S)) {
-  if (g.tier) continue;                       // tier brackets live in R0 by design
   const me = parse(sid);
-  const here = ROUND_ORDER.indexOf(me.r);
   for (const n of [1, 2]) {
     const src = g['t' + n + 'slot'];
-    if (!src || (S[src] && S[src].tier)) continue;
-    const from = parse(src);
-    if (from.side !== me.side) continue;      // cross-side drop — no constraint
-    const idx = ROUND_ORDER.indexOf(from.r);
-    if (idx >= here) {
-      problems.push(`${g.label} (${me.r}.${me.side}) feeds from ${S[src].label} in ${from.r}.${from.side}`
-        + (idx === here ? ' — same round, needs its own column' : ' — a LATER round'));
+    if (!src || !S[src]) continue;
+    const f = parse(src);
+    if (g.tier) {
+      // Within a flight, columns come from the slot band (see tierGameRound).
+      if (S[src].tier === g.tier && f.n >= me.n) {
+        problems.push(`${g.label} is fed by ${S[src].label} at a later slot (${src} → ${sid})`);
+      }
+      continue;
+    }
+    const fi = ROUND_ORDER.indexOf(f.r), mi = ROUND_ORDER.indexOf(me.r);
+    if (fi > mi || (fi === mi && f.side === me.side && f.n >= me.n)) {
+      problems.push(`${g.label} is fed by ${S[src].label}, which sits in a later `
+        + `round column (${src} → ${sid}) — no connector line can be drawn`);
     }
   }
 }
+
 const named = new Set();
 Object.values(S).forEach(g => { if (g.t1name) named.add(g.t1name); if (g.t2name) named.add(g.t2name); });
 TEAMS.forEach(t => { if (!named.has(t)) problems.push(`team never plays: ${t}`); });

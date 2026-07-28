@@ -188,3 +188,108 @@ test('generate is deterministic under order seeding (no double-shuffle drift)', 
   // R1.L.1's first fixed team is seed 1 = T1.
   assert.strictEqual(schedule['R1.L.1'].t1name, 'T1', 'seed 1 sits at the top of the bracket');
 });
+
+// ── Swiss ────────────────────────────────────────────────────────────────
+// Swiss is the one format whose later rounds don't exist until the earlier
+// ones are scored, so a static structural check can't cover it — these run a
+// whole event, pairing each round from the standings the way the admin's
+// "Pair next round" button does. Odd fields are the interesting case: one
+// team sits out each round with a bye that counts as a win.
+const { pairSwissRound, swissRounds } = require('./schedule-formats');
+const { validateSchedule } = require('./validation');
+
+// Run a full Swiss event and return what happened. `pick` decides each game.
+function runSwiss(N, pick) {
+  const { schedule } = generateSchedule('swiss',
+    { teams: names(N), seedMode: 'order', startDate: '2026-08-01' });
+  let err = validateSchedule(schedule);
+  assert.equal(err, null, 'round 1 must be a valid schedule (N=' + N + ')');
+
+  const total = swissRounds(N);
+  const results = {};
+  const byes = {};       // team -> number of byes received
+  const perRound = {};   // round -> entries in it
+  for (let round = 1; round <= total; round++) {
+    for (const [sid, g] of Object.entries(schedule)) {
+      if (g.swissRound !== round) continue;
+      perRound[round] = (perRound[round] || 0) + 1;
+      if (g.bye) { byes[g.t1name] = (byes[g.t1name] || 0) + 1; continue; }
+      if (results[sid]) continue;
+      const w = pick(g.t1name, g.t2name);
+      results[sid] = { winner: w, loser: w === g.t1name ? g.t2name : g.t1name,
+                       t1score: w === g.t1name ? 5 : 3, t2score: w === g.t1name ? 3 : 5 };
+    }
+    if (round === total) break;
+    const { entries } = pairSwissRound(schedule, results, total);
+    Object.assign(schedule, entries);
+    err = validateSchedule(schedule);
+    assert.equal(err, null, 'round ' + (round + 1) + ' must stay valid (N=' + N + ')');
+  }
+  return { schedule, results, byes, perRound, total };
+}
+
+const lowerWins = (a, b) => (+a.slice(1) < +b.slice(1) ? a : b);
+
+test('swiss: every round is full for even AND odd fields', () => {
+  for (let N = 4; N <= 32; N++) {
+    const { perRound, total } = runSwiss(N, lowerWins);
+    assert.equal(Object.keys(perRound).length, total, 'all rounds paired (N=' + N + ')');
+    // An odd field's round is floor(N/2) games PLUS one bye entry.
+    for (const [round, count] of Object.entries(perRound)) {
+      assert.equal(count, Math.ceil(N / 2), 'round ' + round + ' is full (N=' + N + ')');
+    }
+  }
+});
+
+test('swiss: nobody plays the same opponent twice', () => {
+  for (let N = 4; N <= 32; N++) {
+    const { schedule } = runSwiss(N, lowerWins);
+    const seen = new Set();
+    for (const g of Object.values(schedule)) {
+      if (g.bye) continue;
+      const key = [g.t1name, g.t2name].sort().join('|');
+      assert.ok(!seen.has(key), 'rematch ' + key + ' (N=' + N + ')');
+      seen.add(key);
+    }
+  }
+});
+
+test('swiss: an odd field gives exactly one bye per round, never twice to a team', () => {
+  for (let N = 5; N <= 31; N += 2) {
+    const { byes, total } = runSwiss(N, lowerWins);
+    const given = Object.values(byes).reduce((a, b) => a + b, 0);
+    assert.equal(given, total, 'one bye per round (N=' + N + ')');
+    // With ceil(log2(N)) rounds and N odd (so N >= rounds+1 across this
+    // range), there is always someone left who hasn't sat out yet.
+    assert.equal(Math.max(...Object.values(byes)), 1, 'no team sits out twice (N=' + N + ')');
+  }
+});
+
+test('swiss: an even field never produces a bye', () => {
+  for (let N = 4; N <= 32; N += 2) {
+    const { schedule } = runSwiss(N, lowerWins);
+    assert.ok(!Object.values(schedule).some(g => g.bye), 'no byes at N=' + N);
+  }
+});
+
+test('swiss: the bye goes to a team at the bottom of the standings', () => {
+  // T1 beats everyone, so it must never be the one sitting out.
+  const N = 9;
+  const { schedule } = runSwiss(N, lowerWins);
+  const byeTeams = Object.values(schedule).filter(g => g.bye).map(g => g.t1name);
+  assert.ok(byeTeams.length > 1, 'several rounds had byes');
+  assert.ok(!byeTeams.includes('T1'), 'the leader never gets the bye: ' + byeTeams.join(','));
+});
+
+test('swiss: pairing refuses to run before the round is scored', () => {
+  const { schedule } = generateSchedule('swiss',
+    { teams: names(7), seedMode: 'order', startDate: '2026-08-01' });
+  assert.throws(() => pairSwissRound(schedule, {}, swissRounds(7)), /isn.t finished/,
+    'unscored round must block the next pairing');
+  // ...but the bye itself is never scored and must not count as missing.
+  const results = {};
+  for (const [sid, g] of Object.entries(schedule)) {
+    if (!g.bye) results[sid] = { winner: g.t1name, loser: g.t2name };
+  }
+  assert.doesNotThrow(() => pairSwissRound(schedule, results, swissRounds(7)));
+});

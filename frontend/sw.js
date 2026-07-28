@@ -7,7 +7,7 @@
 // back into this cache, so the offline copy also self-heals on each online
 // visit — but a forgotten bump still leaves stale assets for fully-offline
 // clients, so bump it.
-var CACHE = 'tournatrak-v3.07';
+var CACHE = 'tournatrak-v3.15';
 var PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -67,7 +67,10 @@ self.addEventListener('fetch', function(e) {
       }
       return response;
     }).catch(function() {
-      return caches.match(e.request).then(function(cached) {
+      // ignoreSearch so a cache-busted asset URL (/bracket.js?v=3.11) still
+      // matches its precached entry (/bracket.js). Without it, stamping the
+      // asset URLs in index.html would silently disable offline support.
+      return caches.match(e.request, { ignoreSearch: true }).then(function(cached) {
         if (cached) return cached;
         // Unprecached path (e.g. /t/:slug or a bare tab path reached while
         // offline) — fall back to the precached '/' shell for navigations so

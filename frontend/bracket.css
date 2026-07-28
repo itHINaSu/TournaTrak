@@ -433,6 +433,18 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   overflow-x: auto;
   padding: 0.5em 0.75em 1em;
   max-width: 100%;
+  /* Containing block for the measured connector overlay below. */
+  position: relative;
+}
+/* Connector overlay: sized to the flight's full scroll area and drawn in the
+   same coordinate space as the cards, so it scrolls with them. Painted under
+   the cards (they carry z-index 1) and never intercepts taps. */
+.flight-conn-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  overflow: visible;
 }
 .flight-col {
   display: flex;
@@ -472,6 +484,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   left: auto;
   right: auto;
   min-height: 0;
+  z-index: 1;   /* above .flight-conn-svg */
 }
 .flight-empty {
   text-align: center;
@@ -1941,6 +1954,29 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   font-family: 'Barlow', sans-serif;
   font-size: var(--text-md);
 }
+/* All-teams standings tab: rank column, and teams with no games yet shown
+   but not ranked. */
+.standings-table th.standings-rank-th,
+.standings-table td.standings-rank { width: 2.4em; text-align: center; }
+.standings-rank { font-family: 'Oswald', sans-serif; color: var(--text-mute); }
+.standings-row--unplayed { opacity: 0.55; }
+.standings-empty {
+  text-align: center;
+  color: var(--text-mute);
+  padding: 2em 1em;
+  font-family: 'Barlow', sans-serif;
+}
+
+/* The tiebreak order is printed under every table: a TD gets asked "why is
+   that team above us" and needs the answer on the same screen. */
+.standings-tiebreaks {
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--text-mute);
+  padding: 0.55em 0.8em 0.7em;
+  border-top: 0.07em solid var(--border);
+}
 .standings-table th {
   font-family: 'Oswald', sans-serif;
   font-size: 0.66rem;
@@ -2086,23 +2122,190 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   box-sizing: border-box;
   padding: calc(var(--col-hdr-h)*2.5) 0 1em;
 }
-/* Stacked layout (large double elim): winners row above, losers row below,
-   both reading left-to-right, championship to the right on the seam between
-   them. Engaged by getDims().stacked only when side-by-side can't fit. */
-.bcc-stackrows { display: flex; flex-direction: column; flex: 0 0 auto; }
-/* The two rows are independent trees, so left-align them rather than
-   centering each one — round 1 of both should start at the same x. */
-.bcc-outerflex--stacked .bcc-sideflex { justify-content: flex-start; }
-.bcc-outerflex--stacked .bracket-side-label--abs { right: auto; left: 0; }
-
 /* Desktop: a large field (22+ team double elim) needs more room than the
    window has once the readability floors in getDims() kick in. Scroll rather
    than shrink — the fit-to-viewport sizing was built for 8-16 team brackets. */
 @media (min-width: 1280px) {
   #view-bracket.active { overflow-x: auto; }
 }
+/* ── Stacked desktop layout (large winners/losers brackets) ──────────────
+   Side by side, a functionally-32-team double elim puts 12 round columns plus
+   the championship across one screen: every column lands under the
+   readability floor and the sheet has to scroll anyway. Stacking winners over
+   losers halves the columns across, so the cards stay legible; the cost is
+   height, which the page simply scrolls. Both rows read LEFT TO RIGHT (the
+   losers side is not mirrored here) and share one column width, so the rounds
+   line up vertically. See getDims / stackedDims in bracket.js. */
+.bcc-stack {
+  display: flex;
+  align-items: center;      /* championship centred across both rows */
+  justify-content: center;
+  width: 97vw;
+  min-width: min-content;   /* scroll instead of squeezing the columns */
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: calc(var(--col-hdr-h)*2.5) 0 1em;
+  gap: 0.5vw;
+}
+.bcc-stack-rows {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  /* Room for the second row's absolutely-positioned side label + headers. */
+  gap: calc(var(--col-hdr-h)*3.2);
+}
+.bcc-stack-row { display: flex; flex: 0 0 auto; }
+/* The championship sits INSIDE the winners row (its natural home — the
+   losers row reads as the lower half of the sheet), centred vertically in
+   that row and carrying the whole finals story. */
+/* One panel around the whole finals cluster, hugging its content. Running
+   the tint the full row height instead reads as a layout gap, not emphasis.
+   align-self centres it in the winners row; height:auto overrides the inline
+   row height the renderer sets for the tree columns. */
+.champ-center--stacked,
+.champ-center--flight {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  align-self: center;
+  height: auto;
+  padding: 1.2em 1vw;
+  background: color-mix(in srgb, var(--gold) 5%, transparent);
+  border: 0.07em solid color-mix(in srgb, var(--gold) 18%, transparent);
+  border-radius: var(--radius-md);
+}
+.champ-center--stacked .champ-inner,
+.champ-center--stacked .champ-bc,
+.champ-center--stacked .champ-winner,
+.champ-center--stacked .champ-feeders,
+.champ-center--stacked .champ-lbfinal,
+.champ-center--stacked .champ-center--ifnec,
+.champ-center--flight .champ-inner,
+.champ-center--flight .champ-bc,
+.champ-center--flight .champ-winner { width: 100%; }
+/* Bigger than a round column: this is the thing a visitor looks for first. */
+.champ-center--stacked .champ-title { font-size: 0.92rem; letter-spacing: 0.2em; }
+.champ-center--stacked .champ-trophy { font-size: 2.6em; }
+.champ-center--stacked .champ-gametime { font-size: 0.86rem; }
+.champ-center--stacked .champ-winner { font-size: 1.05rem; }
+
+/* Who is playing for it, spelled out — "Winner of G.39" on its own tells a
+   visitor nothing. */
+.champ-feeders {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5em;
+  width: 100%;
+  margin-top: 0.9em;
+  font-family: 'Barlow', sans-serif;
+}
+.champ-feed { flex: 1 1 0; min-width: 0; text-align: center; }
+.champ-feed-lbl {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+.champ-feed-team { font-size: var(--text-sm); color: var(--text-dim); line-height: 1.3; }
+.champ-feed-vs {
+  align-self: center;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+
+/* The losers-bracket final, repeated here so the championship's second
+   feeder is legible without scrolling to the other bracket. */
+.champ-lbfinal {
+  width: 100%;
+  margin-top: 1.1em;
+  padding-top: 0.9em;
+  border-top: 0.07em solid var(--border);
+  text-align: center;
+}
+.champ-lbfinal-lbl {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.6rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-bottom: 0.4em;
+}
+.champ-lbfinal .bc { position: relative; left: auto; right: auto; }
+.champ-lbfinal-note {
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  color: var(--text-mute);
+  margin-top: 0.4em;
+  line-height: 1.35;
+}
+
 .bcc-sideflex { position: relative; flex: 0 0 auto; display: flex; }
 .bcc-rowflex { display: flex; flex-direction: row; }
 .bracket-side-label--abs { position: absolute; top: calc(var(--col-hdr-h)*-2.2); }
 .bc.bc--static { position: relative; left: auto; right: auto; }
 .team-path-win-label--loss { color: var(--lose-color); }
+
+/* ── Share bracket as an image ──────────────────────────────────────── */
+.bracket-share { display: flex; justify-content: center; margin: 0 0 0.4em; }
+.share-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1.5em;
+}
+.share-box {
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 1.2em;
+  max-width: min(92vw, 60em);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+}
+.share-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+.share-opts { display: flex; flex-wrap: wrap; gap: 1em; }
+.share-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-sm);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+/* Checkerboard so a transparent-background render is still readable. */
+.share-preview-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+}
+.share-preview { display: block; max-width: 100%; height: auto; }
+.share-actions { display: flex; justify-content: flex-end; gap: 0.6em; flex-wrap: wrap; }
+.share-dl { background: var(--blue); border-color: var(--blue); color: #fff; }
+.share-hint {
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  color: var(--text-mute);
+  text-align: right;
+}
