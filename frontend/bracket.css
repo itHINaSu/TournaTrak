@@ -2313,6 +2313,38 @@ body.bc-drag-active .bc-drop-row.bc-drop-target { opacity: 1; }
    without reading both labels every round. */
 .pathproj-opt--own { border-color: var(--gold); color: var(--gold-lt); }
 .pathproj-opt--own:hover { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 14%, transparent); }
+/* An opponent that isn't known yet: dashed, because it isn't a pick — it
+   opens the games that would decide it. */
+.pathproj-opt--unknown {
+  border-style: dashed;
+  color: var(--text-mute);
+  font-weight: 400;
+  font-style: italic;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25em;
+  align-items: center;
+  justify-content: center;
+}
+.pathproj-opt-sub {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-xs);
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--blue-lt);
+}
+/* Nothing upstream is settled enough to ask about — not a button. */
+.pathproj-opt--dead {
+  border-style: dashed;
+  color: var(--text-mute);
+  font-weight: 400;
+  font-style: italic;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .pathproj-vs {
   align-self: center;
   font-family: 'Oswald', sans-serif;

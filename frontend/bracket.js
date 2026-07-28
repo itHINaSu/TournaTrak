@@ -4858,12 +4858,43 @@ function renderTeamView(){
 // every question is answerable when it is asked, and each answer decides the
 // next question. Picking a loss is a legitimate answer and simply moves the
 // team onto its drop branch, which the very next question reflects.
-var _pathProjHistory = [];   // gids picked, newest last — powers Back
+// Undo stack of ACTIONS, newest last. Opening a drill is an action too, so
+// Back closes it again rather than silently undoing a pick made before it.
+// Entries: {t:'pick', gid} | {t:'drill', prev}
+var _pathProjHistory = [];
+// Set when the viewer has ASKED to find out who they'd play in a given game.
+// Until then the other side of the draw is left alone.
+var _pathDrillFor = null;
 
-// The next question for `team`: the earliest undecided game the team is
-// currently placed in, plus a prerequisite hop when the opponent is unknown.
+// The next question for `team`.
+//
+// Only the team's OWN games are asked about, and only one at a time. The
+// interesting case is a team expecting to LOSE somewhere, not one winning
+// out — so nothing is filled in on their behalf, and each answer propagates
+// forward before the next question is chosen.
+//
+// When the opponent isn't known yet, the stepper does NOT go and settle the
+// other half of the draw uninvited; that turned one question into a dozen
+// about teams the viewer never asked about. It offers the choice instead,
+// and only descends once _pathDrillFor says they want it.
 function pathProjNext(team) {
   var merged = mergedPathResults();
+
+  // Drilling: keep answering the prerequisites of the game they opened up,
+  // nearest-answerable first, until its two teams are known.
+  if (_pathDrillFor) {
+    var dg = GAMES[_pathDrillFor];
+    var settled = merged[_pathDrillFor] && merged[_pathDrillFor].winner;
+    if (dg && !settled) {
+      var d1 = resolveSlot(dg.t1, merged), d2 = resolveSlot(dg.t2, merged);
+      if (!d1 || !d2) {
+        var pre = firstAnswerable(!d1 ? dg.t1 : dg.t2, merged, 0);
+        if (pre) return { gid: pre.gid, p1: pre.p1, p2: pre.p2, prereq: true, forGid: _pathDrillFor };
+      }
+    }
+    _pathDrillFor = null;   // resolved, or nothing left to ask — back to their games
+  }
+
   var best = null, bestT = Infinity;
   Object.keys(GAMES).forEach(function(gid) {
     var g = GAMES[gid];
@@ -4877,13 +4908,17 @@ function pathProjNext(team) {
   if (!best) return null;
   if (best.p1 && best.p2) return best;
 
-  // Opponent unknown: the question that has to be answered FIRST is somewhere
-  // up the other side of the draw. Descend to the nearest game that can
-  // actually be answered — both its teams known — which may be several rounds
-  // back. Answering it cascades forward and the stepper returns here.
-  var unknown = !best.p1 ? GAMES[best.gid].t1 : GAMES[best.gid].t2;
-  var q = firstAnswerable(unknown, merged, 0);
-  return q ? { gid: q.gid, p1: q.p1, p2: q.p2, prereq: true, forGid: best.gid } : null;
+  // Opponent unknown. Offer the team's own side plus a way in, rather than
+  // marching off into the other bracket unasked. A loss needs a name to
+  // attach to, so it only becomes available after they open it up.
+  var unknownSlot = !best.p1 ? GAMES[best.gid].t1 : GAMES[best.gid].t2;
+  return {
+    gid: best.gid,
+    p1: best.p1 || best.p2,          // whichever side is the team
+    unknownOpp: true,
+    oppLabel: smartLabel(unknownSlot, merged),
+    canDrill: !!firstAnswerable(unknownSlot, merged, 0),
+  };
 }
 
 // Walk a slot's feeder chain to the first game whose two teams are both
@@ -4904,6 +4939,7 @@ function openPathProject() {
   var team = teamSel && teamSel.value;
   if (!team) return;
   _pathProjHistory = [];
+  _pathDrillFor = null;
   var ov = document.getElementById('pathProjOverlay');
   if (ov) ov.hidden = false;
   renderPathProjStep();
@@ -4918,13 +4954,23 @@ function closePathProject() {
 
 function pathProjPick(gid, name) {
   _pathProjected[gid] = name;
-  _pathProjHistory.push(gid);
+  _pathProjHistory.push({ t: 'pick', gid: gid });
   renderPathProjStep();
 }
 
 function pathProjBack() {
   var last = _pathProjHistory.pop();
-  if (last) delete _pathProjected[last];
+  if (!last) { _pathDrillFor = null; }
+  else if (last.t === 'drill') { _pathDrillFor = last.prev || null; }
+  else { delete _pathProjected[last.gid]; }
+  renderPathProjStep();
+}
+
+// "Work out who we'd play." Everything about the other side of the draw is
+// opt-in through here.
+function pathProjDrill(gid) {
+  _pathProjHistory.push({ t: 'drill', prev: _pathDrillFor });
+  _pathDrillFor = gid;
   renderPathProjStep();
 }
 
@@ -4943,8 +4989,9 @@ function renderPathProjStep() {
     // No further question: either the team's run is over under these picks,
     // or the next game's other half can't be determined yet.
     var elim = isEliminated(team, mergedPathResults());
-    if (step) step.textContent = _pathProjHistory.length
-      ? _pathProjHistory.length + ' game' + (_pathProjHistory.length === 1 ? '' : 's') + ' called'
+    var nCalled = Object.keys(_pathProjected).length;
+    if (step) step.textContent = nCalled
+      ? nCalled + ' game' + (nCalled === 1 ? '' : 's') + ' called'
       : '';
     body.innerHTML = '<div class="pathproj-done">'
       + '<div class="pathproj-done-line">' + (elim
@@ -4968,12 +5015,35 @@ function renderPathProjStep() {
       + ' data-action="pathProjPick" data-arg="' + esc(q.gid) + '" data-arg2="' + esc(name) + '">'
       + esc(name) + '</button>';
   }
+
+  // Opponent not known yet: offer their own side, and the OPPONENT SLOT as a
+  // button that opens up the games feeding it. Calling a loss needs a name to
+  // attach to, so it stays unavailable until they choose to find out who it
+  // would be — which is the point: a team that expects to lose this one wants
+  // to know who beat them, and a team that doesn't shouldn't be marched
+  // through the other half of the draw to say so.
+  if (q.unknownOpp) {
+    body.innerHTML = '<div class="pathproj-q">Who wins?</div>'
+      + '<div class="pathproj-opts">' + opt(q.p1) + '<span class="pathproj-vs">vs</span>'
+      + (q.canDrill
+          ? '<button class="pathproj-opt pathproj-opt--unknown" data-action="pathProjDrill"'
+            + ' data-arg="' + esc(q.gid) + '">' + esc(q.oppLabel)
+            + '<span class="pathproj-opt-sub">tap to work out who</span></button>'
+          : '<span class="pathproj-opt pathproj-opt--dead">' + esc(q.oppLabel) + '</span>')
+      + '</div>'
+      + '<div class="pathproj-note">'
+      + (q.canDrill
+          ? 'Pick ' + esc(team) + ' to move on, or open up the other side to see who they’d face.'
+          : 'Not enough is settled elsewhere to work out the opponent yet.')
+      + '</div>';
+    return;
+  }
+
   body.innerHTML = '<div class="pathproj-q">Who wins?</div>'
     + '<div class="pathproj-opts">' + opt(q.p1) + '<span class="pathproj-vs">vs</span>' + opt(q.p2) + '</div>'
     + '<div class="pathproj-note">'
     + (q.prereq
-        ? 'Neither team is in ' + esc(team) + '’s game yet — this decides who they’d face in '
-          + esc(gameLabel(q.forGid)) + '.'
+        ? 'Deciding who ' + esc(team) + ' would face in ' + esc(gameLabel(q.forGid)) + '.'
         : esc(team) + '’s game' + (g.field ? ' · ' + esc(g.field) : ''))
     + '</div>';
 }
@@ -5622,12 +5692,14 @@ Object.assign(TT_ACTIONS, {
   togglePathProject: function() { openPathProject(); },
   closePathProject:  function() { closePathProject(); },
   pathProjBack:      function() { pathProjBack(); },
+  pathProjDrill:     function(gid) { pathProjDrill(gid); },
   // data-arg carries the game, data-arg2 the picked team (the dispatcher only
   // forwards arg, so the second comes off the element).
   pathProjPick:      function(gid, el) { pathProjPick(gid, el.dataset.arg2); },
   clearPathProject: function() {
     _pathProjected = {};
     _pathProjHistory = [];
+    _pathDrillFor = null;
     updatePathProjectBar();
     renderTeamView();
   },
