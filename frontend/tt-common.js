@@ -48,7 +48,7 @@ function getSetting(key) {
 //   /t/:slug/bracket|schedule|teampath|buckets → tournament, explicit tab
 // TT_SLUG is null for the default tournament (legacy /api mount, unscoped
 // URLs) so existing bookmarks/links/QR codes keep working unchanged.
-var TT_TAB_PATHS = ['bracket', 'schedule', 'teampath', 'buckets'];
+var TT_TAB_PATHS = ['bracket', 'schedule', 'teampath', 'buckets', 'standings'];
 
 function parseTtPath(pathname) {
   var parts = (pathname || window.location.pathname).replace(/^\/|\/$/g, '').split('/').filter(Boolean);

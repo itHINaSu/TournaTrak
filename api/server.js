@@ -25,7 +25,7 @@ const VALID_ROLES = ['admin', 'results', 'team', 'buckets'];
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
 // Public bracket page tab paths — must match TT_TAB_PATHS in tt-common.js.
-const TAB_PATHS = ['bracket', 'schedule', 'teampath', 'buckets'];
+const TAB_PATHS = ['bracket', 'schedule', 'teampath', 'buckets', 'standings'];
 
 // Persistence lives in ./store.js (Postgres). Every domain keeps the v2
 // read-whole/write-whole semantics: store.get returns the full domain object

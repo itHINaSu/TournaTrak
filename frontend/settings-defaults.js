@@ -32,6 +32,10 @@ const SETTINGS_DEFAULTS = {
   defaultTab:           'bracket',
   defaultTabScope:      'both',
   defaultScheduleGroup: 'day',
+  // What occupies the fourth public tab: the Bucket Challenge, an all-teams
+  // Standings table, or nothing. Plenty of tournaments run no bucket
+  // challenge and would rather show records.
+  fourthTab:            'buckets',
   // Custom display names for storage rounds; '' = use the built-in label.
   roundNameR0:     '',
   roundNameR1:     '',

@@ -10,11 +10,11 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.11">
-<link rel="stylesheet" href="/admin.css?v=3.11">
-<link rel="stylesheet" href="/lineup.css?v=3.11">
-<link rel="stylesheet" href="/builder.css?v=3.11">
-<script src="/app-h.js?v=3.11"></script>
+<link rel="stylesheet" href="/base.css?v=3.12">
+<link rel="stylesheet" href="/admin.css?v=3.12">
+<link rel="stylesheet" href="/lineup.css?v=3.12">
+<link rel="stylesheet" href="/builder.css?v=3.12">
+<script src="/app-h.js?v=3.12"></script>
 </head>
 <body>
 
@@ -357,12 +357,22 @@
               </div>
               <div class="settings-subsection-hdr" class="u-mt-09">Navigation Defaults</div>
               <div class="settings-field">
+                <label>Fourth tab</label>
+                <select class="styled" id="set-fourthTab">
+                  <option value="buckets">Bucket Challenge</option>
+                  <option value="standings">Standings</option>
+                  <option value="hidden">Hide it</option>
+                </select>
+                <div class="field-hint">Standings ranks every team by record, then head-to-head and run differential — for tournaments that don't run a bucket challenge.</div>
+              </div>
+              <div class="settings-field">
                 <label>Default landing tab</label>
                 <select class="styled" id="set-defaultTab">
                   <option value="bracket">Bracket</option>
                   <option value="schedule">Schedule</option>
                   <option value="teampath">Team Path</option>
                   <option value="buckets">Buckets</option>
+                  <option value="standings">Standings</option>
                 </select>
                 <div class="field-hint">Which view opens when a visitor first lands (before they pick a tab — their last choice is remembered after that).</div>
               </div>
@@ -794,13 +804,13 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.11"></script>
-<script src="/tt-common.js?v=3.11"></script>
-<script src="/bracket-data.js?v=3.11"></script>
-<script src="/admin.js?v=3.11"></script>
-<script src="/lineup.js?v=3.11"></script>
-<script src="/builder-form.js?v=3.11"></script>
-<script src="/builder.js?v=3.11"></script>
-<script src="/sw-register.js?v=3.11" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.12"></script>
+<script src="/tt-common.js?v=3.12"></script>
+<script src="/bracket-data.js?v=3.12"></script>
+<script src="/admin.js?v=3.12"></script>
+<script src="/lineup.js?v=3.12"></script>
+<script src="/builder-form.js?v=3.12"></script>
+<script src="/builder.js?v=3.12"></script>
+<script src="/sw-register.js?v=3.12" data-sw="/admin-sw.js"></script>
 </body>
 </html>

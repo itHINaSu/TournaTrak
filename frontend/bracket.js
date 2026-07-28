@@ -378,6 +378,7 @@ function renderActive(){
   if(v==='schedule')  { renderScheduleView(); setTimeout(scrollToLastCompletedCard, 60); }
   if(v==='teampath')  renderTeamView();
   if(v==='buckets') renderBucketView();
+  if(v==='standings') renderStandingsView();
 }
 // Back/forward navigation between tabs pushed via ttTabPath (see the tab
 // click handler above). Slug changes never reach here — those come from a
@@ -492,6 +493,10 @@ async function fetchAll(){
       targetPanel.classList.add('active');
     }
   }
+  // AFTER the tab restore: buckets and standings share the fourth slot, so a
+  // saved tab or a pasted /buckets URL can point at the one that is switched
+  // off. applyFourthTab hides it and falls back to Bracket.
+  applyFourthTab();
 
   // ?team= query param: open Team Path for that team (shareable link)
   var qTeam = new URLSearchParams(window.location.search).get('team');
@@ -3135,6 +3140,105 @@ function standingsGroups() {
     var rows = Object.keys(groups[k].teams).map(function (nm) { return groups[k].teams[nm]; });
     return { label: groups[k].label, rows: rankStandings(rows, groups[k].h2h) };
   });
+}
+
+// ── All-teams standings (the fourth-tab view) ─────────────────────────
+// standingsGroups() above is the pool/round-robin table: it only counts games
+// between two FIXED names and groups by pool. This is the whole-tournament
+// version — every played game in any format, with teams resolved through the
+// results so a bracket game counts once it has been played. Same tiebreak
+// chain as the pool tables (rankStandings) so the two never disagree, and the
+// same computation as the teams.csv export.
+function allTeamStandings() {
+  var teams = {}, h2h = {};
+  function seen(nm) {
+    if (!teams[nm]) teams[nm] = { name: nm, w: 0, l: 0, rf: 0, ra: 0, gp: 0 };
+    return teams[nm];
+  }
+  // Every team in the tournament appears, even before it has played — a
+  // standings table that hides half the field on day one is useless.
+  (typeof getScheduleTeams === 'function' ? getScheduleTeams() : []).forEach(seen);
+
+  Object.keys(GAMES).forEach(function(sid) {
+    var g = GAMES[sid], r = results[sid];
+    if (g.bye || !r || !r.winner) return;
+    var a = resolveSlot(g.t1, results), b = resolveSlot(g.t2, results);
+    if (!a || !b) return;
+    seen(a); seen(b);
+    teams[a].gp++; teams[b].gp++;
+    if (teams[r.winner]) teams[r.winner].w++;
+    if (teams[r.loser])  teams[r.loser].l++;
+    var s1 = parseInt(r.t1score, 10), s2 = parseInt(r.t2score, 10);
+    var known = !isNaN(s1) && !isNaN(s2);
+    if (known) {
+      teams[a].rf += s1; teams[a].ra += s2;
+      teams[b].rf += s2; teams[b].ra += s1;
+    }
+    [[a, b, s1, s2], [b, a, s2, s1]].forEach(function(p) {
+      var me = p[0], opp = p[1];
+      if (!h2h[me]) h2h[me] = {};
+      if (!h2h[me][opp]) h2h[me][opp] = { w: 0, l: 0, rf: 0, ra: 0 };
+      if (r.winner === me) h2h[me][opp].w++; else if (r.loser === me) h2h[me][opp].l++;
+      if (known) { h2h[me][opp].rf += p[2]; h2h[me][opp].ra += p[3]; }
+    });
+  });
+  return rankStandings(Object.keys(teams).map(function(n) { return teams[n]; }), h2h);
+}
+
+function renderStandingsView() {
+  var out = document.getElementById('standingsOut');
+  if (!out) return;
+  var rows = allTeamStandings();
+  if (!rows.length) {
+    out.innerHTML = '<div class="standings-empty">No teams yet.</div>';
+    return;
+  }
+  var played = rows.some(function(r) { return r.gp > 0; });
+  var html = '<div class="standings-block"><div class="standings-group">'
+    + '<div class="standings-card"><table class="standings-table">'
+    + '<thead><tr><th class="standings-rank-th">#</th><th class="standings-team-th">Team</th>'
+    + '<th>W</th><th>L</th><th>RF</th><th>RA</th><th>+/-</th></tr></thead><tbody>';
+  rows.forEach(function(r, i) {
+    var diff = r.rf - r.ra;
+    // Teams with no games yet are listed but not ranked — a "1" next to a
+    // team that hasn't played reads as a standing it hasn't earned.
+    html += '<tr' + (r.gp ? '' : ' class="standings-row--unplayed"') + '>'
+      + '<td class="standings-rank">' + (r.gp ? (i + 1) : '—') + '</td>'
+      + '<td class="standings-team">' + seedChip(r.name) + esc(r.name) + '</td>'
+      + '<td>' + r.w + '</td><td>' + r.l + '</td>'
+      + '<td>' + r.rf + '</td><td>' + r.ra + '</td>'
+      + '<td class="' + (diff > 0 ? 'standings-diff-pos' : diff < 0 ? 'standings-diff-neg' : '') + '">'
+      + (diff > 0 ? '+' : '') + diff + '</td></tr>';
+  });
+  html += '</tbody></table>'
+    + (played ? '<div class="standings-tiebreaks">' + esc(STANDINGS_TIEBREAKS) + '</div>' : '')
+    + '</div></div></div>';
+  out.innerHTML = html;
+}
+
+// Buckets and Standings share the fourth tab slot. Hide whichever isn't
+// chosen, and never leave a hidden tab active (a saved cookie or a pasted
+// /buckets URL can point at one that is now switched off).
+function applyFourthTab() {
+  var mode = getSetting('fourthTab') || 'buckets';
+  var show = { buckets: mode === 'buckets', standings: mode === 'standings' };
+  var fellBack = false;
+  Object.keys(show).forEach(function(view) {
+    var tab = document.querySelector('.view-tab[data-view="' + view + '"]');
+    if (!tab) return;
+    tab.hidden = !show[view];
+    if (!show[view] && tab.classList.contains('active')) fellBack = true;
+  });
+  if (fellBack) {
+    document.querySelectorAll('.view-tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.view-panel').forEach(function(p) { p.classList.remove('active'); });
+    var bt = document.querySelector('.view-tab[data-view="bracket"]');
+    var bp = document.getElementById('view-bracket');
+    if (bt) bt.classList.add('active');
+    if (bp) bp.classList.add('active');
+    setCookie('tt_tab', 'bracket');
+  }
+  return fellBack;
 }
 
 function standingsHTML() {
