@@ -57,6 +57,41 @@ side.
 
 ## Outstanding work (what's still needed) — updated 2026-07-28 (merge)
 
+**✅ DONE 2026-07-28 — bracket Edit mode actually moves cards now.** Owner
+report: "the Edit button is functionally worthless — its main purpose was to
+move to empty slots when byes created funny visuals, almost specifically for
+the LB." Correct, and for two compounding reasons:
+1. **The losers bracket ignores slot numbers entirely.** `computeLBPositions`
+   derives every LB card's top from its feeders' midpoints, so dragging an LB
+   game changed where it was STORED and nothing about where it was DRAWN.
+2. **Edit offered almost no targets.** The empty-slot loop skipped any slot
+   past the current game count (`sn > colN`) because `slotTopVh`'s row grid
+   only counts occupied slots, so a ghost for slot 5 of a 2-row column would
+   have landed below the column. A second filter dropped ghosts whose row was
+   already "covered" by an occupied card, which in the LB is nearly all of
+   them since feeder-derived tops don't sit on slot rows.
+
+The fix, per owner decision (drag = manual override; column grows to fit):
+- A dragged card is `pinned` (new boolean on the schedule entry, set by
+  `POST /schedule/swap` on BOTH games it moved). Pinned cards render at their
+  slot row and are treated as ANCHORS by the overlap sweep — neighbours move
+  around them. Pins also outrank the championship-row alignment and
+  `seatChainAbove`. Presentation only: no effect on feeds or results.
+- `POST /schedule/unpin` clears every pin ("Reset layout" in the edit bar).
+  It drops the pins, NOT the moves — cards keep the slots they were dragged
+  to, they just go back on automatic placement.
+- **Edit mode lays the whole tree back onto its slot grid** (`buildEditPosMap`)
+  at a width wide enough to expose every droppable slot, so cards, ghosts and
+  connector lines all agree on where a row is. Leaving Edit returns unpinned
+  cards to the automatic layout.
+- `SLOT_DEFS` late rounds widened to 8 per side in BOTH copies. A round that
+  defines only as many slots as it has games can never be rearranged, which
+  was the "forces games into the limited number of slots that exist" half of
+  the report. Nothing reads the LENGTH of those lists — positions come from
+  the games present, and the admin editor keeps empty slots hidden.
+  `routes.test.js` moved its "not a real bracket position" case from
+  `QF2.L.3` (now valid) to `QF2.L.9`.
+
 **✅ DONE 2026-07-28 — the losers bracket was one round short; `SF4` added.**
 The last piece of the 2026-07-28 "missing lines / not enough rounds"
 report. A 22-team double elim needs SEVEN losers-side columns. The old

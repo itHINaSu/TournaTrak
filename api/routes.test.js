@@ -163,6 +163,8 @@ describe('auth guards', () => {
       ['POST', '/api/field-colors', { 'Field 1': '#ff0000' }],
       ['POST', '/api/offsets', { entries: [], banner: '' }],
       ['POST', '/api/schedule/generate', { format: 'single-elim', teams: ['a', 'b', 'c', 'd'] }],
+      ['POST', '/api/schedule/swap', { slotA: 'R1.L.1', slotB: 'R1.L.2' }],
+      ['POST', '/api/schedule/unpin', {}],
     ];
     for (const [method, url, body] of calls) {
       const r = await a.req(method, url, body);
@@ -243,6 +245,35 @@ describe('schedule contract', () => {
     const r = await a.post('/api/schedule/generate', { format: 'nonsense', teams: ['a', 'b'] });
     assert.equal(r.status, 400);
   });
+
+  // A drag in bracket Edit mode is a swap, and the whole point of the drag is
+  // that the card STAYS where it was dropped — the losers bracket otherwise
+  // recomputes every position from feeder midpoints and the move is invisible.
+  // The pin is what carries that intent to the renderer.
+  rtest('swapping into an empty slot pins the moved game to its new row', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+
+    const s = await a.post('/api/schedule/swap', { slotA: 'R1.L.2', slotB: 'R1.L.6' });
+    assert.equal(s.status, 200);
+
+    const sched = (await a.get('/api/schedule')).json;
+    assert.equal(sched['R1.L.2'], undefined, 'game left its old slot');
+    assert.equal(sched['R1.L.6'].label, 'Game 2');
+    assert.equal(sched['R1.L.6'].pinned, true, 'moved game is pinned');
+    // Feeds follow the game, and the game that did not move stays unpinned.
+    assert.equal(sched['R2.L.1'].t2slot, 'R1.L.6');
+    assert.ok(!sched['R1.L.1'].pinned, 'untouched game keeps automatic placement');
+
+    // Reset drops the pins but leaves the moves themselves alone.
+    const u = await a.post('/api/schedule/unpin', {});
+    assert.equal(u.status, 200);
+    assert.equal(u.json.cleared, 1);
+    const after = (await a.get('/api/schedule')).json;
+    assert.ok(!after['R1.L.6'].pinned, 'pin cleared');
+    assert.equal(after['R1.L.6'].label, 'Game 2', 'game stays in the slot it was moved to');
+  });
+
 });
 
 describe('results contract', () => {
@@ -289,10 +320,12 @@ describe('results contract', () => {
 
   // isValidSlotId used to be a single global max (1-16 in any round), so
   // CHAMP.C.9 validated and orphan results could be stored at positions that
-  // do not exist in any bracket.
+  // do not exist in any bracket. The cases below stay invalid however wide
+  // SLOT_DEFS grows: a round with no such side (SF3 has no L), a one-slot
+  // round asked for slot 9, and a number past every round's list.
   rtest('rejects a result for a slot that is not a real bracket position', async () => {
     const a = await loginAdmin();
-    for (const game of ['CHAMP.C.9', 'SF3.L.1', 'QF2.L.3', 'nonsense']) {
+    for (const game of ['CHAMP.C.9', 'SF3.L.1', 'QF2.L.9', 'nonsense']) {
       const r = await a.post('/api/results', { game, winner: 'Alpha', loser: 'Beta' });
       assert.equal(r.status, 400, game + ' should be rejected');
     }

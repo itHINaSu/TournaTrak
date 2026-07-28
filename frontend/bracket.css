@@ -697,6 +697,19 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   opacity: 0.75;
   box-shadow: 0 0 0 2px var(--blue), 0 0 12px color-mix(in srgb, var(--blue-lt) 35%, transparent);
 }
+/* Placed by hand — this card renders at its slot row instead of wherever the
+   automatic layout would put it. The class is only emitted while editing
+   (see sideHTML), so the published bracket carries no extra ink. */
+.bc-pinned::after {
+  content: "";
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--blue);
+  opacity: 0.75;
+  pointer-events: none;
+}
 .bc-drag-ghost  {
   opacity: 0.88;
   transform: rotate(1.5deg);

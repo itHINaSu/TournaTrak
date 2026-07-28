@@ -12,14 +12,23 @@ const SLOT_DEFS = {
   // in api/schedule-formats.js).
   R0:   { L:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32],
            R:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32] },
+  // Later rounds are deliberately WIDER than any generator needs. A round's
+  // slot list is the set of rows a TD can move a card into (bracket Edit
+  // mode offers exactly these), and a column that defines only as many slots
+  // as it has games can never be rearranged — which is what made Edit useless
+  // on the losers side, where byes leave the tree looking lopsided. Eight
+  // rows is the bracket's own row grid (gridHeight's floor), so a card can be
+  // parked anywhere down the column. Nothing else reads the LENGTH of these
+  // lists: card positions come from the games actually present (slotTopVh),
+  // and the admin editor keeps empty slots hidden until revealed.
   R1:   { L:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], R:[1,2,3,4,5,6,7,8] },
   R2:   { L:[1,2,3,4,5,6,7,8],                        R:[1,2,3,4,5,6,7,8] },
-  QF:   { L:[1,2,3,4],                                 R:[1,2,3,4] },
-  QF2:  { L:[1,2],                                     R:[1,2,3,4] },
-  SF:   { L:[1,2,3],                                   R:[1,2,3,4] },
-  SF3:  {                                               R:[1,2] },
-  SF4:  {                                               R:[1,2] },
-  SF2:  { L:[1],                                       R:[1,2] },
+  QF:   { L:[1,2,3,4,5,6,7,8],                        R:[1,2,3,4,5,6,7,8] },
+  QF2:  { L:[1,2,3,4,5,6,7,8],                        R:[1,2,3,4,5,6,7,8] },
+  SF:   { L:[1,2,3,4,5,6,7,8],                        R:[1,2,3,4,5,6,7,8] },
+  SF3:  {                                              R:[1,2,3,4,5,6,7,8] },
+  SF4:  {                                              R:[1,2,3,4,5,6,7,8] },
+  SF2:  { L:[1,2,3,4,5,6,7,8],                        R:[1,2,3,4,5,6,7,8] },
   CHAMP:  { C:[1] },
   CHAMP2: { C:[1] }
 };
@@ -293,6 +302,12 @@ function applySchedule(schedule) {
       // NOT the bracket tree (their R0 storage slots would otherwise render
       // as extra leading columns and shift the Open's round numbering).
       tier:  (ov.tier === 'A' || ov.tier === 'B') ? ov.tier : null,
+      // Set when a TD drags this card in bracket Edit mode: "I placed this
+      // one, leave it where I put it". The losers bracket otherwise derives
+      // every position from feeder midpoints and ignores slot numbers
+      // entirely, so without this a move there changes storage and nothing
+      // on screen. See computeLBPositions in bracket.js.
+      pinned: ov.pinned === true,
       t1: ov.t1name
         ? { type:'fixed', team:ov.t1name }
         : { type:(ov.t1type||'winner'), slot:ov.t1slot },

@@ -1192,6 +1192,13 @@ api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
   };
   const sched = await store.get(req.tid, 'schedule');
   swapKeys(sched);
+  // Both games moved because a TD dragged them, so both are now placed by
+  // hand: pin them to their new slot rows. Without this the losers bracket
+  // would put them straight back where its feeder-midpoint layout wants
+  // them and the drag would appear to do nothing. Presentation only.
+  for (const sid of [slotA, slotB]) {
+    if (sched[sid] && sched[sid].clear !== true) sched[sid].pinned = true;
+  }
   // Feeds pointing AT the swapped slots must follow the games: any other
   // game's winner/loser source that referenced slotA now finds that game
   // living at slotB (and vice versa). Without this, moving a game silently
@@ -1216,6 +1223,20 @@ api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
     await store.put(req.tid, domain, doc);
   }
   res.json({ ok: true });
+}));
+
+// Drop every hand-placed layout pin, handing the whole bracket back to the
+// automatic layout. Cards keep the slots they were dragged to — only the
+// "render me at my slot row" flag goes — so this is a presentation reset,
+// not an undo of the moves themselves.
+api.post('/schedule/unpin', requireAdmin, ah(async (req, res) => {
+  const sched = await store.get(req.tid, 'schedule');
+  let cleared = 0;
+  for (const entry of Object.values(sched)) {
+    if (entry && entry.pinned) { delete entry.pinned; cleared++; }
+  }
+  if (cleared) await store.put(req.tid, 'schedule', sched);
+  res.json({ ok: true, cleared });
 }));
 
 // ── Bracket Builder ───────────────────────────────────────────────────

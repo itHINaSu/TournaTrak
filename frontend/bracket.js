@@ -277,12 +277,37 @@ function toggleBracketEdit() {
   if (_bracketEditMode && _projectMode) { _projectMode = false; updateProjectBar(); }
   var btn = document.getElementById('bracketEditBtn');
   if (btn) { btn.textContent = _bracketEditMode ? 'Done' : 'Edit'; btn.classList.toggle('admin-btn-active', _bracketEditMode); }
+  var bar = document.getElementById('bracketEditBar');
+  if (bar) bar.hidden = !_bracketEditMode;
   if (_bracketEditMode && activeView() !== 'bracket') {
     var tab = document.querySelector('.view-tab[data-view="bracket"]');
     if (tab) tab.click();
   } else {
     renderBracket();
   }
+}
+
+// Hand every card back to the automatic layout. The moves themselves stand —
+// games keep the slots they were dragged to — only the "render me at my slot
+// row" pins are dropped, so this undoes the LOOK, not the topology.
+function resetBracketLayout() {
+  fetch(apiBase() + '/schedule/unpin', { method: 'POST' })
+    .then(function(r) {
+      return r.ok ? r.json() : r.json().then(function(d) { throw new Error(d.error || r.status); });
+    })
+    .then(function(d) {
+      return fetch(apiBase() + '/schedule', { cache: 'no-store' })
+        .then(function(r) { return r.json(); })
+        .then(function(sched) {
+          schedule = sched;
+          if (typeof applySchedule === 'function') applySchedule(schedule);
+          _rebuildFieldDefaultColors();
+          renderBracket();
+          showToast(d.cleared ? 'Layout reset — ' + d.cleared + ' card' + (d.cleared === 1 ? '' : 's') + ' back on automatic'
+                              : 'Nothing to reset — no cards were placed by hand');
+        });
+    })
+    .catch(function(err) { showToast('Reset failed: ' + (err.message || 'unknown error'), true); });
 }
 
 function enterBucketEdit() {
@@ -363,6 +388,8 @@ document.querySelectorAll('.view-tab').forEach(function(tab){
       _bracketEditMode = false;
       var editBtn = document.getElementById('bracketEditBtn');
       if (editBtn) { editBtn.textContent = 'Edit'; editBtn.classList.remove('admin-btn-active'); }
+      var editBar = document.getElementById('bracketEditBar');
+      if (editBar) editBar.hidden = true;
     }
     // Push the tab's canonical path (also drops the teampath ?team= param —
     // pushState with no search string clears it).
@@ -662,9 +689,11 @@ function gridHeight() {
 // _slotNCache memoizes the computed n per (round|side) key, keyed by gamesGeneration
 // so it is automatically invalidated whenever applySchedule() rebuilds GAMES.
 var _slotNCache = { gen: -1, data: {} };
-function slotTopVh(round, slot, slotVh, side) {
-  var gridH = gridHeight();
-  if (round === 'CHAMP' || round === 'CHAMP2') return (gridH / 2 - 0.5) * slotVh;
+// slotRowCount: how many rows a round column is divided into. Occupied games
+// AND the highest slot number in use both count, which is what lets a TD open
+// a gap: drag a game from QF.L.2 to QF.L.4 and the column becomes four rows
+// with two of them empty.
+function slotRowCount(round, side) {
   var s = side || 'L';
   var cacheKey = round + '|' + s;
   var curGen = gamesGeneration;
@@ -681,6 +710,15 @@ function slotTopVh(round, slot, slotVh, side) {
     n = Math.max(gids.length, maxSlot) || 1;
     _slotNCache.data[cacheKey] = n;
   }
+  return n;
+}
+// nOverride lets Edit mode lay a column out on a WIDER grid than its games
+// currently need, so every droppable slot has a visible row (see the edit
+// block in sideHTML). Normal rendering leaves it undefined.
+function slotTopVh(round, slot, slotVh, side, nOverride) {
+  var gridH = gridHeight();
+  if (round === 'CHAMP' || round === 'CHAMP2') return (gridH / 2 - 0.5) * slotVh;
+  var n = nOverride || slotRowCount(round, side);
   var spacing = gridH / n;
   return ((slot - 1) * spacing + spacing / 2 - 0.5) * slotVh;
 }
@@ -1202,11 +1240,29 @@ function computeLBPositions(slotVh) {
     }
   });
 
+  // ── Hand-placed cards win over everything above ──────────────────────
+  // A card a TD dragged in Edit mode sits at its SLOT row, not wherever the
+  // feeder-midpoint rules would like it. This is the whole reason the losers
+  // bracket can be tidied by hand: byes leave the automatic layout lopsided
+  // and no amount of feeder math knows what looks right on a printed sheet.
+  // Pinned cards are also ANCHORED, so the overlap sweep at the bottom moves
+  // their neighbours out of the way instead of shoving them off their row.
+  function applyPins(col) {
+    col.games.forEach(function(entry) {
+      var g = GAMES[entry.gid];
+      if (!g || !g.pinned) return;
+      posMap[entry.gid] = clamp(slotTopVh(col.round, entry.slot, slotVh, col.side));
+      _lbAnchored[entry.gid] = true;
+    });
+  }
+  applyPins(first);
+
   // ── Later columns: midpoint of the two feeders (real or phantom) ──
   cols.forEach(function(col, ci) {
     if (ci === 0) return;
     col.games.forEach(function(entry) {
       var g = GAMES[entry.gid];
+      if (g && g.pinned) return;   // hand-placed — see applyPins below
       var real = []; // { pos, ti, round } for positioned LB feeders
       if (g) {
         [g.t1, g.t2].forEach(function(slotDef, ti) {
@@ -1244,6 +1300,9 @@ function computeLBPositions(slotVh) {
       }
       posMap[entry.gid] = clamp(top);
     });
+    // After the column's automatic positions exist, so a pinned card's
+    // neighbours have somewhere to be pushed to by the overlap sweep.
+    applyPins(col);
   });
 
   // ── Align LB final with WB SF for a clean horizontal championship row ──
@@ -1272,6 +1331,9 @@ function computeLBPositions(slotVh) {
       if (!slotDef || slotDef.type !== 'winner') return;
       var fg = GAMES[slotDef.slot];
       if (!fg || fg.side !== 'R') return;
+      // A hand-placed card outranks the automatic alignment — the TD moved
+      // this one deliberately. It stays anchored either way.
+      if (fg.pinned) { _lbAnchored[slotDef.slot] = true; seatChainAbove(slotDef.slot, 0); return; }
       // Pin the LB championship feeder level with the WB one so both
       // feeds enter the championship on the same row. The overlap sweep
       // below treats this as an ANCHOR: siblings move out of ITS way.
@@ -1297,6 +1359,7 @@ function computeLBPositions(slotVh) {
       var fg = GAMES[slotDef.slot];
       if (!fg || fg.side !== 'R' || fg.round !== g.round) return;  // same column only
       if (posMap[slotDef.slot] === undefined) return;
+      if (fg.pinned) { _lbAnchored[slotDef.slot] = true; return; }  // hand-placed
       var want = posMap[gid] - minSep;
       if (posMap[slotDef.slot] > want) posMap[slotDef.slot] = clamp(want);
       _lbAnchored[slotDef.slot] = true;
@@ -1335,6 +1398,33 @@ function computeLBPositions(slotVh) {
   });
 
   return posMap;
+}
+
+// buildEditPosMap: positions for bracket EDIT mode.
+//
+// Normal rendering positions losers-bracket cards from their feeders'
+// midpoints and ignores slot numbers, which makes Edit mode incoherent
+// there — the drop targets are slots, but nothing on screen sits on a slot
+// row. Edit mode therefore lays the WHOLE tree back onto its slot grid, on a
+// column width wide enough to expose every slot a card can be dropped into.
+// Returns { pos: {gid -> topVh}, n: {'ROUND|SIDE' -> row count} }.
+function buildEditPosMap(slotVh) {
+  var pos = {}, n = {};
+  ['L', 'R'].forEach(function(side) {
+    buildSideColumns(side).forEach(function(col) {
+      var defs = (SLOT_DEFS[col.round] && SLOT_DEFS[col.round][col.side]) || [];
+      var definedMax = defs.length ? defs[defs.length - 1] : 1;
+      // Cap at the bracket's own row grid so a row never shrinks below one
+      // card, and never go BELOW what the column already needs.
+      var cn = Math.max(slotRowCount(col.round, col.side),
+                        Math.min(definedMax, gridHeight()));
+      n[col.round + '|' + col.side] = cn;
+      col.games.forEach(function(entry) {
+        pos[entry.gid] = slotTopVh(col.round, entry.slot, slotVh, col.side, cn);
+      });
+    });
+  });
+  return { pos: pos, n: n };
 }
 
 function buildConnPcts(srcCol, dstCol, slotVh, posMap) {
@@ -2197,7 +2287,10 @@ function renderDesktopBracket(root,dims){
   var totalVh=dims.totalVh, lc='var(--line-color)', hdrVh=1.8;
 
   // LB game positions derived from feeder midpoints; WB uses slotTopVh directly.
-  var lbPosMap = computeLBPositions(slotVh);
+  // Edit mode replaces both with the slot grid so cards, drop targets and
+  // connector lines all agree on where a row is.
+  var editGrid = _bracketEditMode ? buildEditPosMap(slotVh) : null;
+  var lbPosMap = editGrid ? editGrid.pos : computeLBPositions(slotVh);
 
   // extra: {gid, topVh, caption} — an additional card appended to the LAST
   // column. The stacked layout uses it to stand the losers-bracket final
@@ -2214,6 +2307,10 @@ function renderDesktopBracket(root,dims){
           + cardHTML(extra.gid) + '</div>'
           + '<div class="bc-dup-cap" data-css="top:' + (extra.topVh - 1.9) + 'vh">' + esc(extra.caption) + '</div>';
       }
+      // In Edit mode lbPosMap IS the slot grid (see buildEditPosMap), so the
+      // lookup below already returns the row a card sits on; editN is the
+      // matching row count, used to place the empty drop targets.
+      var editN = editGrid ? editGrid.n[col.round + '|' + col.side] : 0;
       col.games.forEach(function(entry){
         // lbPosMap only ever holds R-side games, so it can be consulted
         // unconditionally — which keeps "where the cards sit" independent of
@@ -2222,34 +2319,21 @@ function renderDesktopBracket(root,dims){
         var topVh = lbPosMap[entry.gid] !== undefined
           ? lbPosMap[entry.gid]
           : slotTopVh(col.round,entry.slot,slotVh,col.side);
-        cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" data-css="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
+        // Marked only while editing — the published bracket carries no extra ink.
+        var pinCls = (_bracketEditMode && GAMES[entry.gid] && GAMES[entry.gid].pinned) ? ' bc-pinned' : '';
+        cardsHTML+='<div class="bc'+pinCls+'" data-gid="'+esc(entry.gid)+'" data-css="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
       });
       if (_bracketEditMode) {
         var usedSlots = {};
-        var occTops = [];
-        col.games.forEach(function(e) {
-          usedSlots[e.slot] = true;
-          occTops.push(lbPosMap[e.gid] !== undefined
-            ? lbPosMap[e.gid]
-            : slotTopVh(col.round, e.slot, slotVh, col.side));
-        });
-        // slotTopVh's row grid only counts OCCUPIED slots, so an empty slot
-        // numbered past the grid (SF.R.3 in a 2-row column) would land below
-        // the column, off-screen. Only offer empties that fit the current
-        // grid, and skip any whose row is already covered by an occupied
-        // card (LB columns position occupied games by feeder geometry, not
-        // slot number, so the two can land on the same row). Precise moves
-        // to any slot stay available in the Advanced schedule editor.
-        var colN = Math.max(col.games.length,
-          col.games.reduce(function(mx, e) { return Math.max(mx, e.slot); }, 0)) || 1;
+        col.games.forEach(function(e) { usedSlots[e.slot] = true; });
+        // Every defined slot the column can show on the editN grid is a drop
+        // target — including ones past the current game count, which is what
+        // opens a gap: drop a card into a lower row and the column keeps that
+        // row from then on (slotRowCount counts the highest slot in use).
         var slotNums = (SLOT_DEFS[col.round] && SLOT_DEFS[col.round][col.side]) || [];
         slotNums.forEach(function(sn) {
-          if (usedSlots[sn] || sn > colN) return;
-          var topVh = slotTopVh(col.round, sn, slotVh, col.side);
-          var covered = occTops.some(function(t) {
-            return Math.abs(t - topVh) < slotVh * CARD_RATIO;
-          });
-          if (covered) return;
+          if (usedSlots[sn] || sn > editN) return;
+          var topVh = slotTopVh(col.round, sn, slotVh, col.side, editN);
           var slotId = col.round + '.' + col.side + '.' + sn;
           cardsHTML += '<div class="bc bc-empty-slot" data-slot="'+esc(slotId)+'" data-css="top:'+topVh+'vh"></div>';
         });
@@ -4632,6 +4716,7 @@ Object.assign(TT_ACTIONS, {
     updateProjectBar();
   },
   toggleBracketEdit: function() { toggleBracketEdit(); },
+  resetBracketLayout: function() { if (_sessionRole === 'admin') resetBracketLayout(); },
   gotoScheduleTab:   function() {
     var tab = document.querySelector('.view-tab[data-view="schedule"]');
     if (tab) tab.click();

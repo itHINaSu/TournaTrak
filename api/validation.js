@@ -70,6 +70,10 @@ function validateSchedule(updates) {
     if (entry.tier !== undefined && !['A','B'].includes(entry.tier)) return `invalid tier for ${sid}`;
     // Bye marker: lone team auto-advances; opponent slot renders as BYE.
     if (entry.bye !== undefined && typeof entry.bye !== 'boolean') return `bye for ${sid} must be a boolean`;
+    // Layout pin: this card was placed by hand in bracket Edit mode, so it
+    // renders at its slot row instead of wherever the auto-layout would put
+    // it. Presentation only — it has no effect on feeds or results.
+    if (entry.pinned !== undefined && typeof entry.pinned !== 'boolean') return `pinned for ${sid} must be a boolean`;
     // Swiss round bookkeeping: which round this pairing belongs to. A real
     // field so label edits/find-replace can't break "Pair next round".
     if (entry.swissRound !== undefined) {
