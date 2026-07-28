@@ -2115,6 +2115,44 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 @media (min-width: 1280px) {
   #view-bracket.active { overflow-x: auto; }
 }
+/* ── Stacked desktop layout (large winners/losers brackets) ──────────────
+   Side by side, a functionally-32-team double elim puts 12 round columns plus
+   the championship across one screen: every column lands under the
+   readability floor and the sheet has to scroll anyway. Stacking winners over
+   losers halves the columns across, so the cards stay legible; the cost is
+   height, which the page simply scrolls. Both rows read LEFT TO RIGHT (the
+   losers side is not mirrored here) and share one column width, so the rounds
+   line up vertically. See getDims / stackedDims in bracket.js. */
+.bcc-stack {
+  display: flex;
+  align-items: center;      /* championship centred across both rows */
+  justify-content: center;
+  width: 97vw;
+  min-width: min-content;   /* scroll instead of squeezing the columns */
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: calc(var(--col-hdr-h)*2.5) 0 1em;
+  gap: 0.5vw;
+}
+.bcc-stack-rows {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  /* Room for the second row's absolutely-positioned side label + headers. */
+  gap: calc(var(--col-hdr-h)*3.2);
+}
+.bcc-stack-row { display: flex; flex: 0 0 auto; }
+/* Flow-centred, not pinned to a feeder row: with the brackets stacked there
+   is no single row for the championship to line up with. */
+.champ-center--stacked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  height: auto;
+}
+
 .bcc-sideflex { position: relative; flex: 0 0 auto; display: flex; }
 .bcc-rowflex { display: flex; flex-direction: row; }
 .bracket-side-label--abs { position: absolute; top: calc(var(--col-hdr-h)*-2.2); }

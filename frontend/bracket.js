@@ -668,6 +668,33 @@ function cardMidVh(round, slot, slotVh, side) {
 // ══════════════════════════════════════════════════════════
 // SIZING
 // ══════════════════════════════════════════════════════════
+// Is the R side a LOSERS bracket, or an independent second half?
+// The flagship 32-team layout is two independent 16-team single-elim sides
+// facing each other, and it must KEEP facing each other — mirroring is the
+// whole point of that sheet. A double elim's R side is different: it is fed
+// by the L side, reads as one continuous bracket, and is the thing that gets
+// unreadably narrow when 12 columns share a screen. Tell them apart
+// structurally (topology lives in the schedule, not in a format flag): a
+// cross-side feed means winners/losers.
+// Cached per gamesGeneration — called from getDims on every resize.
+var _wlCache = { gen: -1, val: false };
+function isWinnersLosersLayout() {
+  if (_wlCache.gen === gamesGeneration) return _wlCache.val;
+  var found = false;
+  Object.keys(GAMES).forEach(function(gid) {
+    if (found) return;
+    var g = GAMES[gid];
+    if (g.tier || g.side !== 'R') return;
+    [g.t1, g.t2].forEach(function(sd) {
+      if (!sd || !sd.slot) return;
+      var fg = GAMES[sd.slot];
+      if (fg && !fg.tier && fg.side === 'L') found = true;
+    });
+  });
+  _wlCache = { gen: gamesGeneration, val: found };
+  return found;
+}
+
 function getDims(){
   var hdrH=document.getElementById('siteHeader').getBoundingClientRect().height;
   var tabsH=document.getElementById('viewTabs').getBoundingClientRect().height;
@@ -681,6 +708,23 @@ function getDims(){
   if(isDesktop){
     var nL=Math.max(buildSideColumns('L').length,1);
     var nR=Math.max(buildSideColumns('R').length,1);
+    var vwPx0 = window.innerWidth / 100;
+    // ── Stacked layout for a big winners/losers bracket ─────────────────
+    // Side by side, a functionally-32-team double elim puts 12 round columns
+    // plus the championship across one screen. Every column is then below the
+    // readability floor, so the bracket squeezes AND still has to scroll —
+    // the worst of both. Stacking winners over losers halves the columns
+    // across (max instead of sum), which buys back the width; the extra
+    // height is spent on vertical scroll, which a long page handles fine.
+    // Only for real winners/losers structures — the two-sided single-elim
+    // flagship is meant to face inward (see isWinnersLosersLayout).
+    var stacked = false;
+    if (isWinnersLosersLayout()) {
+      var sideBySideUnits = nL + nR + (Math.max(nL - 1, 0) + Math.max(nR - 1, 0)) * 0.15;
+      // What one column would get side by side, before the floor clamps it.
+      if (((97 - 10) / sideBySideUnits) * vwPx0 < MIN_COL_PX) stacked = true;
+    }
+    if (stacked) return stackedDims(nL, nR, availVh, isDesktop, isMobile);
     // 97vw = usable bracket width (nearly full window, small side margins).
     // 0.15 = gap-to-column width ratio (each gap is 15% of a column).
     // Columns are sized from the TOTAL count across both sides so each side
@@ -728,6 +772,40 @@ function getDims(){
     return {slotVh,cardVh,rowVh,colVw,gapVw,champVw:0,totalVh:slotVh*16,isDesktop,isMobile};
   }
 }
+// Sizing for the stacked (winners over losers) desktop layout.
+// The two rows share one column width, taken from whichever side has more
+// rounds, so the columns line up vertically and the whole thing reads as one
+// sheet. Each row keeps its OWN grid height — the losers bracket of a 32-team
+// field is wider but no taller — and neither row is squeezed to fit the
+// viewport: this layout exists precisely because the field is too big for
+// that, so it takes the room it needs and the page scrolls.
+function stackedDims(nL, nR, availVh, isDesktop, isMobile) {
+  var vwPx = window.innerWidth / 100, vhPx = window.innerHeight / 100;
+  var across = Math.max(nL, nR, 1);
+  var champVw = 10;
+  // across columns + their gaps + the championship column, inside 97vw.
+  var units = across + Math.max(across - 1, 0) * 0.15;
+  var colVw = (97 - champVw) / units;
+  if (colVw * vwPx < MIN_COL_PX) colVw = MIN_COL_PX / vwPx;
+  if (colVw > champVw - 1.6) champVw = colVw + 1.6;
+  var gapVw = colVw * 0.15;
+  var cardVh = (colVw * vwPx / CARD_ASPECT) / vhPx;
+  var gridH = gridHeight();
+  // Both rows plus the band between them have to fit the viewport before the
+  // card is allowed to shrink; below the pixel floor we scroll instead.
+  var maxCardVh = (availVh / (gridH * 2 + 1)) * CARD_RATIO;
+  if (cardVh > maxCardVh) cardVh = maxCardVh;
+  var minCardVh = MIN_CARD_PX / vhPx;
+  if (cardVh < minCardVh) cardVh = minCardVh;
+  var slotVh = cardVh / CARD_RATIO;
+  return {
+    slotVh: slotVh, cardVh: cardVh, rowVh: cardVh / 3,
+    colVw: colVw, gapVw: gapVw, champVw: champVw,
+    totalVh: slotVh * gridH, isDesktop: isDesktop, isMobile: isMobile,
+    stacked: true,
+  };
+}
+
 function applyCSSVars(dims){
   var r=document.documentElement.style;
   r.setProperty('--slot-h',dims.slotVh+'vh');
@@ -1669,7 +1747,11 @@ function renderDesktopBracket(root,dims){
       var col=ordCols[ci];
       var cardsHTML='';
       col.games.forEach(function(entry){
-        var topVh = isRight && lbPosMap[entry.gid] !== undefined
+        // lbPosMap only ever holds R-side games, so it can be consulted
+        // unconditionally — which keeps "where the cards sit" independent of
+        // "which way the side is drawn" (the stacked layout draws R
+        // left-to-right while still using these positions).
+        var topVh = lbPosMap[entry.gid] !== undefined
           ? lbPosMap[entry.gid]
           : slotTopVh(col.round,entry.slot,slotVh,col.side);
         cardsHTML+='<div class="bc" data-gid="'+esc(entry.gid)+'" data-css="top:'+topVh+'vh">'+cardHTML(entry.gid)+'</div>';
@@ -1679,7 +1761,7 @@ function renderDesktopBracket(root,dims){
         var occTops = [];
         col.games.forEach(function(e) {
           usedSlots[e.slot] = true;
-          occTops.push(isRight && lbPosMap[e.gid] !== undefined
+          occTops.push(lbPosMap[e.gid] !== undefined
             ? lbPosMap[e.gid]
             : slotTopVh(col.round, e.slot, slotVh, col.side));
         });
@@ -1710,7 +1792,7 @@ function renderDesktopBracket(root,dims){
         var srcCol=isRight?ordCols[ci+1]:ordCols[ci];
         var dstCol=isRight?ordCols[ci]:ordCols[ci+1];
         html+='<div class="u-relative" data-css="flex-shrink:0;width:'+gapVw+'vw;height:'+totalVh+'vh">'
-          +connLines(buildConnPcts(srcCol,dstCol,slotVh,isRight?lbPosMap:null),gapVw,totalVh,lc,isRight)+'</div>';
+          +connLines(buildConnPcts(srcCol,dstCol,slotVh,lbPosMap),gapVw,totalVh,lc,isRight)+'</div>';
       }
     }
     var labelAlign=isRight?'right:0':'left:0';
@@ -1784,11 +1866,41 @@ function renderDesktopBracket(root,dims){
       +'</div>';
   }
 
-  root.innerHTML='<div class="bcc-outerflex">'
-    +sideHTML('L',getSetting('leftLabel'),false)
-    +champHTML
-    +sideHTML('R',getSetting('rightLabel'),true)
-    +'</div>';
+  if (dims.stacked) {
+    // Winners over losers, both reading left to right, championship at the
+    // right edge across from the seam between them — the canonical layout of
+    // a large printed double-elim sheet. The championship block here is
+    // flow-centred rather than pinned to a feeder row: with the two brackets
+    // stacked there is no single row for it to line up with.
+    var champStack = champG
+      ? '<div class="champ-inner champ-inner--above">'
+        + '<div class="champ-trophy">' + trophySVG() + '</div>'
+        + '<div class="champ-title">Championship</div>'
+        + '<div class="champ-gametime">' + esc(formatTime(champG.time)) + '</div>'
+        + '</div>'
+        + '<div class="champ-bc" data-css="height:' + cardVh + 'vh"><div class="bc bc--static" data-gid="CHAMP.C.1" data-css="height:' + cardVh + 'vh">' + cardHTML('CHAMP.C.1') + '</div></div>'
+        + (showChampWinner ? '<div class="champ-winner">' + esc(cr.winner) + '</div>' : '')
+        + ifNecHTML
+      : '<div class="champ-inner u-dim30">'
+        + '<div class="champ-trophy">' + trophySVG() + '</div>'
+        + '<div class="champ-title">Championship</div>'
+        + '</div>';
+    root.innerHTML = '<div class="bcc-stack">'
+      + '<div class="bcc-stack-rows">'
+      +   '<div class="bcc-stack-row">' + sideHTML('L', getSetting('leftLabel'), false) + '</div>'
+      +   '<div class="bcc-stack-row">' + sideHTML('R', getSetting('rightLabel'), false) + '</div>'
+      + '</div>'
+      + '<div class="champ-center--desktop champ-center--stacked" data-css="width:' + (champVw - 1.6) + 'vw">'
+      +   champStack
+      + '</div>'
+      + '</div>';
+  } else {
+    root.innerHTML='<div class="bcc-outerflex">'
+      +sideHTML('L',getSetting('leftLabel'),false)
+      +champHTML
+      +sideHTML('R',getSetting('rightLabel'),true)
+      +'</div>';
+  }
 
   shrinkFieldTags(root);
 

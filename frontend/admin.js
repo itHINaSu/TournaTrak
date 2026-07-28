@@ -597,8 +597,9 @@ async function saveResult(sid) {
     var stale = downstreamWithResults(sid);
     var msg = 'This changes the winner from ' + prev.winner + ' to ' + winner + '.';
     if (stale.length) {
-      msg += '\n\n' + stale.length + ' later game' + (stale.length === 1 ? '' : 's')
-        + ' already have results and were played by the teams that advanced under the '
+      msg += '\n\n' + stale.length + ' later game' + (stale.length === 1 ? ' already has' : 's already have')
+        + ' results and ' + (stale.length === 1 ? 'was' : 'were')
+        + ' played by the teams that advanced under the '
         + 'old winner: ' + stale.map(gameLabel).join(', ')
         + '.\n\nThey are NOT cleared — review them after saving.';
     }
