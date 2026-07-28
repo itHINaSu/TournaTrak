@@ -79,11 +79,81 @@ function lineupApiBase() {
   return _lineupSlug ? '/api/t/' + encodeURIComponent(_lineupSlug) : '/api';
 }
 
-function posOptions(selected, options) {
-  return (options || []).map(function(p) {
-    var sel = (p === (selected || '')) ? ' selected' : '';
-    return '<option value="' + p + '"' + sel + '>' + (p || '—') + '</option>';
-  }).join('');
+// Position dropdown, with the positions ANOTHER row has already taken moved
+// under a divider at the bottom. They keep their original order down there,
+// so the list still reads the same way — the point is that what's left at the
+// top is exactly what's still unfilled, which is the question a coach filling
+// in a lineup is actually asking.
+//
+// `taken` is a lookup of positions in use by OTHER rows; a row's own value is
+// never treated as taken by itself, or it would jump groups as you set it.
+function posOptions(selected, options, taken) {
+  var cur = selected || '';
+  var opt = function(p) {
+    return '<option value="' + esc(p) + '"' + (p === cur ? ' selected' : '') + '>'
+      + (p || '—') + '</option>';
+  };
+  var free = [], used = [];
+  (options || []).forEach(function(p) {
+    if (p === '') return;                       // the blank always leads
+    ((taken && taken[p]) ? used : free).push(p);
+  });
+  var html = opt('');
+  html += free.map(opt).join('');
+  // <optgroup> gives a real divider with a label saying why, rather than a
+  // dashed row that reads like a selectable option.
+  if (used.length) {
+    html += '<optgroup label="Already assigned">' + used.map(opt).join('') + '</optgroup>';
+  }
+  return html;
+}
+
+// Which positions each pos-column select is currently showing, so a rebuild
+// can work out what is taken. Returns [{el, value}] for one column index.
+function posSelects(colIdx) {
+  var out = [];
+  for (var i = 0; i < lineupRowCount; i++) {
+    var el = document.getElementById('lc' + colIdx + '-' + i);
+    if (el && el.tagName === 'SELECT') out.push(el);
+  }
+  return out;
+}
+
+// Rebuild every position dropdown in place so the taken/free split stays
+// current as rows are filled in. Rewriting only the <option>s keeps focus and
+// scroll where they were, which re-rendering the whole table would not.
+function refreshPosSelects() {
+  lineupConfig().cols.forEach(function(c, ci) {
+    if (c.kind !== 'pos') return;
+    var sels = posSelects(ci);
+    var counts = {};
+    sels.forEach(function(el) { if (el.value) counts[el.value] = (counts[el.value] || 0) + 1; });
+    sels.forEach(function(el) {
+      var mine = el.value, taken = {};
+      Object.keys(counts).forEach(function(p) {
+        // Taken by someone else — or by this row AND someone else, which can
+        // happen with data saved before the one-position-per-row rule.
+        if (p !== mine || counts[p] > 1) taken[p] = true;
+      });
+      el.innerHTML = posOptions(mine, c.options, taken);
+      el.value = mine;
+    });
+  });
+}
+
+// A position may only be held by one row. Picking one that another row
+// already has takes it FROM that row rather than silently duplicating it —
+// the coach's last action is the one they meant.
+function onPositionChange(sel) {
+  var m = /^lc(\d+)-(\d+)$/.exec(sel.id || '');
+  if (!m) return;
+  var ci = +m[1];
+  if (sel.value) {
+    posSelects(ci).forEach(function(other) {
+      if (other !== sel && other.value === sel.value) other.value = '';
+    });
+  }
+  refreshPosSelects();
 }
 
 var lineupRowCount  = 11;  // reset to lineupConfig().rows once settings load
@@ -125,6 +195,25 @@ function buildRows(rows, readOnly) {
   return html;
 }
 
+
+// Every place that fills the lineup table goes through here: it renders the
+// rows, applies the taken/free split to the position dropdowns, and makes
+// sure the change hook is attached. Six call sites used to set innerHTML
+// directly, which is six chances to forget one of those steps.
+function renderLineupBody(rows, readOnly) {
+  var body = document.getElementById('lineupBody');
+  if (!body) return;
+  body.innerHTML = buildRows(rows, readOnly);
+  if (!body._posHookBound) {
+    body._posHookBound = true;
+    body.addEventListener('change', function(e) {
+      var t = e.target;
+      if (t && t.tagName === 'SELECT' && t.classList.contains('lineup-sel')) onPositionChange(t);
+    });
+  }
+  refreshPosSelects();
+}
+
 // ── Reorder ────────────────────────────────────────────────────────────
 function toggleReorder() {
   isReorderMode = !isReorderMode;
@@ -135,7 +224,7 @@ function toggleReorder() {
     btn.classList.toggle('lineup-tool-btn--done',    isReorderMode);
   }
   var rows = getCurrentRows();
-  document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+  renderLineupBody(rows, isReadOnly);
   if (isReorderMode) initLineupDrag();
 }
 
@@ -216,7 +305,7 @@ function lineupDragStart(srcRow, e) {
       var insertAt = lastInsertBeforeIdx;
       if (srcIdx < insertAt) insertAt--;
       rows.splice(insertAt, 0, moved);
-      document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+      renderLineupBody(rows, isReadOnly);
       initLineupDrag();
     }
   }
@@ -292,7 +381,7 @@ function confirmImport() {
   var doImport = function() {
     var rows = (_importData[sid].rows || []).slice();
     lineupRowCount = Math.max(lineupConfig().rows, rows.length);
-    document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+    renderLineupBody(rows, isReadOnly);
     updateSubButtons();
     document.getElementById('lineupImportOverlay').hidden = true;
     showStatus('Lineup imported — save to confirm');
@@ -325,7 +414,7 @@ function addSubRow() {
   var rows = getCurrentRows();
   lineupRowCount++;
   rows.push({ jersey: '', name: '', position: 'Sub', extra: '' });
-  document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+  renderLineupBody(rows, isReadOnly);
   updateSubButtons();
 }
 
@@ -334,7 +423,7 @@ function deleteSubRow() {
   var rows = getCurrentRows();
   lineupRowCount--;
   rows.pop();
-  document.getElementById('lineupBody').innerHTML = buildRows(rows, isReadOnly);
+  renderLineupBody(rows, isReadOnly);
   updateSubButtons();
 }
 
@@ -468,20 +557,43 @@ async function loadLineupForGame(slotId, teamName, readOnly, readOnlyReason) {
     var data = r.ok ? await r.json() : { rows: [] };
     var rows = data.rows || [];
     lineupRowCount = Math.max(lineupConfig().rows, rows.length);
-    document.getElementById('lineupBody').innerHTML = buildRows(rows, readOnly);
+    renderLineupBody(rows, readOnly);
   } catch(e) {
     lineupRowCount = lineupConfig().rows;
-    document.getElementById('lineupBody').innerHTML = buildRows([], readOnly);
+    renderLineupBody([], readOnly);
   }
   updateSubButtons(readOnly);
 }
 
 
+// When the TD has switched on lineupRequireNumbers, every named player needs
+// a number before the lineup will go in. Checked here so the coach gets the
+// row numbers back rather than a bare rejection; the server enforces the same
+// rule, since a client-side check is a courtesy, not a control.
+function missingNumberRows(rows) {
+  var cfg = lineupConfig();
+  var hasNum = cfg.cols.some(function(c) { return c.kind === 'num'; });
+  if (!hasNum) return [];
+  var out = [];
+  (rows || []).forEach(function(r, i) {
+    if (String(r.name || '').trim() && !String(r.jersey || '').trim()) out.push(i + 1);
+  });
+  return out;
+}
+
 async function submitLineup() {
   if (!viewedTeamName || !currentSlotId || isReadOnly) return;
   var btn = document.getElementById('lineupSubmitBtn');
-  btn.disabled = true;
   var rows = getCurrentRows();
+  if (!isAdmin && getSetting('lineupRequireNumbers') === 'true') {
+    var missing = missingNumberRows(rows);
+    if (missing.length) {
+      showStatus('✗ Player number required — check row' + (missing.length > 1 ? 's ' : ' ')
+        + missing.join(', '), true);
+      return;
+    }
+  }
+  btn.disabled = true;
   try {
     var r = await fetch(
       lineupApiBase() + '/lineups/game/' + encodeURIComponent(currentSlotId) + '/' + encodeURIComponent(viewedTeamName),

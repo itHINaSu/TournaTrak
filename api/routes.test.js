@@ -93,13 +93,17 @@ after(async () => {
 function agent() {
   const jar = {};
   return {
-    async req(method, url, body) {
+    // `opts.manual` stops fetch following redirects. Needed for the magic
+    // link routes: they set the session cookie ON the 302, and following it
+    // would hand back the destination's headers with the cookie already gone.
+    async req(method, url, body, opts) {
       const headers = {};
       const cookie = Object.entries(jar).map(([k, v]) => k + '=' + v).join('; ');
       if (cookie) headers.cookie = cookie;
       if (body !== undefined) headers['content-type'] = 'application/json';
       const res = await fetch(base + url, {
         method, headers,
+        redirect: (opts && opts.manual) ? 'manual' : 'follow',
         body: body === undefined ? undefined : JSON.stringify(body),
       });
       for (const sc of res.headers.getSetCookie?.() || []) {
@@ -614,5 +618,70 @@ describe('public read surface', () => {
     assert.ok(pub.logo, 'header logo is public');
     assert.ok(!('icon' in pub), 'baked app icon is editor-only');
     assert.ok(!('iconSrc' in pub), 'baking source is editor-only');
+  });
+});
+
+// ── Lineups ───────────────────────────────────────────────────────────
+// A coach account is the only role whose access is scoped to specific teams,
+// so it is where the interesting failures live.
+describe('lineup access and rules', () => {
+  // Creates a coach for `team` and returns an agent logged in as them.
+  async function coachFor(a, username, team) {
+    const r = await a.post('/api/users', { username, role: 'team', teamName: team });
+    assert.ok(r.status === 200 || r.status === 409, 'coach created: ' + JSON.stringify(r.json));
+    const token = r.json && r.json.accessToken;
+    assert.ok(token, 'coach creation returns an access token');
+    const c = agent();
+    const hit = await c.req('GET', '/api/team-access/' + token, undefined, { manual: true });
+    assert.equal(hit.status, 302, 'magic link redirects into the lineup page');
+    const who = await c.get('/api/session');
+    assert.equal(who.json.authenticated, true, 'magic link signed the coach in');
+    assert.equal(who.json.role, 'team');
+    return c;
+  }
+
+  rtest('a coach cannot read another team\'s lineup', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.del('/api/results/R1.L.1');
+    const c = await coachFor(a, 'coach-alpha', 'Alpha');
+
+    const own = await c.get('/api/lineups/game/R1.L.1/Alpha');
+    assert.equal(own.status, 200, 'own team readable');
+
+    const other = await c.get('/api/lineups/game/R1.L.1/Beta');
+    assert.equal(other.status, 403, "another team's lineup must not be readable");
+  });
+
+  rtest('requiring player numbers blocks a coach, never an admin', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    // Earlier tests finalise R1.L.1, and a coach is locked out of a completed
+    // game — clear it so this test is exercising the number rule, not that.
+    await a.del('/api/results/R1.L.1');
+    await a.post('/api/settings', { lineupRequireNumbers: 'true' });
+    const c = await coachFor(a, 'coach-numbers', 'Alpha');
+
+    const named = { rows: [{ jersey: '', name: 'Jordan', position: 'SS' }] };
+    const bad = await c.post('/api/lineups/game/R1.L.1/Alpha', named);
+    assert.equal(bad.status, 400, 'a named player with no number is rejected');
+    assert.match(bad.json.error, /number required/i);
+
+    const good = await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '7', name: 'Jordan', position: 'SS' }] });
+    assert.equal(good.status, 200, 'with a number it saves');
+
+    // A blank row is not a player, so it must not trip the rule.
+    const blanks = await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '7', name: 'Jordan' }, { jersey: '', name: '' }] });
+    assert.equal(blanks.status, 200, 'empty rows are ignored by the rule');
+
+    // The TD is filling in what a coach phoned through — never blocked.
+    const asAdmin = await a.post('/api/lineups/game/R1.L.1/Alpha', named);
+    assert.equal(asAdmin.status, 200, 'admin is exempt');
+
+    await a.post('/api/settings', { lineupRequireNumbers: 'false' });
+    const off = await c.post('/api/lineups/game/R1.L.1/Alpha', named);
+    assert.equal(off.status, 200, 'rule off: no number needed');
   });
 });

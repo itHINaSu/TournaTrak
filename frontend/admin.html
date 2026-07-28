@@ -590,6 +590,14 @@
                 </select>
                 <div class="field-hint">Controls the columns coaches see on the lineup page and the default roster size.</div>
               </div>
+              <div class="settings-field">
+                <label>Require player numbers</label>
+                <select class="styled" id="set-lineupRequireNumbers">
+                  <option value="false">No — numbers are optional</option>
+                  <option value="true">Yes — a coach can't submit without them</option>
+                </select>
+                <div class="field-hint">Every player with a name must also have a number before the lineup will save. Applies to coaches; an admin editing a lineup here is never blocked.</div>
+              </div>
               <div class="settings-field" id="lineupCustomColsField" hidden>
                 <label>Custom Columns <span class="field-label-hint">(comma-separated, up to 4)</span></label>
                 <input type="text" id="set-lineupCustomCols" placeholder="e.g. #, Player, Belt Rank">

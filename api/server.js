@@ -311,7 +311,6 @@ function requireRole(...roles) {
 const requireAdmin        = requireRole('admin');
 const requireResults      = requireRole('admin', 'results');
 const requireBucketsEdit  = requireRole('admin', 'results', 'buckets');
-const requireLineupRead   = requireRole('admin', 'results', 'team');
 
 function requireSuperadmin(req, res, next) {
   if (!req.user)                   return res.status(401).json({ error: 'Authentication required' });
@@ -1555,8 +1554,10 @@ api.get('/lineups/game/:slotId', requireResults, ah(async (req, res) => {
   res.json(lineups[slotId] || {});
 }));
 
-// Lineup for a specific team in a specific game — team users can view any team (read-only from their POV)
-api.get('/lineups/game/:slotId/:teamName', requireLineupRead, ah(async (req, res) => {
+// Lineup for a specific team in a specific game. A coach sees their OWN
+// team's only: this used to let any team user read every other team's lineup,
+// which is a competitor's batting order handed to them for free.
+api.get('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   const { slotId, teamName } = req.params;
   if (!isValidSlotId(slotId)) return res.status(400).json({ error: 'invalid slot ID' });
@@ -1579,6 +1580,21 @@ api.post('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, 
   const { rows } = req.body || {};
   if (!Array.isArray(rows)) return res.status(400).json({ error: 'rows must be an array' });
   if (rows.length > 20) return res.status(400).json({ error: 'Maximum 20 rows' });
+  // lineupRequireNumbers: a named player must carry a number. Enforced here
+  // as well as in the page, because the page check is a courtesy to the coach
+  // and this one is the actual rule. Admins editing on a team's behalf are
+  // exempt — they are often filling in what a coach phoned through.
+  if (roleFor(req) === 'team') {
+    const settings = await store.get(req.tid, 'settings');
+    if (settings.lineupRequireNumbers === 'true') {
+      const bad = rows
+        .map((r, i) => (String(r.name || '').trim() && !String(r.jersey || '').trim()) ? i + 1 : 0)
+        .filter(Boolean);
+      if (bad.length) {
+        return res.status(400).json({ error: 'Player number required — check row' + (bad.length > 1 ? 's ' : ' ') + bad.join(', ') });
+      }
+    }
+  }
   const clean = rows.slice(0, 20).map(r => ({
     jersey:   String(r.jersey   || '').slice(0, 8),
     name:     String(r.name     || '').slice(0, 64),

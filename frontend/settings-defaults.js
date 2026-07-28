@@ -29,6 +29,10 @@ const SETTINGS_DEFAULTS = {
   dayFormat:        'long',
   lineupPreset:     'softball',
   lineupCustomCols: '',
+  // 'true' makes the number column mandatory for every named player before a
+  // coach can submit. Umpires and scorekeepers need jersey numbers to call a
+  // game, and a lineup missing them is a phone call the TD has to make.
+  lineupRequireNumbers: 'false',
   defaultTab:           'bracket',
   defaultTabScope:      'both',
   defaultScheduleGroup: 'day',
