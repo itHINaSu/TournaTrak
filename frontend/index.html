@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.31">
-<link rel="stylesheet" href="/bracket.css?v=3.31">
-<script src="/app-h.js?v=3.31"></script>
+<link rel="stylesheet" href="/base.css?v=3.32">
+<link rel="stylesheet" href="/bracket.css?v=3.32">
+<script src="/app-h.js?v=3.32"></script>
 </head>
 <body>
 
@@ -109,6 +109,13 @@
         <label class="share-opt"><input type="radio" name="shareTheme" value="dark" checked data-action-change="refreshShareImage"> Dark</label>
         <label class="share-opt"><input type="radio" name="shareTheme" value="light" data-action-change="refreshShareImage"> Light</label>
         <label class="share-opt"><input type="radio" name="shareTheme" value="print" data-action-change="refreshShareImage"> Print <span class="share-opt-note">(white, minimal ink)</span></label>
+      </div>
+      <!-- Only shown for tiered tournaments (updateShareScopeRow) — with a
+           single bracket there is nothing to combine. -->
+      <div class="share-opts share-scope" id="shareScopeRow" hidden>
+        <label class="share-opt"><input type="radio" name="shareScope" value="current" checked data-action-change="refreshShareImage"> This bracket</label>
+        <label class="share-opt"><input type="radio" name="shareScope" value="all-one" data-action-change="refreshShareImage"> All brackets <span class="share-opt-note">(one image)</span></label>
+        <label class="share-opt"><input type="radio" name="shareScope" value="all-separate" data-action-change="refreshShareImage"> All brackets <span class="share-opt-note">(separate files)</span></label>
       </div>
       <div class="share-preview-wrap"><img id="sharePreview" class="share-preview" alt="Bracket image preview"></div>
       <div class="share-actions">
@@ -212,10 +219,10 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.31"></script>
-<script src="/tt-common.js?v=3.31"></script>
-<script src="/bracket-data.js?v=3.31"></script>
-<script src="/bracket.js?v=3.31"></script>
-<script src="/sw-register.js?v=3.31" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.32"></script>
+<script src="/tt-common.js?v=3.32"></script>
+<script src="/bracket-data.js?v=3.32"></script>
+<script src="/bracket.js?v=3.32"></script>
+<script src="/sw-register.js?v=3.32" data-sw="/sw.js"></script>
 </body>
 </html>

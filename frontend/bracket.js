@@ -2376,9 +2376,12 @@ function withRenderFrame(opts, cb) {
       if (bt) bt.classList.add('active');
       doc.body.classList.toggle('light', opts.theme !== 'dark');
       doc.body.classList.toggle('print-palette', opts.theme === 'print');
-      win._bracketFlight = _bracketFlight;
       if (!opts.withResults) win.results = {};
+      // Path picks never reach an exported image either — the whole point of
+      // scoping them was that nobody screenshots a stranger's hypotheticals.
       win._projected = {};
+      win._pathProjected = {};
+      win._bracketFlight = opts.flight || _bracketFlight;
       try { win.renderBracketInner(); } catch (e) { /* fall through to paint whatever rendered */ }
       // One more frame so fonts/layout settle before measuring.
       setTimeout(function() { finish(win, doc); }, 120);
@@ -2424,8 +2427,9 @@ function paintBracketCanvas(win, doc, opts) {
   // say which tournament it is on its own.
   var name = (getSetting('tournamentName') || '').trim();
   var sub = (getSetting('subtitle') || '').trim();
-  var flight = _bracketFlight === 'A' ? bracketDisplayName('A')
-             : _bracketFlight === 'B' ? bracketDisplayName('B') : '';
+  var fl = opts.flight || _bracketFlight;
+  var flight = fl === 'A' ? bracketDisplayName('A')
+             : fl === 'B' ? bracketDisplayName('B') : '';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
   if (name) {
@@ -2451,13 +2455,42 @@ function paintBracketCanvas(win, doc, opts) {
 function shareOpts() {
   var res = document.getElementById('shareResults');
   var sel = document.querySelector('input[name="shareTheme"]:checked');
-  return { withResults: !res || res.checked, theme: (sel && sel.value) || 'dark' };
+  var sc  = document.querySelector('input[name="shareScope"]:checked');
+  return {
+    withResults: !res || res.checked,
+    theme: (sel && sel.value) || 'dark',
+    scope: (sc && sc.value) || 'current',
+  };
+}
+
+// Which flights this tournament actually has, in display order. 'open' is
+// always present; A/B only when they hold games.
+function shareFlights() {
+  var out = ['open'];
+  ['A', 'B'].forEach(function(t) {
+    if (Object.keys(GAMES).some(function(g) { return GAMES[g].tier === t; })) out.push(t);
+  });
+  return out;
+}
+
+// The scope row is meaningless on a single-bracket tournament — hide it, and
+// make sure a stale 'all-*' choice can't survive into one.
+function updateShareScopeRow() {
+  var row = document.getElementById('shareScopeRow');
+  if (!row) return;
+  var many = shareFlights().length > 1;
+  row.hidden = !many;
+  if (!many) {
+    var cur = document.querySelector('input[name="shareScope"][value="current"]');
+    if (cur) cur.checked = true;
+  }
 }
 
 function openShareImage() {
   var ov = document.getElementById('shareOverlay');
   if (!ov) return;
   ov.hidden = false;
+  updateShareScopeRow();
   refreshShareImage();
 }
 
@@ -2466,6 +2499,61 @@ function closeShareImage() {
   if (ov) ov.hidden = true;
 }
 
+// Render every flight the scope asks for, reusing ONE frame \u2014 booting the app
+// per bracket would triple the wait for no benefit. Returns [{flight, canvas}]
+// in display order.
+function paintFlights(win, doc, opts, flights) {
+  var out = [];
+  flights.forEach(function(fl) {
+    win._bracketFlight = fl;
+    try { win.renderBracketInner(); } catch (e) { return; }
+    // Card positions ship as data-css (style-src has no 'unsafe-inline'), and
+    // the MutationObserver that transfers them to CSSOM runs as a microtask —
+    // AFTER this synchronous function returns. Painting straight away
+    // measured every card at top:0, so a column's cards stacked on each other
+    // and only the last one drawn was visible. Apply them by hand instead of
+    // sleeping and hoping.
+    try { win.ttApplyDataCss(doc.body); } catch (e) { /* older frame */ }
+    var c = paintBracketCanvas(win, doc, Object.assign({}, opts, { flight: fl }));
+    if (c) out.push({ flight: fl, canvas: c });
+  });
+  return out;
+}
+
+// Stack per-bracket canvases into one sheet. Each already carries its own
+// title band naming the bracket, so they stay labelled; this only has to
+// centre them on a common width and lay a divider between.
+function stackCanvases(shots, opts) {
+  if (shots.length === 1) return shots[0].canvas;
+  var GAP = 44;
+  var W = Math.max.apply(null, shots.map(function(s) { return s.canvas.width; }));
+  var H = shots.reduce(function(n, s) { return n + s.canvas.height; }, 0) + GAP * (shots.length - 1);
+  var out = document.createElement('canvas');
+  out.width = W; out.height = H;
+  var ctx = out.getContext('2d');
+  ctx.fillStyle = opts.theme === 'print' ? '#ffffff'
+    : getComputedStyle(document.body).backgroundColor || '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  var y = 0;
+  shots.forEach(function(s, i) {
+    ctx.drawImage(s.canvas, Math.round((W - s.canvas.width) / 2), y);
+    y += s.canvas.height;
+    if (i < shots.length - 1) {
+      ctx.strokeStyle = opts.theme === 'print' ? '#cccccc'
+        : (getComputedStyle(document.documentElement).getPropertyValue('--border') || '#888').trim();
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(W * 0.08, y + GAP / 2);
+      ctx.lineTo(W * 0.92, y + GAP / 2);
+      ctx.stroke();
+      y += GAP;
+    }
+  });
+  return out;
+}
+
+var _shareShots = [];   // last rendered set, reused by download
+
 function refreshShareImage() {
   var img = document.getElementById('sharePreview');
   var hint = document.getElementById('shareHint');
@@ -2473,14 +2561,23 @@ function refreshShareImage() {
   _shareBusy = true;
   if (hint) hint.textContent = 'Rendering\u2026';
   var opts = shareOpts();
+  var flights = opts.scope === 'current' ? [_bracketFlight] : shareFlights();
   withRenderFrame(opts, function(win, doc, cleanup) {
     try {
-      var canvas = paintBracketCanvas(win, doc, opts);
-      if (!canvas) { if (hint) hint.textContent = 'Nothing to render yet.'; return; }
-      img.src = canvas.toDataURL('image/png');
-      img.dataset.w = canvas.width;
-      img.dataset.h = canvas.height;
-      if (hint) hint.textContent = canvas.width + ' \u00d7 ' + canvas.height + ' PNG';
+      var shots = paintFlights(win, doc, opts, flights);
+      if (!shots.length) { if (hint) hint.textContent = 'Nothing to render yet.'; return; }
+      _shareShots = shots;
+      // 'all-separate' produces one file per bracket, so the preview shows the
+      // first and says how many will download \u2014 stacking them here would
+      // misrepresent what the button does.
+      var preview = opts.scope === 'all-separate' ? shots[0].canvas : stackCanvases(shots, opts);
+      img.src = preview.toDataURL('image/png');
+      if (hint) {
+        hint.textContent = opts.scope === 'all-separate'
+          ? shots.length + ' images \u00b7 showing ' + shareFlightName(shots[0].flight)
+            + ' \u00b7 ' + preview.width + ' \u00d7 ' + preview.height
+          : preview.width + ' \u00d7 ' + preview.height + ' PNG';
+      }
     } catch (e) {
       if (hint) hint.textContent = 'Could not build the image.';
     } finally {
@@ -2490,18 +2587,41 @@ function refreshShareImage() {
   });
 }
 
-function downloadShareImage() {
-  var img = document.getElementById('sharePreview');
-  if (!img || !img.src) return;
-  var name = ((getSetting('tournamentName') || 'bracket')
+function shareFlightName(fl) {
+  return fl === 'A' || fl === 'B' ? bracketDisplayName(fl) : 'Open';
+}
+
+function shareFileBase() {
+  return ((getSetting('tournamentName') || 'bracket')
     .replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'bracket');
-  if (_bracketFlight === 'A' || _bracketFlight === 'B') name += '-' + _bracketFlight.toLowerCase() + '-bracket';
+}
+
+function saveCanvas(canvas, filename) {
   var a = document.createElement('a');
-  a.href = img.src;
-  a.download = name + '.png';
+  a.href = canvas.toDataURL('image/png');
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
+}
+
+function downloadShareImage() {
+  if (!_shareShots.length) return;
+  var opts = shareOpts();
+  var base = shareFileBase();
+  if (opts.scope === 'all-separate') {
+    // Browsers throttle rapid programmatic downloads, so space them out.
+    _shareShots.forEach(function(s, i) {
+      setTimeout(function() {
+        saveCanvas(s.canvas, base + '-' + (s.flight === 'open' ? 'open' : s.flight.toLowerCase() + '-bracket') + '.png');
+      }, i * 350);
+    });
+  } else {
+    var one = stackCanvases(_shareShots, opts);
+    var suffix = opts.scope === 'all-one' ? '-all-brackets'
+      : (_bracketFlight === 'A' || _bracketFlight === 'B') ? '-' + _bracketFlight.toLowerCase() + '-bracket' : '';
+    saveCanvas(one, base + suffix + '.png');
+  }
   closeShareImage();
 }
 

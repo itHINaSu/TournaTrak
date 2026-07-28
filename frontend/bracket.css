@@ -2609,4 +2609,7 @@ body.bc-drag-active .bc-drop-row.bc-drop-target { opacity: 1; }
   pointer-events: none;
 }
 .share-themes { gap: 1.1em; }
+/* Two of the three scope labels start with "All brackets", so they need room
+   to sit on their own lines rather than wrapping mid-label. */
+.share-scope { gap: 0.9em 1.1em; flex-wrap: wrap; }
 .share-opt-note { color: var(--text-mute); }
