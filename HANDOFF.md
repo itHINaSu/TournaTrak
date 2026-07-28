@@ -110,8 +110,21 @@ cleanup), item 11 (mobile round-combining — needs the desired behaviour
 confirmed before building), and item 10 (sales-site demo URL + contact
 email, placeholders only the owner can fill). Nothing is known-broken.
 
-**Shipped 2026-07-28 (this session)** — on
-`claude/bracket-generation-missing-lines-tbbhro`:
+**Shipped 2026-07-28 (this session)** — developed on
+`claude/bracket-generation-missing-lines-tbbhro`, now REBASED ONTO AND
+MERGED INTO `main` (main is at `11fd7ed`, a clean fast-forward). See
+"Rebasing onto a main that moved" below before starting more work — the
+branch and main were both live at once this day and the graph shows it.
+- ✅ **The exported image excludes the flight switcher.** A regression from
+  the pill move directly below: the pills now live inside `#bracketRoot`,
+  which is exactly what the image export paints, so a row of BUTTONS turned
+  up in the shared PNG. `paintBracketCanvas` hides `#bracketFlights` BEFORE
+  it measures `content.getBoundingClientRect()` — hiding it after measuring
+  would leave a blank band where the row used to be — and restores the
+  previous `style.display` on both exit paths. The title band already names
+  the flight, so nothing is lost. Export height 2206 → 2155.
+  **If you ever add another control inside the bracket shell, it will land in
+  the export too. Hide it in the same place.**
 - ✅ **Open/A/B pills moved inside the bracket.** They used to sit in
   `#view-bracket` above `#bracketRoot`, so they were centred on the PAGE while
   the bracket is centred on its own (often much wider, horizontally scrolled)
@@ -154,6 +167,14 @@ email, placeholders only the owner can fill). Nothing is known-broken.
   `.round-col` columns with `connLines()` in the gaps. A game with one
   in-flight feeder (an A game taking one team from an Open drop) hangs a
   quarter-gap below it, the same rule the losers bracket uses.
+  **Not a bug: no connector lines run INTO the flight's championship panel.**
+  The main bracket's side-by-side layout doesn't draw them either — the
+  trophy panel is a separate block outside `.bcc-rowflex`, with no gap div to
+  hold an SVG. That's the house style, and the flight matches it. The ONLY
+  place those lines exist is the stacked layout's `finalConns`, added
+  deliberately because the owner asked for the WB-final and LB-final to
+  visibly converge on the title game. Checked 2026-07-28 — don't "fix" the
+  flights to match the stacked layout without being asked.
 - ✅ **Championship moved into the winners row**, with the LOSERS FINAL
   stood beside the winners final as its own dashed card (`.bc--dup`, captioned
   with the losers-side label) rather than folded inside the championship
@@ -821,6 +842,54 @@ Things that cost time this session, written down so they don't again.
   `scrollIntoViewIfNeeded()`. `ttConfirm` is an in-app dialog
   (`.tt-dialog-btn--primary`), not `window.confirm`, so `page.on('dialog')`
   never fires.
+- **`api/server.js` DOES NOT SERVE THE FRONTEND.** There is no
+  `express.static` — nginx does that in production. Point a browser straight
+  at the API port and every `.css`/`.js` 404s, the SPA shell is returned with
+  `text/html` for each, Chrome refuses them on MIME grounds and you get a
+  blank `#bracketRoot` with no page errors at all. It reads exactly like "the
+  renderer is broken after my change". For local browser testing run a static
+  proxy in front (serve `frontend/`, forward `/api` to :3000) and drive THAT
+  port. Confirm with `curl -o /dev/null -w '%{http_code}' <port>/base.css`
+  before you debug anything visual — 404 means you're on the wrong port.
+- **The `node --test` DB suites SKIP silently when Postgres has no usable
+  role**, reporting e.g. `35 skipped` and still exiting 0. `pg` derives the
+  user from `PGUSER` or the OS username, and a container running as `root`
+  with no `root` role gets "no PostgreSQL user name specified in startup
+  packet". Green with a big skip count is NOT a passing run. Create the role
+  once (`su postgres -c "psql -c 'CREATE ROLE root SUPERUSER LOGIN'"` plus a
+  matching database) and run with `PGUSER=root PGHOST=/var/run/postgresql`.
+  Full run is **61 tests, 0 skipped**.
+- **`window.GAMES` is undefined even though `GAMES` exists.** Top-level
+  `const` does not become a property of `window`, which is why the export
+  iframe needs the explicit `window.__ttReady = true` flag at the end of
+  `fetchAll()` to know the frame has data. Don't "simplify" that away.
+
+## Rebasing onto a main that moved (2026-07-28)
+Two sessions worked this repo the same day and the graph is worth reading
+before the next one starts.
+
+- A parallel session branched from `c796dae` and independently redid the
+  ISSA round mapping (`92fe8e1`) and a stacked desktop layout (`ef60ac4`),
+  then merged this branch in at `1f66873` — resolving `bracket.js` and
+  `bracket.css` ENTIRELY in favour of this branch, so its own 122-line
+  stacking implementation left nothing behind. That is why the later rebase
+  applied with zero conflicts: there was no surviving duplicate to collide
+  with. **A conflict-free rebase here was a consequence of that resolution,
+  not evidence the two lines of work were compatible.** Verify semantics
+  anyway.
+- `git rebase origin/main` replayed the six remaining commits cleanly. What
+  it CANNOT tell you is whether they still work against main's new `SF4`
+  round — a rebase checks text, not behaviour. The real check was: rebuild
+  the ISSA JSON, re-import it, and re-render. Both halves still composed
+  correctly (12 columns, 44 cards, 97 connector lines, no in-column overlap,
+  losers side now Rounds 2–8) and the image export still painted the whole
+  stacked tree.
+- **Before any risky rebase, `git tag prerebase-backup <tip>`** so the old
+  tip survives independently of the reflog; delete it once the result is
+  verified and pushed.
+- Pushing to `main` was explicitly authorised by the owner that day. The
+  standing rule in "Branch rule" above still holds: develop on the named
+  branch and never push elsewhere without being told to, per session.
 
 ## Conventions / gotchas
 - `upcoming` cards use dashed border only — do NOT add `opacity`.
@@ -1044,24 +1113,39 @@ Static HTML/CSS/JS marketing site — separate nginx:alpine container, port 8081
 See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `index.html`.
 
 ## Current state
-`main` at `ef3c5e5` (2026-07-15) holds everything below plus the
-2026-07-15 shipped list at the top. The 2026-07-28 work is on
-`claude/bracket-generation-missing-lines-tbbhro`, not yet merged.
-SW cache version lives in `frontend/sw.js` — read it there, and keep the
-`?v=` stamps on the admin pages' asset URLs in step with it. Phase 0
-evaluation is in `EVALUATION.md`.
+`main` at `11fd7ed` (2026-07-28) holds everything below plus BOTH
+2026-07-28 shipped lists at the top — the `SF4` losers-round fix and this
+branch's work, rebased on top of it. The branch
+`claude/bracket-generation-missing-lines-tbbhro` points at the same commit;
+there is nothing unmerged.
+SW cache version lives in `frontend/sw.js` (currently `tournatrak-v3.20`) —
+read it there, and keep the `?v=` stamps in step with it on ALL FIVE HTML
+files, not just the admin pages. Phase 0 evaluation is in `EVALUATION.md`.
 
 ## Tests
-`cd api && node --test` — 60 tests, no arguments, no fixtures to set up.
+`node --test` from the repo root — **61 tests**, no arguments, no fixtures
+to set up.
 - `schedule-formats.test.js` — generators, simulated to completion under
   random result sequences at every format × count. Includes full Swiss
-  events (round-by-round pairing) for every field 4–32.
+  events (round-by-round pairing) for every field 4–32, and (added with
+  `SF4`) an assertion that every format at every field size draws its feeds
+  left to right.
 - `routes.test.js` — the HTTP layer over a REAL server. Creates and drops
   its own scratch database, so it never touches dev data; SKIPS (doesn't
   fail) when Postgres isn't reachable or the role can't CREATE DATABASE.
   Needs PG* env vars pointing at a cluster to actually run.
 - `standings.test.js` — the documented tiebreak order.
-Run the suite after ANY generator, route, or standings change.
+
+**Check the skip count, not just the exit code.** Without a usable Postgres
+role the run reports `35 skipped` and still exits 0 — that is 26 real tests,
+not 61, and it hides every route regression. A genuine full run says
+`0 skipped`; see the Postgres-role note in "Session notes / traps" for how
+to get one. Run the suite after ANY generator, route, or standings change.
+
+Also run `node scripts/build-issa-state-2026.js` after touching
+`ROUND_ORDER`, `SLOT_DEFS`, or the generators — it re-derives the ISSA
+transcription and fails the build on a game fed from a later round column
+or a same-round same-side feed. It should print "all checks clean".
 
 Deployed by the owner via Docker Compose on their own box (`~/TournaTrak_dev`,
 nginx on host port 3019). A second isolated instance is just another clone
