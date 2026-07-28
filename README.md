@@ -318,40 +318,7 @@ named volumes on purpose**: `docker compose down -v` deletes named volumes,
 and that is the first thing most people try when a stack misbehaves. Here it
 is harmless — there are no named volumes left to remove.
 
-#### Backups
-
-A `backup` service dumps the database into `./backups` every 6 hours and keeps
-the most recent 14 — no cron, no setup, it just runs with the stack. Tune it
-in `.env`:
-
-```
-TT_BACKUP_INTERVAL=1800     # seconds between dumps; 30 min for a tournament weekend
-TT_BACKUP_KEEP=14           # how many to keep
-```
-
-These are logical `pg_dump`s, not file copies: they're consistent while the
-database is running, restore into any Postgres, and survive a major-version
-upgrade. Tournament branding is included — logos and icons are rows, not
-files. Sessions are excluded (they're cookie-bound and useless after a
-restore).
-
-To restore:
-
-```bash
-./scripts/db-restore.sh              # list what's available
-./scripts/db-restore.sh latest       # newest dump
-```
-
-It asks for confirmation, and dumps the CURRENT database to
-`backups/pre-restore-*.sql.gz` before overwriting it — so restoring the wrong
-file is recoverable too.
-
-`./backups` is gitignored: the dumps contain bcrypt password hashes and hashed
-team tokens, so they must never be committed.
-
-To take a copy off the machine entirely, `./pgdata` can also be copied
-wholesale with the stack stopped (bring `./secrets` with it — the password
-Postgres was initialised with lives there).
+Backing up and restoring is its own section below.
 
 Upgrading a machine that ran an older version, whose data is still in named
 volumes: `docker compose down` (**not** `-v`), then
@@ -382,6 +349,99 @@ The demo shares one dataset (v2 is single-tenant), so simultaneous visitors see
 each other's edits until the next reset. Per-visitor isolation is a v3 concern.
 To change the demo's starting state, edit the files in `demo-seed/` (e.g.
 regenerate `schedule.json` via the Bracket Builder or `generate-schedule.js`).
+
+---
+
+## Backup and restore
+
+### Automatic
+
+A `backup` service runs with the stack and dumps the database into
+`./backups` — no cron, no host setup. It writes every 6 hours and keeps the
+most recent 14; both are settable in `.env`:
+
+```
+TT_BACKUP_INTERVAL=1800     # seconds between dumps (default 21600 = 6h)
+TT_BACKUP_KEEP=14           # how many to keep (14 x 6h is about 3.5 days)
+```
+
+During a tournament weekend, 1800 (30 minutes) is closer to the point than
+the default. Check it is running with:
+
+```bash
+docker compose logs backup      # "backup: wrote tournatrak-<timestamp>.sql.gz"
+ls -lt backups/ | head
+```
+
+### Taking one right now
+
+Before a risky change, or at the end of a tournament day:
+
+```bash
+docker compose exec -T postgres pg_dump -U tournatrak --clean --if-exists \
+  --exclude-table-data=sessions tournatrak \
+  | gzip -9 > "backups/tournatrak-$(date -u +%Y%m%d-%H%M%SZ).sql.gz"
+```
+
+It lands in the same directory with the same naming, so the restore script
+picks it up like any other.
+
+### Restoring
+
+```bash
+./scripts/db-restore.sh              # list what's available
+./scripts/db-restore.sh latest       # newest dump
+./scripts/db-restore.sh backups/tournatrak-20260728-060000Z.sql.gz
+```
+
+It asks for confirmation, then dumps the CURRENT database to
+`backups/pre-restore-*.sql.gz` before overwriting it — so restoring the wrong
+file is recoverable too — and restarts the API afterwards, since it caches
+each domain in memory.
+
+The stack must be up (`docker compose up -d`); the script restores into the
+running Postgres rather than replacing files underneath it.
+
+### Moving a tournament to another machine
+
+A dump is portable, so this is just a copy and a restore:
+
+```bash
+scp backups/tournatrak-20260728-060000Z.sql.gz newbox:~/TournaTrak/backups/
+# then on the new box, with the stack running:
+./scripts/db-restore.sh latest
+```
+
+User accounts travel with it — the dump includes `users` and their bcrypt
+hashes — so the same logins work on the new machine. Sessions do not, so
+everyone signs in again.
+
+### Getting copies off the box
+
+`./backups` sits on the same disk as `./pgdata`, so it covers deletion and
+corruption but not a drive failure. For that, copy the directory somewhere
+else on whatever schedule suits:
+
+```bash
+rsync -a backups/ someone@elsewhere:/srv/tournatrak-backups/
+```
+
+You can also copy `./pgdata` wholesale, but only with the stack **stopped** —
+a data directory copied out from under a running Postgres is not guaranteed
+to be consistent, which is exactly why the automatic backups are dumps rather
+than file copies. If you do take one, bring `./secrets` with it: the password
+Postgres was initialised with lives there, and the directory is unreadable
+without it.
+
+### What a dump contains
+
+Everything except sessions: tournaments, schedule, results, live scores,
+lineups, users and roles, and all settings. Tournament branding is included
+without any extra step — logos and icons are stored as rows, not files.
+
+That also means **a dump is sensitive**: it carries bcrypt password hashes and
+hashed team tokens. `./backups` is gitignored for that reason; treat the files
+the way you would the password file.
 
 ---
 

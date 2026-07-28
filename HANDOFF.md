@@ -1066,6 +1066,11 @@ What changed, so it cannot happen the same way again:
   **The dump-and-restore round trip was verified against a real Postgres**
   (61 schedule rows and 5 config rows out and back, tournament name intact),
   which is more than was ever true of the scripts it replaces.
+- Operator docs live in README "Backup and restore": automatic service, taking
+  one on demand, restoring, moving a tournament to another machine, getting
+  copies off the box, and what a dump contains. Keep them there rather than
+  in HANDOFF — that section is for whoever RUNS an instance, not whoever
+  works on the code.
 
 **A machine that ran the stack before this change still has its data in the
 old volumes and will come up EMPTY until it is migrated.** `docker compose
