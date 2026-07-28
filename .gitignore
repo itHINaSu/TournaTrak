@@ -15,7 +15,14 @@ demo-files/*
 !demo-files/.gitkeep
 
 # Docker and system noise
+# .env holds per-machine SCALARS (TT_PORT, PUID/PGID, secrets).
+# compose.override.yml holds per-machine STRUCTURE (an extra volume, a debug
+# port, a different image tag). Compose merges it automatically when present.
+# Between them there is no reason to edit the tracked compose.yml on a
+# deploy box — and not editing it is what keeps `git pull` from stopping.
 .env
+compose.override.yml
+docker-compose.override.yml
 *.log
 node_modules/
 
