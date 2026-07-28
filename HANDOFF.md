@@ -85,9 +85,17 @@ so a future bracket that runs out of losers columns fails the build instead
 of silently stacking two games in one column.
 
 Note: game 41 legitimately appears TWICE on the desktop stacked layout —
-once in its own column and once inside the championship cluster
-(`champ-lbfinal`, `frontend/bracket.js` ~2175). That duplication is
-deliberate and commented; it is not the column bug.
+once in its own column and once as a dashed `.bc--dup` card standing beside
+the winners final (see "Championship moved into the winners row"). That
+duplication is deliberate; it is not the column bug.
+
+Re-verified on `7c72887` after the parallel session rebased its six UI
+commits on top: full API suite 61/61, ISSA JSON rebuilds byte-identical,
+losers side still renders Rounds 2–8 one round per column with 37/38 → 40
+→ 41 wired, generated double-elim at 16 keeps its LB final alone in Round
+6, and the image export paints the whole tree (2277 × 2155). The two lines
+of work touched disjoint files — their commits never entered `api/`,
+`scripts/`, `bracket-data.js` or `settings-defaults.js`.
 
 Consolidated to-do list; each item points at the detailed section. Ordered
 roughly by priority / by what the owner has been driving.
