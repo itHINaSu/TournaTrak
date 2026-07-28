@@ -55,9 +55,37 @@ under different hashes. Check whether each apparent gap is a real gap
 deliberate behavioural reversal to the owner instead of silently picking a
 side.
 
-## Outstanding work (what's still needed) — updated 2026-07-15
+## Outstanding work (what's still needed) — updated 2026-07-28 (merge)
+
+**⬜ TOP ITEM — the losers bracket is one round short.** The last piece of
+the 2026-07-28 "missing lines / not enough rounds" report. A 22-team double
+elim needs SEVEN losers-side columns. The vocabulary
+(`ROUND_ORDER` = R0 R1 R2 QF QF2 SF SF3 SF2 CHAMP CHAMP2) offers R1..SF2 =
+seven, but the losers bracket cannot start at R1: its round-1 games are fed
+by winners ROUND 2 losers (the bye teams enter there), and the cross-side
+rule in `scripts/build-issa-state-2026.js` correctly rejects a game drawn
+to the left of its own feeder — no connector can be drawn. Starting at R2
+leaves only six columns, so ISSA games 40 and 41 share the last one with 41
+depending on 40. That's what reads as a missing round.
+FIX: add one round between SF3 and SF2 (say `SF4`) to `ROUND_ORDER` +
+`ROUND_LABELS` in `frontend/bracket-data.js`, and to `SLOT_DEFS` in BOTH
+`frontend/bracket-data.js` and `api/slot-defs.js` (they must stay in sync);
+give it `{ R:[1,2] }`. Then map ISSA 40 → `SF3.R.1`, 41 → `SF4.R.1`.
+Do NOT "fix" it by moving the losers bracket back to R1 — that was tried
+and the cross-side check rejects it for good reason.
+
 Consolidated to-do list; each item points at the detailed section. Ordered
 roughly by priority / by what the owner has been driving.
+
+**Two sessions merged here (2026-07-28).** `main` and
+`claude/bracket-generation-missing-lines-tbbhro` independently fixed the
+same two bugs. The branch's tree was taken wholesale because its build
+check compares feeder rounds ACROSS sides (main's only checked within a
+side and exempted winners→losers drops — wrong once both brackets read
+left-to-right), and it carried ~10 commits of work main lacked. See the
+merge commit for the full comparison. Lesson for next time: when two
+sessions touch the same area, diff the CHECKS as well as the fixes — the
+better check is worth more than the better patch.
 
 **If you're picking this up cold (updated 2026-07-28):** the build items on
 this list are DONE — health check, route tests, standings tiebreakers, CSV
