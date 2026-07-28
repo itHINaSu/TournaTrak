@@ -617,6 +617,11 @@ var CARD_RATIO=0.82, CARD_ASPECT=2.6;
 var MIN_ROW_PX = 26;                     // one team row inside a card
 var MIN_CARD_PX = MIN_ROW_PX * 3;        // header + two team rows
 var MIN_COL_PX = 150;                    // column width — names need the room
+// Ceiling on column width. Without it a bracket with few rounds on a wide
+// monitor inflates its cards to fill 97vw, which reads as a zoomed-in
+// fragment rather than a bracket. Roughly the density of a 16-team single
+// elim, which is the familiar reference.
+var MAX_COL_PX = 215;
 
 /// slotTopVh: positions a card within its round column.
 // n = max(actual game count, highest slot number used) so slots spread evenly
@@ -787,23 +792,26 @@ function getDims(){
 function stackedDims(nL, nR, availVh, isDesktop, isMobile) {
   var vwPx = window.innerWidth / 100, vhPx = window.innerHeight / 100;
   var across = Math.max(nL, nR, 1);
-  var champVw = 10;
+  // The championship column is wider than a round column here: stacked, it
+  // carries the whole finals story (both feeders plus the title block), and
+  // it is the thing a visitor looks for first.
+  var champVw = 14;
   // across columns + their gaps + the championship column, inside 97vw.
   var units = across + Math.max(across - 1, 0) * 0.15;
   var colVw = (97 - champVw) / units;
-  // With few rounds the columns grow past the championship's width; widen it
-  // to match, re-solving so the total still fits 97vw (champ = col + 1.6 of
-  // fixed padding, hence 95.4 / (units + 1)). Solving after the fact instead
-  // would push the championship off the right edge.
-  if (colVw > champVw - 1.6) { colVw = 95.4 / (units + 1); champVw = colVw + 1.6; }
-  // Below the readability floor the row scrolls sideways rather than shrink.
-  if (colVw * vwPx < MIN_COL_PX) { colVw = MIN_COL_PX / vwPx; champVw = Math.max(champVw, colVw + 1.6); }
+  // Below the readability floor the row scrolls sideways rather than shrink;
+  // above the ceiling it would inflate into a zoomed-in fragment.
+  if (colVw * vwPx < MIN_COL_PX) colVw = MIN_COL_PX / vwPx;
+  if (colVw * vwPx > MAX_COL_PX) colVw = MAX_COL_PX / vwPx;
+  champVw = Math.max(champVw, (colVw * vwPx * 1.35) / vwPx);
   var gapVw = colVw * 0.15;
   var cardVh = (colVw * vwPx / CARD_ASPECT) / vhPx;
   var gridH = gridHeight();
-  // Both rows plus the band between them have to fit the viewport before the
-  // card is allowed to shrink; below the pixel floor we scroll instead.
-  var maxCardVh = (availVh / (gridH * 2 + 1)) * CARD_RATIO;
+  // ONE screen per half — the point of stacking is that each bracket reads
+  // as its own sheet, so a row is sized to the viewport and you scroll once
+  // to reach the other. Only the pixel floor overrides, and only when the
+  // grid is too tall to fit legibly.
+  var maxCardVh = (availVh / gridH) * CARD_RATIO;
   if (cardVh > maxCardVh) cardVh = maxCardVh;
   var minCardVh = MIN_CARD_PX / vhPx;
   if (cardVh < minCardVh) cardVh = minCardVh;
@@ -1483,8 +1491,93 @@ function flightColumns(tier) {
 
 // Render a tier flight (A/B) as left-to-right round columns of bracket cards.
 // One layout for desktop and mobile — it scrolls horizontally when needed.
+// Sizing for a flight bracket. Same budget rules as the main tree: columns
+// share 97vw with the championship column, never below the readability
+// floor, and the grid targets ONE screen of height.
+function flightDims(nCols, gridH) {
+  var vwPx = window.innerWidth / 100, vhPx = window.innerHeight / 100;
+  var hdrH = document.getElementById('siteHeader').getBoundingClientRect().height;
+  var tabsH = document.getElementById('viewTabs').getBoundingClientRect().height;
+  var availVh = (window.innerHeight - hdrH - tabsH - 16) / vhPx;
+  var units = nCols + Math.max(nCols - 1, 0) * 0.15;
+  var champVw = 10;
+  var colVw = (97 - champVw) / units;
+  if (colVw > champVw - 1.6) { colVw = 95.4 / (units + 1); champVw = colVw + 1.6; }
+  if (colVw * vwPx < MIN_COL_PX) { colVw = MIN_COL_PX / vwPx; champVw = Math.max(champVw, colVw + 1.6); }
+  if (colVw * vwPx > MAX_COL_PX) { colVw = MAX_COL_PX / vwPx; champVw = colVw + 1.6; }
+  var cardVh = (colVw * vwPx / CARD_ASPECT) / vhPx;
+  var maxCardVh = (availVh / gridH) * CARD_RATIO;
+  if (cardVh > maxCardVh) cardVh = maxCardVh;
+  var minCardVh = MIN_CARD_PX / vhPx;
+  if (cardVh < minCardVh) cardVh = minCardVh;
+  var slotVh = cardVh / CARD_RATIO;
+  return { slotVh: slotVh, cardVh: cardVh, colVw: colVw, gapVw: colVw * 0.15,
+           champVw: champVw, totalVh: slotVh * gridH };
+}
+
+// Bracket-tree positions for a flight, in the same terms the main tree uses
+// (top offset in vh within a gridH-slot column). Column 0 spreads evenly;
+// after that a game sits at the midpoint of its feeders. A flight's games are
+// often fed from OUTSIDE the flight (an A-bracket game takes one team from an
+// Open drop), so a game with a single in-flight feeder hangs a quarter-gap
+// below it — the same rule computeLBPositions uses for a losers-bracket
+// drop-in, and for the same reason: the phantom feeder must not drag the card
+// somewhere the connector can't reach.
+function flightPositions(cols, slotVh, gridH, tier) {
+  var pos = {};
+  function evenTop(idx, n) {
+    var spacing = gridH / Math.max(n, 1);
+    return (idx * spacing + spacing / 2 - 0.5) * slotVh;
+  }
+  cols.forEach(function(gids, ci) {
+    gids.forEach(function(gid, idx) {
+      if (ci === 0) { pos[gid] = evenTop(idx, gids.length); return; }
+      var g = GAMES[gid];
+      var feeders = [];
+      if (g) {
+        [g.t1, g.t2].forEach(function(sd) {
+          if (!sd || !sd.slot) return;
+          var fg = GAMES[sd.slot];
+          if (fg && fg.tier === tier && pos[sd.slot] !== undefined) feeders.push(pos[sd.slot]);
+        });
+      }
+      if (feeders.length >= 2) {
+        pos[gid] = (feeders[0] + feeders[1]) / 2;
+      } else if (feeders.length === 1) {
+        // Quarter of the previous column's spacing, so the card reads as
+        // hanging off its one real feeder rather than sitting on it.
+        var prev = cols[ci - 1].length || 1;
+        pos[gid] = feeders[0] + (gridH / prev) * slotVh / 4;
+      } else {
+        pos[gid] = evenTop(idx, gids.length);
+      }
+    });
+  });
+  // No two cards in a column closer than one card height.
+  var minSep = slotVh * CARD_RATIO * 1.06;
+  var maxTop = gridH * slotVh - slotVh * CARD_RATIO;
+  cols.forEach(function(gids) {
+    var placed = gids.slice().sort(function(a, b) { return pos[a] - pos[b]; });
+    for (var pass = 0; pass < placed.length; pass++) {
+      for (var i = 1; i < placed.length; i++) {
+        if (pos[placed[i]] < pos[placed[i - 1]] + minSep) pos[placed[i]] = pos[placed[i - 1]] + minSep;
+      }
+    }
+    if (!placed.length) return;
+    var overflow = pos[placed[placed.length - 1]] - maxTop;
+    if (overflow > 0) placed.forEach(function(g) { pos[g] = Math.max(0, pos[g] - overflow); });
+  });
+  return pos;
+}
+
+// Render a tier flight (A/B). A flight IS just a small single-elim bracket,
+// so it uses the SAME markup and geometry as the main tree — absolutely
+// positioned .bc cards on a slot grid inside .round-col columns, with
+// connLines() drawn in the gaps between them. It used to be a flexbox
+// column-of-cards with lines measured off the rendered DOM, which spaced the
+// cards evenly instead of on the tree and made the connectors wander.
 function renderFlightBracket(root, tier) {
-  var cols = flightColumns(tier);
+  var cols = flightColumns(tier).filter(function(c) { return c.length; });
   if (!cols.length) {
     root.innerHTML = '<div class="flight-empty">No ' + esc(bracketDisplayName(tier)) + ' games yet.</div>';
     return;
@@ -1501,11 +1594,8 @@ function renderFlightBracket(root, tier) {
 
   if (isMobile) {
     // Mobile: the same swipeable round-column carousel as the main tree.
-    // Labels are computed against the unfiltered column list so Final /
-    // Semifinal stay correct even if an intermediate band is empty.
     var mcols = [];
     cols.forEach(function(gids, i) {
-      if (!gids.length) return;
       var champ = isChampFinal(i, gids);
       mcols.push({
         round: 'FLIGHT' + i,
@@ -1517,30 +1607,66 @@ function renderFlightBracket(root, tier) {
     renderMobileColumns(root, mcols);   // installs its own _bracketJumpToGid
     return;
   }
-  var html = '<div class="flight-bracket">';
-  cols.forEach(function(gids, i) {
-    if (isChampFinal(i, gids)) {
-      var fgid = gids[0], fg = GAMES[fgid], fr = results[fgid] || {};
-      html += '<div class="flight-col flight-col--champ">'
-        + '<div class="champ-inner">'
-        +   '<div class="champ-trophy">' + trophySVG() + '</div>'
-        +   '<div class="champ-title">' + esc(flightChampLabel(tier)) + '</div>'
-        +   (fg && fg.time ? '<div class="champ-gametime">' + esc(formatTime(fg.time)) + '</div>' : '')
-        + '</div>'
-        + '<div class="bc flight-bc" data-gid="' + esc(fgid) + '">' + cardHTML(fgid) + '</div>'
-        + (fr.winner ? '<div class="champ-winner">' + esc(fr.winner) + '</div>' : '')
-        + '</div>';
-      return;
+
+  // The final gets its own championship column, so it leaves the tree.
+  var champGid = isChampFinal(cols.length - 1, cols[cols.length - 1]) ? cols[cols.length - 1][0] : null;
+  var treeCols = champGid ? cols.slice(0, -1) : cols;
+  var gridH = Math.max.apply(null, treeCols.map(function(c) { return c.length; }).concat([2]));
+  var dims = flightDims(treeCols.length, gridH);
+  var pos = flightPositions(treeCols, dims.slotVh, gridH, tier);
+  var totalVh = dims.totalVh, hdrVh = 1.8;
+
+  var html = '';
+  treeCols.forEach(function(gids, ci) {
+    var cards = gids.map(function(gid) {
+      return '<div class="bc" data-gid="' + esc(gid) + '" data-css="top:' + pos[gid] + 'vh">'
+        + cardHTML(gid) + '</div>';
+    }).join('');
+    html += '<div class="round-col" data-css="width:' + dims.colVw + 'vw;height:' + totalVh + 'vh">'
+      + '<div class="round-col-hdr">' + esc(colLabel(ci, gids)) + '</div>' + cards + '</div>';
+    if (ci < treeCols.length - 1) {
+      var conns = [];
+      treeCols[ci + 1].forEach(function(dst) {
+        var g = GAMES[dst];
+        if (!g) return;
+        [g.t1, g.t2].forEach(function(sd) {
+          if (!sd || sd.type !== 'winner' || !sd.slot) return;
+          if (gids.indexOf(sd.slot) === -1) return;
+          conns.push({
+            srcPct: (pos[sd.slot] + dims.slotVh * CARD_RATIO / 2) / totalVh * 100,
+            dstPct: (pos[dst] + dims.slotVh * CARD_RATIO / 2) / totalVh * 100,
+          });
+        });
+      });
+      html += '<div class="u-relative" data-css="flex-shrink:0;width:' + dims.gapVw + 'vw;height:' + totalVh + 'vh">'
+        + connLines(conns, dims.gapVw, totalVh, 'var(--line-color)', false) + '</div>';
     }
-    html += '<div class="flight-col"><div class="flight-col-hdr">' + esc(colLabel(i, gids)) + '</div>';
-    gids.forEach(function(gid) {
-      html += '<div class="bc flight-bc" data-gid="' + esc(gid) + '">' + cardHTML(gid) + '</div>';
-    });
-    html += '</div>';
   });
-  html += '</div>';
-  root.innerHTML = html;
-  drawFlightConnectors(root, tier);
+
+  var champHTML = '';
+  if (champGid) {
+    var fg = GAMES[champGid], fr = results[champGid] || {};
+    champHTML = '<div class="champ-center--desktop champ-center--flight" data-css="width:' + (dims.champVw - 1.6) + 'vw">'
+      + '<div class="champ-inner">'
+      +   '<div class="champ-trophy">' + trophySVG() + '</div>'
+      +   '<div class="champ-title">' + esc(flightChampLabel(tier)) + '</div>'
+      +   (fg && fg.time ? '<div class="champ-gametime">' + esc(formatTime(fg.time)) + '</div>' : '')
+      + '</div>'
+      + '<div class="champ-bc" data-css="height:' + dims.cardVh + 'vh"><div class="bc bc--static" data-gid="' + esc(champGid) + '" data-css="height:' + dims.cardVh + 'vh">' + cardHTML(champGid) + '</div></div>'
+      + (fr.winner ? '<div class="champ-winner">' + esc(fr.winner) + '</div>' : '')
+      + '</div>';
+  }
+
+  root.innerHTML = '<div class="bcc-stack">'
+    + '<div class="bcc-stack-rows"><div class="bcc-stack-row">'
+    +   '<div class="bcc-sideflex"><div class="u-relative">'
+    +     '<div class="bcc-rowflex" data-css="margin-top:' + hdrVh + 'vh">' + html + '</div>'
+    +   '</div></div>'
+    + '</div></div>'
+    + champHTML
+    + '</div>';
+
+  shrinkFieldTags(root);
 
   // Cross-view jump hook (Team Path card tap) — same contract as the
   // desktop/mobile tree renderers install for their layouts.
@@ -1550,79 +1676,6 @@ function renderFlightBracket(root, tier) {
     card.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
     holdHighlight(card);
   };
-}
-
-// Connector lines for a flight (A/B) bracket.
-// The Open tree computes its lines from the slot grid (see connLines /
-// buildConnPcts) because every card's position is known in vh before render.
-// A flight is laid out by flexbox instead — column heights and card spacing
-// only exist after layout — so its lines are MEASURED from the rendered cards
-// and drawn into one absolutely-positioned overlay covering the whole
-// (horizontally scrollable) flight. Shape matches the tree: feeder stubs into
-// a vertical spine halfway across the gap, then one line into the consumer.
-// Only same-flight winner feeds get a line; a drop-in from the Open (or from
-// A into B) has no card on screen to draw from, exactly as the tree leaves
-// cross-bracket loser drops unlined.
-function drawFlightConnectors(root, tier) {
-  var wrap = root.querySelector('.flight-bracket');
-  if (!wrap) return;
-  var base = wrap.getBoundingClientRect();
-  // Card rects in the wrapper's SCROLL coordinate space, so the overlay stays
-  // registered with the cards when the flight is scrolled sideways.
-  function box(gid) {
-    var el = wrap.querySelector('.bc[data-gid="' + gid + '"]');
-    if (!el) return null;
-    var r = el.getBoundingClientRect();
-    if (!r.width && !r.height) return null;
-    return {
-      left:  r.left  - base.left + wrap.scrollLeft,
-      right: r.right - base.left + wrap.scrollLeft,
-      mid:   r.top   - base.top  + wrap.scrollTop + r.height / 2
-    };
-  }
-
-  var lw = 1.2, lc = 'var(--line-color)', parts = [];
-  function line(x1, y1, x2, y2) {
-    parts.push('<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '"'
-      + ' x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '"'
-      + ' stroke="' + lc + '" stroke-width="' + lw + '"/>');
-  }
-
-  Object.keys(GAMES).forEach(function(gid) {
-    var g = GAMES[gid];
-    if (g.tier !== tier) return;
-    var dst = box(gid);
-    if (!dst) return;
-    var srcs = [];
-    [g.t1, g.t2].forEach(function(sd) {
-      if (!sd || sd.type !== 'winner' || !sd.slot) return;
-      var fg = GAMES[sd.slot];
-      if (!fg || fg.tier !== tier) return;      // Open/other-flight drop-in
-      var b = box(sd.slot);
-      if (b && b.right <= dst.left) srcs.push(b);  // never draw backwards
-    });
-    if (!srcs.length) return;
-    var edge = Math.max.apply(null, srcs.map(function(b) { return b.right; }));
-    var mx = (edge + dst.left) / 2;
-    srcs.forEach(function(b) { line(b.right, b.mid, mx, b.mid); });
-    if (srcs.length >= 2) {
-      var tops = srcs.map(function(b) { return b.mid; });
-      line(mx, Math.min.apply(null, tops), mx, Math.max.apply(null, tops));
-    } else {
-      line(mx, srcs[0].mid, mx, dst.mid);
-    }
-    line(mx, dst.mid, dst.left, dst.mid);
-  });
-
-  if (!parts.length) return;
-  var w = wrap.scrollWidth, h = wrap.scrollHeight;
-  var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('class', 'flight-conn-svg');
-  svg.setAttribute('width', w);
-  svg.setAttribute('height', h);
-  svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
-  svg.innerHTML = parts.join('');
-  wrap.appendChild(svg);
 }
 
 // Show the Open/A/B pill row only for tiered tournaments; keep the active
@@ -1877,14 +1930,46 @@ function renderDesktopBracket(root,dims){
   }
 
   if (dims.stacked) {
-    // Winners over losers, both reading left to right, championship at the
-    // right edge across from the seam between them — the canonical layout of
-    // a large printed double-elim sheet. The championship block here is
-    // flow-centred rather than pinned to a feeder row: with the two brackets
-    // stacked there is no single row for it to line up with.
-    // Plain .champ-inner, NOT --above: that variant is absolutely positioned
-    // against .champ-anchor, which only exists in the side-by-side layout.
-    // Here the block is an ordinary flex child and stacks above the card.
+    // The championship lives in the WINNERS row, not floating between the two
+    // brackets: that is where a visitor looks, and the losers row already
+    // reads as the lower half of the sheet. It carries the whole finals
+    // story — both feeders, so you can see WHO plays for it without hunting
+    // the losers bracket for its final.
+    //
+    // The losers-bracket final is DUPLICATED here on purpose. It is the one
+    // card whose absence makes the championship unreadable ("winner of G.41"
+    // means nothing on this row), and a tournament sheet repeats it for the
+    // same reason.
+    var lbFinalGid = null;
+    if (champG) {
+      [champG.t1, champG.t2].forEach(function(sd) {
+        if (!sd || sd.type !== 'winner' || !sd.slot) return;
+        var fg = GAMES[sd.slot];
+        if (fg && fg.side === 'R') lbFinalGid = sd.slot;
+      });
+    }
+    var feederHTML = '';
+    if (champG) {
+      feederHTML = '<div class="champ-feeders">'
+        + '<div class="champ-feed">'
+        +   '<div class="champ-feed-lbl">' + esc(getSetting('leftLabel')) + '</div>'
+        +   '<div class="champ-feed-team">' + esc(smartLabel(champG.t1, results)) + '</div>'
+        + '</div>'
+        + '<div class="champ-feed-vs">vs</div>'
+        + '<div class="champ-feed">'
+        +   '<div class="champ-feed-lbl">' + esc(getSetting('rightLabel')) + '</div>'
+        +   '<div class="champ-feed-team">' + esc(smartLabel(champG.t2, results)) + '</div>'
+        + '</div>'
+        + '</div>';
+    }
+    var lbFinalHTML = lbFinalGid
+      ? '<div class="champ-lbfinal">'
+        + '<div class="champ-lbfinal-lbl">' + esc(getSetting('rightLabel')) + ' Final</div>'
+        + '<div class="bc bc--static" data-gid="' + esc(lbFinalGid) + '" data-css="height:' + cardVh + 'vh">'
+        + cardHTML(lbFinalGid) + '</div>'
+        + '<div class="champ-lbfinal-note">Its winner advances to the Championship</div>'
+        + '</div>'
+      : '';
     var champStack = champG
       ? '<div class="champ-inner">'
         + '<div class="champ-trophy">' + trophySVG() + '</div>'
@@ -1893,6 +1978,8 @@ function renderDesktopBracket(root,dims){
         + '</div>'
         + '<div class="champ-bc" data-css="height:' + cardVh + 'vh"><div class="bc bc--static" data-gid="CHAMP.C.1" data-css="height:' + cardVh + 'vh">' + cardHTML('CHAMP.C.1') + '</div></div>'
         + (showChampWinner ? '<div class="champ-winner">' + esc(cr.winner) + '</div>' : '')
+        + feederHTML
+        + lbFinalHTML
         + ifNecHTML
       : '<div class="champ-inner u-dim30">'
         + '<div class="champ-trophy">' + trophySVG() + '</div>'
@@ -1900,11 +1987,13 @@ function renderDesktopBracket(root,dims){
         + '</div>';
     root.innerHTML = '<div class="bcc-stack">'
       + '<div class="bcc-stack-rows">'
-      +   '<div class="bcc-stack-row">' + sideHTML('L', getSetting('leftLabel'), false) + '</div>'
+      +   '<div class="bcc-stack-row">'
+      +     sideHTML('L', getSetting('leftLabel'), false)
+      +     '<div class="champ-center--desktop champ-center--stacked" data-css="width:' + (champVw - 1.6) + 'vw;height:' + totalVh + 'vh;margin-top:' + hdrVh + 'vh">'
+      +       champStack
+      +     '</div>'
+      +   '</div>'
       +   '<div class="bcc-stack-row">' + sideHTML('R', getSetting('rightLabel'), false) + '</div>'
-      + '</div>'
-      + '<div class="champ-center--desktop champ-center--stacked" data-css="width:' + (champVw - 1.6) + 'vw">'
-      +   champStack
       + '</div>'
       + '</div>';
   } else {
