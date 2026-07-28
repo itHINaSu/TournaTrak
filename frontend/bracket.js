@@ -4125,7 +4125,19 @@ function allTeamStandings() {
   return rankStandings(played, h2h).concat(idle);
 }
 
+// Standings honour projections, like the bracket and Team Path. The split the
+// owner asked for falls out of the data rather than needing a special case: a
+// pick carries a winner and a loser but NO SCORE, and allTeamStandings only
+// adds to rf/ra when both scores parse. So a projected game moves the W-L
+// record and leaves run differential exactly where it was — "as though the
+// game was 0-0". Tiebreaks see the same: head-to-head wins count, runs don't.
 function renderStandingsView() {
+  var _real = results;
+  results = mergedResults();
+  try { renderStandingsViewInner(); } finally { results = _real; }
+}
+
+function renderStandingsViewInner() {
   var out = document.getElementById('standingsOut');
   if (!out) return;
   var rows = allTeamStandings();
@@ -4162,7 +4174,13 @@ function renderStandingsView() {
       + '</span>'
       + '</div>';
   });
+  // Say so when picks are folded in, or a TD comparing this against the score
+  // sheet finds records that don't reconcile and no reason why.
+  var nProj = Object.keys(_projected).length;
   html += '</div>'
+    + (nProj ? '<div class="std-tiebreaks std-tiebreaks--proj">Includes ' + nProj
+        + ' projected result' + (nProj === 1 ? '' : 's') + ' — records only, run differential is unchanged. '
+        + 'Picks are on this device and reset on reload.</div>' : '')
     + (played ? '<div class="std-tiebreaks">' + esc(STANDINGS_TIEBREAKS) + '</div>' : '');
   out.innerHTML = html;
 }

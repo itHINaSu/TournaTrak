@@ -308,6 +308,8 @@
   color: var(--text-mute);
   border-top: 0.07em solid var(--border);
 }
+/* Projection notice — same block, tinted like every other pick affordance. */
+.std-tiebreaks--proj { color: var(--blue-lt); border-top-color: var(--blue); }
 .bucket-icon-sm {
   width: 1.1em;
   height: 1.1em;
