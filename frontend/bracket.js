@@ -2969,7 +2969,7 @@ function standingsGroups() {
   var groups = {}, order = [];
   Object.keys(GAMES).forEach(function (sid) {
     var g = GAMES[sid];
-    if (g.bye || !g.t1 || !g.t2 || g.t1.type !== 'fixed' || g.t2.type !== 'fixed') return;
+    if (!g.t1 || !g.t2 || g.t1.type !== 'fixed' || g.t2.type !== 'fixed') return;
     var key = '', label = 'Standings';
     if (fmt === 'pools') {
       var m = / \u00b7 (Pool [A-Z])$/.exec(g.label || '');
@@ -2978,6 +2978,14 @@ function standingsGroups() {
     }
     if (!groups[key]) { groups[key] = { label: label, teams: {}, h2h: {} }; order.push(key); }
     var t = groups[key].teams;
+    // A Swiss bye (odd field) is a free win for the team that sat out. It is
+    // never played, so it has no result and no real opponent — credit the win
+    // and move on without letting "BYE" into the table as a team.
+    if (g.bye) {
+      if (!t[g.t1.team]) t[g.t1.team] = { name: g.t1.team, w: 0, l: 0, rf: 0, ra: 0 };
+      t[g.t1.team].w++;
+      return;
+    }
     [g.t1.team, g.t2.team].forEach(function (nm) {
       if (!t[nm]) t[nm] = { name: nm, w: 0, l: 0, rf: 0, ra: 0 };
     });

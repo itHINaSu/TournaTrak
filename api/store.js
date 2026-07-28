@@ -30,7 +30,10 @@ const pool = DATABASE_URL ? new Pool({ connectionString: DATABASE_URL }) : new P
 // without a handler it would crash the process.
 pool.on('error', err => console.error('pg pool error:', err.message));
 
-const CONFIG_DOMAINS = ['settings', 'offsets', 'field_colors', 'theme_colors', 'buckets', 'teams'];
+// 'undo' holds ONE snapshot taken immediately before a destructive write
+// (see snapshotForUndo in server.js). A config row rather than its own table
+// because it is exactly one JSON blob per tournament and is replaced whole.
+const CONFIG_DOMAINS = ['settings', 'offsets', 'field_colors', 'theme_colors', 'buckets', 'teams', 'undo'];
 const ROW_DOMAINS    = ['schedule', 'results', 'live', 'lineups'];
 
 // Same structured defaults ensureDataFiles() used to write to disk.

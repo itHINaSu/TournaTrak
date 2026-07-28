@@ -325,6 +325,44 @@ describe('results contract', () => {
   });
 });
 
+describe('undo', () => {
+  rtest('restores the schedule and results wiped by a regenerate', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.post('/api/results', { game: 'R1.L.1', winner: 'Alpha', loser: 'Beta', t1score: '9', t2score: '2' });
+
+    const offer = await a.get('/api/undo');
+    assert.equal(offer.json.available, true);
+
+    await a.post('/api/schedule/generate', {
+      format: 'single-elim', startDate: '2026-09-01',
+      teams: ['A', 'B', 'C', 'D'], seedMode: 'order',
+    });
+    assert.deepEqual((await a.get('/api/results')).json, {}, 'regenerate wipes results');
+
+    const u = await a.post('/api/undo');
+    assert.equal(u.status, 200);
+    assert.equal(u.json.label, 'bracket regenerate');
+    const back = await a.get('/api/schedule');
+    assert.deepEqual(Object.keys(back.json).sort(), Object.keys(MINI).sort(), 'old bracket is back');
+    assert.equal((await a.get('/api/results')).json['R1.L.1'].winner, 'Alpha', 'results are back');
+  });
+
+  rtest('is one step only — undoing consumes the snapshot', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    assert.equal((await a.post('/api/undo')).status, 200);
+    assert.equal((await a.get('/api/undo')).json.available, false, 'no redo, no second undo');
+    assert.equal((await a.post('/api/undo')).status, 404);
+  });
+
+  rtest('is admin-only', async () => {
+    const anon = agent();
+    assert.equal((await anon.get('/api/undo')).status, 401);
+    assert.equal((await anon.post('/api/undo')).status, 401);
+  });
+});
+
 describe('settings contract', () => {
   rtest('merges partial saves instead of wiping other keys', async () => {
     const a = await loginAdmin();
@@ -398,6 +436,36 @@ describe('branding contract', () => {
     assert.equal(res.headers.get('content-type'), 'image/png');
     const html = await (await fetch(base + '/')).text();
     assert.match(html, /<link rel="icon" href="\/icons\//, 'no upload → stock trophy');
+  });
+
+  rtest('the tab icon keeps its own crop, with no background colour', async () => {
+    const a = await loginAdmin();
+    const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+    await a.post('/api/theme-colors', {
+      favicon: png, faviconSrc: png,
+      faviconStyle: { mode: 'crop', crop: { x: 0.5, y: 0.25, s: 0.5 } },
+    });
+    const tc = (await a.get('/api/theme-colors')).json;
+    assert.deepEqual(tc.faviconStyle, { mode: 'crop', crop: { x: 0.5, y: 0.25, s: 0.5 } });
+    assert.ok(!('bg' in tc.faviconStyle), 'a tab icon has no tile colour to set');
+    assert.equal(tc.faviconSrc, png, 'the source is kept so the crop can be changed later');
+  });
+
+  rtest('a fully branded save is not rejected for size', async () => {
+    const a = await loginAdmin();
+    // A real branded tournament posts five data URIs at once. This used to
+    // exceed the route's 1 MB body limit and 413 with nothing in the UI to
+    // explain it. Sizes here are near the per-field caps.
+    const png = (kb) => {
+      const head = 'data:image/png;base64,';
+      const real = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+      return head + real + 'A'.repeat(Math.max(0, kb * 1024 - head.length - real.length));
+    };
+    const r = await a.post('/api/theme-colors', {
+      logo: png(40), icon: png(300), iconSrc: png(400), favicon: png(30), faviconSrc: png(400),
+    });
+    assert.notEqual(r.status, 413, 'a fully branded payload must not be rejected for size');
+    assert.equal(r.status, 200);
   });
 
   rtest('an uploaded favicon is served and linked from the page head', async () => {

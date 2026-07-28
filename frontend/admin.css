@@ -318,6 +318,31 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .sched-status { font-size: 0.74rem; color: var(--win-color); margin-left: 0.5em; }
 .sched-status:empty { display: none; }
 
+/* Export buttons sit side by side and wrap on a phone. */
+.export-row { display: flex; gap: 0.6em; flex-wrap: wrap; }
+
+/* Undo offer for the last destructive write. Gold rather than red — it is a
+   safety net being offered, not an error being reported. */
+.sched-undo {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  flex-wrap: wrap;
+  border: 0.07em solid var(--border);
+  border-left: 0.28em solid var(--gold-lt);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  padding: 0.6em 0.9em;
+  margin-bottom: 0.8em;
+}
+.sched-undo-text {
+  flex: 1 1 16em;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
 /* Bracket health panel — pre-publish warnings above the schedule editor.
    Left border carries the severity so the panel reads at a glance. */
 .sched-health {

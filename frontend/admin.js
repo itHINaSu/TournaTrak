@@ -225,7 +225,10 @@ function populateSettingsFields() {
   _logoDataUri = (_themeColors && _themeColors.logo) || null;
   _logoIconUri = (_themeColors && _themeColors.icon) || null;
   _iconSrcUri  = (_themeColors && _themeColors.iconSrc) || null;
-  _faviconUri  = (_themeColors && _themeColors.favicon) || null;
+  _faviconUri     = (_themeColors && _themeColors.favicon) || null;
+  _faviconSrcUri  = (_themeColors && _themeColors.faviconSrc) || null;
+  _faviconStyle   = normalizeIconStyle(_themeColors && _themeColors.faviconStyle);
+  delete _faviconStyle.bg;   // tab icons keep transparency, no tile colour
   // Migrates the retired 'fill' (auto centre-crop) to an explicit crop.
   _iconStyle = normalizeIconStyle(_themeColors && _themeColors.iconStyle);
   // Self-heal: logos uploaded before the PWA-icon feature existed have no
@@ -280,7 +283,11 @@ async function saveSettings() {
   if (_logoDataUri) themeColors.logo = _logoDataUri;
   if (_logoIconUri) { themeColors.icon = _logoIconUri; themeColors.iconStyle = _iconStyle; }
   if (_iconSrcUri) themeColors.iconSrc = _iconSrcUri;
-  if (_faviconUri) themeColors.favicon = _faviconUri;
+  if (_faviconUri) {
+    themeColors.favicon = _faviconUri;
+    themeColors.faviconStyle = _faviconStyle;
+    if (_faviconSrcUri) themeColors.faviconSrc = _faviconSrcUri;
+  }
   var fieldColors = {};
   document.querySelectorAll('.field-color-picker:not(.theme-color-picker)').forEach(function(inp) {
     if (inp.dataset.field) fieldColors[inp.dataset.field] = inp.value;
@@ -832,8 +839,57 @@ function renderSchedHealth() {
     + '</ul>';
 }
 
+// ── Undo ──────────────────────────────────────────────────────────────
+// The server keeps one snapshot taken just before the last destructive
+// write. This shows what it is and offers to restore it. Refreshed whenever
+// the schedule editor renders, so the offer appears right after a
+// regenerate — which is exactly when a TD realises the mistake.
+async function refreshUndoBar() {
+  var bar = document.getElementById('schedUndo');
+  var txt = document.getElementById('schedUndoText');
+  if (!bar || !txt) return;
+  try {
+    var r = await apiFetch('/api/undo');
+    if (!r.ok) { bar.hidden = true; return; }
+    var u = await r.json();
+    if (!u.available) { bar.hidden = true; return; }
+    txt.textContent = 'You can undo the last ' + u.label + (u.at ? ' (' + agoText(u.at) + ')' : '')
+      + ' — this restores the schedule, results, live scores, and delays as they were.';
+    bar.hidden = false;
+  } catch (e) { bar.hidden = true; }
+}
+
+// "3 minutes ago" for the undo offer. Anything older than a day is stale
+// enough that the exact age stops mattering.
+function agoText(iso) {
+  var ms = Date.now() - new Date(iso).getTime();
+  if (!isFinite(ms) || ms < 0) return 'just now';
+  var mins = Math.floor(ms / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + (mins === 1 ? ' minute ago' : ' minutes ago');
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + (hrs === 1 ? ' hour ago' : ' hours ago');
+  var days = Math.floor(hrs / 24);
+  return days + (days === 1 ? ' day ago' : ' days ago');
+}
+
+async function undoLastChange() {
+  if (!await ttConfirm('Undo the last change? The schedule, results, live scores, and delays '
+      + 'go back to how they were just before it. Anything entered since will be lost.',
+      { okLabel: 'Undo', danger: true })) return;
+  var r = await apiFetch('/api/undo', { method: 'POST' });
+  if (!r.ok) { showToast('Nothing to undo', true); return; }
+  var out = await r.json();
+  // fetchAll re-reads every domain and re-renders the results/admin views;
+  // the two schedule editors are rendered separately.
+  await fetchAll();
+  renderQuickEditor();
+  showToast('Undid the last ' + (out.label || 'change'));
+}
+
 function renderScheduleEditor() {
   renderSchedHealth();
+  refreshUndoBar();
   var wrap = document.getElementById('scheduleEditor');
   // A revealed slot that now has a real game no longer needs tracking.
   Object.keys(_revealedSlots).forEach(function(sid){
@@ -2086,7 +2142,7 @@ function onIconStyleChange() {
   });
   // A null crop bakes as the centered largest square (cropRect's default);
   // the editor fills it in as soon as it knows the image's dimensions.
-  syncCropEditor(wasMode !== _iconStyle.mode);
+  syncCropEditor('icon', wasMode !== _iconStyle.mode);
   rebakeIcon(true);
 }
 
@@ -2123,64 +2179,91 @@ function _logoBrand() {
   if (_logoDataUri) out.logo = _logoDataUri;
   if (_logoIconUri) { out.icon = _logoIconUri; out.iconStyle = _iconStyle; }
   if (_iconSrcUri) out.iconSrc = _iconSrcUri;
-  if (_faviconUri) out.favicon = _faviconUri;
+  if (_faviconUri) {
+    out.favicon = _faviconUri;
+    out.faviconStyle = _faviconStyle;
+    if (_faviconSrcUri) out.faviconSrc = _faviconSrcUri;
+  }
   return out;
 }
 
-// ── Crop editor ───────────────────────────────────────────────────────
-// The stage shows the whole baking source letterboxed; the selection box is
-// positioned over it from _iconStyle.crop, and drags are converted back into
-// SOURCE-image pixels before being stored, so the crop is independent of the
-// editor's on-screen size and survives a window resize or a re-encode.
+// ── Crop editor (shared by the app icon and the browser-tab icon) ─────
+// The stage shows the whole source image letterboxed; the selection box is
+// positioned over it from the target's crop rectangle, and drags are
+// converted back into SOURCE-image pixels before being stored, so a crop is
+// independent of the editor's on-screen size and survives a window resize or
+// a re-encode.
+//
+// Both targets behave identically, so they are described by one table rather
+// than duplicated: each entry says where the state lives, which element ids
+// it drives, and what to re-bake when the rectangle moves.
+var CROP_TARGETS = {
+  icon: {
+    editor: 'iconCropEditor', stage: 'iconCropStage', img: 'iconCropImg',
+    box: 'iconCropBox', handle: 'iconCropHandle',
+    style: function () { return _iconStyle; },
+    src:   function () { return _iconSrcUri || _logoDataUri || ''; },
+    rebake: function (toast) { rebakeIcon(toast); },
+  },
+  favicon: {
+    editor: 'faviconCropEditor', stage: 'faviconCropStage', img: 'faviconCropImg',
+    box: 'faviconCropBox', handle: 'faviconCropHandle',
+    style: function () { return _faviconStyle; },
+    src:   function () { return _faviconSrcUri || ''; },
+    rebake: function (toast) { rebakeFavicon(toast); },
+  },
+};
+
 var _cropDrag = null;
 
-function cropSrcUri() { return _iconSrcUri || _logoDataUri || ''; }
-
-function drawCropBox() {
-  var stage = document.getElementById('iconCropStage');
-  var img   = document.getElementById('iconCropImg');
-  var boxEl = document.getElementById('iconCropBox');
+function drawCropBox(name) {
+  var t = CROP_TARGETS[name];
+  var stage = document.getElementById(t.stage);
+  var img   = document.getElementById(t.img);
+  var boxEl = document.getElementById(t.box);
   if (!stage || !img || !boxEl || !img.naturalWidth) return;
   var sr = stage.getBoundingClientRect(), ir = img.getBoundingClientRect();
   var k = ir.width / img.naturalWidth;              // display px per source px
-  var r = cropRect(_iconStyle.crop, img.naturalWidth, img.naturalHeight);
+  var r = cropRect(t.style().crop, img.naturalWidth, img.naturalHeight);
   boxEl.style.left   = (ir.left - sr.left + r.x * k) + 'px';
   boxEl.style.top    = (ir.top  - sr.top  + r.y * k) + 'px';
   boxEl.style.width  = (r.side * k) + 'px';
   boxEl.style.height = (r.side * k) + 'px';
 }
 
-function syncCropEditor(reload) {
-  var ed  = document.getElementById('iconCropEditor');
-  var img = document.getElementById('iconCropImg');
+function syncCropEditor(name, reload) {
+  var t = CROP_TARGETS[name];
+  var ed  = document.getElementById(t.editor);
+  var img = document.getElementById(t.img);
   if (!ed || !img) return;
-  var on = _iconStyle.mode === 'crop' && !!cropSrcUri();
+  var style = t.style(), src = t.src();
+  var on = style.mode === 'crop' && !!src;
   ed.hidden = !on;
   if (!on) return;
-  var src = cropSrcUri();
-  if (reload || img.getAttribute('src') !== src) {
+  function seat() {
     // A null crop means "centred largest square" everywhere (see cropRect),
-    // so the icon is already right — this only materialises it for the box.
-    img.onload = function() {
-      if (!_iconStyle.crop) _iconStyle.crop = centerCrop(img.naturalWidth, img.naturalHeight);
-      drawCropBox();
-    };
+    // so the output is already right — this only materialises it for the box.
+    if (!style.crop) style.crop = centerCrop(img.naturalWidth, img.naturalHeight);
+    drawCropBox(name);
+  }
+  if (reload || img.getAttribute('src') !== src) {
+    img.onload = seat;
     img.src = src;
   } else if (img.complete && img.naturalWidth) {
-    if (!_iconStyle.crop) _iconStyle.crop = centerCrop(img.naturalWidth, img.naturalHeight);
-    drawCropBox();
+    seat();
   }
 }
 
-function cropDragStart(mode, e) {
-  var img = document.getElementById('iconCropImg');
+function cropDragStart(name, mode, e) {
+  var t = CROP_TARGETS[name];
+  var img = document.getElementById(t.img);
   if (!img || !img.naturalWidth) return;
   e.preventDefault();
   var ir = img.getBoundingClientRect();
   _cropDrag = {
-    mode: mode, x0: e.clientX, y0: e.clientY,
+    name: name, mode: mode, x0: e.clientX, y0: e.clientY,
     k: ir.width / img.naturalWidth,
-    r: cropRect(_iconStyle.crop, img.naturalWidth, img.naturalHeight),
+    r: cropRect(t.style().crop, img.naturalWidth, img.naturalHeight),
     W: img.naturalWidth, H: img.naturalHeight
   };
   window.addEventListener('pointermove', cropDragMove);
@@ -2203,39 +2286,48 @@ function cropDragMove(e) {
     side = Math.min(Math.max(Math.min(d.W, d.H) * 0.05, side),
                     Math.min(d.W - d.r.x, d.H - d.r.y));
   }
-  _iconStyle.crop = { x: x / d.W, y: y / d.H, s: side / Math.min(d.W, d.H) };
-  drawCropBox();
+  CROP_TARGETS[d.name].style().crop =
+    { x: x / d.W, y: y / d.H, s: side / Math.min(d.W, d.H) };
+  drawCropBox(d.name);
 }
 
 function cropDragEnd() {
   if (!_cropDrag) return;
+  var name = _cropDrag.name;
   _cropDrag = null;
   window.removeEventListener('pointermove', cropDragMove);
   window.removeEventListener('pointerup', cropDragEnd);
   window.removeEventListener('pointercancel', cropDragEnd);
-  rebakeIcon(false);
+  CROP_TARGETS[name].rebake(false);
 }
 
-function cropReset() {
-  _iconStyle.crop = null;
-  syncCropEditor(false);
-  rebakeIcon(true);
+function cropReset(name) {
+  var t = CROP_TARGETS[name];
+  if (!t) return;
+  t.style().crop = null;
+  syncCropEditor(name, false);
+  t.rebake(true);
 }
 
 function initCropEditor() {
-  var boxEl  = document.getElementById('iconCropBox');
-  var handle = document.getElementById('iconCropHandle');
-  if (!boxEl || !handle) return;
-  boxEl.addEventListener('pointerdown', function(e) {
-    if (e.target === handle) return;          // handled below
-    cropDragStart('move', e);
+  Object.keys(CROP_TARGETS).forEach(function (name) {
+    var t = CROP_TARGETS[name];
+    var boxEl  = document.getElementById(t.box);
+    var handle = document.getElementById(t.handle);
+    if (!boxEl || !handle) return;
+    boxEl.addEventListener('pointerdown', function (e) {
+      if (e.target === handle) return;          // handled below
+      cropDragStart(name, 'move', e);
+    });
+    handle.addEventListener('pointerdown', function (e) {
+      e.stopPropagation();
+      cropDragStart(name, 'resize', e);
+    });
   });
-  handle.addEventListener('pointerdown', function(e) {
-    e.stopPropagation();
-    cropDragStart('resize', e);
-  });
-  window.addEventListener('resize', function() {
-    if (_iconStyle.mode === 'crop') drawCropBox();
+  window.addEventListener('resize', function () {
+    Object.keys(CROP_TARGETS).forEach(function (name) {
+      if (CROP_TARGETS[name].style().mode === 'crop') drawCropBox(name);
+    });
   });
 }
 
@@ -2260,7 +2352,7 @@ function syncLogoUI() {
   }
   if (modeSel) modeSel.value = _iconStyle.mode;
   if (bgInp) bgInp.value = _iconStyle.bg;
-  syncCropEditor(false);
+  syncCropEditor('icon', false);
 }
 
 function pickLogo(val, el) {
@@ -2281,7 +2373,7 @@ function pickLogo(val, el) {
     // independent of the header-logo downscale — and a ≤1024px copy of the
     // original is kept as the re-bake source for later style changes.
     makeLogoIcon(uri, _iconStyle, function(icon) { _logoIconUri = icon; syncLogoUI(); });
-    makeIconSrc(uri, function(src) { _iconSrcUri = src; syncCropEditor(true); });
+    makeIconSrc(uri, function(src) { _iconSrcUri = src; syncCropEditor('icon', true); });
     if (uri.length <= LOGO_MAX_URI) {
       _logoDataUri = uri;
       syncLogoUI();
@@ -2313,29 +2405,49 @@ function removeLogo() {
   showToast('Logo will be removed on Save');
 }
 
+// ── CSV export ────────────────────────────────────────────────────────
+// A plain navigation rather than fetch+Blob: the session cookie rides along,
+// the server's Content-Disposition names the file after the tournament, and
+// nothing has to be held in memory. Scoped through adminApiBase() so the
+// tournament switcher exports the tournament you are looking at.
+function exportCsv(kind) {
+  if (kind !== 'games' && kind !== 'teams') return;
+  window.location = adminApiBase() + '/export/' + kind + '.csv';
+}
+
 // ── Browser tab icon (favicon) ────────────────────────────────────────
 // Independent of the logo: a TD's wordmark rarely reads at 16px, so the tab
 // icon is its own upload rather than another bake of the logo. Squared and
 // downscaled to FAVICON_PX here; the server re-validates format and size and
 // serves it at /tab-icon.png, which the built index.html points rel="icon" at.
-var _faviconUri = null;
+var _faviconUri = null;        // the baked 64px PNG that ships as the tab icon
+var _faviconSrcUri = null;     // the upload it was baked from, kept so the crop
+                               // can be changed later without re-uploading
+var _faviconStyle = { mode: 'fit', crop: null };
 var FAVICON_PX = 64;
-var FAVICON_MAX_URI = 32 * 1024;   // matches the server's FAVICON_MAX_CHARS cap
+var FAVICON_MAX_URI = 32 * 1024;    // matches the server's FAVICON_MAX_CHARS cap
+var FAVICONSRC_MAX_URI = 480 * 1024;  // matches FAVICONSRC_MAX_CHARS
 
-// Non-square art is letterboxed rather than cropped — a tab icon is too
-// small for a crop UI to be worth it, and a squashed logo reads worse than
-// a small centred one. Transparency is preserved (PNG), unlike the app icon
-// where iOS forces an opaque tile.
-function makeFavicon(srcUri, cb) {
+// Bake the tab icon. 'fit' letterboxes the whole image; 'crop' uses the
+// square the TD chose — which is usually what you want at 16px, where a full
+// wordmark turns to mush. Transparency is preserved (PNG), unlike the app
+// icon where iOS forces an opaque tile.
+function makeFavicon(srcUri, style, cb) {
+  var st = normalizeIconStyle(style);
   var img = new Image();
   img.onload = function() {
     var canvas = document.createElement('canvas');
     canvas.width = canvas.height = FAVICON_PX;
     var ctx = canvas.getContext('2d');
     ctx.imageSmoothingQuality = 'high';
-    var scale = Math.min(FAVICON_PX / img.width, FAVICON_PX / img.height);
-    var w = img.width * scale, h = img.height * scale;
-    ctx.drawImage(img, (FAVICON_PX - w) / 2, (FAVICON_PX - h) / 2, w, h);
+    if (st.mode === 'crop') {
+      var r = cropRect(st.crop, img.width, img.height);
+      ctx.drawImage(img, r.x, r.y, r.side, r.side, 0, 0, FAVICON_PX, FAVICON_PX);
+    } else {
+      var scale = Math.min(FAVICON_PX / img.width, FAVICON_PX / img.height);
+      var w = img.width * scale, h = img.height * scale;
+      ctx.drawImage(img, (FAVICON_PX - w) / 2, (FAVICON_PX - h) / 2, w, h);
+    }
     var out = canvas.toDataURL('image/png');
     cb(out.length <= FAVICON_MAX_URI ? out : null);
   };
@@ -2343,12 +2455,43 @@ function makeFavicon(srcUri, cb) {
   img.src = srcUri;
 }
 
+// Re-bake after a crop or mode change. Uses the retained upload; falls back
+// to the baked icon for tab icons saved before the source was kept.
+function rebakeFavicon(toast) {
+  var src = _faviconSrcUri || _faviconUri;
+  if (!src) return;
+  makeFavicon(src, _faviconStyle, function(out) {
+    if (!out) return;
+    _faviconUri = out;
+    syncFaviconUI();
+    if (toast) showToast('Tab icon updated — press Save to apply');
+  });
+}
+
+function onFaviconStyleChange() {
+  var sel = document.getElementById('faviconModeSel');
+  _faviconStyle = normalizeIconStyle({
+    mode: sel && sel.value, bg: '#ffffff', crop: _faviconStyle.crop
+  });
+  delete _faviconStyle.bg;      // a tab icon keeps transparency, no tile
+  syncCropEditor('favicon', true);
+  rebakeFavicon(true);
+}
+
 function syncFaviconUI() {
   var img = document.getElementById('faviconPreview');
   var rm  = document.getElementById('faviconRemoveBtn');
+  var sel = document.getElementById('faviconModeSel');
   if (!img || !rm) return;
   if (_faviconUri) { img.src = _faviconUri; img.hidden = false; rm.hidden = false; }
   else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
+  // The crop control only means anything once there is art AND a source to
+  // re-crop from.
+  if (sel) {
+    sel.hidden = !(_faviconUri && (_faviconSrcUri || _faviconUri));
+    sel.value = _faviconStyle.mode;
+  }
+  syncCropEditor('favicon', false);
 }
 
 function pickFavicon(val, el) {
@@ -2361,7 +2504,16 @@ function pickFavicon(val, el) {
   }
   var reader = new FileReader();
   reader.onload = function() {
-    makeFavicon(reader.result, function(out) {
+    var uri = reader.result;
+    // A crop chosen for the previous tab icon means nothing on new art.
+    _faviconStyle.crop = null;
+    // Keep a downscaled copy of the ORIGINAL so the crop can be adjusted
+    // after a reload, exactly like the app icon's iconSrc.
+    makeIconSrc(uri, function(src) {
+      _faviconSrcUri = src && src.length <= FAVICONSRC_MAX_URI ? src : null;
+      syncCropEditor('favicon', true);
+    });
+    makeFavicon(uri, _faviconStyle, function(out) {
       if (!out) {
         showToast('Could not process that image — try a simpler one', true);
         el.value = '';
@@ -2377,6 +2529,8 @@ function pickFavicon(val, el) {
 
 function removeFavicon() {
   _faviconUri = null;
+  _faviconSrcUri = null;
+  _faviconStyle = { mode: 'fit', crop: null };
   var inp = document.getElementById('faviconFileInput');
   if (inp) inp.value = '';
   syncFaviconUI();
@@ -3699,7 +3853,10 @@ Object.assign(TT_ACTIONS, {
   pickLogo:            function(arg, el) { pickLogo(arg, el); },
   removeLogo:          function() { removeLogo(); },
   onIconStyleChange:   function() { onIconStyleChange(); },
-  cropReset:           function() { cropReset(); },
+  cropReset:           function(arg) { cropReset(arg); },
+  onFaviconStyleChange: function() { onFaviconStyleChange(); },
+  exportCsv:           function(arg) { exportCsv(arg); },
+  undoLastChange:      function() { undoLastChange(); },
   pickFavicon:         function(arg, el) { pickFavicon(arg, el); },
   removeFavicon:       function() { removeFavicon(); },
   resetOneFieldColor:  function(arg, el) { resetOneFieldColor(el); },

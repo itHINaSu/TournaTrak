@@ -214,7 +214,12 @@ app.set('etag', false);
 // Theme-colors is the one route that may carry logo + PWA-icon data URIs,
 // so it gets a larger (still tight) body cap. Runs before the global 10kb
 // parser; once parsed here the global one skips the request.
-app.use(['/api/theme-colors', '/api/t/:slug/theme-colors'], express.json({ limit: '1mb' }));
+// Branding carries several data URIs at once — header logo, baked app icon,
+// its high-res baking source, the tab icon and ITS source. At their caps
+// those sum to roughly 1.4 MB of base64, so the limit has to clear that or a
+// fully branded save 413s. (Each field is still capped individually below;
+// this only stops the combined body being rejected before validation runs.)
+app.use(['/api/theme-colors', '/api/t/:slug/theme-colors'], express.json({ limit: '2mb' }));
 app.use(express.json({ limit: '10kb' }));
 
 // In-memory login rate limiter: max 10 failures per IP per 15 minutes.
@@ -911,6 +916,40 @@ api.post('/offsets', requireAdmin, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// ── One-step undo for destructive writes ──────────────────────────────
+// Regenerating a bracket, or a Save-all after a bad find/replace, wipes a
+// whole afternoon of a TD's work behind a single confirm dialog. These
+// routes keep ONE snapshot — the state immediately before the last such
+// write — and restore it on request. Deliberately one step and no redo: the
+// job is "I just did that by mistake", not version history.
+const UNDO_DOMAINS = ['schedule', 'results', 'live', 'offsets', 'settings'];
+
+async function snapshotForUndo(tid, label) {
+  const data = {};
+  await Promise.all(UNDO_DOMAINS.map(async d => { data[d] = await store.get(tid, d); }));
+  await store.put(tid, 'undo', { label, at: new Date().toISOString(), data });
+}
+
+api.get('/undo', requireAdmin, ah(async (req, res) => {
+  const u = await store.get(req.tid, 'undo');
+  res.setHeader('Cache-Control', 'no-store');
+  if (!u || !u.data) return res.json({ available: false });
+  res.json({ available: true, label: u.label || 'last change', at: u.at || null });
+}));
+
+api.post('/undo', requireAdmin, ah(async (req, res) => {
+  const u = await store.get(req.tid, 'undo');
+  if (!u || !u.data) return res.status(404).json({ error: 'Nothing to undo' });
+  for (const d of UNDO_DOMAINS) {
+    if (u.data[d] !== undefined) await store.put(req.tid, d, u.data[d]);
+  }
+  // One step only — restoring consumes the snapshot rather than turning into
+  // a redo, so there is never any doubt about what Undo would do next.
+  await store.put(req.tid, 'undo', {});
+  invalidateIndexCache(req.tid);   // restored settings may change title/OG tags
+  res.json({ ok: true, label: u.label || 'last change' });
+}));
+
 // ── CSV export ────────────────────────────────────────────────────────
 // Post-tournament reporting. The print stylesheet covers "hand the bracket
 // to someone"; this covers "put the results in a spreadsheet" — the league
@@ -964,6 +1003,11 @@ function teamRows(schedule, results) {
   const teams = {}, h2h = {};
   const seen = (nm) => (teams[nm] = teams[nm] || { name: nm, w: 0, l: 0, rf: 0, ra: 0 });
   for (const [sid, g] of Object.entries(bd.GAMES)) {
+    // Byes are skipped. In an elimination bracket a bye is not a win — the
+    // team just advances — and counting it as one would inflate the record
+    // this export exists to report. (Swiss byes DO count as wins for Swiss
+    // pairing and the public standings table; that's a pairing rule, not a
+    // record, and it lives in pairSwissRound / standingsGroups.)
     const r = results[sid];
     if (g.bye || !r || !r.winner) continue;
     const a = bd.resolveSlot(g.t1, results), b = bd.resolveSlot(g.t2, results);
@@ -1045,6 +1089,32 @@ const ICONSRC_MAX_CHARS = 480 * 1024;
 // 16px), squared and downscaled to 64px client-side. PNG only, so /tab-icon.png
 // can serve the bytes straight out of the data URI with a fixed content type.
 const FAVICON_MAX_CHARS = 32 * 1024;
+// …plus the upload it was baked from, kept so the TD can adjust the crop
+// later without re-uploading (same role iconSrc plays for the app icon).
+const FAVICONSRC_MAX_CHARS = 480 * 1024;
+
+// Shared shape for "how a square icon is cut out of its source": mode plus,
+// for 'crop', a rectangle in source-image units (x/y as fractions of width
+// and height, s as a fraction of the shorter edge). 'fill' was the app
+// icon's old automatic centre-crop; it is still accepted from older clients
+// and stored as a crop with no rectangle, which bakes centred — identical
+// output. Returns null when the input isn't a usable style.
+function cleanIconStyle(st, withBg) {
+  if (!st || typeof st !== 'object') return null;
+  if (!['fit', 'fill', 'crop'].includes(st.mode)) return null;
+  const out = { mode: st.mode === 'fit' ? 'fit' : 'crop' };
+  if (withBg) {
+    if (typeof st.bg !== 'string' || !/^#[0-9a-f]{6}$/i.test(st.bg)) return null;
+    out.bg = st.bg;
+  }
+  const c = st.crop;
+  if (out.mode === 'crop' && c && typeof c === 'object'
+      && ['x', 'y', 's'].every(k => typeof c[k] === 'number' && Number.isFinite(c[k]))
+      && c.x >= 0 && c.x <= 1 && c.y >= 0 && c.y <= 1 && c.s > 0 && c.s <= 1) {
+    out.crop = { x: c.x, y: c.y, s: c.s };
+  }
+  return out;
+}
 function validLogoDataUri(v, maxChars, pngOnly) {
   if (typeof v !== 'string' || !v || v.length > (maxChars || LOGO_MAX_CHARS)) return false;
   const m = LOGO_DATAURI_RE.exec(v);
@@ -1080,26 +1150,14 @@ api.post('/theme-colors', requireAdmin, ah(async (req, res) => {
   if (validLogoDataUri(incoming.icon, ICON_MAX_CHARS, true)) clean.icon = incoming.icon;
   if (validLogoDataUri(incoming.iconSrc, ICONSRC_MAX_CHARS)) clean.iconSrc = incoming.iconSrc;
   if (validLogoDataUri(incoming.favicon, FAVICON_MAX_CHARS, true)) clean.favicon = incoming.favicon;
-  // How the app icon is baked from the logo (kept so the admin UI can
-  // re-render the baker with the TD's choices): fit = whole logo on a
-  // colored tile, crop = the TD's chosen square. 'fill' was the old
-  // auto-centre-crop mode; it is still ACCEPTED (an older admin bundle may
-  // post it, and stored docs carry it) and stored as the equivalent crop —
-  // a null crop bakes centred, which is exactly what fill did.
-  const st = incoming.iconStyle;
-  if (st && typeof st === 'object' && ['fit', 'fill', 'crop'].includes(st.mode)
-      && typeof st.bg === 'string' && /^#[0-9a-f]{6}$/i.test(st.bg)) {
-    const mode = st.mode === 'fit' ? 'fit' : 'crop';
-    clean.iconStyle = { mode, bg: st.bg };
-    const c = st.crop;
-    // Crop rect in source-image units: x/y are fractions of width/height,
-    // s is the square's side as a fraction of the shorter edge.
-    if (mode === 'crop' && c && typeof c === 'object'
-        && ['x', 'y', 's'].every(k => typeof c[k] === 'number' && Number.isFinite(c[k]))
-        && c.x >= 0 && c.x <= 1 && c.y >= 0 && c.y <= 1 && c.s > 0 && c.s <= 1) {
-      clean.iconStyle.crop = { x: c.x, y: c.y, s: c.s };
-    }
-  }
+  if (validLogoDataUri(incoming.faviconSrc, FAVICONSRC_MAX_CHARS)) clean.faviconSrc = incoming.faviconSrc;
+  // How each square icon is cut from its source. The app icon carries a
+  // background colour (it is composited onto an opaque tile); the tab icon
+  // does not (it keeps transparency).
+  const iconStyle = cleanIconStyle(incoming.iconStyle, true);
+  if (iconStyle) clean.iconStyle = iconStyle;
+  const favStyle = cleanIconStyle(incoming.faviconStyle, false);
+  if (favStyle) clean.faviconStyle = favStyle;
   await store.put(req.tid, 'theme_colors', clean);
   // The served index.html carries an apple-touch-icon link that follows
   // the uploaded icon — rebuild it on the next request.
@@ -1110,6 +1168,9 @@ api.post('/theme-colors', requireAdmin, ah(async (req, res) => {
 api.post('/schedule', requireAdmin, ah(async (req, res) => {
   const err = validateSchedule(req.body);
   if (err) return res.status(400).json({ error: err });
+  // Whole-schedule replace — this is the Save-all path, so a bad
+  // find/replace lands here. Snapshot first (see the undo routes above).
+  await snapshotForUndo(req.tid, 'schedule save');
   await store.put(req.tid, 'schedule', req.body);
   res.json({ ok: true });
 }));
@@ -1200,6 +1261,9 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
   // run it through the same validator the manual editor uses before saving.
   const verr = validateSchedule(schedule);
   if (verr) return res.status(500).json({ error: 'Generated schedule failed validation: ' + verr });
+  // The most destructive action in the app: replaces the bracket AND clears
+  // every result below. Snapshot before touching anything (undo routes above).
+  await snapshotForUndo(req.tid, 'bracket regenerate');
   await store.put(req.tid, 'schedule', schedule);
 
   // A replaced schedule orphans everything keyed by game slot — old results,

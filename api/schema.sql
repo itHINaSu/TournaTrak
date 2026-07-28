@@ -105,14 +105,22 @@ CREATE TABLE IF NOT EXISTS lineups (
 );
 
 -- Per-tournament config blobs: settings, offsets, field-colors,
--- theme-colors, buckets, teams (builder team list + seeds).
+-- theme-colors, buckets, teams (builder team list + seeds), undo (one
+-- snapshot taken before the last destructive write).
 CREATE TABLE IF NOT EXISTS config (
   tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
   domain        TEXT    NOT NULL CHECK (domain IN
-                  ('settings','offsets','field_colors','theme_colors','buckets','teams')),
+                  ('settings','offsets','field_colors','theme_colors','buckets','teams','undo')),
   data          JSONB   NOT NULL DEFAULT '{}',
   PRIMARY KEY (tournament_id, domain)
 );
+
+-- Refresh the domain check on databases created before 'undo' existed. Same
+-- treatment as users_role_check above: cheap and idempotent-in-effect, so it
+-- runs every boot. Keep this list in sync with CONFIG_DOMAINS in store.js.
+ALTER TABLE config DROP CONSTRAINT IF EXISTS config_domain_check;
+ALTER TABLE config ADD CONSTRAINT config_domain_check
+  CHECK (domain IN ('settings','offsets','field_colors','theme_colors','buckets','teams','undo'));
 
 -- Express sessions (replaces the JSON FileSessionStore).
 CREATE TABLE IF NOT EXISTS sessions (

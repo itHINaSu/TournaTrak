@@ -10,11 +10,11 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css">
-<link rel="stylesheet" href="/admin.css">
-<link rel="stylesheet" href="/lineup.css">
-<link rel="stylesheet" href="/builder.css">
-<script src="/app-h.js"></script>
+<link rel="stylesheet" href="/base.css?v=3.08">
+<link rel="stylesheet" href="/admin.css?v=3.08">
+<link rel="stylesheet" href="/lineup.css?v=3.08">
+<link rel="stylesheet" href="/builder.css?v=3.08">
+<script src="/app-h.js?v=3.08"></script>
 </head>
 <body>
 
@@ -210,6 +210,11 @@
       <button class="results-mode-btn" id="modeSchedDelaysBtn" data-action="setSchedMode" data-arg="delays">Delays</button>
       <button class="results-mode-btn" id="modeSchedTeamsBtn" data-action="setSchedMode" data-arg="teams">Teams</button>
       <button class="results-mode-btn" id="modeScheduleBtn" data-action="setSchedMode" data-arg="editor">Advanced</button>
+    </div>
+    <!-- One-step undo for the last destructive write (regenerate / save-all) -->
+    <div class="sched-undo" id="schedUndo" hidden>
+      <span class="sched-undo-text" id="schedUndoText"></span>
+      <button class="admin-clear-btn" data-action="undoLastChange">Undo</button>
     </div>
     <!-- Bracket health: pre-publish warnings, shared by Edit and Advanced -->
     <div class="sched-health" id="schedHealth" hidden></div>
@@ -415,7 +420,7 @@
                   </div>
                   <div class="icon-crop-side">
                     <div class="field-hint">Drag the square to move it, or its corner to resize. The area inside becomes the app icon.</div>
-                    <button type="button" class="admin-clear-btn" data-action="cropReset">Reset crop</button>
+                    <button type="button" class="admin-clear-btn" data-action="cropReset" data-arg="icon">Reset crop</button>
                   </div>
                 </div>
                 <div class="field-hint">Background shows behind the logo in Fit mode (and through transparent areas). Devices refresh the icon when the app is reinstalled.</div>
@@ -425,7 +430,23 @@
                 <div class="logo-picker-row">
                   <img id="faviconPreview" class="favicon-preview" alt="Favicon preview" hidden>
                   <input type="file" id="faviconFileInput" accept="image/png,image/jpeg,image/webp" data-action-change="pickFavicon">
+                  <select class="styled" id="faviconModeSel" data-action-change="onFaviconStyleChange" hidden>
+                    <option value="fit">Fit — whole image, transparent edges</option>
+                    <option value="crop">Crop — pick the square to use</option>
+                  </select>
                   <button class="admin-clear-btn" id="faviconRemoveBtn" data-action="removeFavicon" hidden>Remove</button>
+                </div>
+                <div class="icon-crop" id="faviconCropEditor" hidden>
+                  <div class="icon-crop-stage" id="faviconCropStage">
+                    <img class="icon-crop-img" id="faviconCropImg" alt="">
+                    <div class="icon-crop-box" id="faviconCropBox">
+                      <span class="icon-crop-handle" id="faviconCropHandle"></span>
+                    </div>
+                  </div>
+                  <div class="icon-crop-side">
+                    <div class="field-hint">Drag the square to move it, or its corner to resize. A tab icon is 16px on screen, so cropping to the mark alone usually reads better than the whole logo.</div>
+                    <button type="button" class="admin-clear-btn" data-action="cropReset" data-arg="favicon">Reset crop</button>
+                  </div>
                 </div>
                 <div class="field-hint">Shown in the browser tab and bookmarks. Resized to 64×64 automatically; leave empty to keep the gold trophy.</div>
               </div>
@@ -561,6 +582,19 @@
               <div class="settings-save-row">
                 <button class="sched-save-btn" data-action="saveSettings">Save</button>
                 <span class="sched-status" id="lineupSaveStatus"></span>
+              </div>
+            </div>
+          </div>
+          <div class="settings-section">
+            <div class="settings-section-hdr collapsible-hdr" data-action="toggleSection">Export</div>
+            <div class="collapsible-body">
+              <div class="settings-field">
+                <label>Download results</label>
+                <div class="export-row">
+                  <button class="sched-save-btn" data-action="exportCsv" data-arg="games">Game results (CSV)</button>
+                  <button class="sched-save-btn" data-action="exportCsv" data-arg="teams">Team records (CSV)</button>
+                </div>
+                <div class="field-hint">Game results is one row per game — time, field, both teams, score, winner. Team records is each team's W-L and run totals in standings order. Opens in Excel, Numbers, or Sheets.</div>
               </div>
             </div>
           </div>
@@ -754,13 +788,13 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js"></script>
-<script src="/tt-common.js"></script>
-<script src="/bracket-data.js"></script>
-<script src="/admin.js"></script>
-<script src="/lineup.js"></script>
-<script src="/builder-form.js"></script>
-<script src="/builder.js"></script>
-<script src="/sw-register.js" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.08"></script>
+<script src="/tt-common.js?v=3.08"></script>
+<script src="/bracket-data.js?v=3.08"></script>
+<script src="/admin.js?v=3.08"></script>
+<script src="/lineup.js?v=3.08"></script>
+<script src="/builder-form.js?v=3.08"></script>
+<script src="/builder.js?v=3.08"></script>
+<script src="/sw-register.js?v=3.08" data-sw="/admin-sw.js"></script>
 </body>
 </html>
