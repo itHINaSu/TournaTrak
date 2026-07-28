@@ -3788,25 +3788,36 @@ function renderStandingsView() {
     return;
   }
   var played = rows.some(function(r) { return r.gp > 0; });
-  var html = '<div class="standings-block"><div class="standings-group">'
-    + '<div class="standings-card"><table class="standings-table">'
-    + '<thead><tr><th class="standings-rank-th">#</th><th class="standings-team-th">Team</th>'
-    + '<th>W</th><th>L</th><th>RF</th><th>RA</th><th>+/-</th></tr></thead><tbody>';
+  // Row cards rather than a table, matching the Bucket Challenge board — the
+  // two tabs share a slot and used to look like they came from different
+  // apps. No medal colouring here (owner call): a bucket leader is a prize,
+  // a standings leader is just the top of a list that changes all weekend.
+  // The stats fold into the row instead of needing header cells: the record
+  // is the row's headline figure, run differential sits under it, and runs
+  // for/against carry their own inline labels.
+  var html = '<div class="std-board">';
   rows.forEach(function(r, i) {
     var diff = r.rf - r.ra;
+    var diffCls = diff > 0 ? ' std-diff--pos' : diff < 0 ? ' std-diff--neg' : '';
     // Teams with no games yet are listed but not ranked — a "1" next to a
     // team that hasn't played reads as a standing it hasn't earned.
-    html += '<tr' + (r.gp ? '' : ' class="standings-row--unplayed"') + '>'
-      + '<td class="standings-rank">' + (r.gp ? (i + 1) : '—') + '</td>'
-      + '<td class="standings-team">' + seedChip(r.name) + esc(r.name) + '</td>'
-      + '<td>' + r.w + '</td><td>' + r.l + '</td>'
-      + '<td>' + r.rf + '</td><td>' + r.ra + '</td>'
-      + '<td class="' + (diff > 0 ? 'standings-diff-pos' : diff < 0 ? 'standings-diff-neg' : '') + '">'
-      + (diff > 0 ? '+' : '') + diff + '</td></tr>';
+    html += '<div class="std-row' + (r.gp ? '' : ' std-row--unplayed') + '">'
+      + '<span class="std-rank">' + (r.gp ? (i + 1) : '—') + '</span>'
+      + '<span class="std-main">'
+      +   '<span class="std-team">' + seedChip(r.name) + esc(r.name) + '</span>'
+      +   '<span class="std-meta">'
+      +     '<span class="std-stat"><b>' + r.rf + '</b> RF</span>'
+      +     '<span class="std-stat"><b>' + r.ra + '</b> RA</span>'
+      +   '</span>'
+      + '</span>'
+      + '<span class="std-figures">'
+      +   '<span class="std-record">' + r.w + '<span class="std-record-sep">–</span>' + r.l + '</span>'
+      +   '<span class="std-diff' + diffCls + '">' + (diff > 0 ? '+' : '') + diff + '</span>'
+      + '</span>'
+      + '</div>';
   });
-  html += '</tbody></table>'
-    + (played ? '<div class="standings-tiebreaks">' + esc(STANDINGS_TIEBREAKS) + '</div>' : '')
-    + '</div></div></div>';
+  html += '</div>'
+    + (played ? '<div class="std-tiebreaks">' + esc(STANDINGS_TIEBREAKS) + '</div>' : '');
   out.innerHTML = html;
 }
 

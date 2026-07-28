@@ -203,6 +203,111 @@
   min-width: 2.5em;
   text-align: right;
 }
+/* ── Standings board ──
+   Deliberately built from the Bucket Challenge row card above, not from the
+   pool tables: the two share the fourth tab slot, so a visitor switching
+   between them should not feel like they changed apps. Same surface, border,
+   radius, rhythm and Oswald team name; no medal colouring (owner call — a
+   bucket leader is a prize, a standings leader is just today's top of the
+   list). The stats live inside the row instead of needing header cells, so
+   there is no table chrome to reintroduce. The pool tables embedded in the
+   Schedule tab keep .standings-table — a compact grid is right above a list
+   of games. */
+.std-board {
+  max-width: 42em;
+  margin: 0 auto;
+  padding: 0.75em 0 0.35em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+.std-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  background: var(--surface);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.6em 1em;
+}
+.std-row--unplayed { opacity: 0.55; }
+.std-rank {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-mute);
+  min-width: 1.8em;
+  text-align: center;
+  flex-shrink: 0;
+}
+.std-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15em; }
+.std-team {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Runs for / against — secondary, so they read as detail under the name
+   rather than competing with the record. */
+.std-meta {
+  display: flex;
+  gap: 0.9em;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  color: var(--text-mute);
+}
+.std-stat b {
+  font-weight: 600;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.std-figures {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.05em;
+  min-width: 3.4em;
+}
+/* The row's headline figure, in the same slot and weight as .bucket-count */
+.std-record {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--blue-lt);
+  font-variant-numeric: tabular-nums;
+}
+.std-record-sep { opacity: 0.5; margin: 0 0.1em; }
+.std-diff {
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-mute);
+  font-variant-numeric: tabular-nums;
+}
+.std-diff--pos { color: var(--win-color); }
+.std-diff--neg { color: var(--lose-color); }
+/* The tiebreak order is printed under the board: a TD gets asked "why is that
+   team above us" and needs the answer on the same screen. */
+.std-tiebreaks {
+  /* rem, not em: this block sets its own small font-size, so 42em here would
+     measure against THAT and the rule would come out narrower than the board
+     it sits under. */
+  max-width: 42rem;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 0.9em 0 1em;
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  color: var(--text-mute);
+  border-top: 0.07em solid var(--border);
+}
 .bucket-icon-sm {
   width: 1.1em;
   height: 1.1em;
@@ -1777,6 +1882,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   }
   /* Content scrolls within the flex column; selector row is a static sibling below */
   #view-schedule.active .round-panel,
+  #view-standings.active .team-panel,
   #view-teampath.active .team-panel {
     flex: 1;
     min-height: 0;
@@ -1785,12 +1891,24 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
     overscroll-behavior-y: contain;
     scrollbar-width: none;
   }
+  /* Same treatment as .bucket-panel: without box-sizing the 1em side padding
+     is ADDED to the full-width panel and every row overflows the screen. */
+  #view-standings.active { display: flex; flex-direction: column; overflow: hidden; }
+  #view-standings.active .team-panel {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding-left: 0.75em;
+    padding-right: 0.75em;
+    box-sizing: border-box;
+  }
   /* A/B flights now use the same mobile column carousel as the tree (its
      own fixed scroll overlay) — the panel just needs the flex column so the
      bracket root fills the space between pills and tab bar. */
   #view-bracket.active { display: flex; flex-direction: column; }
   #view-bracket.active #bracketRoot { flex: 1; min-height: 0; }
   #view-schedule.active .round-panel::-webkit-scrollbar,
+  #view-standings.active .team-panel::-webkit-scrollbar,
   #view-teampath.active .team-panel::-webkit-scrollbar { display: none; }
 
   #view-buckets.active {
@@ -1967,12 +2085,6 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   font-family: 'Barlow', sans-serif;
   font-size: var(--text-md);
 }
-/* All-teams standings tab: rank column, and teams with no games yet shown
-   but not ranked. */
-.standings-table th.standings-rank-th,
-.standings-table td.standings-rank { width: 2.4em; text-align: center; }
-.standings-rank { font-family: 'Oswald', sans-serif; color: var(--text-mute); }
-.standings-row--unplayed { opacity: 0.55; }
 .standings-empty {
   text-align: center;
   color: var(--text-mute);
