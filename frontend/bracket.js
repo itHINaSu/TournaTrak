@@ -2449,7 +2449,54 @@ function paintBracketCanvas(win, doc, opts) {
   ctx.translate(pad, pad + headH);
   paintEl(ctx, content, base, win);
   restorePills();
-  return canvas;
+  return trimCanvas(canvas, pad);
+}
+
+// Crop a painted canvas to what is actually on it.
+//
+// The canvas is sized from the bracket's CONTAINER, and a column's box is as
+// tall as the whole grid whether or not it holds cards — so a small A/B
+// flight, or any bracket whose rounds thin out, exports with a lot of dead
+// space. That reads as sloppy in a shared image. Scan for pixels that differ
+// from the background fill and keep that box plus an even margin.
+//
+// Safe to do by pixel: paintEl only draws shapes and text, never an <img>, so
+// the canvas is never tainted and getImageData can't throw on origin grounds.
+// It is wrapped anyway — an uncropped image beats no image.
+function trimCanvas(canvas, pad) {
+  var W = canvas.width, H = canvas.height, data;
+  try { data = canvas.getContext('2d').getImageData(0, 0, W, H).data; }
+  catch (e) { return canvas; }
+  // (0,0) is background: the title band starts one pad in and one line down.
+  var r0 = data[0], g0 = data[1], b0 = data[2], TOL = 10;
+  function differs(i) {
+    return Math.abs(data[i] - r0) > TOL
+        || Math.abs(data[i + 1] - g0) > TOL
+        || Math.abs(data[i + 2] - b0) > TOL;
+  }
+  var minX = W, minY = -1, maxX = -1, maxY = -1;
+  for (var y = 0; y < H; y++) {
+    var row = y * W * 4, hit = false;
+    for (var x = 0; x < W; x++) {
+      if (!differs(row + x * 4)) continue;
+      hit = true;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+    }
+    if (hit) { if (minY < 0) minY = y; maxY = y; }
+  }
+  if (maxY < 0) return canvas;   // nothing drawn — leave it alone
+  var x0 = Math.max(0, minX - pad), y0 = Math.max(0, minY - pad);
+  var x1 = Math.min(W, maxX + 1 + pad), y1 = Math.min(H, maxY + 1 + pad);
+  var w = x1 - x0, h = y1 - y0;
+  if (w >= W && h >= H) return canvas;
+  var out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  var octx = out.getContext('2d');
+  octx.fillStyle = 'rgb(' + r0 + ',' + g0 + ',' + b0 + ')';
+  octx.fillRect(0, 0, w, h);
+  octx.drawImage(canvas, x0, y0, w, h, 0, 0, w, h);
+  return out;
 }
 
 function shareOpts() {
@@ -2531,16 +2578,19 @@ function stackCanvases(shots, opts) {
   var out = document.createElement('canvas');
   out.width = W; out.height = H;
   var ctx = out.getContext('2d');
-  ctx.fillStyle = opts.theme === 'print' ? '#ffffff'
-    : getComputedStyle(document.body).backgroundColor || '#ffffff';
+  // Take the backdrop from a rendered bracket, not from this page. The
+  // brackets were painted in the render frame under the chosen THEME, while
+  // this document is on whatever theme the viewer happens to be using — and
+  // once cropping made the flights narrower than the widest one, that
+  // mismatch showed as pale bands down either side of every small bracket.
+  ctx.fillStyle = canvasBackdrop(shots[0].canvas, opts);
   ctx.fillRect(0, 0, W, H);
   var y = 0;
   shots.forEach(function(s, i) {
     ctx.drawImage(s.canvas, Math.round((W - s.canvas.width) / 2), y);
     y += s.canvas.height;
     if (i < shots.length - 1) {
-      ctx.strokeStyle = opts.theme === 'print' ? '#cccccc'
-        : (getComputedStyle(document.documentElement).getPropertyValue('--border') || '#888').trim();
+      ctx.strokeStyle = opts.theme === 'print' ? '#cccccc' : 'rgba(128,128,128,0.55)';
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(W * 0.08, y + GAP / 2);
@@ -2550,6 +2600,16 @@ function stackCanvases(shots, opts) {
     }
   });
   return out;
+}
+
+// The colour a painted bracket sits on, read from its own top-left pixel.
+// trimCanvas leaves a pad of pure background there, so this is exact.
+function canvasBackdrop(canvas, opts) {
+  if (opts && opts.theme === 'print') return '#ffffff';
+  try {
+    var d = canvas.getContext('2d').getImageData(0, 0, 1, 1).data;
+    return 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';
+  } catch (e) { return '#ffffff'; }
 }
 
 var _shareShots = [];   // last rendered set, reused by download
