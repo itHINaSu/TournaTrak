@@ -508,11 +508,43 @@ function generateDoubleElim(opts) {
 //             mixed pairs pass through silently instead (a "bye" whose team
 //             isn't known yet has nothing to print on a card)
 // Returns [{ slot, col, t1, t2, bye? }] in column order (col 0 first).
+
+// Column list for a drop bracket packed into one storage round. Bands are
+// sized against the ROUND's full capacity (R0 = 32 per side), not the
+// bracket's own size: column 0 owns slots 1-16, column 1 owns 17-24, then
+// 25-28, 29-30, 31. A smaller bracket simply leaves the tail of each band
+// empty. Deriving from capacity (rather than from the entrant count) is
+// what keeps a slot number's band === its column for EVERY bracket size,
+// which is the assumption tierBand() in bracket-data.js reads back when it
+// has to place a slot that has no game in it yet. Replaces a hardcoded
+// 4-entry table that ran off the end at 5 rounds (reachable from a 32-team
+// Open).
+const R0_CAPACITY = 32;
+function feedChain(round, side, count) {
+  const chain = [];
+  let offset = 0;
+  for (let games = R0_CAPACITY / 2; games >= 1; games /= 2) {
+    chain.push([round, side, offset]);
+    offset += games;
+  }
+  const depth = Math.round(Math.log2(nextPow2(Math.max(2, count))));
+  return chain.slice(0, Math.max(1, depth));
+}
+
 function buildFeedBracket(entrants, chain, byeCards) {
   const P = nextPow2(Math.max(2, entrants.length));
   const specs = [];
-  let level = [];
-  for (let i = 0; i < P; i++) level.push(entrants[i] || null);
+  // Place entrants at standard bracket-seed positions (same seedOrder()
+  // pattern every other generator uses for byes) instead of packing them
+  // at the front with nulls trailing at the end. The naive fill pairs
+  // missing slots with EACH OTHER whenever entrants.length is even but not
+  // a power of two (e.g. 14 entrants in a 16-slot bracket: positions 0-13
+  // are all real, so the two nulls land on 14/15 and pair uselessly —
+  // nobody gets an actual bye, round 1 plays 7 games instead of 6, and one
+  // team ends up with an unearned free pass in round 2 instead). Seed-order
+  // placement guarantees a null always pairs with a real entrant whenever
+  // byes <= P/2, which is always true here.
+  let level = seedOrder(P).map(s => entrants[s - 1] || null);
 
   for (let col = 0; col < chain.length; col++) {
     const [round, side, offset] = chain[col];
@@ -935,26 +967,22 @@ function generateTiered(opts) {
   const aEntrants = zeroTwo.concat(oneTwo);
   let aSpecs = [];
   if (aEntrants.length >= 2) {
-    const aDepth = Math.round(Math.log2(nextPow2(aEntrants.length)));
-    const A_CHAIN = [['R0','L',0], ['R0','L',8], ['R0','L',12], ['R0','L',14]].slice(0, aDepth);
-    aSpecs = buildFeedBracket(aEntrants, A_CHAIN, false).map(s => ({
+    aSpecs = buildFeedBracket(aEntrants, feedChain('R0', 'L', aEntrants.length), false).map(s => ({
       ...s, tier: 'A', labelSuffix: ' · A Bracket', key: openMaxKey + 0.5 + s.col,
     }));
   }
 
-  // B: losers of the 0-2-vs-0-2 A round-1 games only (an odd 0-2 count makes
-  // the last col-0 game mixed — its loser might be a 1-2 team, so it doesn't
-  // feed B). 1-2 teams' A losses go nowhere — they're out at that point.
-  const zeroTwoGames = Math.floor(zeroTwo.length / 2);
+  // B: losers of EVERY A round-1 game (banner behavior, confirmed against
+  // the real 2026 ISSA State bracket — all 6 A-round-1 losers feed B there,
+  // not just the 0-2-vs-0-2 subset). Resolves the drop-rule ambiguity noted
+  // above: the owner's originally-stated "1-2 teams get no B" rule doesn't
+  // match what ISSA actually runs.
   const bEntrants = aSpecs
     .filter(s => s.col === 0)
-    .slice(0, zeroTwoGames)
     .map(s => ({ slot: s.slot, type: 'loser' }));
   let bSpecs = [];
   if (bEntrants.length >= 2) {
-    const bDepth = Math.round(Math.log2(nextPow2(bEntrants.length)));
-    const B_CHAIN = [['R0','R',0], ['R0','R',8], ['R0','R',12]].slice(0, bDepth);
-    bSpecs = buildFeedBracket(bEntrants, B_CHAIN, false).map(s => ({
+    bSpecs = buildFeedBracket(bEntrants, feedChain('R0', 'R', bEntrants.length), false).map(s => ({
       ...s, tier: 'B', labelSuffix: ' · B Bracket', key: openMaxKey + 0.75 + s.col,
     }));
   }
@@ -988,9 +1016,7 @@ function generateThreeGame(opts) {
     .map(s => ({ slot: s.slot, type: 'loser' }));
   let bSpecs = [];
   if (bEntrants.length >= 2) {
-    const bDepth = Math.round(Math.log2(nextPow2(bEntrants.length)));
-    const B_CHAIN = [['R0','R',0], ['R0','R',8], ['R0','R',12], ['R0','R',14]].slice(0, bDepth);
-    bSpecs = buildFeedBracket(bEntrants, B_CHAIN, false).map(sp => ({
+    bSpecs = buildFeedBracket(bEntrants, feedChain('R0', 'R', bEntrants.length), false).map(sp => ({
       ...sp, tier: 'B', labelSuffix: ' · B Bracket', key: mainMaxKey + 0.5 + sp.col,
     }));
   }

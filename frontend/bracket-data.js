@@ -7,7 +7,11 @@
 
 // IMPORTANT: Keep in sync with api/slot-defs.js (API container cannot import this file).
 const SLOT_DEFS = {
-  R0:   { L:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], R:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16] },
+  // 1-32: enough headroom for a tiered/three-game A or B bracket fed by a
+  // 32-team Open (up to 5 rounds of drop-feed slots — see A_CHAIN/B_CHAIN
+  // in api/schedule-formats.js).
+  R0:   { L:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32],
+           R:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32] },
   R1:   { L:[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16], R:[1,2,3,4,5,6,7,8] },
   R2:   { L:[1,2,3,4,5,6,7,8],                        R:[1,2,3,4,5,6,7,8] },
   QF:   { L:[1,2,3,4],                                 R:[1,2,3,4] },
@@ -111,17 +115,32 @@ function allSlotIds() {
 }
 
 // tierGameRound(sid): display round for a tiered (A/B) drop-bracket game.
-// The schedule GENERATOR lays tier brackets out in flat slot bands:
-// 1-8 → band 0, 9-12 → band 1, 13-14 → band 2, 15-16 → band 3. A game's
-// round is the later of its band and its winner/loser feed depth within
-// the same tier — generated brackets have band === depth so nothing
-// changes, but hand-wired games sort by whichever is deeper. Works for any
-// slot id, including ones with no GAMES entry yet (revealed-but-empty or
-// still-hidden slots), since the band alone comes from the slot number.
+// The schedule GENERATOR lays tier brackets out in flat slot bands, each
+// half the size of the one before (see feedChain in schedule-formats.js):
+// for a 32-slot round that's 1-16 → band 0, 17-24 → band 1, 25-28 → band 2,
+// 29-30 → band 3, 31-32 → band 4. A game's round is the later of its band
+// and its winner/loser feed depth within the same tier — generated brackets
+// have band === depth so nothing changes, but hand-wired games sort by
+// whichever is deeper. Works for any slot id, including ones with no GAMES
+// entry yet (revealed-but-empty or still-hidden slots), since the band
+// alone comes from the slot number.
 // Shared by bracket.js (flightColumns) and admin.js (the schedule editor).
+function tierBand(num, capacity) {
+  // Bands hold capacity/2, /4, … 1 slot(s). The last slot number is unused
+  // by feedChain (a P-slot round fits a P/2-game bracket ending at P-1), so
+  // clamp rather than returning a band past the end of the column list.
+  const maxBand = Math.max(0, Math.round(Math.log2(capacity)) - 1);
+  let band = 0, start = 1, size = capacity / 2;
+  while (size >= 1) {
+    if (num < start + size) return Math.min(band, maxBand);
+    start += size; size /= 2; band++;
+  }
+  return maxBand;
+}
 function tierGameRound(sid) {
-  const num = parseSlotId(sid).num;
-  const band = num <= 8 ? 0 : num <= 12 ? 1 : num <= 14 ? 2 : 3;
+  const p = parseSlotId(sid);
+  const defs = (SLOT_DEFS[p.round] && SLOT_DEFS[p.round][p.side]) || [];
+  const band = tierBand(p.num, defs.length || 16);
   const g = GAMES[sid];
   if (!g) return band;
   const tier = g.tier;
