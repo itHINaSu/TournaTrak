@@ -1442,7 +1442,26 @@ function renderBracket(){
   try { renderBracketInner(); } finally { results = _real; }
 }
 
+// The flight pills belong WITH the bracket. Rendered as a sibling above
+// #bracketRoot they sat in their own page-centred row with dead space under
+// them, and they didn't move with the bracket. They are moved INTO the render
+// output instead — and parked back in the panel first, because assigning
+// root.innerHTML would otherwise destroy the node and every later lookup
+// would find nothing.
+function parkFlightPills() {
+  var row = document.getElementById('bracketFlights');
+  var panel = document.getElementById('view-bracket');
+  var root = document.getElementById('bracketRoot');
+  if (row && panel && root && row.parentNode !== panel) panel.insertBefore(row, root);
+}
+function mountFlightPills(root) {
+  var row = document.getElementById('bracketFlights');
+  var shell = root && root.querySelector('.bracket-shell');
+  if (row && shell) shell.insertBefore(row, shell.firstChild);
+}
+
 function renderBracketInner(){
+  parkFlightPills();
   var root=document.getElementById('bracketRoot');
   // A/B flights render as their own simple single-elim column layout (they
   // live in R0 storage slots, outside the Open tree). Open uses the full
@@ -1679,15 +1698,16 @@ function renderFlightBracket(root, tier) {
       + '</div>';
   }
 
-  root.innerHTML = '<div class="bcc-stack">'
+  root.innerHTML = '<div class="bracket-shell"><div class="bcc-stack">'
     + '<div class="bcc-stack-rows"><div class="bcc-stack-row">'
     +   '<div class="bcc-sideflex"><div class="u-relative">'
     +     '<div class="bcc-rowflex" data-css="margin-top:' + hdrVh + 'vh">' + html + '</div>'
     +   '</div></div>'
     + '</div></div>'
     + champHTML
-    + '</div>';
+    + '</div></div>';
 
+  mountFlightPills(root);
   shrinkFieldTags(root);
 
   // Cross-view jump hook (Team Path card tap) — same contract as the
@@ -2358,7 +2378,7 @@ function renderDesktopBracket(root,dims){
           caption: (getSetting('rightLabel') || 'Loser\u2019s Bracket') + ' Final' }
       : null;
 
-    root.innerHTML = '<div class="bcc-stack">'
+    root.innerHTML = '<div class="bracket-shell"><div class="bcc-stack">'
       + '<div class="bcc-stack-rows">'
       +   '<div class="bcc-stack-row">'
       +     sideHTML('L', getSetting('leftLabel'), false, extra)
@@ -2371,14 +2391,15 @@ function renderDesktopBracket(root,dims){
       +   '</div>'
       +   '<div class="bcc-stack-row">' + sideHTML('R', getSetting('rightLabel'), false) + '</div>'
       + '</div>'
-      + '</div>';
+      + '</div></div>';
   } else {
-    root.innerHTML='<div class="bcc-outerflex">'
+    root.innerHTML='<div class="bracket-shell"><div class="bcc-outerflex">'
       +sideHTML('L',getSetting('leftLabel'),false)
       +champHTML
       +sideHTML('R',getSetting('rightLabel'),true)
-      +'</div>';
+      +'</div></div>';
   }
+  mountFlightPills(root);
 
   shrinkFieldTags(root);
 

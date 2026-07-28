@@ -112,6 +112,19 @@ email, placeholders only the owner can fill). Nothing is known-broken.
 
 **Shipped 2026-07-28 (this session)** — on
 `claude/bracket-generation-missing-lines-tbbhro`:
+- ✅ **Open/A/B pills moved inside the bracket.** They used to sit in
+  `#view-bracket` above `#bracketRoot`, so they were centred on the PAGE while
+  the bracket is centred on its own (often much wider, horizontally scrolled)
+  content — and the columns' reserved header space left a ~36px dead band
+  under them. Every desktop render now wraps its output in
+  `.bracket-shell` (flex column, `min-width:min-content`) and calls
+  `mountFlightPills(root)`, which MOVES the existing `#bracketFlights` node
+  into the shell — it is not re-created, so the `data-action` delegation and
+  the active-pill state survive. `parkFlightPills()` runs at the top of
+  `renderBracketInner()` to put the node back in the panel before the tree is
+  blown away by `innerHTML`; without that the re-render would destroy it and
+  the pills would vanish. Mobile deliberately leaves them parked (the
+  carousel has no shell). Column padding-top went `*2.5` → `*1.7`.
 - ✅ **Save the bracket as an image** ("Save image" in the header, shown to
   admin/results only — posting the bracket is a TD job, and a full-width row
   above the bracket was far too loud for it).

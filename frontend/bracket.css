@@ -2120,7 +2120,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   min-width: min-content;
   margin: 0 auto;
   box-sizing: border-box;
-  padding: calc(var(--col-hdr-h)*2.5) 0 1em;
+  padding: calc(var(--col-hdr-h)*1.7) 0 1em;
 }
 /* Desktop: a large field (22+ team double elim) needs more room than the
    window has once the readability floors in getDims() kick in. Scroll rather
@@ -2136,6 +2136,18 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
    height, which the page simply scrolls. Both rows read LEFT TO RIGHT (the
    losers side is not mirrored here) and share one column width, so the rounds
    line up vertically. See getDims / stackedDims in bracket.js. */
+/* Column wrapper holding the flight pills and the bracket itself. The pills
+   are MOVED in here at render time (mountFlightPills) so they sit with the
+   bracket instead of in their own page-centred row with dead space beneath —
+   and so they travel with it into the exported image. */
+.bracket-shell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: min-content;
+}
+.bracket-shell > .bracket-flights { margin: 0 auto 0.15em; }
+
 .bcc-stack {
   display: flex;
   align-items: center;      /* championship centred across both rows */
@@ -2144,7 +2156,9 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   min-width: min-content;   /* scroll instead of squeezing the columns */
   margin: 0 auto;
   box-sizing: border-box;
-  padding: calc(var(--col-hdr-h)*2.5) 0 1em;
+  /* Top padding only has to clear the absolutely-positioned side label and
+     round headers; the pills above supply the visual separation. */
+  padding: calc(var(--col-hdr-h)*1.7) 0 1em;
   gap: 0.5vw;
 }
 .bcc-stack-rows {
