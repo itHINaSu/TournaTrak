@@ -122,21 +122,21 @@
       "t1name": "Nukez",
       "t2name": "Brew Crew"
     },
-    "R2.L.1": {
+    "R2.L.2": {
       "label": "Game 7",
       "time": "2026-07-31T18:30",
       "field": "Center",
       "t1name": "FTown",
       "t2name": "Westside"
     },
-    "R2.L.2": {
+    "R2.L.6": {
       "label": "Game 8",
       "time": "2026-07-31T20:30",
       "field": "Center",
       "t1name": "NXT",
       "t2name": "Sub City"
     },
-    "R2.L.3": {
+    "R2.L.1": {
       "label": "Game 9",
       "time": "2026-07-31T20:30",
       "field": "East",
@@ -144,7 +144,7 @@
       "t2type": "winner",
       "t2slot": "R1.L.1"
     },
-    "R2.L.4": {
+    "R2.L.3": {
       "label": "Game 10",
       "time": "2026-08-01T10:10",
       "field": "Center",
@@ -152,7 +152,7 @@
       "t2type": "winner",
       "t2slot": "R1.L.2"
     },
-    "R2.L.5": {
+    "R2.L.4": {
       "label": "Game 11",
       "time": "2026-07-31T20:30",
       "field": "West",
@@ -160,7 +160,7 @@
       "t2type": "winner",
       "t2slot": "R1.L.3"
     },
-    "R2.L.6": {
+    "R2.L.5": {
       "label": "Game 12",
       "time": "2026-07-31T21:30",
       "field": "West",
@@ -189,27 +189,27 @@
       "time": "2026-08-01T12:30",
       "field": "West",
       "t1type": "winner",
-      "t1slot": "R2.L.3",
+      "t1slot": "R2.L.1",
       "t2type": "winner",
-      "t2slot": "R2.L.1"
+      "t2slot": "R2.L.2"
     },
     "QF.L.2": {
       "label": "Game 26",
       "time": "2026-08-01T12:30",
       "field": "Center",
       "t1type": "winner",
-      "t1slot": "R2.L.4",
+      "t1slot": "R2.L.3",
       "t2type": "winner",
-      "t2slot": "R2.L.5"
+      "t2slot": "R2.L.4"
     },
     "QF.L.3": {
       "label": "Game 27",
       "time": "2026-08-01T13:40",
       "field": "West",
       "t1type": "winner",
-      "t1slot": "R2.L.6",
+      "t1slot": "R2.L.5",
       "t2type": "winner",
-      "t2slot": "R2.L.2"
+      "t2slot": "R2.L.6"
     },
     "QF.L.4": {
       "label": "Game 28",
@@ -247,16 +247,16 @@
       "t2type": "winner",
       "t2slot": "QF2.L.2"
     },
-    "R2.R.1": {
+    "R2.R.5": {
       "label": "Game 15",
       "time": "2026-08-01T10:10",
       "field": "East",
       "t1type": "loser",
-      "t1slot": "R2.L.6",
+      "t1slot": "R2.L.5",
       "t2type": "loser",
       "t2slot": "R1.L.1"
     },
-    "R2.R.2": {
+    "R2.R.1": {
       "label": "Game 16",
       "time": "2026-08-01T11:20",
       "field": "Center",
@@ -265,7 +265,7 @@
       "t2type": "loser",
       "t2slot": "R1.L.2"
     },
-    "R2.R.3": {
+    "R2.R.2": {
       "label": "Game 17",
       "time": "2026-08-01T10:10",
       "field": "West",
@@ -274,30 +274,30 @@
       "t2type": "loser",
       "t2slot": "R1.L.3"
     },
-    "R2.R.4": {
+    "R2.R.6": {
       "label": "Game 18",
       "time": "2026-08-01T09:00",
       "field": "East",
       "t1type": "loser",
-      "t1slot": "R2.L.3",
+      "t1slot": "R2.L.1",
       "t2type": "loser",
       "t2slot": "R1.L.4"
     },
-    "R2.R.5": {
+    "R2.R.3": {
       "label": "Game 19",
       "time": "2026-08-01T12:30",
       "field": "East",
       "t1type": "loser",
-      "t1slot": "R2.L.4",
+      "t1slot": "R2.L.3",
       "t2type": "loser",
       "t2slot": "R1.L.5"
     },
-    "R2.R.6": {
+    "R2.R.4": {
       "label": "Game 20",
       "time": "2026-08-01T09:00",
       "field": "West",
       "t1type": "loser",
-      "t1slot": "R2.L.5",
+      "t1slot": "R2.L.4",
       "t2type": "loser",
       "t2slot": "R1.L.6"
     },
@@ -306,36 +306,36 @@
       "time": "2026-08-01T11:20",
       "field": "East",
       "t1type": "winner",
-      "t1slot": "R2.R.1",
+      "t1slot": "R2.R.5",
       "t2type": "loser",
-      "t2slot": "R2.L.2"
+      "t2slot": "R2.L.6"
     },
     "QF.R.2": {
       "label": "Game 22",
       "time": "2026-08-01T11:20",
       "field": "West",
       "t1type": "winner",
-      "t1slot": "R2.R.4",
+      "t1slot": "R2.R.6",
       "t2type": "loser",
-      "t2slot": "R2.L.1"
+      "t2slot": "R2.L.2"
     },
     "QF.R.3": {
       "label": "Game 23",
       "time": "2026-08-01T13:40",
       "field": "East",
       "t1type": "winner",
-      "t1slot": "R2.R.2",
+      "t1slot": "R2.R.1",
       "t2type": "winner",
-      "t2slot": "R2.R.3"
+      "t2slot": "R2.R.2"
     },
     "QF.R.4": {
       "label": "Game 24",
       "time": "2026-08-01T14:50",
       "field": "West",
       "t1type": "winner",
-      "t1slot": "R2.R.5",
+      "t1slot": "R2.R.3",
       "t2type": "winner",
-      "t2slot": "R2.R.6"
+      "t2slot": "R2.R.4"
     },
     "QF2.R.1": {
       "label": "Game 29",
@@ -452,7 +452,7 @@
       "t1type": "loser",
       "t1slot": "QF.R.2",
       "t2type": "loser",
-      "t2slot": "R2.R.1",
+      "t2slot": "R2.R.5",
       "tier": "A"
     },
     "R0.L.2": {
@@ -462,7 +462,7 @@
       "t1type": "loser",
       "t1slot": "QF2.R.3",
       "t2type": "loser",
-      "t2slot": "R2.R.3",
+      "t2slot": "R2.R.2",
       "tier": "A"
     },
     "R0.L.3": {
@@ -472,7 +472,7 @@
       "t1type": "loser",
       "t1slot": "QF.R.4",
       "t2type": "loser",
-      "t2slot": "R2.R.2",
+      "t2slot": "R2.R.1",
       "tier": "A"
     },
     "R0.L.4": {
@@ -482,7 +482,7 @@
       "t1type": "loser",
       "t1slot": "QF.R.3",
       "t2type": "loser",
-      "t2slot": "R2.R.4",
+      "t2slot": "R2.R.6",
       "tier": "A"
     },
     "R0.L.5": {
@@ -492,7 +492,7 @@
       "t1type": "loser",
       "t1slot": "QF2.R.1",
       "t2type": "loser",
-      "t2slot": "R2.R.5",
+      "t2slot": "R2.R.3",
       "tier": "A"
     },
     "R0.L.6": {
@@ -502,7 +502,7 @@
       "t1type": "loser",
       "t1slot": "QF.R.1",
       "t2type": "loser",
-      "t2slot": "R2.R.6",
+      "t2slot": "R2.R.4",
       "tier": "A"
     },
     "R0.L.17": {

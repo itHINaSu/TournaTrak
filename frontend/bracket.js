@@ -602,6 +602,16 @@ function disp(gid,slot){
 // CARD_RATIO: card height as a fraction of its slot's vertical space (leaves gap).
 // CARD_ASPECT: card width-to-height ratio used to derive card height from column width.
 var CARD_RATIO=0.82, CARD_ASPECT=2.6;
+// Desktop readability floors, in PIXELS. The layout is expressed in vh/vw so
+// it scales with the window, but a floor expressed in vh silently shrinks on
+// a short screen — a 2.4vh row is 26px at 1100px tall and only 19px at 800px.
+// These are the point past which the bracket stops shrinking to fit and the
+// page scrolls instead, which is the right trade for a large field: the
+// fit-to-viewport behaviour was designed around 8-16 team brackets, and a
+// 22/32-team double elim simply needs more room than a laptop screen has.
+var MIN_ROW_PX = 26;                     // one team row inside a card
+var MIN_CARD_PX = MIN_ROW_PX * 3;        // header + two team rows
+var MIN_COL_PX = 150;                    // column width — names need the room
 
 /// slotTopVh: positions a card within its round column.
 // n = max(actual game count, highest slot number used) so slots spread evenly
@@ -685,14 +695,25 @@ function getDims(){
     var champVw=10;
     var colVw=(97-champVw)/units;
     if(colVw > champVw - 1.6){ colVw = 95.4/(units+1); champVw = colVw + 1.6; }
-    var gapVw=colVw*0.15;
     var vwPx=window.innerWidth/100, vhPx=window.innerHeight/100;
+    // Column width floor: with a dozen rounds on screen (a 22+ team double
+    // elim has 5 WB + 7 LB) the derived width collapses to ~120px and team
+    // names turn into ellipses. Below the floor the bracket scrolls
+    // horizontally instead of squeezing further.
+    if(colVw*vwPx < MIN_COL_PX){ colVw = MIN_COL_PX/vwPx; champVw = Math.max(champVw, colVw + 1.6); }
+    var gapVw=colVw*0.15;
     var cardVh=(colVw*vwPx/CARD_ASPECT)/vhPx;
-    var rowVh=cardVh/3;
-    if(rowVh<2.4){ rowVh=2.4; cardVh=rowVh*3; }
     var gridH = gridHeight();
+    // Shrink to fit the viewport when it fits — small brackets keep their
+    // "whole bracket on one screen" behaviour…
     var maxCardVh=(availVh/gridH)*CARD_RATIO;
-    if(cardVh>maxCardVh){ cardVh=maxCardVh; rowVh=cardVh/3; }
+    if(cardVh>maxCardVh){ cardVh=maxCardVh; }
+    // …but never past the readability floor. When the floor wins, totalVh
+    // exceeds the viewport and the page scrolls (desktop body scrolls
+    // normally — the viewport lock in bracket.css is mobile-only).
+    var minCardVh=MIN_CARD_PX/vhPx;
+    if(cardVh<minCardVh){ cardVh=minCardVh; }
+    var rowVh=cardVh/3;
     var slotVh=cardVh/CARD_RATIO;
     return {slotVh,cardVh,rowVh,colVw,gapVw,champVw,totalVh:slotVh*gridH,isDesktop,isMobile};
   }

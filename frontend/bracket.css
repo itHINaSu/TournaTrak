@@ -2076,11 +2076,21 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
 .bcc-outerflex {
   display: flex;
   align-items: flex-start;
+  /* min-content keeps the columns at their computed width instead of letting
+     flex squeeze them when the bracket is wider than the viewport; the
+     wrapper below then scrolls horizontally. */
   justify-content: center;
   width: 97vw;
+  min-width: min-content;
   margin: 0 auto;
   box-sizing: border-box;
   padding: calc(var(--col-hdr-h)*2.5) 0 1em;
+}
+/* Desktop: a large field (22+ team double elim) needs more room than the
+   window has once the readability floors in getDims() kick in. Scroll rather
+   than shrink — the fit-to-viewport sizing was built for 8-16 team brackets. */
+@media (min-width: 1280px) {
+  #view-bracket.active { overflow-x: auto; }
 }
 .bcc-sideflex { position: relative; flex: 0 0 auto; display: flex; }
 .bcc-rowflex { display: flex; flex-direction: row; }
