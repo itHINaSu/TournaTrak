@@ -1242,7 +1242,13 @@ function trophySVG() {
 // ══════════════════════════════════════════════════════════
 // CARD HTML
 // ══════════════════════════════════════════════════════════
-function cardHTML(gid){
+// asChamp: this card is being drawn INSIDE a championship panel, which prints
+// the game time above it — so the card drops its own copy. It has to be told
+// rather than work it out from the slot id: a flight's final is an ordinary R0
+// tier slot, so an id test recognises only the main tree's championship and
+// leaves every A/B final with a duplicate time in its header. That overflowed
+// the header, which is what drove shrinkFieldTags to cut "Field 1" down to "F".
+function cardHTML(gid, asChamp){
   var g=GAMES[gid];
   if(!g) return '<div class="bc-hdr"><span class="bc-id">'+esc(gid)+'</span></div>'
     +'<div class="bc-team tbd">TBD</div><div class="bc-team tbd">TBD</div>';
@@ -1251,7 +1257,7 @@ function cardHTML(gid){
   var c2=!t2.actual?'tbd':t2.won?'won':t2.lost?'lost':'';
   if(r.projected){ if(t1.won) c1+=' projected'; if(t2.won) c2+=' projected'; }
   if(g.bye){ c1=''; c2='bye'; }   // lone team advances; opponent is the BYE slot
-  var isChampSlot = gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
+  var isChampSlot = asChamp || gid === 'CHAMP.C.1' || gid === 'CHAMP2.C.1';
   var offMin = getGameOffset(gid);
   var offHTML = (offMin !== null && offMin !== 0)
     ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
@@ -2243,7 +2249,7 @@ function renderFlightBracket(root, tier) {
       // against 66.2px feeders left its centre 8.2px below their midpoint. The
       // Open tree has no such override, which is why its title card sits
       // exactly level. Same card height here means level for free.
-      + '<div class="champ-bc"><div class="bc bc--static" data-gid="' + esc(champGid) + '">' + cardHTML(champGid) + '</div></div>'
+      + '<div class="champ-bc"><div class="bc bc--static" data-gid="' + esc(champGid) + '">' + cardHTML(champGid, true) + '</div></div>'
       + (fr.winner ? '<div class="champ-winner">' + esc(fr.winner) + '</div>' : '');
 
     // Height + top margin match a round column exactly, so the tinted column
@@ -2268,6 +2274,15 @@ function renderFlightBracket(root, tier) {
     + '</div></div>';
 
   mountFlightPills(root);
+  // data-css is normally transferred to the CSSOM by a MutationObserver, which
+  // runs as a MICROTASK — so anything measuring here sees a tree that has not
+  // been positioned or sized yet. Both measuring passes below were wrong
+  // because of it: the connector aimed at a championship still at top:0 (17px
+  // out), and shrinkFieldTags judged headers against an unset column width and
+  // cut every "Field 1" down to "F" for an overflow that does not exist once
+  // the widths land. (The image export hit the same thing and painted 38 of 44
+  // cards at the top of the sheet.) Flush first, then measure.
+  if (typeof ttApplyDataCss === 'function') ttApplyDataCss(root);
   shrinkFieldTags(root);
   alignFlightChampConn(root, totalVh, dims.gapVw);
 
@@ -3270,6 +3285,10 @@ function renderDesktopBracket(root,dims){
   }
   mountFlightPills(root);
 
+  // Widths and positions come from data-css, applied by a MutationObserver as
+  // a microtask — so shrinkFieldTags must not measure before it lands, or it
+  // truncates field names to fit a width the column does not have yet.
+  if (typeof ttApplyDataCss === 'function') ttApplyDataCss(root);
   shrinkFieldTags(root);
 
   // Jump hook for cross-view navigation (e.g. team path card tap)
@@ -4335,6 +4354,9 @@ function renderMobileColumns(root, cols) {
   }, true); // capture phase so it beats card click handlers
 
   setSpacerForCol(activeIdx);
+  // Same microtask hazard as the desktop renderers: measure only after the
+  // data-css widths have reached the CSSOM.
+  if (typeof ttApplyDataCss === 'function') ttApplyDataCss(outer);
   shrinkFieldTags(outer);
   // Land on the restored column instantly (no animation) — the scroll
   // listener re-settles activeIdx/_mbcActiveRound from this same value, so
