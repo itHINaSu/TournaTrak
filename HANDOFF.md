@@ -1488,6 +1488,36 @@ several people can collaborate on the same lineup.
   `--on` when a link exists) that expands `teamLinkPanel()` — a full-width
   flex child, which is why `.team-ed-row` is now `flex-wrap: wrap`.
 
+## Scorekeeper "Live" (score.js, two hosts)
+One copy of score.js runs in two places, the same dual-host pattern lineup.js
+uses:
+- **standalone `/score`** — owns the page, runs its own session check and gate;
+- **embedded as Admin → Results → Live** — keeps the admin tab bar and the
+  results sub-tabs. It was moved in because the UI is the one scorekeepers
+  prefer, and leaving the admin container to reach it lost all the navigation.
+
+Things that will bite you here:
+- **`_offsets` is declared by BOTH admin.js and score.js.** Embedded they are
+  the same global. That is correct (one payload, one endpoint) but only because
+  `setOffset()` calls back into `renderAdmin()`/`renderDelaysAdmin()`. Renaming
+  one without rewiring that refresh silently desyncs the Delays panel and the
+  +/- badge on the Games cards.
+- **admin.js keeps its OWN `results` and `_liveGames`.** `syncAdminFromScore()`
+  copies score.js's `_results`/`_live` over them and repaints after every
+  finalize / go-live / clear-live. Without it the Games sub-tab and the Live
+  sub-tab disagree about the same game.
+- `scoreApiBase()` defers to `adminApiBase()` when embedded, so the header
+  tournament switcher works without a reload.
+- `scoreInit()` is idempotent and is called by `setResultsMode('live')` EVERY
+  time the sub-tab opens — a scorekeeper returning from another tab must not
+  see a stale board. The 15 s poll is installed once.
+- Guard any new `document.getElementById` against the standalone-only
+  elements (`scoreSiteName`, `scoreGate`) — they do not exist in the admin.
+- The Games sub-tab no longer edits live scores. Its `Live` button calls
+  `goToLiveTab(sid)` (awaiting the POST first, or the Live tab reloads before
+  the game knows it is live), and a live game shows a read-only status card
+  with a `Score ⚡` jump. `updateLive()` was deleted with that editor.
+
 ## Lineup: softball-specific — needs v3 attention
 Lineup fields (`jersey`, `name`, `position`) are sport-specific. For v3 multi-sport,
 these need to be configurable or abstracted. **Do not change in v2.**

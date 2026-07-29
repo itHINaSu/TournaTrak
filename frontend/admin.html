@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="/admin.css?v=3.47">
 <link rel="stylesheet" href="/lineup.css?v=3.47">
 <link rel="stylesheet" href="/builder.css?v=3.47">
+<link rel="stylesheet" href="/score.css?v=3.47">
 <script src="/app-h.js?v=3.47"></script>
 </head>
 <body>
@@ -162,7 +163,7 @@
     <button class="results-mode-btn active" id="qModeGamesBtn" data-action="setResultsMode" data-arg="games">Games</button>
     <button class="results-mode-btn" id="qModeBucketsBtn" data-action="setResultsMode" data-arg="buckets">Bucket Challenge</button>
     <button class="results-mode-btn" id="qModeDelaysBtn" data-action="setResultsMode" data-arg="delays">Delays</button>
-    <a class="results-mode-btn results-mode-btn--link" id="qScoreLink" href="/score">⚡ Score</a>
+    <button class="results-mode-btn" id="qModeLiveBtn" data-action="setResultsMode" data-arg="live">⚡ Live</button>
   </div>
 
   <!-- ── RESULTS TAB ── -->
@@ -171,7 +172,7 @@
       <button class="results-mode-btn active" id="modeGamesBtn" data-action="setResultsMode" data-arg="games">Games</button>
       <button class="results-mode-btn" id="modeBucketsBtn" data-action="setResultsMode" data-arg="buckets">Bucket Challenge</button>
       <button class="results-mode-btn" id="modeDelaysBtn" data-action="setResultsMode" data-arg="delays">Delays</button>
-      <a class="results-mode-btn results-mode-btn--link" id="modeScoreLink" href="/score">⚡ Score</a>
+      <button class="results-mode-btn" id="modeLiveBtn" data-action="setResultsMode" data-arg="live">⚡ Live</button>
       <button class="sched-save-btn" id="bucketModeSaveBtn" class="u-push-right-b" hidden data-action="saveBucketCounts">Save</button>
       <span class="sched-status" id="bucketModeSaveStatus" hidden></span>
     </div>
@@ -196,6 +197,16 @@
           <button class="sched-save-btn" data-action="addBucketTeam">Add Team</button>
           <span class="sched-status" id="addBucketTeamStatus"></span>
         </div>
+      </div>
+    </div>
+    <!-- Scorekeeper UI, embedded. Same element ids as score.html so score.js
+         drives both from one copy; setResultsMode('live') calls scoreInit(). -->
+    <div id="resultsLivePanel" hidden>
+      <div class="admin-subtitle">Phone-first scoring. Tap ± to change a score, Go Live to start pushing it to the public page, Final to post the result.</div>
+      <div class="score-wrap score-wrap--embedded" id="scoreWrap">
+        <div class="score-field-bar" id="fieldBar"></div>
+        <div class="score-offset-row" id="offsetRow" hidden></div>
+        <div class="score-list" id="gameList"></div>
       </div>
     </div>
     <!-- Slot where the shared delays panel is moved when delays mode is active -->
@@ -827,6 +838,7 @@
 <script src="/bracket-data.js?v=3.47"></script>
 <script src="/admin.js?v=3.47"></script>
 <script src="/lineup.js?v=3.47"></script>
+<script src="/score.js?v=3.47"></script>
 <script src="/builder-form.js?v=3.47"></script>
 <script src="/builder.js?v=3.47"></script>
 <script src="/sw-register.js?v=3.47" data-sw="/admin-sw.js"></script>

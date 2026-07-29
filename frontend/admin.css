@@ -1041,8 +1041,6 @@ input[type="time"]:focus {
 .admin-res-footer .admin-save-btn { background: var(--blue); color: #fff; border-color: var(--blue); }
 .admin-res-footer .admin-save-btn:hover { background: var(--blue-lt); border-color: var(--blue-lt); }
 /* Update — outline green */
-.admin-res-footer .admin-live-update-btn { background: transparent; color: var(--win-color); border-color: var(--win-color); }
-.admin-res-footer .admin-live-update-btn:hover { background: color-mix(in srgb, var(--win-color) 12%, transparent); }
 /* Live — outline gold */
 .admin-res-footer .admin-live-start-btn { background: transparent; color: var(--gold-lt); border-color: var(--gold-lt); }
 .admin-res-footer .admin-live-start-btn:hover { background: color-mix(in srgb, var(--gold) 12%, transparent); }

@@ -21,7 +21,8 @@ A self-hosted tournament bracket web app supporting single- and double-eliminati
     per-tournament admin scoping via the header switcher, superadmin role
     and Tournaments management panel.
   - ✅ v4 wave: multi-sport lineups (presets + custom columns), field-side
-    scorekeeper mode at `/score`, per-tournament white-label (theme colors
+    scorekeeper mode (Admin → Results → Live, or standalone at `/score`),
+    per-tournament white-label (theme colors
     + validated logo).
   - ✅ Zero-touch install: `git clone` + `docker compose up -d --build`
     generates all secrets on first boot — no `.env` needed.

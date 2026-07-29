@@ -1,9 +1,24 @@
-// score.js — field-side scorekeeper mode (/score).
+// score.js — field-side scorekeeper mode.
 // Minimal, phone-first score entry for results/admin users. Reuses the
 // existing results/live endpoints; adds NO new server surface. While a game
 // is live, score and period taps push automatically (debounced) so the
 // public page's live poll picks them up within seconds.
+//
+// Runs in two places from one copy, the same way lineup.js does:
+//   - standalone at /score, which owns the page; and
+//   - embedded as Results → Live in /admin, where it keeps the admin's tab
+//     bar and sub-tabs. That was the whole point of embedding it: a
+//     scorekeeper liked this UI better but lost the navigation by leaving
+//     the admin container for a separate page.
+// Embedded, the tournament scope follows the admin's header switcher and
+// init() waits to be called by setResultsMode instead of running on load.
+var _scoreEmbedded = false;
 
+// NOTE: _offsets is also declared by admin.js. Embedded, these are the SAME
+// global — which is correct (one payload, one endpoint) but only if both
+// sides repaint when it changes, so setOffset() calls back into the admin's
+// renderers. Do not "fix" this by renaming one of them without wiring the
+// refresh some other way.
 var _results = {}, _live = {}, _settings = {}, _offsets = { entries: [] };
 var _role = null;
 var _fieldFilter = null;   // null = all fields
@@ -15,6 +30,9 @@ var _offsetOpen = false;   // quick-offset row expanded?
 var _scoreSlug = new URLSearchParams(window.location.search).get('t') || null;
 if (!_scoreSlug) { try { _scoreSlug = localStorage.getItem('ttAdminTournament') || null; } catch (e) {} }
 function scoreApiBase() {
+  // Embedded: follow the header tournament switcher, which can change without
+  // a reload — reading the slug once at load would strand this on the old one.
+  if (typeof adminApiBase === 'function') return adminApiBase();
   return _scoreSlug ? '/api/t/' + encodeURIComponent(_scoreSlug) : '/api';
 }
 
@@ -36,8 +54,8 @@ async function loadAll() {
   _offsets  = (off && Array.isArray(off.entries)) ? off : { entries: [] };
   window.settings = _settings;   // for getSetting()
   applySchedule(sched);
-  document.getElementById('scoreSiteName').textContent =
-    (_settings.tournamentName || 'Scorekeeper') + ' — Scoring';
+  var nameEl = document.getElementById('scoreSiteName');   // standalone only
+  if (nameEl) nameEl.textContent = (_settings.tournamentName || 'Scorekeeper') + ' — Scoring';
 }
 
 // Games that still need a result, sorted by time.
@@ -214,6 +232,23 @@ function cardHTML(sid) {
     + head + teamRow(1, t1, s1) + teamRow(2, t2, s2) + controls + '</div>';
 }
 
+// Embedded, admin.js keeps its OWN copies of results and live games for the
+// Games sub-tab. Push ours over and repaint, or the two sub-tabs disagree
+// about the same game — which is the specific failure that made a separate
+// scorekeeper page tolerable and an embedded one confusing.
+function syncAdminFromScore() {
+  if (!_scoreEmbedded) return;
+  if (typeof results !== 'undefined' && results) {
+    Object.keys(results).forEach(function(k) { delete results[k]; });
+    Object.assign(results, _results);
+  }
+  if (typeof _liveGames !== 'undefined' && _liveGames) {
+    Object.keys(_liveGames).forEach(function(k) { delete _liveGames[k]; });
+    Object.assign(_liveGames, _live);
+  }
+  if (typeof renderAdmin === 'function') renderAdmin();
+}
+
 function renderList() {
   renderFieldBar();
   var list = document.getElementById('gameList');
@@ -262,6 +297,12 @@ async function setOffset(mins) {
     showToast(v ? (_fieldFilter || 'All fields') + ': ' + (v > 0 ? '+' : '') + v + ' min' : 'Back on time');
     _offsetOpen = false;
     renderFieldBar();
+    // Embedded, this is the admin's _offsets too — the Games cards carry the
+    // +/- badge and the Delays panel lists the entries, so repaint both.
+    if (_scoreEmbedded) {
+      if (typeof renderAdmin === 'function') renderAdmin();
+      if (typeof renderDelaysAdmin === 'function') renderDelaysAdmin();
+    }
   } catch (e) { showToast('Could not post the delay — check connection', true); }
 }
 
@@ -277,6 +318,7 @@ async function clearLive(sid) {
     delete _dirty[sid];
     showToast('No longer live');
     renderList();
+    syncAdminFromScore();
   } catch (e) { showToast('Could not clear live — check connection', true); }
 }
 
@@ -326,7 +368,7 @@ async function pushLive(sid) {
 
 async function goLive(sid) {
   await pushLive(sid);
-  if (_live[sid]) { showToast('Live'); renderList(); }
+  if (_live[sid]) { showToast('Live'); renderList(); syncAdminFromScore(); }
 }
 
 async function finalize(sid) {
@@ -336,7 +378,12 @@ async function finalize(sid) {
   if (s[0] === s[1]) { showToast('Scores are tied — adjust before finalizing', true); return; }
   var winner = s[0] > s[1] ? t1 : t2;
   var loser  = s[0] > s[1] ? t2 : t1;
-  if (!confirm('Final: ' + winner + ' ' + Math.max(s[0], s[1]) + '–' + Math.min(s[0], s[1]) + ' over ' + loser + '?')) return;
+  // ttConfirm, not the native one: embedded in the admin panel a browser
+  // confirm looks like the page broke, and every other destructive step in
+  // this app already asks the same way.
+  var ok = await ttConfirm('Final: ' + winner + ' ' + Math.max(s[0], s[1]) + '–'
+    + Math.min(s[0], s[1]) + ' over ' + loser + '?', { okLabel: 'Post final' });
+  if (!ok) return;
   try {
     var r = await fetch(scoreApiBase() + '/results', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -349,12 +396,18 @@ async function finalize(sid) {
     _results[sid] = { winner: winner, loser: loser, t1score: s[0], t2score: s[1] };
     showToast('Final saved');
     renderList();
+    syncAdminFromScore();
   } catch (e) { showToast('Save failed — check connection', true); }
 }
 
 function showGate() {
-  document.getElementById('scoreGate').hidden = false;
-  document.getElementById('scoreWrap').hidden = true;
+  // Embedded there is no gate to show — reaching Results → Live at all means
+  // the admin session already passed, and a 401 mid-session is the admin
+  // panel's own problem to report.
+  var gate = document.getElementById('scoreGate');
+  var wrap = document.getElementById('scoreWrap');
+  if (gate) gate.hidden = false;
+  if (wrap) wrap.hidden = true;
 }
 
 // ── Sync poll: pick up other scorekeepers' updates every 15 s ─────────
@@ -388,21 +441,43 @@ Object.assign(TT_ACTIONS, {
   customOffset: function() { customOffset(); },
 });
 
-(async function init() {
-  try {
-    var sr = await fetch(scoreApiBase() + '/session');
-    var sess = await sr.json();
-    _role = sess.role;
-    if (!sess.authenticated || (_role !== 'admin' && _role !== 'results')) { showGate(); return; }
-  } catch (e) { showGate(); return; }
-  try { _fieldFilter = localStorage.getItem('ttScoreField') || null; } catch (e) {}
+// Loads data and paints. Safe to call again — Results → Live calls it every
+// time the sub-tab is opened so a scorekeeper who has been sitting on another
+// tab doesn't come back to a stale board.
+var _scoreStarted = false;
+async function scoreInit() {
+  if (!_scoreStarted) {
+    try { _fieldFilter = localStorage.getItem('ttScoreField') || null; } catch (e) {}
+  }
   try {
     await loadAll();
   } catch (e) {
     showToast('Could not load games — check connection', true);
     return;
   }
-  document.getElementById('scoreWrap').hidden = false;
+  var wrap = document.getElementById('scoreWrap');
+  if (wrap) wrap.hidden = false;
   renderList();
-  setInterval(syncPoll, 15000);
-})();
+  if (!_scoreStarted) {
+    _scoreStarted = true;
+    // One poll for the life of the page; syncPoll already no-ops when the tab
+    // is hidden, and renderList is cheap when nothing changed.
+    setInterval(syncPoll, 15000);
+  }
+}
+
+// Standalone only: the admin container calls scoreInit() from setResultsMode.
+// Same guard lineup.js uses.
+if (!document.getElementById('adminWrap')) {
+  (async function init() {
+    try {
+      var sr = await fetch(scoreApiBase() + '/session');
+      var sess = await sr.json();
+      _role = sess.role;
+      if (!sess.authenticated || (_role !== 'admin' && _role !== 'results')) { showGate(); return; }
+    } catch (e) { showGate(); return; }
+    scoreInit();
+  })();
+} else {
+  _scoreEmbedded = true;
+}

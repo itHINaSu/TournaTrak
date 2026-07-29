@@ -501,11 +501,14 @@ function renderAdmin() {
       var ls = _liveGames[sid];
       var s1 = ls.t1score !== '' ? ls.t1score : '';
       var s2 = ls.t2score !== '' ? ls.t2score : '';
+      // Scores stay editable so a desktop TD can still post the Final from
+      // here, but the period stepper and Update button are gone: they were a
+      // second live editor competing with the Live tab, and two places to
+      // push the same number is how a public page ends up in the wrong inning.
       return '<div class="admin-res-card admin-res-card--live">' + hdr
         + '<div class="admin-res-team-row">'
         + '<span class="admin-live-badge">● LIVE</span>'
-        + '<span class="admin-live-period-lbl">' + esc(periodLbl) + '</span>'
-        + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-period-inp" id="per-' + sid + '" value="' + esc(String(ls.period)) + '" placeholder="#" data-selectall>'
+        + '<span class="admin-live-period-lbl">' + esc(periodLbl) + ' ' + esc(String(ls.period)) + '</span>'
         + '</div>'
         + '<div class="admin-res-team-row"><span class="admin-res-team">' + esc(t1) + '</span>'
         + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc1-' + sid + '" value="' + esc(String(s1)) + '" placeholder="Score" data-selectall></div>'
@@ -513,8 +516,8 @@ function renderAdmin() {
         + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" value="' + esc(String(s2)) + '" placeholder="Score" data-selectall></div>'
         + '<div class="admin-res-footer">'
         + '<button class="admin-clear-btn" data-action="endLive" data-arg="' + esc(sid) + '">Clear</button>'
+        + '<button class="admin-edit-btn" data-action="goToLiveTab" data-arg="' + esc(sid) + '">Score ⚡</button>'
         + '<button class="admin-save-btn" data-action="saveResult" data-arg="' + esc(sid) + '">Final</button>'
-        + '<button class="admin-live-update-btn" data-action="updateLive" data-arg="' + esc(sid) + '">Update</button>'
         + '</div></div>';
     }
 
@@ -546,32 +549,48 @@ function renderAdmin() {
   wrap.innerHTML = html;
 }
 
-function startLive(sid) {
-  // Carry over any scores already typed into the pending card.
+// Live scoring lives in Results → Live now, so this hands off rather than
+// opening a second, worse editor inside the Games list. The scores already
+// typed on the pending card ride along, since a TD who entered 3–2 and then
+// realised the game is still going should not have to retype it.
+async function startLive(sid) {
   var sc1el = document.getElementById('sc1-' + sid);
   var sc2el = document.getElementById('sc2-' + sid);
   var s1 = (sc1el && sc1el.value !== '') ? sc1el.value : '0';
   var s2 = (sc2el && sc2el.value !== '') ? sc2el.value : '0';
   _liveGames[sid] = { period: '1', t1score: s1, t2score: s2 };
-  renderAdmin();
-  apiFetch('/api/live', { method: 'POST', headers: {'Content-Type':'application/json'},
+  // Awaited: the Live tab reloads from the server as it opens, and racing it
+  // against this POST lands you on a card that doesn't know it's live yet.
+  await apiFetch('/api/live', { method: 'POST', headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ game: sid, period: '1', t1score: s1, t2score: s2 }) });
+  goToLiveTab(sid);
 }
 
-function updateLive(sid) {
-  var perEl = document.getElementById('per-' + sid);
-  var sc1el = document.getElementById('sc1-' + sid);
-  var sc2el = document.getElementById('sc2-' + sid);
-  _liveGames[sid] = {
-    period:   perEl  ? perEl.value  : _liveGames[sid].period,
-    t1score:  sc1el  ? sc1el.value  : _liveGames[sid].t1score,
-    t2score:  sc2el  ? sc2el.value  : _liveGames[sid].t2score,
-  };
-  renderAdmin();
-  var ls = _liveGames[sid];
-  apiFetch('/api/live', { method: 'POST', headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({ game: sid, period: ls.period, t1score: ls.t1score, t2score: ls.t2score }) });
+// Switch to the Live sub-tab and put `sid` on screen. The field filter is
+// cleared when the game isn't in it — landing on a Live tab that doesn't
+// contain the game you just tapped is worse than losing the filter.
+function goToLiveTab(sid) {
+  setResultsMode('live');
+  if (!sid) return;
+  var tries = 0;
+  (function find() {
+    var card = document.querySelector('#gameList .score-card[data-sid="' + CSS.escape(sid) + '"]');
+    if (!card) {
+      // scoreInit() is async; and the card may be filtered out by field.
+      if (++tries === 6 && typeof pickField === 'function' && typeof _fieldFilter !== 'undefined' && _fieldFilter) {
+        pickField('');
+      }
+      if (tries < 20) return setTimeout(find, 120);
+      return;
+    }
+    card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    card.classList.add('score-card--jumped');
+    setTimeout(function() { card.classList.remove('score-card--jumped'); }, 1600);
+  })();
 }
+
+// updateLive() removed with the Games tab's inline live editor — pushing a
+// live score is the Live sub-tab's job (score.js), which does it on every tap.
 
 function endLive(sid) {
   delete _liveGames[sid];
@@ -2991,13 +3010,16 @@ function setResultsMode(mode) {
   var gPanel   = document.getElementById('resultsGamesPanel');
   var bPanel   = document.getElementById('resultsBucketPanel');
   var dPanel   = document.getElementById('resultsDelaysPanel');
+  var lPanel   = document.getElementById('resultsLivePanel');
   var gBtn     = document.getElementById('modeGamesBtn');
   var bBtn     = document.getElementById('modeBucketsBtn');
   var dBtn     = document.getElementById('modeDelaysBtn');
+  var lBtn     = document.getElementById('modeLiveBtn');
   var saveBtn  = document.getElementById('bucketModeSaveBtn');
   var saveStat = document.getElementById('bucketModeSaveStatus');
   if (gPanel)   gPanel.hidden = !(mode === 'games');
   if (bPanel)   bPanel.hidden = !(mode === 'buckets');
+  if (lPanel)   lPanel.hidden = !(mode === 'live');
   if (mode === 'delays' && dPanel) {
     var _rSlot = document.getElementById('resultsDelaysSlot');
     if (_rSlot) _rSlot.appendChild(dPanel);
@@ -3008,16 +3030,22 @@ function setResultsMode(mode) {
   if (gBtn)     gBtn.classList.toggle('active', mode === 'games');
   if (bBtn)     bBtn.classList.toggle('active', mode === 'buckets');
   if (dBtn)     dBtn.classList.toggle('active', mode === 'delays');
+  if (lBtn)     lBtn.classList.toggle('active', mode === 'live');
   if (saveBtn)  saveBtn.hidden = !(mode === 'buckets');
   if (saveStat) saveStat.hidden = !(mode === 'buckets');
   if (mode === 'buckets') renderBucketAdmin();
   if (mode === 'delays')  renderDelaysAdmin();
+  // Reload every time it opens: a scorekeeper coming back to this sub-tab
+  // after working elsewhere must not be shown a stale board.
+  if (mode === 'live' && typeof scoreInit === 'function') scoreInit();
   var qgBtn = document.getElementById('qModeGamesBtn');
   var qbBtn = document.getElementById('qModeBucketsBtn');
   var qdBtn = document.getElementById('qModeDelaysBtn');
+  var qlBtn = document.getElementById('qModeLiveBtn');
   if (qgBtn) qgBtn.classList.toggle('active', mode === 'games');
   if (qbBtn) qbBtn.classList.toggle('active', mode === 'buckets');
   if (qdBtn) qdBtn.classList.toggle('active', mode === 'delays');
+  if (qlBtn) qlBtn.classList.toggle('active', mode === 'live');
 }
 
 // ── Delays admin ───────────────────────────────────────────────────────
@@ -4286,7 +4314,7 @@ Object.assign(TT_ACTIONS, {
   cancelEditResult:    function(arg) { cancelEditResult(arg); },
   saveResult:          function(arg) { saveResult(arg); },
   startLive:           function(arg) { startLive(arg); },
-  updateLive:          function(arg) { updateLive(arg); },
+  goToLiveTab:         function(arg) { goToLiveTab(arg); },
   endLive:             function(arg) { endLive(arg); },
   // schedule tab
   setSchedMode:        function(arg) { setSchedMode(arg); },

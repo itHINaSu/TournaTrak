@@ -115,6 +115,13 @@
   padding: 0.9em;
 }
 .score-card--live { border-color: var(--live-color); }
+/* Briefly marks the card you arrived at from Results → Games, so the tab
+   switch lands somewhere obvious instead of on an anonymous list. */
+.score-card--jumped {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--blue) 45%, transparent);
+  transition: box-shadow 0.4s ease, border-color 0.4s ease;
+}
 .score-card-hdr {
   display: flex;
   align-items: center;
@@ -225,3 +232,9 @@
   font-style: italic;
 }
 
+
+/* ── Embedded in /admin as Results → Live ────────────────────────────────
+   The admin container owns the page width and padding, so the standalone
+   centring would inset the cards a second time and leave them narrower than
+   every other panel in the tab. */
+.score-wrap--embedded { max-width: none; margin: 0; padding: 0 0 1em; }
