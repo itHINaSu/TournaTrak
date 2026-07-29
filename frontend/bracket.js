@@ -3067,6 +3067,11 @@ function renderDesktopBracket(root,dims){
         if (!sd || sd.type !== 'winner') return;
         var fg = GAMES[sd.slot];
         if (!fg || fg.side !== 'L') return;
+        // Hand-placed first, exactly as cardTopVh resolves the card itself —
+        // otherwise dragging the final in Edit leaves the championship
+        // anchored to the row the final used to be on.
+        var row = layoutRowOf(sd.slot);
+        if (row !== null) { tops.push(layoutTopVh(row, slotVh, gridH)); return; }
         var p = sd.slot.split('.');
         tops.push(slotTopVh(p[0], parseInt(p[2], 10), slotVh, 'L'));
       });
@@ -3095,7 +3100,7 @@ function renderDesktopBracket(root,dims){
     // beside the winners final as its own card — not folded inside the
     // championship panel — so the two visibly converge on the title game,
     // which is how a paper double-elim sheet reads.
-    var lbFinalGid = null, wbFinalTop = 3.5 * slotVh;
+    var lbFinalGid = null, wbFinalGid = null, wbFinalTop = 3.5 * slotVh;
     if (champG) {
       [champG.t1, champG.t2].forEach(function(sd) {
         if (!sd || sd.type !== 'winner' || !sd.slot) return;
@@ -3103,13 +3108,24 @@ function renderDesktopBracket(root,dims){
         if (!fg) return;
         var p = sd.slot.split('.');
         if (fg.side === 'R') lbFinalGid = sd.slot;
-        else if (fg.side === 'L') wbFinalTop = slotTopVh(p[0], parseInt(p[2], 10), slotVh, 'L');
+        else if (fg.side === 'L') {
+          wbFinalGid = sd.slot;
+          wbFinalTop = slotTopVh(p[0], parseInt(p[2], 10), slotVh, 'L');
+        }
       });
     }
+    // Both of these tops are SECOND copies of a position the card renderers
+    // work out for themselves (cardTopVh for the winners final, `extra` for
+    // the losers one), and both start with layoutRowOf. They drive the
+    // connector lines and the championship anchor, so they have to resolve a
+    // hand-placed card the same way or the card moves in Edit and its line
+    // stays behind. The winners final needs it as much as the losers one:
+    // champTop is the midpoint of the pair, and the losers final's own
+    // fallback below is measured down from wbFinalTop.
+    var wbFinalRow = wbFinalGid ? layoutRowOf(wbFinalGid) : null;
+    if (wbFinalRow !== null) wbFinalTop = layoutTopVh(wbFinalRow, slotVh, gridH);
     // Two rows below the winners final: clear of it, still obviously paired —
-    // unless the TD has dragged it, which wins here exactly as it does for
-    // every other card (this one is drawn outside the normal column loop, so
-    // it has to consult layoutRowOf itself or Edit mode can't move it).
+    // unless the TD has dragged it, which wins here as everywhere else.
     var lbFinalRow = lbFinalGid ? layoutRowOf(lbFinalGid) : null;
     var lbFinalTop = lbFinalRow !== null
       ? layoutTopVh(lbFinalRow, slotVh, gridH)
