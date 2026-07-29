@@ -250,6 +250,8 @@ function populateSettingsFields() {
   });
   onLineupPresetChange();
   _logoDataUri = (_themeColors && _themeColors.logo) || null;
+  _logoScale   = (_themeColors && TT_LOGO_SCALES[_themeColors.logoScale])
+    ? _themeColors.logoScale : TT_LOGO_SCALE_DEFAULT;
   _logoIconUri = (_themeColors && _themeColors.icon) || null;
   _iconSrcUri  = (_themeColors && _themeColors.iconSrc) || null;
   _faviconUri     = (_themeColors && _themeColors.favicon) || null;
@@ -308,6 +310,7 @@ async function saveSettings() {
     if (inp) themeColors[key] = inp.value;
   });
   if (_logoDataUri) themeColors.logo = _logoDataUri;
+  themeColors.logoScale = _logoScale;
   if (_logoIconUri) { themeColors.icon = _logoIconUri; themeColors.iconStyle = _iconStyle; }
   if (_iconSrcUri) themeColors.iconSrc = _iconSrcUri;
   if (_faviconUri) {
@@ -2097,6 +2100,7 @@ function savePwaHome(val) {
 // tall, so shrinking to a few hundred px loses nothing visible and any
 // photo/export straight off a design tool "just works".
 var _logoDataUri = null;
+var _logoScale   = TT_LOGO_SCALE_DEFAULT;  // 'sm'|'md'|'lg'|'xl' — header height step
 var _logoIconUri = null;        // square PNG PWA/home-screen/share icon derived from the logo
 var _iconSrcUri  = null;        // high-res baking source (original upload, ≤1024px) — icons
                                 // re-bake from THIS, never from the tiny header logo, so
@@ -2359,11 +2363,22 @@ function downscaleLogo(srcUri, cb) {
   img.src = srcUri;
 }
 
+// Live preview: the picker sits right under an <img class="site-logo">, so
+// writing the CSS vars shows the admin the real header size immediately. Not
+// persisted until Save, like every other field in this section.
+function onLogoScaleChange() {
+  var sel = document.getElementById('logoScaleSel');
+  if (!sel || !TT_LOGO_SCALES[sel.value]) return;
+  _logoScale = sel.value;
+  ttApplyLogoScale(_logoScale);
+}
+
 // The branding subset of theme-colors (logo + derived PWA icon + how it
 // was baked) — what a color reset preserves.
 function _logoBrand() {
   var out = {};
   if (_logoDataUri) out.logo = _logoDataUri;
+  out.logoScale = _logoScale;
   if (_logoIconUri) { out.icon = _logoIconUri; out.iconStyle = _iconStyle; }
   if (_iconSrcUri) out.iconSrc = _iconSrcUri;
   if (_faviconUri) {
@@ -2541,6 +2556,11 @@ function syncLogoUI() {
   if (!img || !rm) return;
   if (_logoDataUri) { img.src = _logoDataUri; img.hidden = false; rm.hidden = false; }
   else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
+  // Size picker: only meaningful once there is a logo to size.
+  var scaleField = document.getElementById('logoScaleField');
+  var scaleSel = document.getElementById('logoScaleSel');
+  if (scaleField) scaleField.hidden = !_logoDataUri;
+  if (scaleSel) scaleSel.value = _logoScale;
   // App-icon baker: preview + controls only make sense once a logo exists.
   var field = document.getElementById('iconStyleField');
   var icon = document.getElementById('iconPreview');
@@ -2762,6 +2782,9 @@ function _lightModeColor(hex) {
 function applyThemeColors() {
   var root = document.documentElement;
   var tc = _themeColors;
+  // Drives the preview img in the logo picker too — it carries .site-logo, so
+  // the admin sees the size the public header will actually use.
+  ttApplyLogoScale(tc.logoScale);
   var darkMap = { accent: ['--gold','--gold-lt'], interactive: ['--blue','--blue-lt'], winColor: ['--win-color'], loseColor: ['--lose-color'] };
   var lightRules = [];
   Object.keys(darkMap).forEach(function(key) {
@@ -4288,6 +4311,7 @@ Object.assign(TT_ACTIONS, {
   pickLogo:            function(arg, el) { pickLogo(arg, el); },
   removeLogo:          function() { removeLogo(); },
   onIconStyleChange:   function() { onIconStyleChange(); },
+  onLogoScaleChange:   function() { onLogoScaleChange(); },
   cropPreset:          function(arg, el) { cropPreset(arg, el.dataset.arg2); },
   onFaviconStyleChange: function() { onFaviconStyleChange(); },
   exportCsv:           function(arg) { exportCsv(arg); },

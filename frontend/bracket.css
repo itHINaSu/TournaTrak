@@ -2521,11 +2521,13 @@ body.bc-drag-active .bc-drop-row.bc-drop-target { opacity: 1; }
 .champ-center--flight .champ-bc,
 .champ-center--flight .champ-winner { width: 100%; }
 
-/* A card repeated from the other bracket (the losers final shown beside the
-   winners final). Dashed edge so it reads as a reference, not a second game,
-   with its source named above it. */
-.bc.bc--dup { border-style: dashed; }
-.bc-dup-cap {
+/* Captions around the losers final, which the stacked layout draws in the
+   winners row beside the winners final so both visibly feed the title game.
+   It used to be drawn in BOTH rows — a dashed copy here and the real game at
+   the end of the losers row — which cost the losers side a whole column to
+   say the same thing twice. Now it lives here only, named above and with its
+   destination below. */
+.bc-final-cap {
   position: absolute;
   left: 0;
   right: 0;
@@ -2537,6 +2539,9 @@ body.bc-drag-active .bc-drop-row.bc-drop-target { opacity: 1; }
   color: var(--text-mute);
   pointer-events: none;
 }
+/* Under the card: says where the winner goes, since this game is drawn in
+   the winners row and no longer sits at the end of the losers row. */
+.bc-final-cap--note { color: var(--gold); }
 /* Bigger than a round column: this is the thing a visitor looks for first. */
 .champ-center--stacked .champ-title { font-size: 0.92rem; letter-spacing: 0.2em; }
 .champ-center--stacked .champ-trophy { font-size: 2.6em; }

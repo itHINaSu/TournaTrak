@@ -180,7 +180,10 @@ body {
   .header-name-block { flex: 1 1 14em; }
   .site-header h1 { letter-spacing: 0.1em; line-height: 1.15; }
   .header-controls { flex-wrap: wrap; justify-content: flex-end; row-gap: 0.35em; }
-  .site-logo { height: 2em; max-width: 4.5em; }
+  /* Phones: the logo shares a row with a name that can wrap to three lines,
+     so cap it below the desktop step rather than letting it set the header
+     height. --logo-h-sm is the same scale one notch down. */
+  .site-logo { height: var(--logo-h-sm, 2.8em); max-width: var(--logo-maxw-sm, 6.5em); }
 }
 .theme-toggle {
   background: none;
@@ -278,8 +281,21 @@ select:focus-visible,
 }
 
 /* Per-tournament header logo (white-label). Set via img.src from the
-   validated theme-colors logo data URI; hidden when none is configured. */
-.site-logo { height: 2.4em; width: auto; max-width: 6em; object-fit: contain; border-radius: 0.25em; margin-right: 0.15em; align-self: center; }
+   validated theme-colors logo data URI; hidden when none is configured.
+   Size comes from --logo-h / --logo-maxw, which applyThemeColors() sets from
+   the tournament's logoScale — a wordmark and a round crest want very
+   different heights, so one hardcoded number is wrong for somebody. The
+   fallbacks here are the 'md' step, i.e. what a tournament gets before it
+   ever touches the setting. */
+.site-logo {
+  height: var(--logo-h, 3.4em);
+  width: auto;
+  max-width: var(--logo-maxw, 8.5em);
+  object-fit: contain;
+  border-radius: 0.25em;
+  margin-right: 0.15em;
+  align-self: center;
+}
 
 /* ── tt-dialog: shared in-app confirm/prompt (tt-common.js ttDialog) ── */
 .tt-dialog-overlay {

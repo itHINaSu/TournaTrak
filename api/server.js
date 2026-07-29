@@ -1194,6 +1194,9 @@ api.post('/field-colors', requireAdmin, ah(async (req, res) => {
 }));
 
 const THEME_COLOR_KEYS = ['accent', 'interactive', 'winColor', 'loseColor'];
+// Header logo size steps; the browser maps these to CSS lengths
+// (TT_LOGO_SCALES in tt-common.js). Keep the two lists in step.
+const LOGO_SCALES = ['sm', 'md', 'lg', 'xl'];
 
 // Per-tournament logo: strictly a small raster data URI. SVG is rejected
 // (script vector). Base64 payload must decode and carry the right magic
@@ -1274,6 +1277,10 @@ api.post('/theme-colors', requireAdmin, ah(async (req, res) => {
     if (typeof val === 'string' && /^#[0-9a-f]{6}$/i.test(val)) clean[key] = val;
   });
   if (validLogoDataUri(incoming.logo)) clean.logo = incoming.logo;
+  // How tall the header logo is drawn. A closed set, not a number: the
+  // browser writes it straight into a CSS custom property, and a free-text
+  // length is somebody else's stylesheet injection.
+  if (LOGO_SCALES.includes(incoming.logoScale)) clean.logoScale = incoming.logoScale;
   if (validLogoDataUri(incoming.icon, ICON_MAX_CHARS, true)) clean.icon = incoming.icon;
   if (validLogoDataUri(incoming.iconSrc, ICONSRC_MAX_CHARS)) clean.iconSrc = incoming.iconSrc;
   if (validLogoDataUri(incoming.favicon, FAVICON_MAX_CHARS, true)) clean.favicon = incoming.favicon;

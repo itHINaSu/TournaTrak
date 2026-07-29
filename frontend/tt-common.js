@@ -290,6 +290,31 @@ document.addEventListener('keydown', function (e) {
   t.click();
 });
 
+// ── Header logo size (white-label) ─────────────────────────────────────
+// Per-tournament, because logos are not one shape: a wide wordmark and a
+// round crest look nothing alike at the same height. Each step carries a
+// phone value one notch smaller — on a narrow header the logo shares a row
+// with a name that can wrap to three lines, and it must not set the header
+// height. Shared by the public page and the admin preview so the preview is
+// honest about what the header will do.
+var TT_LOGO_SCALES = {
+  sm: { h: '2.4em', maxw: '6em',    hSm: '2em',   maxwSm: '4.5em' },
+  md: { h: '3.4em', maxw: '8.5em',  hSm: '2.8em', maxwSm: '6.5em' },
+  lg: { h: '4.4em', maxw: '11em',   hSm: '3.4em', maxwSm: '8em'   },
+  xl: { h: '5.6em', maxw: '14em',   hSm: '4em',   maxwSm: '9.5em' },
+};
+var TT_LOGO_SCALE_DEFAULT = 'md';
+
+// Writes the scale onto :root. Called from both pages' applyThemeColors().
+function ttApplyLogoScale(scale) {
+  var s = TT_LOGO_SCALES[scale] || TT_LOGO_SCALES[TT_LOGO_SCALE_DEFAULT];
+  var root = document.documentElement;
+  root.style.setProperty('--logo-h', s.h);
+  root.style.setProperty('--logo-maxw', s.maxw);
+  root.style.setProperty('--logo-h-sm', s.hSm);
+  root.style.setProperty('--logo-maxw-sm', s.maxwSm);
+}
+
 // ── data-css: CSP-safe dynamic styling for generated markup ─────────────
 // style-src has no 'unsafe-inline', so markup built as HTML strings can't
 // carry style="" attributes. Emit data-css="prop:val;..." instead; this

@@ -72,6 +72,7 @@ function applyThemeColors() {
       logoEl.hidden = true;
     }
   }
+  ttApplyLogoScale(tc.logoScale);
   var darkMap = { accent: ['--gold','--gold-lt'], interactive: ['--blue','--blue-lt'], winColor: ['--win-color'], loseColor: ['--lose-color'] };
   var lightRules = [];
   Object.keys(darkMap).forEach(function(key) {
@@ -2821,11 +2822,22 @@ function renderDesktopBracket(root,dims){
       : slotTopVh(col.round, entry.slot, slotVh, col.side);
   }
 
-  // extra: {gid, topVh, caption} — an additional card appended to the LAST
-  // column. The stacked layout uses it to stand the losers-bracket final
-  // beside the winners final so both visibly feed the championship.
-  function sideHTML(side,label,isRight,extra){
+  // extra: {gid, topVh, caption, note} — a card appended to the LAST column.
+  // The stacked layout uses it to stand the losers-bracket final beside the
+  // winners final so both visibly feed the championship.
+  // omitGid: a game to leave OUT of this side. The LB final is drawn once, up
+  // in the winners row via `extra`, so the losers row omits it — that was the
+  // only game in its column, which means the whole column goes with it.
+  function sideHTML(side,label,isRight,extra,omitGid){
     var cols=buildSideColumns(side);
+    if (omitGid) {
+      // Filter a COPY: buildSideColumns also feeds computeLBPositions, whose
+      // geometry chain still needs the final in place.
+      cols = cols.map(function(c) {
+        return { round: c.round, side: c.side,
+                 games: c.games.filter(function(g) { return g.gid !== omitGid; }) };
+      }).filter(function(c) { return c.games.length > 0; });
+    }
     var ordCols=isRight?cols.slice().reverse():cols;
     var html='';
     // Card tops per column, computed up front so Edit mode can draw a
@@ -2838,9 +2850,13 @@ function renderDesktopBracket(root,dims){
       var col=ordCols[ci];
       var cardsHTML='';
       if (extra && ci === ordCols.length - 1 && GAMES[extra.gid]) {
-        cardsHTML += '<div class="bc bc--dup" data-gid="' + esc(extra.gid) + '" data-css="top:' + extra.topVh + 'vh">'
+        // A real card, not a dashed reference: this is now the only place the
+        // losers final is drawn.
+        cardsHTML += '<div class="bc" data-gid="' + esc(extra.gid) + '" data-css="top:' + extra.topVh + 'vh">'
           + cardHTML(extra.gid) + '</div>'
-          + '<div class="bc-dup-cap" data-css="top:' + (extra.topVh - 1.9) + 'vh">' + esc(extra.caption) + '</div>';
+          + '<div class="bc-final-cap" data-css="top:' + (extra.topVh - 1.9) + 'vh">' + esc(extra.caption) + '</div>'
+          + '<div class="bc-final-cap bc-final-cap--note" data-css="top:' + (extra.topVh + slotVh * CARD_RATIO + 0.5) + 'vh">'
+          +   esc(extra.note) + '</div>';
       }
       var colTops = topsByCol[ci];
       col.games.forEach(function(entry, gi){
@@ -2988,7 +3004,10 @@ function renderDesktopBracket(root,dims){
 
     var extra = lbFinalGid
       ? { gid: lbFinalGid, topVh: lbFinalTop,
-          caption: (getSetting('rightLabel') || 'Loser\u2019s Bracket') + ' Final' }
+          caption: (getSetting('rightLabel') || 'Loser\u2019s Bracket') + ' Final',
+          // Drawn here and nowhere else, so it has to say where its winner
+          // goes \u2014 the losers row no longer carries the game to imply it.
+          note: 'Winner to Championship' }
       : null;
 
     root.innerHTML = '<div class="bracket-shell"><div class="bcc-stack">'
@@ -3002,7 +3021,7 @@ function renderDesktopBracket(root,dims){
       +       champStack
       +     '</div>'
       +   '</div>'
-      +   '<div class="bcc-stack-row">' + sideHTML('R', getSetting('rightLabel'), false) + '</div>'
+      +   '<div class="bcc-stack-row">' + sideHTML('R', getSetting('rightLabel'), false, null, lbFinalGid) + '</div>'
       + '</div>'
       + '</div></div>';
   } else {
