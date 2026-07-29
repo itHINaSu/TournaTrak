@@ -3484,6 +3484,7 @@ function renderCoachesList(coaches) {
       + '<div class="coach-grants" id="cg-' + esc(u.username) + '" hidden></div>'
       + '</div>';
   }).join('');
+  restoreOpenCoachGrants();
 }
 
 // ── Coach teams across tournaments (superadmin) ───────────────────────
@@ -3491,13 +3492,28 @@ function renderCoachesList(coaches) {
 // pointed at. A global admin running several tournaments off one deployment
 // needs to place the same coach in each of them without switching three
 // times, so this panel addresses each tournament explicitly.
-var _coachGrants = {};   // username -> grants array from the server
+var _coachGrants = {};      // username -> grants array from the server
+var _coachGrantsOpen = {};  // username -> panel currently expanded
+
+// Saving re-renders the coach list (this tournament's card may have changed),
+// which throws away the expanded panel underneath. Put it back rather than
+// collapsing under the admin every time they add a team.
+function restoreOpenCoachGrants() {
+  Object.keys(_coachGrantsOpen).forEach(function(username) {
+    if (!_coachGrantsOpen[username]) return;
+    var box = document.getElementById('cg-' + username);
+    if (!box) return;
+    box.hidden = false;
+    renderCoachGrants(username);
+  });
+}
 
 async function openCoachGrants(username) {
   var box = document.getElementById('cg-' + username);
   if (!box) return;
-  if (!box.hidden) { box.hidden = true; return; }
+  if (!box.hidden) { box.hidden = true; _coachGrantsOpen[username] = false; return; }
   box.hidden = false;
+  _coachGrantsOpen[username] = true;
   box.innerHTML = '<div class="admin-subtitle admin-subtitle--pad">Loading…</div>';
   var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/grants');
   if (!r || !r.ok) { box.innerHTML = '<div class="admin-subtitle admin-subtitle--pad">Could not load tournaments.</div>'; return; }
