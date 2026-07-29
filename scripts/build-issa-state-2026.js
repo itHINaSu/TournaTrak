@@ -325,6 +325,15 @@ Object.values(S).forEach(g => { if (g.t1name) named.add(g.t1name); if (g.t2name)
 TEAMS.forEach(t => { if (!named.has(t)) problems.push(`team never plays: ${t}`); });
 named.forEach(t => { if (!TEAMS.includes(t)) problems.push(`unlisted team: ${t}`); });
 
+// Run the app's own pre-publish analyzer over the built schedule, so this
+// script can never emit something the admin panel would flag. It catches the
+// one class of mistake the hand checks above miss: a game TIMED at or before
+// the game feeding it. Column order and clock order are independent — a
+// transcription can get the columns right and still send a field looking for
+// a team from a game that hasn't been played.
+const { scheduleHealth } = require(__dirname + '/../frontend/bracket-data.js');
+scheduleHealth(S).forEach(i => problems.push(`${i.level}: ${i.slot} — ${i.message}`));
+
 if (problems.length) {
   console.error('PROBLEMS:\n  ' + problems.join('\n  '));
   process.exit(1);

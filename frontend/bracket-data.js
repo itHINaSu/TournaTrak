@@ -431,6 +431,13 @@ function rankStandings(rows, h2h) {
 //                     wires ADJACENT ones, so a feeder in a later round
 //                     draws on the wrong side of its consumer with no
 //                     connector line between them.
+//   • time travel   — a game timed at or before the game that feeds it. The
+//                     bracket still DRAWS correctly, so nothing here catches
+//                     it; it surfaces on the day, when a field is waiting on
+//                     a team from a game that hasn't been played. Distinct
+//                     from `backwards`: that is about column order, this is
+//                     about the clock, and a schedule can fail either one
+//                     while passing the other.
 function scheduleHealth(schedule) {
   const out = [];
   const entries = Object.entries(schedule || {})
@@ -471,6 +478,21 @@ function scheduleHealth(schedule) {
         continue;
       }
       (consumers[src + '|' + type] = consumers[src + '|' + type] || []).push(sid);
+
+      // Clock ordering. A game cannot start until the game supplying one of
+      // its teams has been PLAYED, so the consumer must be strictly later.
+      // Both times have to parse — a schedule mid-build has plenty of blanks,
+      // and "no time yet" is not an error.
+      const srcT = parseTimeVal(schedule[src].time);
+      const myT  = parseTimeVal(ov.time);
+      if (isFinite(srcT) && isFinite(myT) && myT <= srcT) {
+        const mins = Math.round((srcT - myT) / 60000);
+        add('error', sid, myT === srcT
+          ? 'Starts at the same time as ' + labelOf(src) + ' (' + src
+            + '), the game that feeds it — team ' + n + ' cannot be known yet.'
+          : 'Starts ' + mins + ' min BEFORE ' + labelOf(src) + ' (' + src
+            + '), the game that feeds it — team ' + n + ' cannot be known yet.');
+      }
 
       // Column ordering. Tier (A/B) games all live in R0 and are laid out by
       // slot band instead, so they compare by slot number within their tier.

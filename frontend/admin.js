@@ -938,7 +938,7 @@ function renderSchedHealth() {
   el.hidden = false;
   if (!issues.length) {
     el.className = 'sched-health sched-health--ok';
-    el.innerHTML = '<div class="sched-health-hdr">Bracket looks healthy — every game is complete and every feed resolves.</div>';
+    el.innerHTML = '<div class="sched-health-hdr">Bracket looks healthy — every game is complete, every feed resolves, and no game is scheduled before the game that feeds it.</div>';
     return;
   }
   var errors = issues.filter(function(i) { return i.level === 'error'; }).length;
