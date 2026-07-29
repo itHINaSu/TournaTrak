@@ -2948,7 +2948,10 @@ function renderDesktopBracket(root,dims){
   // goes. Needed once a game's next game is drawn in the OTHER stacked row:
   // the connector line stops at the edge of the row and the eye has nothing
   // to follow, so the card has to say it.
-  function sideHTML(side,label,isRight,extra,omitGid,noteFor){
+  // capFor: {gid: text} — a caption ABOVE a card, the same treatment `extra`
+  // gives the losers final. The two finals stand side by side in the winners
+  // row, so naming only one of them leaves the pair looking mismatched.
+  function sideHTML(side,label,isRight,extra,omitGid,noteFor,capFor){
     var cols=buildSideColumns(side);
     if (omitGid) {
       // Filter a COPY: buildSideColumns also feeds computeLBPositions, whose
@@ -2991,6 +2994,10 @@ function renderDesktopBracket(root,dims){
         var rowAttr = _bracketEditMode
           ? ' data-row="' + layoutRowFromTop(colTops[gi], slotVh, gridH).toFixed(5) + '"' : '';
         cardsHTML+='<div class="bc'+pinCls+'" data-gid="'+esc(entry.gid)+'"'+rowAttr+' data-css="top:'+colTops[gi]+'vh">'+cardHTML(entry.gid)+'</div>';
+        if (capFor && capFor[entry.gid]) {
+          cardsHTML += '<div class="bc-final-cap" data-css="top:'
+            + (colTops[gi] - 1.9) + 'vh">' + esc(capFor[entry.gid]) + '</div>';
+        }
         if (noteFor && noteFor[entry.gid]) {
           cardsHTML += '<div class="bc-final-cap bc-final-cap--note" data-css="top:'
             + (colTops[gi] + slotVh * CARD_RATIO + 0.5) + 'vh">' + esc(noteFor[entry.gid]) + '</div>';
@@ -3160,9 +3167,16 @@ function renderDesktopBracket(root,dims){
     }
 
     var lbLabel = getSetting('rightLabel') || 'Loser\u2019s Bracket';
+    var wbLabel = getSetting('leftLabel') || 'Winner\u2019s Bracket';
     var extra = lbFinalGid
       ? { gid: lbFinalGid, topVh: lbFinalTop, caption: lbLabel + ' Final' }
       : null;
+    // The winners final is an ordinary card in its column, so it needs the
+    // caption passed in rather than carried on `extra`. Both finals are named
+    // or neither is \u2014 two unlabelled-looking cards feeding one championship is
+    // exactly the ambiguity the losers-final caption exists to remove.
+    var wbCap = null;
+    if (wbFinalGid) { wbCap = {}; wbCap[wbFinalGid] = wbLabel + ' Final'; }
 
     // The break in the reading is one column EARLIER than it looks. The final
     // itself sits beside the winners final with a line into the championship,
@@ -3184,7 +3198,7 @@ function renderDesktopBracket(root,dims){
     root.innerHTML = '<div class="bracket-shell"><div class="bcc-stack">'
       + '<div class="bcc-stack-rows">'
       +   '<div class="bcc-stack-row">'
-      +     sideHTML('L', getSetting('leftLabel'), false, extra)
+      +     sideHTML('L', getSetting('leftLabel'), false, extra, null, null, wbCap)
       +     '<div class="u-relative" data-css="flex-shrink:0;width:' + gapVw + 'vw;height:' + totalVh + 'vh;margin-top:' + hdrVh + 'vh">'
       +       connLines(finalConns, gapVw, totalVh, lc, false)
       +     '</div>'

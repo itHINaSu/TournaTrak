@@ -2570,12 +2570,15 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
   font-size: 0.6rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-mute);
+  /* Gold, matching the "winner to ..." note in the losers row. These captions
+     are the thread a reader follows between the two stacked rows, so they
+     read as one set rather than as a label and an afterthought. */
+  color: var(--gold);
   pointer-events: none;
 }
-/* Under the card: says where the winner goes, since this game is drawn in
-   the winners row and no longer sits at the end of the losers row. */
-.bc-final-cap--note { color: var(--gold); }
+/* Under the card rather than above it: says where the winner goes, since this
+   game is drawn in the winners row and no longer sits at the end of the
+   losers row. Same colour as the caption above — position is the difference. */
 /* Bigger than a round column: this is the thing a visitor looks for first. */
 .champ-center--stacked .champ-title { font-size: 0.92rem; letter-spacing: 0.2em; }
 .champ-center--stacked .champ-trophy { font-size: 2.6em; }
