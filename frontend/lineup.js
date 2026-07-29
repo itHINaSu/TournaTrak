@@ -15,43 +15,24 @@ var lineupResults   = {};
 // numeric input, 'text' = name-style input, 'pos' = select from options.
 // Custom columns map positionally onto the stored row keys so old data
 // stays readable and the server's field clamps still apply.
-var LINEUP_PRESETS = {
-  softball: { rows: 11, subs: true, cols: [
-    { key: 'jersey',   label: '#',           kind: 'num'  },
-    { key: 'name',     label: 'Player Name', kind: 'text' },
-    { key: 'position', label: 'Position',    kind: 'pos', options: ['', '1st', '2nd', '3rd', 'SS', 'C', 'P', 'LF', 'CF', 'RF', 'R', 'EH'] },
-  ]},
-  volleyball: { rows: 6, subs: true, cols: [
-    { key: 'jersey',   label: '#',           kind: 'num'  },
-    { key: 'name',     label: 'Player Name', kind: 'text' },
-    { key: 'position', label: 'Position',    kind: 'pos', options: ['', 'S', 'OH', 'MB', 'OPP', 'L', 'DS'] },
-  ]},
-  basketball: { rows: 5, subs: true, cols: [
-    { key: 'jersey',   label: '#',           kind: 'num'  },
-    { key: 'name',     label: 'Player Name', kind: 'text' },
-    { key: 'position', label: 'Position',    kind: 'pos', options: ['', 'PG', 'SG', 'SF', 'PF', 'C'] },
-  ]},
-  generic: { rows: 10, subs: false, cols: [
-    { key: 'jersey', label: '#',           kind: 'num'  },
-    { key: 'name',   label: 'Player Name', kind: 'text' },
-  ]},
-};
-var LINEUP_CUSTOM_KEYS = ['jersey', 'name', 'position', 'extra'];
+// LINEUP_PRESETS / LINEUP_CUSTOM_KEYS / lineupConfigFrom now live in
+// settings-defaults.js so the SERVER can derive the same columns when it
+// checks required fields.
 
-function lineupConfig() {
-  var preset = getSetting('lineupPreset') || 'softball';
-  if (preset === 'custom') {
-    var labels = String(getSetting('lineupCustomCols') || '')
-      .split(',').map(function(x) { return x.trim(); }).filter(Boolean).slice(0, 4);
-    if (labels.length) {
-      return { rows: 10, subs: false, cols: labels.map(function(lbl, i) {
-        return { key: LINEUP_CUSTOM_KEYS[i], label: lbl,
-                 kind: (i === 0 && /(^#|#$|\bno\.?$)/i.test(lbl)) ? 'num' : 'text' };
-      }) };
-    }
-  }
-  return LINEUP_PRESETS[preset] || LINEUP_PRESETS.softball;
+// The settings the shared helpers need, read through getSetting() so the
+// offline defaults still apply before /api/settings lands.
+function lineupSettings() {
+  return {
+    lineupPreset:          getSetting('lineupPreset'),
+    lineupCustomCols:      getSetting('lineupCustomCols'),
+    lineupRequireJersey:   getSetting('lineupRequireJersey'),
+    lineupRequireName:     getSetting('lineupRequireName'),
+    lineupRequirePosition: getSetting('lineupRequirePosition'),
+    lineupRequireNumbers:  getSetting('lineupRequireNumbers'),
+  };
 }
+
+function lineupConfig() { return lineupConfigFrom(lineupSettings()); }
 
 // Render the table header to match the active column config. Both the
 // standalone page and the admin-embedded panel carry a #lineupHead row.
@@ -567,32 +548,17 @@ async function loadLineupForGame(slotId, teamName, readOnly, readOnlyReason) {
 }
 
 
-// When the TD has switched on lineupRequireNumbers, every named player needs
-// a number before the lineup will go in. Checked here so the coach gets the
-// row numbers back rather than a bare rejection; the server enforces the same
-// rule, since a client-side check is a courtesy, not a control.
-function missingNumberRows(rows) {
-  var cfg = lineupConfig();
-  var hasNum = cfg.cols.some(function(c) { return c.kind === 'num'; });
-  if (!hasNum) return [];
-  var out = [];
-  (rows || []).forEach(function(r, i) {
-    if (String(r.name || '').trim() && !String(r.jersey || '').trim()) out.push(i + 1);
-  });
-  return out;
-}
+// Required-field check, run here so the coach gets the row numbers back rather
+// than a bare rejection. The server runs the SAME shared function — a
+// client-side check is a courtesy, not a control.
 
 async function submitLineup() {
   if (!viewedTeamName || !currentSlotId || isReadOnly) return;
   var btn = document.getElementById('lineupSubmitBtn');
   var rows = getCurrentRows();
-  if (!isAdmin && getSetting('lineupRequireNumbers') === 'true') {
-    var missing = missingNumberRows(rows);
-    if (missing.length) {
-      showStatus('✗ Player number required — check row' + (missing.length > 1 ? 's ' : ' ')
-        + missing.join(', '), true);
-      return;
-    }
+  if (!isAdmin) {
+    var issues = lineupRowIssues(rows, lineupSettings());
+    if (issues.length) { showStatus('✗ ' + lineupIssueMessage(issues), true); return; }
   }
   btn.disabled = true;
   try {

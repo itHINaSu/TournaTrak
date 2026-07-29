@@ -659,7 +659,7 @@ describe('lineup access and rules', () => {
     // Earlier tests finalise R1.L.1, and a coach is locked out of a completed
     // game — clear it so this test is exercising the number rule, not that.
     await a.del('/api/results/R1.L.1');
-    await a.post('/api/settings', { lineupRequireNumbers: 'true' });
+    await a.post('/api/settings', { lineupRequireJersey: 'true' });
     const c = await coachFor(a, 'coach-numbers', 'Alpha');
 
     const named = { rows: [{ jersey: '', name: 'Jordan', position: 'SS' }] };
@@ -680,9 +680,73 @@ describe('lineup access and rules', () => {
     const asAdmin = await a.post('/api/lineups/game/R1.L.1/Alpha', named);
     assert.equal(asAdmin.status, 200, 'admin is exempt');
 
-    await a.post('/api/settings', { lineupRequireNumbers: 'false' });
+    await a.post('/api/settings', { lineupRequireJersey: 'false' });
     const off = await c.post('/api/lineups/game/R1.L.1/Alpha', named);
     assert.equal(off.status, 200, 'rule off: no number needed');
+  });
+
+  rtest('name and position are separately requirable, and default to off', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.del('/api/results/R1.L.1');
+    await a.post('/api/settings', {
+      lineupRequireJersey: 'false', lineupRequireName: 'false', lineupRequirePosition: 'false',
+    });
+    const c = await coachFor(a, 'coach-fields', 'Alpha');
+
+    // Nothing required: a row with only a number is fine.
+    assert.equal((await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '7', name: '', position: '' }] })).status, 200, 'nothing required by default');
+
+    await a.post('/api/settings', { lineupRequireName: 'true' });
+    const noName = await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '7', name: '', position: '' }] });
+    assert.equal(noName.status, 400, 'a row in use with no name is rejected');
+    assert.match(noName.json.error, /name required/i);
+    // A row is "in use" if ANY field has content — position alone counts.
+    const posOnly = await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '', name: '', position: 'SS' }] });
+    assert.equal(posOnly.status, 400, 'position alone still makes the row a player');
+
+    await a.post('/api/settings', { lineupRequireName: 'false', lineupRequirePosition: 'true' });
+    const noPos = await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '7', name: 'Jordan', position: '' }] });
+    assert.equal(noPos.status, 400);
+    assert.match(noPos.json.error, /position required/i);
+
+    // Two rules at once report both fields.
+    await a.post('/api/settings', { lineupRequireName: 'true', lineupRequirePosition: 'true' });
+    const both = await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '7', name: '', position: '' }] });
+    assert.equal(both.status, 400);
+    assert.match(both.json.error, /name required/i);
+    assert.match(both.json.error, /position required/i);
+
+    // A layout with no position column cannot have position enforced —
+    // otherwise the rule would be unsatisfiable.
+    await a.post('/api/settings', { lineupPreset: 'generic' });
+    assert.equal((await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '7', name: 'Jordan', position: '' }] })).status, 200,
+      'position not enforced when the layout has no position column');
+
+    await a.post('/api/settings', {
+      lineupPreset: 'softball', lineupRequireName: 'false', lineupRequirePosition: 'false',
+    });
+  });
+
+  rtest('the retired lineupRequireNumbers setting still enforces numbers', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.del('/api/results/R1.L.1');
+    // A tournament configured before the per-field toggles existed must not
+    // silently lose its rule.
+    await a.post('/api/settings', { lineupRequireJersey: 'false', lineupRequireNumbers: 'true' });
+    const c = await coachFor(a, 'coach-legacy', 'Alpha');
+    const bad = await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '', name: 'Jordan', position: 'SS' }] });
+    assert.equal(bad.status, 400, 'legacy key still blocks');
+    assert.match(bad.json.error, /number required/i);
+    await a.post('/api/settings', { lineupRequireNumbers: 'false' });
   });
 });
 
@@ -724,7 +788,7 @@ describe('team lineup links', () => {
     const a = await loginAdmin();
     await a.post('/api/schedule', MINI);
     await a.del('/api/results/R1.L.1');
-    await a.post('/api/settings', { lineupRequireNumbers: 'false' });
+    await a.post('/api/settings', { lineupRequireJersey: 'false' });
     const c = await redeem(await linkFor(a, 'Alpha'));
 
     const who = await c.get('/api/session');

@@ -16,7 +16,7 @@ const DATA_DIR     = process.env.DATA_DIR     || '/data';
 // Single source of truth shared with the browser — served from the
 // read-only /frontend volume mount (same file the pages load).
 // Fails loudly at startup if the mount is missing.
-const { SETTINGS_DEFAULTS } = require(FRONTEND_DIR + '/settings-defaults.js');
+const { SETTINGS_DEFAULTS, lineupRowIssues, lineupIssueMessage } = require(FRONTEND_DIR + '/settings-defaults.js');
 
 // Roles grantable per tournament. 'superadmin' is a global account role
 // (users.role) and is never granted per tournament.
@@ -1795,20 +1795,14 @@ api.post('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, 
   const { rows } = req.body || {};
   if (!Array.isArray(rows)) return res.status(400).json({ error: 'rows must be an array' });
   if (rows.length > 20) return res.status(400).json({ error: 'Maximum 20 rows' });
-  // lineupRequireNumbers: a named player must carry a number. Enforced here
-  // as well as in the page, because the page check is a courtesy to the coach
-  // and this one is the actual rule. Admins editing on a team's behalf are
-  // exempt — they are often filling in what a coach phoned through.
+  // Required lineup fields (number / name / position, each independent).
+  // Enforced here as well as in the page, because the page check is a courtesy
+  // to the coach and this one is the actual rule. Admins editing on a team's
+  // behalf are exempt — they are often filling in what a coach phoned through.
   if (roleFor(req) === 'team' || req.teamLink) {
-    const settings = await store.get(req.tid, 'settings');
-    if (settings.lineupRequireNumbers === 'true') {
-      const bad = rows
-        .map((r, i) => (String(r.name || '').trim() && !String(r.jersey || '').trim()) ? i + 1 : 0)
-        .filter(Boolean);
-      if (bad.length) {
-        return res.status(400).json({ error: 'Player number required — check row' + (bad.length > 1 ? 's ' : ' ') + bad.join(', ') });
-      }
-    }
+    const settings = { ...SETTINGS_DEFAULTS, ...(await store.get(req.tid, 'settings')) };
+    const issues = lineupRowIssues(rows, settings);
+    if (issues.length) return res.status(400).json({ error: lineupIssueMessage(issues) });
   }
   const clean = rows.slice(0, 20).map(r => ({
     jersey:   String(r.jersey   || '').slice(0, 8),

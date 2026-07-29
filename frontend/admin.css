@@ -100,6 +100,34 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .login-public-link:hover { color: var(--text); text-decoration: underline; }
 @media (pointer: coarse) { .login-public-link { padding: 0.6em 0; } }
 .field-label-hint { color: var(--text-mute); font-size: 0.85em; }
+/* Required-lineup-field toggles: three independent switches read better as a
+   checkbox row than three yes/no selects stacked down the page. */
+.lineup-req-row { display: flex; flex-wrap: wrap; gap: 0.6em 1.4em; margin: 0.35em 0 0.15em; }
+/* `.settings-field label` is display:block, uppercase and dimmed — right for a
+   field caption, wrong for a checkbox label. These are inside a settings-field,
+   so they have to say so explicitly. */
+.settings-field .lineup-req-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  margin-bottom: 0;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
+}
+.settings-field .lineup-req-opt input {
+  width: 1.1em;
+  height: 1.1em;
+  flex-shrink: 0;
+  accent-color: var(--blue-lt);
+  cursor: pointer;
+}
+@media (pointer: coarse) { .lineup-req-opt { min-height: 2.75rem; } }
 
 /* ── Admin layout ── */
 .admin-wrap { max-width: 65em; margin: 0 auto; padding: 1.2em 1em; }
