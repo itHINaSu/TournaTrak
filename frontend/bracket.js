@@ -2171,6 +2171,21 @@ function renderFlightBracket(root, tier) {
   // flight's final reading as an unconnected card off to the side was just a
   // gap in this renderer. Same gap-div-plus-SVG shape as the inter-column
   // connectors above, appended inside .bcc-rowflex so it lines up with them.
+  // Tops of the cards that feed the championship by WINNER. The Open tree sits
+  // its title card on the midpoint of these; so does a flight now.
+  var champFeederTops = [];
+  if (champGid && treeCols.length) {
+    var feedCol = treeCols[treeCols.length - 1], champFeedGame = GAMES[champGid];
+    if (champFeedGame) {
+      [champFeedGame.t1, champFeedGame.t2].forEach(function(sd) {
+        if (!sd || sd.type !== 'winner' || !sd.slot) return;
+        if (feedCol.indexOf(sd.slot) === -1) return;
+        if (pos[sd.slot] === undefined) return;
+        champFeederTops.push(pos[sd.slot]);
+      });
+    }
+  }
+
   if (champGid && treeCols.length) {
     var lastCol = treeCols[treeCols.length - 1];
     var champGame = GAMES[champGid];
@@ -2205,20 +2220,41 @@ function renderFlightBracket(root, tier) {
   var champHTML = '';
   if (champGid) {
     var fg = GAMES[champGid], fr = results[champGid] || {};
-    // Height + top margin match a round column exactly, so the tinted column
-    // spans the bracket the way the Open tree's does instead of hugging its
-    // contents. The championship connector is MEASURED after render
-    // (alignFlightChampConn), so re-centring the block cannot leave the line
-    // pointing at where the card used to be.
-    champHTML = '<div class="champ-center--desktop champ-center--flight" data-css="width:' + (dims.champVw - 1.6) + 'vw'
-      + ';height:' + totalVh + 'vh;margin-top:' + hdrVh + 'vh">'
-      + '<div class="champ-inner">'
+    // Anchored to the feeder row when the feeders are on screen, exactly as the
+    // Open tree does it: the CARD sits on the midpoint of the games that feed
+    // it and the trophy/title block floats above via .champ-inner--above, so
+    // the connector runs straight into the card instead of into a panel that
+    // happens to be nearby. Falls back to centring the whole block when the
+    // final has no on-screen winner feeder — a flight whose final is fed by
+    // drop-ins from another bracket has no row to be level with.
+    var anchored = champFeederTops.length > 0;
+    var champCardTop = anchored
+      ? champFeederTops.reduce(function(a, b) { return a + b; }, 0) / champFeederTops.length
+      : 0;
+    var champBlock = '<div class="champ-inner' + (anchored ? ' champ-inner--above' : '') + '">'
       +   '<div class="champ-trophy">' + trophySVG() + '</div>'
       +   '<div class="champ-title">' + esc(flightChampLabel(tier)) + '</div>'
       +   (fg && fg.time ? '<div class="champ-gametime">' + esc(formatTime(fg.time)) + '</div>' : '')
       + '</div>'
-      + '<div class="champ-bc" data-css="height:' + dims.cardVh + 'vh"><div class="bc bc--static" data-gid="' + esc(champGid) + '" data-css="height:' + dims.cardVh + 'vh">' + cardHTML(champGid) + '</div></div>'
-      + (fr.winner ? '<div class="champ-winner">' + esc(fr.winner) + '</div>' : '')
+      // No inline height. flightDims computes a cardVh for its own spacing
+      // maths, but a flight's TREE cards are sized by --card-h like every other
+      // card in the app, so forcing the championship to cardVh made it the one
+      // oversized card on screen — and anchoring an 82.7px card by its top
+      // against 66.2px feeders left its centre 8.2px below their midpoint. The
+      // Open tree has no such override, which is why its title card sits
+      // exactly level. Same card height here means level for free.
+      + '<div class="champ-bc"><div class="bc bc--static" data-gid="' + esc(champGid) + '">' + cardHTML(champGid) + '</div></div>'
+      + (fr.winner ? '<div class="champ-winner">' + esc(fr.winner) + '</div>' : '');
+
+    // Height + top margin match a round column exactly, so the tinted column
+    // spans the bracket the way the Open tree's does instead of hugging its
+    // contents. u-relative is what .champ-anchor positions against.
+    champHTML = '<div class="champ-center--desktop champ-center--flight'
+      + (anchored ? ' u-relative' : '') + '" data-css="width:' + (dims.champVw - 1.6) + 'vw'
+      + ';height:' + totalVh + 'vh;margin-top:' + hdrVh + 'vh">'
+      + (anchored
+          ? '<div class="champ-anchor" data-css="top:' + champCardTop + 'vh">' + champBlock + '</div>'
+          : champBlock)
       + '</div>';
   }
 

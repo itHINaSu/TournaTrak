@@ -2541,9 +2541,10 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
    left/right rules, spanning the full bracket height. It used to be a small
    bordered box floating beside the tree, which read as a different kind of
    thing from the main bracket's championship when the two sit a pill-click
-   apart. Everything else comes from .champ-center--desktop; a flight has a
-   single feeder column and no feeder row to anchor to, so the only difference
-   left is that its block centres vertically instead of starting at the top. */
+   apart. Everything else comes from .champ-center--desktop, including the
+   .champ-anchor treatment that sits the title card on its feeders' row.
+   justify-content only governs the FALLBACK, used when the final has no
+   on-screen winner feeder to be level with — then the block just centres. */
 .champ-center--flight { justify-content: center; }
 .champ-center--flight .champ-inner,
 .champ-center--flight .champ-bc,
