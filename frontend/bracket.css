@@ -2537,20 +2537,14 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
    losers final below) with the trophy block floating over it, so the
    connector lines land on the card instead of on a floating panel. */
 .champ-center--stacked { align-items: stretch; }
-/* Flights have a single feeder column, so their championship just centres. */
-.champ-center--flight {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  align-self: center;
-  height: auto;
-  padding: 1.2em 1vw;
-  background: color-mix(in srgb, var(--gold) 5%, transparent);
-  border: 0.07em solid color-mix(in srgb, var(--gold) 18%, transparent);
-  border-radius: var(--radius-md);
-}
+/* Flights keep the Open tree's tinted championship COLUMN — same 4% gold, same
+   left/right rules, spanning the full bracket height. It used to be a small
+   bordered box floating beside the tree, which read as a different kind of
+   thing from the main bracket's championship when the two sit a pill-click
+   apart. Everything else comes from .champ-center--desktop; a flight has a
+   single feeder column and no feeder row to anchor to, so the only difference
+   left is that its block centres vertically instead of starting at the top. */
+.champ-center--flight { justify-content: center; }
 .champ-center--flight .champ-inner,
 .champ-center--flight .champ-bc,
 .champ-center--flight .champ-winner { width: 100%; }

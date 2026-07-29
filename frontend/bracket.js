@@ -1593,6 +1593,16 @@ function computeLBPositions(slotVh) {
 // the same floor to the drop grid, and is a no-op on any bracket that big.
 var EDIT_GRID_MIN_ROWS = 8;
 
+// Row floor for a FLIGHT's own grid — four rows, the first round of an
+// eight-team bracket. EDIT_GRID_MIN_ROWS above raises the number of drop rows
+// offered, but those rows are fractions of the column's HEIGHT, and a four-team
+// B bracket computes a two-row column: plenty of rows, no room to use them, so
+// its two games could never be spread the way a hand-drawn sheet spreads them.
+// This raises the column instead. A flight at or above eight teams is
+// unaffected, and the main tree has had the equivalent floor (8) in
+// gridHeight() all along.
+var FLIGHT_MIN_ROWS = 4;
+
 function editGhostRows(slotVh, gridH, prevTops, fullRows, alignTops) {
   var cardH = slotVh * CARD_RATIO;
   var totalVh = gridH * slotVh;
@@ -2113,7 +2123,7 @@ function renderFlightBracket(root, tier) {
   // The final gets its own championship column, so it leaves the tree.
   var champGid = isChampFinal(cols.length - 1, cols[cols.length - 1]) ? cols[cols.length - 1][0] : null;
   var treeCols = champGid ? cols.slice(0, -1) : cols;
-  var gridH = Math.max.apply(null, treeCols.map(function(c) { return c.length; }).concat([2]));
+  var gridH = Math.max.apply(null, treeCols.map(function(c) { return c.length; }).concat([FLIGHT_MIN_ROWS]));
   var dims = flightDims(treeCols.length, gridH);
   var pos = flightPositions(treeCols, dims.slotVh, gridH, tier);
   var totalVh = dims.totalVh, hdrVh = 1.8;
@@ -2195,7 +2205,13 @@ function renderFlightBracket(root, tier) {
   var champHTML = '';
   if (champGid) {
     var fg = GAMES[champGid], fr = results[champGid] || {};
-    champHTML = '<div class="champ-center--desktop champ-center--flight" data-css="width:' + (dims.champVw - 1.6) + 'vw">'
+    // Height + top margin match a round column exactly, so the tinted column
+    // spans the bracket the way the Open tree's does instead of hugging its
+    // contents. The championship connector is MEASURED after render
+    // (alignFlightChampConn), so re-centring the block cannot leave the line
+    // pointing at where the card used to be.
+    champHTML = '<div class="champ-center--desktop champ-center--flight" data-css="width:' + (dims.champVw - 1.6) + 'vw'
+      + ';height:' + totalVh + 'vh;margin-top:' + hdrVh + 'vh">'
       + '<div class="champ-inner">'
       +   '<div class="champ-trophy">' + trophySVG() + '</div>'
       +   '<div class="champ-title">' + esc(flightChampLabel(tier)) + '</div>'
