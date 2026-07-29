@@ -1600,10 +1600,18 @@ function computeLBPositions(slotVh) {
 // `prevTops` — the midpoints of the previous column's ADJACENT card pairs,
 // extended at the same spacing to fill the height — are marked so the natural
 // bracket rows still read as the natural bracket rows.
+// Floor for the edit grid. A flight computes its own gridH from its biggest
+// column, which for a 4-team B bracket is 2 — putting the "half step" at a
+// QUARTER of the column, so the whole bracket offered three drop rows with two
+// of them under its own cards and nothing could be cascaded by hand. The main
+// tree never hit this because gridHeight() already floors at 8; this applies
+// the same floor to the drop grid, and is a no-op on any bracket that big.
+var EDIT_GRID_MIN_ROWS = 8;
+
 function editGhostRows(slotVh, gridH, prevTops, fullRows, alignTops) {
   var cardH = slotVh * CARD_RATIO;
   var totalVh = gridH * slotVh;
-  var rowsH = Math.max(gridH, fullRows || 0);
+  var rowsH = Math.max(gridH, fullRows || 0, EDIT_GRID_MIN_ROWS);
   var step = totalVh / rowsH / 2;              // half of one full-bracket row
   var cascade = {};
   var key = function(v) { return Math.round(v / step); };
@@ -1695,6 +1703,26 @@ function editGhostHTML(colTops, feederTops, slotVh, gridH, fullRows, alignTops) 
       + ' data-row="' + row.toFixed(5) + '" data-css="top:' + (r.topVh + cardH / 2) + 'vh"></div>';
   });
   return out;
+}
+
+// Re-aims the flight's championship connector at where the card actually
+// landed. The championship column centres a whole block — trophy, title, time,
+// then the card — inside the stack, so the CARD's centre sits below the
+// column's by an amount that depends on font metrics and the presence of a
+// game time. Guessing that in vh gets it close and wrong; measuring it is
+// exact, and the SVG is cheap to rebuild.
+function alignFlightChampConn(root, totalVh, gapVw) {
+  var box = root.querySelector('#flightChampConn');
+  var card = root.querySelector('.champ-center--flight .champ-bc .bc');
+  if (!box || !card) return;
+  var br = box.getBoundingClientRect(), cr = card.getBoundingClientRect();
+  if (!br.height) return;
+  var srcs = String(box.dataset.srcPcts || '').split(',')
+    .filter(Boolean).map(parseFloat).filter(function(n) { return isFinite(n); });
+  if (!srcs.length) return;
+  var dstPct = ((cr.top + cr.height / 2) - br.top) / br.height * 100;
+  box.innerHTML = connLines(srcs.map(function(s) { return { srcPct: s, dstPct: dstPct }; }),
+                            gapVw, totalVh, 'var(--line-color)', false);
 }
 
 function buildConnPcts(srcCol, dstCol, slotVh, posMap) {
@@ -2144,6 +2172,41 @@ function renderFlightBracket(root, tier) {
     }
   });
 
+  // Feed lines into the flight's championship. The Open tree draws these, so a
+  // flight's final reading as an unconnected card off to the side was just a
+  // gap in this renderer. Same gap-div-plus-SVG shape as the inter-column
+  // connectors above, appended inside .bcc-rowflex so it lines up with them.
+  if (champGid && treeCols.length) {
+    var lastCol = treeCols[treeCols.length - 1];
+    var champGame = GAMES[champGid];
+    var champConns = [];
+    // The championship column is centred across the whole stack, which is
+    // taller than this connector by one column header — so its card's centre
+    // is NOT at 50% of the connector's height.
+    var champPct = (totalVh - hdrVh) / (2 * totalVh) * 100;
+    if (champGame) {
+      [champGame.t1, champGame.t2].forEach(function(sd) {
+        if (!sd || sd.type !== 'winner' || !sd.slot) return;
+        if (lastCol.indexOf(sd.slot) === -1) return;
+        champConns.push({
+          srcPct: (pos[sd.slot] + dims.slotVh * CARD_RATIO / 2) / totalVh * 100,
+          dstPct: champPct,
+        });
+      });
+    }
+    if (champConns.length) {
+      // The destination is a first guess; the trophy and title stacked above
+      // the card push it below the column's centre by an amount that depends
+      // on font metrics, so alignFlightChampConn() re-derives it from the
+      // card's measured position once this is in the DOM. The source heights
+      // ride along because that redraw rebuilds the whole SVG.
+      html += '<div class="u-relative" id="flightChampConn"'
+        + ' data-src-pcts="' + champConns.map(function(c) { return c.srcPct.toFixed(4); }).join(',') + '"'
+        + ' data-css="flex-shrink:0;width:' + dims.gapVw + 'vw;height:' + totalVh + 'vh">'
+        + connLines(champConns, dims.gapVw, totalVh, 'var(--line-color)', false) + '</div>';
+    }
+  }
+
   var champHTML = '';
   if (champGid) {
     var fg = GAMES[champGid], fr = results[champGid] || {};
@@ -2169,6 +2232,7 @@ function renderFlightBracket(root, tier) {
 
   mountFlightPills(root);
   shrinkFieldTags(root);
+  alignFlightChampConn(root, totalVh, dims.gapVw);
 
   // Cross-view jump hook (Team Path card tap) — same contract as the
   // desktop/mobile tree renderers install for their layouts.
