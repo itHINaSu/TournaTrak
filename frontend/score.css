@@ -60,9 +60,11 @@
 .score-chip--offset-set { border-style: solid; border-color: var(--gold); color: var(--gold-lt); }
 .score-offset-row {
   display: flex;
-  gap: 0.4em;
+  gap: 0.4em 0.9em;
   flex-wrap: wrap;
-  align-items: center;
+  /* Groups are captioned blocks of differing height — align their chip rows,
+     not their centres. */
+  align-items: flex-end;
   padding: 0 0 0.8em;
 }
 .score-offset-lbl {
@@ -72,7 +74,26 @@
   text-transform: uppercase;
   color: var(--text-mute);
   margin-right: 0.2em;
+  /* Names the scope for the whole row, so it sits on its own line above the
+     labelled groups rather than in front of the first one. */
+  flex: 1 0 100%;
 }
+/* Each half of the row says which half it is: a bare "−30" reads as "thirty
+   minutes late" as easily as "thirty minutes early", and the person tapping it
+   is outdoors, in a hurry, on a phone. */
+.score-offset-group { display: flex; flex-direction: column; gap: 0.25em; }
+.score-offset-cap {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  white-space: nowrap;
+}
+.score-offset-group--early .score-offset-cap { color: var(--win-color); }
+.score-offset-group--late  .score-offset-cap { color: var(--lose-color); }
+.score-offset-chips { display: flex; gap: 0.4em; flex-wrap: wrap; }
+.score-chip--custom { font-style: italic; }
 /* Fixed width, never grow: with flex-grow the two chips that wrapped onto a
    second row stretched to half the screen each and read as different, more
    important buttons than the seven above them. */

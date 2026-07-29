@@ -113,10 +113,53 @@ function renderOffsetRow() {
     return '<button class="score-chip score-chip--step' + (mins === v ? ' score-chip--sel' : '') + '"'
       + ' data-action="setOffset" data-arg="' + v + '">' + esc(text) + '</button>';
   }
+  // Signed minutes are ambiguous on a phone at a ballpark — "−30" reads as
+  // "thirty minutes of delay" about as easily as "thirty minutes early". The
+  // captions say which half you are in, so nobody posts a field an hour early
+  // by mistake.
+  function group(cap, chips, cls) {
+    return '<div class="score-offset-group' + (cls ? ' ' + cls : '') + '">'
+      + '<span class="score-offset-cap">' + esc(cap) + '</span>'
+      + '<div class="score-offset-chips">' + chips + '</div>'
+      + '</div>';
+  }
+  // A chip is already selected when the stored offset is one of the presets;
+  // mark Custom instead when it isn't, so an odd value still reads as set.
+  var isPreset = mins === 0 || OFFSET_STEPS.indexOf(Math.abs(mins)) !== -1;
+  var customChip = '<button class="score-chip score-chip--step score-chip--custom'
+    + (isPreset ? '' : ' score-chip--sel') + '" data-action="customOffset">'
+    + (isPreset ? 'Custom…' : (mins > 0 ? '+' : '−') + Math.abs(mins)) + '</button>';
+
   row.innerHTML = '<span class="score-offset-lbl">' + esc(scope) + '</span>'
-    + OFFSET_STEPS.slice().reverse().map(function(v) { return chip(-v, '−' + v); }).join('')
-    + chip(0, 'On time')
-    + OFFSET_STEPS.map(function(v) { return chip(v, '+' + v); }).join('');
+    + group('Ahead of schedule',
+            OFFSET_STEPS.slice().reverse().map(function(v) { return chip(-v, '−' + v); }).join(''),
+            'score-offset-group--early')
+    + group('On time', chip(0, 'On time'))
+    + group('Behind schedule',
+            OFFSET_STEPS.map(function(v) { return chip(v, '+' + v); }).join(''),
+            'score-offset-group--late')
+    + group('Any amount', customChip);
+}
+
+// Anything the presets don't cover — a two-hour lightning hold, or the seven
+// minutes that puts a field exactly back on the printed schedule.
+function customOffset() {
+  var cur = currentOffsetMinutes();
+  ttPrompt('Minutes off schedule — positive is behind, negative is ahead:',
+           cur ? String(cur) : '', { okLabel: 'Post' })
+    .then(function(val) {
+      if (val === null) return;                       // cancelled
+      var t = String(val).trim();
+      if (t === '') return;
+      var v = parseInt(t, 10);
+      // A whole day of delay is a cancelled tournament, not an offset; and a
+      // typo like "300" on a phone keypad is easier to make than to notice.
+      if (isNaN(v) || !/^[+-]?\d+$/.test(t) || Math.abs(v) > 720) {
+        showToast('Enter a whole number of minutes, up to 720', true);
+        return;
+      }
+      setOffset(v);
+    });
 }
 
 function scoreVal(sid, which) {
@@ -342,6 +385,7 @@ Object.assign(TT_ACTIONS, {
   finalize:   function(arg) { finalize(arg); },
   toggleOffsets: function() { toggleOffsets(); },
   setOffset:  function(arg) { setOffset(arg); },
+  customOffset: function() { customOffset(); },
 });
 
 (async function init() {
