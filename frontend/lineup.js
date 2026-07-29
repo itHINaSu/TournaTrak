@@ -676,6 +676,39 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
+// Offer to attach the team from a just-opened lineup link to the signed-in
+// staff account. Answering either way clears the pending claim server-side, so
+// the prompt does not come back on every reload.
+async function offerTeamClaim(claim) {
+  var where = claim.tournamentName ? ' in ' + claim.tournamentName : '';
+  var keep = await ttDialog({
+    message: 'You opened the lineup link for "' + claim.team + '"' + where
+      + ', and you are signed in as staff.\n\nAdd this team to your account? '
+      + 'You will keep your staff access and gain a coach view of this team.',
+    buttons: [
+      { label: 'Not now', value: false },
+      { label: 'Add ' + claim.team, value: true, primary: true },
+    ],
+    cancelValue: false,
+  });
+  try {
+    var r = await fetch(lineupApiBase() + '/team-link/claim', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accept: !!keep }),
+    });
+    if (keep && r.ok) showToast('"' + claim.team + '" added to your account');
+    else if (keep) showToast('Could not add that team', true);
+  } catch (e) { if (keep) showToast('Could not add that team', true); }
+  // Drop ?claim=1 so a refresh or a shared URL is not a second prompt.
+  try {
+    var url = new URL(window.location.href);
+    if (url.searchParams.has('claim')) {
+      url.searchParams.delete('claim');
+      window.history.replaceState({}, '', url.pathname + (url.search || '') + url.hash);
+    }
+  } catch (e) {}
+}
+
 async function lineupInit() {
   setAppHeight();
   try {
@@ -700,6 +733,13 @@ async function lineupInit() {
       showLineupGate(session);
       return;
     }
+
+    // Opened a team's lineup link while signed in as staff. The session was
+    // left intact server-side, so this is an offer, not a state change: taking
+    // it adds the team to the account (a coach view of that team ON TOP of the
+    // staff role), declining just carries on as staff. Either way there is no
+    // sign-out and no round trip through the login form.
+    if (session.pendingTeamClaim) await offerTeamClaim(session.pendingTeamClaim);
 
     isAdmin         = session.role === 'admin' || session.role === 'results';
     buildNavBar(session.role);

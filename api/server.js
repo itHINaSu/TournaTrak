@@ -403,8 +403,25 @@ api.get('/session', ah(async (req, res) => {
     teamName:           teams[0] || u.teamName || null,
     teams,
     tournaments,
+    // A team lineup link opened while already signed in as staff. Carries no
+    // access on its own — it is a note that the lineup page should OFFER to
+    // add the team, and POST /team-link/claim is where anything is granted.
+    pendingTeamClaim:   await pendingClaimFor(req),
   });
 }));
+
+// Describes the parked team claim for the lineup page, or null. Re-checks the
+// requester's role every time rather than trusting what was parked: a grant
+// revoked between the click and the prompt must make the offer disappear.
+async function pendingClaimFor(req) {
+  const p = req.session.pendingTeamClaim;
+  if (!p || !p.tid || !p.team || !req.user) return null;
+  if (!CLAIM_ROLES.includes(store.effectiveRole(req.user, p.tid))) return null;
+  if (store.teamsFor(req.user, p.tid).includes(p.team)) return null;  // already theirs
+  const t = (await store.listTournaments()).find(x => x.id === p.tid);
+  if (!t) return null;
+  return { team: p.team, slug: t.slug, tournamentName: t.name };
+}
 
 // Sentinel hash compared when the account has no usable password, so a
 // failed login takes the same ~300ms whether the username exists or not.
@@ -1725,9 +1742,26 @@ api.delete('/team-links/:teamName', requireAdmin, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// Redeem a link: attaches the team grant to the SESSION, with no user behind
-// it. Every requireRole check still fails for these sessions because req.user
-// stays null — the only thing they can reach is their own team's lineups.
+// Roles for which a team link OFFERS to attach the team to the account instead
+// of replacing the session. Staff can already edit any team's lineups, so the
+// grant only adds the coach-side view of one team — it never adds privilege.
+const CLAIM_ROLES = ['superadmin', 'admin', 'results'];
+
+// Redeem a link. Two outcomes, and which one you get depends on who you
+// already are:
+//
+//   * Signed in as staff on the link's tournament → the session is left ALONE
+//     and the team is parked as a pending claim for the lineup page to offer.
+//     Redeeming used to regenerate unconditionally, which signed a TD out of
+//     their own admin session for opening a link they had just sent a team;
+//     the only way back was to log out and re-authenticate.
+//
+//   * Anyone else → the team-link session below, exactly as before: a grant
+//     for ONE team in ONE tournament with NO user record behind it. req.user
+//     stays null, so every requireRole check keeps failing and the link can
+//     never reach the admin panel. Holding the link is not, and must not
+//     become, a way to become staff — someone who wants the admin panel has to
+//     sign in as an admin, and their team-link session does not help them.
 api.get('/team-link/:token', ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const { token } = req.params;
@@ -1738,11 +1772,47 @@ api.get('/team-link/:token', ah(async (req, res) => {
     const hit = Object.entries(links).find(([, v]) => v && v.token === token);
     if (!hit) continue;
     const team = hit[0];
+    const dest = (extra) => t.id === store.tid
+      ? '/lineup' + extra
+      : '/lineup?t=' + encodeURIComponent(t.slug) + extra.replace('?', '&');
+
+    // Staff already signed in: keep the session, offer the team.
+    const signedIn = req.session.username ? await store.findUser(req.session.username) : null;
+    if (signedIn && CLAIM_ROLES.includes(store.effectiveRole(signedIn, t.id))) {
+      req.session.pendingTeamClaim = { tid: t.id, team };
+      return req.session.save(err => res.redirect(err ? dest('') : dest('?claim=1')));
+    }
+
     return startSession(req, { teamLink: { tid: t.id, team } },
-      () => res.redirect(t.id === store.tid ? '/lineup' : '/lineup?t=' + encodeURIComponent(t.slug)),
+      () => res.redirect(dest('')),
       () => res.redirect('/lineup?invalid=1'));
   }
   res.redirect('/lineup?invalid=1');
+}));
+
+// Accept or decline the parked claim. The ONLY thing this grants is a team on
+// an account that already holds a staff role there — it never creates a user,
+// never touches user_roles, and refuses a session with no account behind it
+// (a team-link session has req.user === null and cannot reach this).
+api.post('/team-link/claim', ah(async (req, res) => {
+  const p = req.session.pendingTeamClaim;
+  if (!p) return res.status(404).json({ error: 'No pending team link' });
+  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  // Re-check at the moment of the write, against the LINK's tournament rather
+  // than the mount the request happens to arrive on.
+  if (!CLAIM_ROLES.includes(store.effectiveRole(req.user, p.tid))) {
+    delete req.session.pendingTeamClaim;
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+  const accepted = !!(req.body && req.body.accept);
+  if (accepted) {
+    const teams = store.teamsFor(req.user, p.tid);
+    if (!teams.includes(p.team)) {
+      await store.setUserTeams(req.user.username, p.tid, teams.concat([p.team]));
+    }
+  }
+  delete req.session.pendingTeamClaim;
+  req.session.save(() => res.json({ ok: true, accepted, team: p.team }));
 }));
 
 // ── Lineup endpoints ──────────────────────────────────────────────────

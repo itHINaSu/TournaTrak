@@ -817,6 +817,87 @@ describe('team lineup links', () => {
     }
   });
 
+  // Opening a team link while already signed in as staff. The link used to
+  // regenerate the session unconditionally, which signed a TD out of their own
+  // admin session for opening a link they had just sent a team.
+  rtest('staff keep their session and are offered the team', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const token = await linkFor(a, 'Alpha');
+
+    const hit = await a.req('GET', '/api/team-link/' + token, undefined, { manual: true });
+    assert.equal(hit.status, 302);
+    assert.match(hit.headers.get('location') || '', /claim=1/, 'lands on the claim prompt');
+
+    // The session is untouched: still the admin account, still admin.
+    const who = await a.get('/api/session');
+    assert.equal(who.json.role, 'admin', 'not downgraded to a team session');
+    assert.ok(who.json.username, 'still signed in as an account');
+    assert.notEqual(who.json.viaTeamLink, true, 'not turned into a link session');
+    assert.equal(who.json.pendingTeamClaim.team, 'Alpha', 'the team is offered');
+
+    // Accepting adds the team WITHOUT changing the role.
+    const acc = await a.post('/api/team-link/claim', { accept: true });
+    assert.equal(acc.status, 200);
+    assert.equal(acc.json.accepted, true);
+    const after = await a.get('/api/session');
+    assert.equal(after.json.role, 'admin', 'still admin afterwards');
+    assert.ok(after.json.teams.includes('Alpha'), 'gained the coach view of the team');
+    assert.ok(!after.json.pendingTeamClaim, 'the offer is consumed, so no repeat prompt');
+
+    // Hand the grant back. The suite shares one scratch database, and leaving
+    // the admin account holding a team would silently change what every later
+    // test sees on /api/session. DELETE /users/:u/teams/:t refuses a non-team
+    // user, so this goes straight at the table.
+    const c2 = new Client({ database: DB });
+    await c2.connect();
+    try { await c2.query('DELETE FROM user_teams WHERE team_name = $1', ['Alpha']); }
+    finally { await c2.end(); }
+  });
+
+  rtest('declining the offer grants nothing and does not ask again', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const token = await linkFor(a, 'Beta');
+    await a.req('GET', '/api/team-link/' + token, undefined, { manual: true });
+    assert.equal((await a.get('/api/session')).json.pendingTeamClaim.team, 'Beta');
+
+    const dec = await a.post('/api/team-link/claim', { accept: false });
+    assert.equal(dec.status, 200);
+    assert.equal(dec.json.accepted, false);
+    const after = await a.get('/api/session');
+    assert.ok(!after.json.teams.includes('Beta'), 'declining grants nothing');
+    assert.ok(!after.json.pendingTeamClaim, 'and clears the offer');
+  });
+
+  // The security note behind the whole feature: possession of a team link must
+  // never be a route to staff access. Only an account that ALREADY holds a
+  // staff role gets the offer; everyone else gets the team-only session, and
+  // reaching the admin panel means signing in as an admin.
+  rtest('a link alone never becomes staff access', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const token = await linkFor(a, 'Alpha');
+
+    const c = await redeem(token);                 // no session before redeeming
+    const who = await c.get('/api/session');
+    assert.equal(who.json.role, 'team', 'a link is a team session, nothing more');
+    assert.equal(who.json.username, null);
+    assert.ok(!who.json.pendingTeamClaim, 'no claim is offered without an account');
+
+    // The claim route is the new surface, so prove it refuses a link session:
+    // it must not be a way to attach a team to some account, or to self-grant.
+    const tried = await c.post('/api/team-link/claim', { accept: true });
+    assert.ok(tried.status === 401 || tried.status === 404,
+      'claim refuses a session with no account, got ' + tried.status);
+
+    // And redeeming again does not upgrade it.
+    await c.req('GET', '/api/team-link/' + token, undefined, { manual: true });
+    const again = await c.get('/api/session');
+    assert.equal(again.json.role, 'team', 'still team-only after a second redeem');
+    assert.equal((await c.get('/api/users')).status >= 400, true, 'still cannot reach admin routes');
+  });
+
   rtest('revoking a link locks it out', async () => {
     const a = await loginAdmin();
     const token = await linkFor(a, 'Gamma');
