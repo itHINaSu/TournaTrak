@@ -288,6 +288,7 @@ async function _loadUsers() {
       roles: rolesByUser[row.id] || {},
       teamsByTid: teamsByUser[row.id] || {},
     };
+    u.notifyLineups = row.notify_lineups !== false;
     if (row.password_hash !== null) u.passwordHash = row.password_hash;
     if (row.setup_token   !== null) u.setupToken   = row.setup_token;
     if (row.access_token  !== null) u.accessToken  = row.access_token;
@@ -352,6 +353,7 @@ const USER_COLS = {
   username: 'username', passwordHash: 'password_hash',
   mustChangePassword: 'must_change_password', setupToken: 'setup_token',
   accessToken: 'access_token', teamName: 'team_name',
+  notifyLineups: 'notify_lineups',
 };
 async function updateUser(username, fields) {
   const sets = [], vals = [username];
@@ -598,9 +600,63 @@ async function init() {
   console.log(`Store ready (tournament id ${defaultTid})`);
 }
 
+// ── Deployment-global metadata ────────────────────────────────────────
+async function getMeta(key) {
+  const r = await pool.query('SELECT value FROM app_meta WHERE key = $1', [key]);
+  return r.rows[0] ? r.rows[0].value : null;
+}
+async function setMeta(key, value) {
+  await pool.query(
+    `INSERT INTO app_meta (key, value) VALUES ($1, $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [key, value]);
+}
+
+// ── Web Push subscriptions ────────────────────────────────────────────
+// Keyed by endpoint, which identifies the BROWSER: the same device
+// re-subscribing (or a different account signing in on it) replaces the row
+// rather than adding a second one, so nobody gets the same push twice and a
+// handed-over phone stops notifying the previous owner.
+async function addPushSubscription(username, sub) {
+  const u = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
+  if (!u.rows[0]) throw new Error('User not found: ' + username);
+  await pool.query(
+    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id,
+       p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
+    [u.rows[0].id, sub.endpoint, sub.p256dh, sub.auth]);
+}
+
+async function deletePushSubscription(endpoint) {
+  const r = await pool.query('DELETE FROM push_subscriptions WHERE endpoint = $1', [endpoint]);
+  return r.rowCount > 0;
+}
+
+// Every subscription belonging to the given usernames that still wants these
+// notifications. The opt-out is checked HERE rather than at send time so a
+// caller cannot forget it.
+async function pushSubscriptionsFor(usernames) {
+  if (!usernames || !usernames.length) return [];
+  const r = await pool.query(
+    `SELECT p.endpoint, p.p256dh, p.auth, u.username
+       FROM push_subscriptions p
+       JOIN users u ON u.id = p.user_id
+      WHERE u.username = ANY($1) AND u.notify_lineups IS TRUE`, [usernames]);
+  return r.rows;
+}
+
+async function pushSubscriptionCount(username) {
+  const r = await pool.query(
+    `SELECT COUNT(*)::int AS n FROM push_subscriptions p
+       JOIN users u ON u.id = p.user_id WHERE u.username = $1`, [username]);
+  return r.rows[0].n;
+}
+
 module.exports = {
   pool, init, get, put, putSlot, deleteSlot, etag, clearCache,
   allUsers, findUser, effectiveRole, teamsFor,
+  getMeta, setMeta,
+  addPushSubscription, deletePushSubscription, pushSubscriptionsFor, pushSubscriptionCount,
   createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
   grantRole, revokeRole,
   hashToken, hashTokenIfRaw,

@@ -103,6 +103,9 @@ input, select, textarea { font-size: max(1rem, 16px); }
 /* Required-lineup-field toggles: three independent switches read better as a
    checkbox row than three yes/no selects stacked down the page. */
 .lineup-req-row { display: flex; flex-wrap: wrap; gap: 0.6em 1.4em; margin: 0.35em 0 0.15em; }
+/* Push controls: the device button and its status share a line and wrap
+   together on a phone. */
+.push-device-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5em; }
 /* `.settings-field label` is display:block, uppercase and dimmed — right for a
    field caption, wrong for a checkbox label. These are inside a settings-field,
    so they have to say so explicitly. */

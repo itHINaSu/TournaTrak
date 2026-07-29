@@ -3,6 +3,7 @@ const session = require('express-session');
 const bcrypt  = require('bcryptjs');
 const fs      = require('fs');
 const crypto  = require('crypto');
+const webpush = require('web-push');
 
 const { isValidSlotId, validateResult, validateSchedule } = require('./validation');
 const { FORMATS, generateSchedule, pairSwissRound, swissRounds } = require('./schedule-formats');
@@ -1813,9 +1814,28 @@ api.post('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, 
   }));
   const lineups = await store.get(req.tid, 'lineups');
   if (!lineups[slotId]) lineups[slotId] = {};
+  const isFirst = !lineups[slotId][teamName];
   lineups[slotId][teamName] = { rows: clean, updatedAt: new Date().toISOString() };
   await store.put(req.tid, 'lineups', lineups);
   res.json({ ok: true });
+
+  // Tell the staff a team has sent theirs in — after the response, and never
+  // awaited, so a push service having a bad day cannot slow down or fail a
+  // coach's save. Only for submissions BY a team (a coach or a team link):
+  // staff editing a lineup do not need telling about their own edit.
+  if (roleFor(req) === 'team' || req.teamLink) {
+    (async () => {
+      const g = (await store.get(req.tid, 'schedule'))[slotId] || {};
+      const label = g.label || slotId;
+      const staff = await staffToNotify(req.tid, req.user && req.user.username);
+      await sendPush(staff, {
+        title: teamName + (isFirst ? ' sent a lineup' : ' updated their lineup'),
+        body: label + (g.time ? ' · ' + g.time.replace('T', ' ') : ''),
+        url: '/admin?tab=lineups',
+        tag: 'lineup-' + req.tid + '-' + slotId + '-' + teamName,
+      });
+    })().catch(err => console.error('lineup push failed:', err && err.message));
+  }
 }));
 
 // ── Bucket challenge endpoints ────────────────────────────────────────
@@ -2084,10 +2104,147 @@ async function restoreDemoSeed() {
   console.log('Demo data restored from seed (' + restored + ' files)');
 }
 
+// ── Web Push ──────────────────────────────────────────────────────────
+// A lineup landing five minutes before first pitch is only useful if somebody
+// finds out, and the people who need to know are usually on a field, not
+// watching the admin panel. This is a real Web Push, so it reaches a phone
+// with the app closed.
+//
+// Two things it CANNOT do anything about, both browser rules rather than
+// choices here: the page must be served over HTTPS (or localhost), and on iOS
+// the site has to be installed to the home screen first. Where either is
+// missing the Settings toggle says so rather than failing silently.
+let PUSH_READY = false;
+
+// The keypair must survive restarts — regenerating it silently invalidates
+// every subscription already stored, and the only symptom is notifications
+// quietly stopping. Env wins (an operator can pin it); otherwise it is
+// generated once and kept in app_meta.
+async function initPush() {
+  try {
+    let pub  = process.env.VAPID_PUBLIC_KEY  || '';
+    let priv = process.env.VAPID_PRIVATE_KEY || '';
+    if (!pub || !priv) {
+      const stored = await store.getMeta('vapid');
+      if (stored && stored.publicKey && stored.privateKey) {
+        pub = stored.publicKey; priv = stored.privateKey;
+      } else {
+        const gen = webpush.generateVAPIDKeys();
+        await store.setMeta('vapid', gen);
+        pub = gen.publicKey; priv = gen.privateKey;
+        console.log('Generated a VAPID keypair for push notifications.');
+      }
+    }
+    // The contact is required by the spec and is what a push service uses to
+    // reach the operator; it never leaves the push request.
+    webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:admin@localhost', pub, priv);
+    PUSH_VAPID_PUBLIC = pub;
+    PUSH_READY = true;
+  } catch (err) {
+    console.error('Push notifications disabled:', err.message);
+    PUSH_READY = false;
+  }
+}
+let PUSH_VAPID_PUBLIC = '';
+
+// Staff who should hear about a lineup in THIS tournament: its admins and
+// scorekeepers, plus every superadmin (who have no per-tournament grant).
+// `exclude` drops whoever caused the event — an admin filling in a lineup on a
+// coach's behalf does not need to be told they did.
+async function staffToNotify(tid, exclude) {
+  return (await store.allUsers())
+    .filter(u => {
+      if (exclude && u.username === exclude) return false;
+      const eff = store.effectiveRole(u, tid);
+      return eff === 'superadmin' || eff === 'admin' || eff === 'results';
+    })
+    .map(u => u.username);
+}
+
+// Fire-and-forget: a push failure must never turn a saved lineup into an
+// error for the coach. Dead subscriptions (410/404) are pruned as we go —
+// that is the only signal a browser gives that it has thrown the grant away.
+async function sendPush(usernames, payload) {
+  if (!PUSH_READY || !usernames.length) return;
+  let subs;
+  try { subs = await store.pushSubscriptionsFor(usernames); }
+  catch (err) { console.error('push lookup failed:', err.message); return; }
+  const body = JSON.stringify(payload);
+  await Promise.all(subs.map(async row => {
+    try {
+      await webpush.sendNotification(
+        { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } }, body);
+    } catch (err) {
+      if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+        await store.deletePushSubscription(row.endpoint).catch(() => {});
+      } else {
+        console.error('push send failed:', err && err.message);
+      }
+    }
+  }));
+}
+
+// ── Push endpoints ────────────────────────────────────────────────────
+// requireRole('admin','results') rather than requireAdmin: scorekeepers are
+// exactly who this is for. Superadmins pass every requireRole check.
+const requirePushUser = requireRole('admin', 'results');
+
+api.get('/push/config', requirePushUser, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    enabled: PUSH_READY,
+    publicKey: PUSH_READY ? PUSH_VAPID_PUBLIC : null,
+    notifyLineups: req.user.notifyLineups !== false,
+    devices: await store.pushSubscriptionCount(req.user.username),
+  });
+}));
+
+api.post('/push/subscribe', requirePushUser, ah(async (req, res) => {
+  const { endpoint, keys } = req.body || {};
+  if (typeof endpoint !== 'string' || !/^https:\/\//.test(endpoint) || endpoint.length > 1000) {
+    return res.status(400).json({ error: 'invalid subscription endpoint' });
+  }
+  if (!keys || typeof keys.p256dh !== 'string' || typeof keys.auth !== 'string'
+      || keys.p256dh.length > 200 || keys.auth.length > 100) {
+    return res.status(400).json({ error: 'invalid subscription keys' });
+  }
+  await store.addPushSubscription(req.user.username,
+    { endpoint, p256dh: keys.p256dh, auth: keys.auth });
+  res.json({ ok: true, devices: await store.pushSubscriptionCount(req.user.username) });
+}));
+
+api.post('/push/unsubscribe', requirePushUser, ah(async (req, res) => {
+  const { endpoint } = req.body || {};
+  if (typeof endpoint !== 'string') return res.status(400).json({ error: 'endpoint required' });
+  await store.deletePushSubscription(endpoint);
+  res.json({ ok: true, devices: await store.pushSubscriptionCount(req.user.username) });
+}));
+
+// The account-level opt-out. Separate from unsubscribing a device: this is
+// "stop telling me", which must hold even on a browser still subscribed.
+api.post('/push/prefs', requirePushUser, ah(async (req, res) => {
+  const { notifyLineups } = req.body || {};
+  if (typeof notifyLineups !== 'boolean') return res.status(400).json({ error: 'notifyLineups must be a boolean' });
+  await store.updateUser(req.user.username, { notifyLineups });
+  res.json({ ok: true, notifyLineups });
+}));
+
+// A one-off to prove the plumbing works end to end from the Settings page.
+api.post('/push/test', requirePushUser, ah(async (req, res) => {
+  if (!PUSH_READY) return res.status(503).json({ error: 'Push is not configured on this server' });
+  const n = await store.pushSubscriptionCount(req.user.username);
+  if (!n) return res.status(400).json({ error: 'This device is not subscribed yet' });
+  await sendPush([req.user.username], {
+    title: 'TournaTrak', body: 'Notifications are working.', url: '/admin?tab=lineups',
+  });
+  res.json({ ok: true, devices: n });
+}));
+
 // ── Startup ───────────────────────────────────────────────────────────
 (async () => {
   await store.init();       // connect + migrate + one-time legacy import
   await ensureUsers();      // bootstrap superadmin from env on an empty users table
+  await initPush();
   if (DEMO_MODE) {
     await restoreDemoSeed();  // pristine state on boot
     setInterval(() => restoreDemoSeed().catch(e => console.error('Demo restore error:', e)),

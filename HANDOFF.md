@@ -1518,6 +1518,43 @@ Things that will bite you here:
   the game knows it is live), and a live game shows a read-only status card
   with a `Score ⚡` jump. `updateLive()` was deleted with that editor.
 
+## Push notifications (Web Push, lineup submissions)
+Staff get a real push — phone, app closed — when a team submits a lineup.
+
+- **VAPID keypair must be stable.** Generated on first boot and stored in the
+  new deployment-global `app_meta` table; `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`
+  override it. Regenerating it invalidates every stored subscription and the
+  only symptom is notifications quietly stopping — which is exactly what would
+  happen restoring a backup onto a fresh database without pinning the keys.
+- **Two independent switches**, and they answer different questions:
+  `users.notify_lineups` is the ACCOUNT preference (holds everywhere that
+  account is signed in), while a row in `push_subscriptions` is one BROWSER's
+  grant. Off + subscribed is a sensible state: quiet now, no re-grant later.
+  The opt-out is applied inside `store.pushSubscriptionsFor()` so a caller
+  cannot forget it.
+- `push_subscriptions.endpoint` is UNIQUE because it identifies the BROWSER,
+  not the person — re-subscribing replaces, and a handed-over phone stops
+  notifying its previous owner.
+- **Dead subscriptions are pruned on 404/410.** That status is the only signal
+  a browser gives that it threw the grant away; without pruning the table grows
+  forever and every send retries corpses.
+- The send is fired AFTER the response and never awaited — a push service
+  having a bad day must not slow down or fail a coach's save.
+- Only fires for submissions BY a team (coach account or team link); staff
+  editing a lineup are not told about their own edit, and the submitter is
+  excluded from the recipients.
+- Delivery needs the SERVICE WORKER, so the handlers are in `admin-sw.js`
+  (`push` + `notificationclick`). A `push` handler MUST end in
+  `showNotification()` or the browser posts its own "site updated in the
+  background" notice instead.
+- **Two things no amount of code fixes**: browsers only deliver Web Push over
+  HTTPS (localhost counts), and iOS only to an installed PWA. The Settings
+  toggle detects both and says which one is missing rather than presenting a
+  button that does nothing.
+- Headless Chromium reports `Notification.permission === 'denied'` and has no
+  push service, so browser-level testing needs the APIs stubbed — see the
+  session's push3.js approach. The route tests cover everything up to the wire.
+
 ## Lineup: softball-specific — needs v3 attention
 Lineup fields (`jersey`, `name`, `position`) are sport-specific. For v3 multi-sport,
 these need to be configurable or abstracted. **Do not change in v2.**

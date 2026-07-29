@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.50">
-<link rel="stylesheet" href="/admin.css?v=3.50">
-<link rel="stylesheet" href="/lineup.css?v=3.50">
-<link rel="stylesheet" href="/builder.css?v=3.50">
-<link rel="stylesheet" href="/score.css?v=3.50">
-<script src="/app-h.js?v=3.50"></script>
+<link rel="stylesheet" href="/base.css?v=3.51">
+<link rel="stylesheet" href="/admin.css?v=3.51">
+<link rel="stylesheet" href="/lineup.css?v=3.51">
+<link rel="stylesheet" href="/builder.css?v=3.51">
+<link rel="stylesheet" href="/score.css?v=3.51">
+<script src="/app-h.js?v=3.51"></script>
 </head>
 <body>
 
@@ -667,6 +667,23 @@
               <button class="admin-clear-btn" data-action="doLogout">Sign Out</button>
             </div>
           </div>
+          <div class="settings-section" id="pushSection" hidden>
+            <div class="settings-section-hdr">Notifications</div>
+            <div class="settings-field settings-field--toggle">
+              <input type="checkbox" id="pushNotifyLineups" data-action-change="savePushPrefs">
+              <label for="pushNotifyLineups">Tell me when a team submits a lineup</label>
+              <div class="field-hint">Applies to your account everywhere you are signed in. Turning it off stops the notifications without unsubscribing this device.</div>
+            </div>
+            <div class="settings-field">
+              <label>This device</label>
+              <div class="push-device-row">
+                <button class="sched-save-btn" id="pushSubBtn" data-action="togglePushDevice">Enable on this device</button>
+                <button class="admin-clear-btn" id="pushTestBtn" hidden data-action="sendTestPush">Send test</button>
+                <span class="sched-status" id="pushStatus"></span>
+              </div>
+              <div class="field-hint" id="pushHint">Notifications need permission from this browser, and it has to be a separate opt-in on every device you use.</div>
+            </div>
+          </div>
           <div class="settings-section">
             <div class="settings-section-hdr">Change Username</div>
             <div class="settings-field">
@@ -834,14 +851,14 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.50"></script>
-<script src="/tt-common.js?v=3.50"></script>
-<script src="/bracket-data.js?v=3.50"></script>
-<script src="/admin.js?v=3.50"></script>
-<script src="/lineup.js?v=3.50"></script>
-<script src="/score.js?v=3.50"></script>
-<script src="/builder-form.js?v=3.50"></script>
-<script src="/builder.js?v=3.50"></script>
-<script src="/sw-register.js?v=3.50" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.51"></script>
+<script src="/tt-common.js?v=3.51"></script>
+<script src="/bracket-data.js?v=3.51"></script>
+<script src="/admin.js?v=3.51"></script>
+<script src="/lineup.js?v=3.51"></script>
+<script src="/score.js?v=3.51"></script>
+<script src="/builder-form.js?v=3.51"></script>
+<script src="/builder.js?v=3.51"></script>
+<script src="/sw-register.js?v=3.51" data-sw="/admin-sw.js"></script>
 </body>
 </html>

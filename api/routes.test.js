@@ -951,3 +951,95 @@ describe('cross-tournament coach grants', () => {
     assert.equal((await td.post('/api/users/coach-fenced/teams', { teamName: 'Beta' })).status, 200);
   });
 });
+
+// ── Push notifications ────────────────────────────────────────────────
+// The delivery itself needs a real push service, so what is asserted here is
+// everything up to the wire: who may reach these routes, that a subscription
+// round-trips and de-duplicates per browser, and that the opt-out sticks.
+describe('push notifications', () => {
+  const SUB = {
+    endpoint: 'https://push.example.com/sub/abc123',
+    keys: { p256dh: 'BFakeP256dhKeyForTests0000000000000000000000', auth: 'FakeAuthSecret00' },
+  };
+
+  rtest('config reports the server state and the account preference', async () => {
+    const a = await loginAdmin();
+    const r = await a.get('/api/push/config');
+    assert.equal(r.status, 200);
+    assert.equal(typeof r.json.enabled, 'boolean');
+    assert.equal(r.json.notifyLineups, true, 'staff are opted in by default');
+    assert.equal(typeof r.json.devices, 'number');
+    if (r.json.enabled) assert.ok(r.json.publicKey, 'a VAPID public key is offered when enabled');
+  });
+
+  rtest('a subscription round-trips and one browser counts once', async () => {
+    const a = await loginAdmin();
+    assert.equal((await a.post('/api/push/subscribe', SUB)).status, 200);
+    const again = await a.post('/api/push/subscribe', SUB);
+    assert.equal(again.status, 200);
+    assert.equal(again.json.devices, 1, 're-subscribing the same endpoint replaces, never duplicates');
+
+    const two = await a.post('/api/push/subscribe',
+      { ...SUB, endpoint: 'https://push.example.com/sub/second' });
+    assert.equal(two.json.devices, 2);
+
+    const gone = await a.post('/api/push/unsubscribe', { endpoint: SUB.endpoint });
+    assert.equal(gone.json.devices, 1);
+    await a.post('/api/push/unsubscribe', { endpoint: 'https://push.example.com/sub/second' });
+    assert.equal((await a.get('/api/push/config')).json.devices, 0);
+  });
+
+  rtest('malformed subscriptions are refused', async () => {
+    const a = await loginAdmin();
+    assert.equal((await a.post('/api/push/subscribe', { endpoint: 'http://insecure/x', keys: SUB.keys })).status, 400);
+    assert.equal((await a.post('/api/push/subscribe', { endpoint: SUB.endpoint })).status, 400);
+    assert.equal((await a.post('/api/push/subscribe',
+      { endpoint: SUB.endpoint, keys: { p256dh: 'x'.repeat(300), auth: 'y' } })).status, 400);
+    assert.equal((await a.post('/api/push/prefs', { notifyLineups: 'yes' })).status, 400);
+  });
+
+  rtest('the opt-out persists on the account', async () => {
+    const a = await loginAdmin();
+    assert.equal((await a.post('/api/push/prefs', { notifyLineups: false })).status, 200);
+    assert.equal((await a.get('/api/push/config')).json.notifyLineups, false);
+    await a.post('/api/push/prefs', { notifyLineups: true });
+    assert.equal((await a.get('/api/push/config')).json.notifyLineups, true);
+  });
+
+  rtest('coaches and anonymous callers cannot reach any of it', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.del('/api/results/R1.L.1');
+    const made = await a.post('/api/users', { username: 'coach-push', role: 'team', teamName: 'Alpha' });
+    const c = agent();
+    await c.req('GET', '/api/team-access/' + made.json.accessToken, undefined, { manual: true });
+    for (const [m, u, b] of [
+      ['GET',  '/api/push/config', undefined],
+      ['POST', '/api/push/subscribe', SUB],
+      ['POST', '/api/push/prefs', { notifyLineups: false }],
+      ['POST', '/api/push/test', undefined],
+    ]) {
+      assert.equal((await c.req(m, u, b)).status, 403, m + ' ' + u + ' must refuse a coach');
+      assert.equal((await agent().req(m, u, b)).status, 401, m + ' ' + u + ' must refuse anonymous');
+    }
+  });
+
+  rtest('a coach submitting a lineup still succeeds when nobody is subscribed', async () => {
+    // The push is fired after the response and never awaited; this guards the
+    // wiring, since an exception in that path would surface as a 500 here.
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.del('/api/results/R1.L.1');
+    await a.post('/api/settings', {
+      lineupRequireJersey: 'false', lineupRequireName: 'false', lineupRequirePosition: 'false',
+    });
+    const made = await a.post('/api/users', { username: 'coach-notify', role: 'team', teamName: 'Alpha' });
+    const c = agent();
+    await c.req('GET', '/api/team-access/' + made.json.accessToken, undefined, { manual: true });
+    const r = await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '7', name: 'Jordan', position: 'SS' }] });
+    assert.equal(r.status, 200);
+    // And the lineup really landed.
+    assert.equal((await a.get('/api/lineups/game/R1.L.1/Alpha')).json.rows[0].name, 'Jordan');
+  });
+});

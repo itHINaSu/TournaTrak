@@ -52,6 +52,10 @@ ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check
   CHECK (role IN ('superadmin','admin','results','team','buckets'));
 
+-- Opt-out for the lineup-submitted push notification. Defaults to on for
+-- staff accounts; the toggle lives in Settings -> Account.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS notify_lineups BOOLEAN NOT NULL DEFAULT TRUE;
+
 -- Per-tournament role grants. Superadmins need no rows here.
 CREATE TABLE IF NOT EXISTS user_roles (
   user_id       INTEGER NOT NULL REFERENCES users(id)       ON DELETE CASCADE,
@@ -121,6 +125,29 @@ CREATE TABLE IF NOT EXISTS config (
 ALTER TABLE config DROP CONSTRAINT IF EXISTS config_domain_check;
 ALTER TABLE config ADD CONSTRAINT config_domain_check
   CHECK (domain IN ('settings','offsets','field_colors','theme_colors','buckets','teams','undo'));
+
+-- Deployment-global key/value. Unlike `config`, which is per tournament and
+-- holds a TD's data, this is for things the SERVER owns across every
+-- tournament — currently just the VAPID keypair for Web Push, which must stay
+-- stable or every existing push subscription silently stops working.
+CREATE TABLE IF NOT EXISTS app_meta (
+  key   TEXT  PRIMARY KEY,
+  value JSONB NOT NULL
+);
+
+-- Web Push endpoints, one row per browser a staff account has subscribed.
+-- Cascade on user delete: a removed account must not keep receiving pushes.
+-- endpoint is UNIQUE because it identifies the browser, not the person — the
+-- same device re-subscribing must replace, not duplicate.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id         SERIAL      PRIMARY KEY,
+  user_id    INTEGER     NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint   TEXT        NOT NULL UNIQUE,
+  p256dh     TEXT        NOT NULL,
+  auth       TEXT        NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions (user_id);
 
 -- Express sessions (replaces the JSON FileSessionStore).
 CREATE TABLE IF NOT EXISTS sessions (

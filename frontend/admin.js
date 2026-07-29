@@ -111,6 +111,10 @@ function showSettingsSection(section) {
   if (section === 'users')   loadUsers();
   if (section === 'tournaments') loadTournaments();
   if (section === 'pageinfo') { renderThemeSection(); renderFieldsPanel(); }
+  // Reads the browser's live subscription state, so it has to run every time
+  // the panel opens — permission can be revoked in browser settings without
+  // the page ever hearing about it.
+  if (section === 'account') loadPushSection();
 }
 
 // Re-fetch the team list each time the Teams tab opens so changes made via the
@@ -2177,6 +2181,176 @@ async function deleteTournamentUI(slug) {
   await loadTournamentContext();
   loadTournaments();
   fetchAll();
+}
+
+// ── Push notifications (Settings → Account) ───────────────────────────
+// Two independent switches, because they answer different questions:
+//   - "Tell me when a team submits a lineup" is the ACCOUNT preference, and
+//     holds everywhere the account is signed in.
+//   - "Enable on this device" is the browser's push subscription, which is
+//     per-browser by construction and needs its own permission grant.
+// Turning the account preference off while a device stays subscribed is a
+// perfectly sensible state — quiet for now, no need to re-grant later.
+var _pushCfg = null;
+
+function pushSupported() {
+  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+}
+
+async function loadPushSection() {
+  var sec = document.getElementById('pushSection');
+  if (!sec) return;
+  // Coaches and bucket-only users never see this — nothing notifies them.
+  if (currentRole !== 'admin' && currentRole !== 'results') { sec.hidden = true; return; }
+  var r = await apiFetch('/api/push/config');
+  if (!r || !r.ok) { sec.hidden = true; return; }
+  _pushCfg = await r.json().catch(function() { return null; });
+  if (!_pushCfg) { sec.hidden = true; return; }
+  sec.hidden = false;
+  var chk = document.getElementById('pushNotifyLineups');
+  if (chk) chk.checked = _pushCfg.notifyLineups !== false;
+  await renderPushDevice();
+}
+
+async function currentPushSub() {
+  if (!pushSupported()) return null;
+  try {
+    var reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) return null;
+    return await reg.pushManager.getSubscription();
+  } catch (e) { return null; }
+}
+
+async function renderPushDevice() {
+  var btn  = document.getElementById('pushSubBtn');
+  var test = document.getElementById('pushTestBtn');
+  var hint = document.getElementById('pushHint');
+  var stat = document.getElementById('pushStatus');
+  if (!btn) return;
+  if (stat) stat.textContent = '';
+
+  // The three ways this can be impossible, each with the reason — a dead
+  // button with no explanation is what makes people think the app is broken.
+  if (!pushSupported()) {
+    btn.disabled = true; btn.textContent = 'Not supported';
+    if (test) test.hidden = true;
+    if (hint) hint.textContent = 'This browser cannot receive push notifications.';
+    return;
+  }
+  if (!window.isSecureContext) {
+    btn.disabled = true; btn.textContent = 'Needs HTTPS';
+    if (test) test.hidden = true;
+    if (hint) hint.textContent = 'Push notifications only work over HTTPS. This page is not on a secure connection.';
+    return;
+  }
+  if (!_pushCfg || !_pushCfg.enabled || !_pushCfg.publicKey) {
+    btn.disabled = true; btn.textContent = 'Unavailable';
+    if (test) test.hidden = true;
+    if (hint) hint.textContent = 'The server has not been able to set up push notifications.';
+    return;
+  }
+  if (Notification.permission === 'denied') {
+    btn.disabled = true; btn.textContent = 'Blocked';
+    if (test) test.hidden = true;
+    if (hint) hint.textContent = 'Notifications are blocked for this site in your browser settings — allow them there first.';
+    return;
+  }
+
+  var sub = await currentPushSub();
+  btn.disabled = false;
+  btn.textContent = sub ? 'Turn off on this device' : 'Enable on this device';
+  btn.classList.toggle('admin-clear-btn', !!sub);
+  btn.classList.toggle('sched-save-btn', !sub);
+  if (test) test.hidden = !sub;
+  if (hint) {
+    hint.textContent = sub
+      ? 'This device is set up. Each device needs its own opt-in.'
+      : 'Needs permission from this browser, and a separate opt-in on every device you use.'
+        + (isIosNotInstalled() ? ' On iPhone and iPad you must add this app to your home screen first.' : '');
+  }
+}
+
+// iOS only delivers push to an installed PWA. Saying so up front beats a
+// permission prompt that silently never arrives.
+function isIosNotInstalled() {
+  var ios = /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  var standalone = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
+  return ios && !standalone;
+}
+
+// base64url → Uint8Array, the format applicationServerKey demands.
+function urlB64ToUint8Array(b64) {
+  var pad = '='.repeat((4 - (b64.length % 4)) % 4);
+  var raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  var out = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+async function togglePushDevice() {
+  var stat = document.getElementById('pushStatus');
+  var btn  = document.getElementById('pushSubBtn');
+  if (btn) btn.disabled = true;
+  try {
+    var sub = await currentPushSub();
+    if (sub) {
+      await apiFetch('/api/push/unsubscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: sub.endpoint }),
+      });
+      await sub.unsubscribe().catch(function() {});
+      showToast('Notifications off for this device');
+    } else {
+      var perm = await Notification.requestPermission();
+      if (perm !== 'granted') {
+        if (stat) stat.textContent = perm === 'denied' ? '✗ Blocked' : '✗ Not allowed';
+        await renderPushDevice();
+        return;
+      }
+      var reg = await navigator.serviceWorker.ready;
+      var fresh = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(_pushCfg.publicKey),
+      });
+      var json = fresh.toJSON();
+      var r = await apiFetch('/api/push/subscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
+      });
+      if (!r || !r.ok) {
+        // Don't leave a browser subscribed to a server that never stored it —
+        // it would receive nothing and look enabled.
+        await fresh.unsubscribe().catch(function() {});
+        throw new Error('server rejected the subscription');
+      }
+      showToast('Notifications on for this device');
+    }
+  } catch (e) {
+    if (stat) stat.textContent = '✗ ' + (e.message || 'Failed');
+  }
+  await renderPushDevice();
+}
+
+async function savePushPrefs() {
+  var chk = document.getElementById('pushNotifyLineups');
+  if (!chk) return;
+  var stat = document.getElementById('pushStatus');
+  var r = await apiFetch('/api/push/prefs', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notifyLineups: !!chk.checked }),
+  });
+  if (!r || !r.ok) { if (stat) stat.textContent = '✗ Could not save'; return; }
+  if (_pushCfg) _pushCfg.notifyLineups = !!chk.checked;
+  showToast(chk.checked ? 'Lineup notifications on' : 'Lineup notifications off');
+}
+
+async function sendTestPush() {
+  var stat = document.getElementById('pushStatus');
+  var r = await apiFetch('/api/push/test', { method: 'POST' });
+  var d = r ? await r.json().catch(function() { return {}; }) : {};
+  if (!r || !r.ok) { if (stat) stat.textContent = '✗ ' + (d.error || 'Failed'); return; }
+  if (stat) stat.textContent = '✓ Sent to ' + d.devices + ' device' + (d.devices === 1 ? '' : 's');
 }
 
 // ── PWA home preference ────────────────────────────────────────────────
@@ -4358,6 +4532,9 @@ Object.assign(TT_ACTIONS, {
   saveUsername:        function() { saveUsername(); },
   savePassword:        function() { savePassword(); },
   savePwaHome:         function(v) { savePwaHome(v); },
+  togglePushDevice:    function() { togglePushDevice(); },
+  savePushPrefs:       function() { savePushPrefs(); },
+  sendTestPush:        function() { sendTestPush(); },
   closeSettingsSidebar:function() { closeSettingsSidebar(); },
   switchTournament:    function(v) { switchTournament(v); },
   // tournaments (superadmin)

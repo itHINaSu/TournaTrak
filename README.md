@@ -61,6 +61,12 @@ A self-hosted tournament bracket web app supporting single- and double-eliminati
 - Per-team lineup links — a TD hands a team one URL and anyone on it can fill in
   that team's lineups with no account at all (see below)
 
+**Notifications** — admins and scorekeepers can be pushed a notification when a
+team submits a lineup, with a per-account off switch in Settings → Account.
+Needs HTTPS (a browser rule), and on iOS the app must be installed to the home
+screen first. The VAPID keypair is generated on first boot; see `.env.example`
+if you need to pin it.
+
 **PWA** — service worker precaches the public bracket for offline use on spotty tournament-field Wi-Fi
 
 **Dark / light theme toggle**
