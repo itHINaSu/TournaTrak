@@ -340,6 +340,8 @@ select:focus-visible,
   display: flex;
   gap: 0.6em;
   justify-content: flex-end;
+  /* Three-answer dialogs (save / discard / cancel) don't fit one phone row. */
+  flex-wrap: wrap;
 }
 .tt-dialog-btn {
   font-family: 'Oswald', sans-serif;

@@ -843,6 +843,14 @@ body.bc-drag-active .bc-drop-row          { opacity: 0.75; }
 body.bc-drag-active .bc-drop-row--cascade { opacity: 0.85; border-top-width: 3px; }
 body.bc-drag-active .bc-drop-row--align   { opacity: 0.95; border-top-width: 3px; }
 body.bc-drag-active .bc-drop-row.bc-drop-target { opacity: 1; }
+/* Rows inside a card's own footprint. Inert and invisible until a drag frees
+   them (see freeCoveredRows) — they paint above the cards, so a live one
+   would make the card underneath impossible to pick up. These must come AFTER
+   the drag-active rules above: same specificity, so order decides. */
+.bc-drop-row--covered,
+body.bc-drag-active .bc-drop-row--covered { pointer-events: none; opacity: 0; }
+body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live { pointer-events: all; opacity: 0.8; }
+body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opacity: 1; }
 /* The footprint the dragged card would occupy, centred on the hovered row.
    Sized in px by initBracketDrag from the card being dragged. */
 .bc-slot-preview {

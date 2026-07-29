@@ -184,17 +184,36 @@ function ttDialog(opts) {
     }
     var row = document.createElement('div');
     row.className = 'tt-dialog-actions';
-    var cancel = document.createElement('button');
-    cancel.type = 'button';
-    cancel.className = 'tt-dialog-btn';
-    cancel.textContent = opts.cancelLabel || 'Cancel';
-    var ok = document.createElement('button');
-    ok.type = 'button';
-    ok.className = 'tt-dialog-btn tt-dialog-btn--primary'
-      + (opts.danger ? ' tt-dialog-btn--danger' : '');
-    ok.textContent = opts.okLabel || 'OK';
-    row.appendChild(cancel);
-    row.appendChild(ok);
+    // opts.buttons: [{label, value, primary, danger}] for choices that aren't
+    // yes/no — "save, throw away, or go back" is three answers, and forcing it
+    // through a two-button confirm is what puts Save somewhere else in the UI.
+    // Escape / overlay click resolve to opts.cancelValue.
+    var cancel = null, ok = null, extras = null;
+    if (opts.buttons && opts.buttons.length) {
+      extras = opts.buttons.map(function (b) {
+        var el = document.createElement('button');
+        el.type = 'button';
+        el.className = 'tt-dialog-btn'
+          + (b.primary ? ' tt-dialog-btn--primary' : '')
+          + (b.danger ? ' tt-dialog-btn--danger' : '');
+        el.textContent = b.label;
+        el.addEventListener('click', function () { close(b.value); });
+        row.appendChild(el);
+        return el;
+      });
+    } else {
+      cancel = document.createElement('button');
+      cancel.type = 'button';
+      cancel.className = 'tt-dialog-btn';
+      cancel.textContent = opts.cancelLabel || 'Cancel';
+      ok = document.createElement('button');
+      ok.type = 'button';
+      ok.className = 'tt-dialog-btn tt-dialog-btn--primary'
+        + (opts.danger ? ' tt-dialog-btn--danger' : '');
+      ok.textContent = opts.okLabel || 'OK';
+      row.appendChild(cancel);
+      row.appendChild(ok);
+    }
     box.appendChild(row);
     overlay.appendChild(box);
 
@@ -204,7 +223,7 @@ function ttDialog(opts) {
       if (prev && prev.focus) { try { prev.focus(); } catch (e) {} }
       resolve(val);
     }
-    var cancelVal = inp ? null : false;
+    var cancelVal = extras ? opts.cancelValue : (inp ? null : false);
     function submit() { close(inp ? inp.value : true); }
     function onKey(e) {
       if (e.key === 'Escape') { e.preventDefault(); close(cancelVal); return; }
@@ -213,7 +232,8 @@ function ttDialog(opts) {
       }
       if (e.key === 'Tab') {
         // Cycle focus within the dialog only.
-        var f = inp ? [inp, cancel, ok] : [cancel, ok];
+        var f = extras ? extras.slice() : (inp ? [inp, cancel, ok] : [cancel, ok]);
+        if (extras && inp) f.unshift(inp);
         var i = f.indexOf(document.activeElement);
         e.preventDefault();
         var n = e.shiftKey ? (i <= 0 ? f.length - 1 : i - 1)
@@ -221,12 +241,17 @@ function ttDialog(opts) {
         f[n].focus();
       }
     }
-    cancel.addEventListener('click', function () { close(cancelVal); });
-    ok.addEventListener('click', submit);
+    if (cancel) cancel.addEventListener('click', function () { close(cancelVal); });
+    if (ok) ok.addEventListener('click', submit);
     overlay.addEventListener('click', function (e) { if (e.target === overlay) close(cancelVal); });
     document.addEventListener('keydown', onKey, true);
     document.body.appendChild(overlay);
-    if (inp) { inp.focus(); inp.select(); } else { ok.focus(); }
+    if (inp) { inp.focus(); inp.select(); }
+    else if (extras) {
+      // Focus the primary if there is one, so Enter does the safe common thing.
+      var pri = extras[opts.buttons.findIndex(function (b) { return b.primary; })];
+      (pri || extras[extras.length - 1]).focus();
+    } else { ok.focus(); }
   });
 }
 function ttConfirm(message, opts) {

@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.41">
-<link rel="stylesheet" href="/bracket.css?v=3.41">
-<script src="/app-h.js?v=3.41"></script>
+<link rel="stylesheet" href="/base.css?v=3.42">
+<link rel="stylesheet" href="/bracket.css?v=3.42">
+<script src="/app-h.js?v=3.42"></script>
 </head>
 <body>
 
@@ -129,11 +129,12 @@
        keeps its slot — only its POSITION is stored — which is what makes
        editing useful on the losers side, whose automatic layout ignores slot
        numbers entirely. Moves are a draft until Save. -->
+  <!-- Save and Discard used to live here, which put them somewhere other than
+       the Done button a TD reaches for when they've finished. Done asks now;
+       this bar just reports what's outstanding. -->
   <div class="project-bar" id="bracketEditBar" hidden>
-    <button class="project-clear project-clear--primary" id="bracketSaveBtn" type="button" hidden data-action="saveBracketLayout">Save</button>
-    <button class="project-clear" id="bracketDiscardBtn" type="button" hidden data-action="discardBracketLayout">Discard</button>
     <button class="project-clear" id="bracketResetBtn" type="button" data-action="resetBracketLayout">Reset layout</button>
-    <span class="project-hint">Drag a card onto a row to place it — nothing is saved until you press Save</span>
+    <span class="project-hint" id="bracketEditHint">Drag a card onto a row to place it — Done will offer to save</span>
   </div>
   <!-- Project winners: admin-only what-if picks (toggle lives in the header
        next to Edit); nothing is saved or sent. This bar carries the hint and
@@ -232,10 +233,10 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.41"></script>
-<script src="/tt-common.js?v=3.41"></script>
-<script src="/bracket-data.js?v=3.41"></script>
-<script src="/bracket.js?v=3.41"></script>
-<script src="/sw-register.js?v=3.41" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.42"></script>
+<script src="/tt-common.js?v=3.42"></script>
+<script src="/bracket-data.js?v=3.42"></script>
+<script src="/bracket.js?v=3.42"></script>
+<script src="/sw-register.js?v=3.42" data-sw="/sw.js"></script>
 </body>
 </html>

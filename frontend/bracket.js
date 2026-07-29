@@ -279,12 +279,26 @@ function renderBucketView() {
 
 function toggleBracketEdit() {
   // Leaving Edit with unsaved moves must not silently keep OR silently drop
-  // them — ask, because "I didn't save so it went back" is exactly what a TD
-  // expects and exactly what the first cut of this got wrong.
+  // them — ask. And ask the whole question: Done used to offer only Discard or
+  // Cancel, with Save living in the bar below, so the one moment a TD has
+  // decided they're finished was the one moment the obvious button couldn't
+  // finish it. All three answers live here now.
   if (_bracketEditMode && layoutDraftCount()) {
-    ttConfirm('Discard ' + layoutDraftCount() + ' unsaved card move'
-      + (layoutDraftCount() === 1 ? '' : 's') + '?', { okLabel: 'Discard', danger: true })
-      .then(function(ok) { if (ok) { _layoutDraft = {}; setBracketEdit(false); } });
+    var n = layoutDraftCount();
+    ttDialog({
+      message: n + ' card move' + (n === 1 ? '' : 's') + ' ' + (n === 1 ? 'is' : 'are') + " not saved yet.",
+      buttons: [
+        { label: 'Cancel', value: 'cancel' },
+        { label: 'Discard', value: 'discard', danger: true },
+        { label: 'Save', value: 'save', primary: true },
+      ],
+      cancelValue: 'cancel',
+    }).then(function(choice) {
+      if (choice === 'discard') { _layoutDraft = {}; setBracketEdit(false); return; }
+      // Only leave Edit once the write actually lands — a failed save that
+      // closed Edit anyway would throw the moves away silently.
+      if (choice === 'save') saveBracketLayout().then(function(ok) { if (ok) setBracketEdit(false); });
+    });
     return;
   }
   setBracketEdit(!_bracketEditMode);
@@ -309,10 +323,16 @@ function updateBracketEditBar() {
   var bar = document.getElementById('bracketEditBar');
   if (bar) bar.hidden = !_bracketEditMode;
   var n = layoutDraftCount();
-  var save = document.getElementById('bracketSaveBtn');
-  var disc = document.getElementById('bracketDiscardBtn');
-  if (save) { save.hidden = !n; save.textContent = 'Save ' + n + ' move' + (n === 1 ? '' : 's'); }
-  if (disc) disc.hidden = !n;
+  var hint = document.getElementById('bracketEditHint');
+  if (hint) {
+    hint.textContent = n
+      ? n + ' unsaved move' + (n === 1 ? '' : 's') + ' — press Done to save or discard'
+      : 'Drag a card onto a row to place it — Done will offer to save';
+  }
+  // The Done button carries the count too, so the state is legible from the
+  // control you're about to press.
+  var btn = document.getElementById('bracketEditBtn');
+  if (btn && _bracketEditMode) btn.textContent = n ? 'Done (' + n + ')' : 'Done';
 }
 
 // Pull the schedule back from the server and redraw. Used after every write
@@ -332,12 +352,15 @@ function reloadScheduleAndRender() {
 // Commit the draft. One write for the whole editing session, which is also
 // one undo snapshot — so "Revert changes" in Admin restores the arrangement
 // as it was before this session rather than before the last nudge.
+// Resolves true when the write landed, false when it didn't — the Done dialog
+// waits on this before leaving Edit, so a failed save can't quietly bin the
+// moves it was asked to keep.
 function saveBracketLayout() {
   var n = layoutDraftCount();
-  if (!n) return;
+  if (!n) return Promise.resolve(true);
   var rows = {};
   Object.keys(_layoutDraft).forEach(function(gid) { rows[gid] = _layoutDraft[gid]; });
-  fetch(apiBase() + '/schedule/layout', {
+  return fetch(apiBase() + '/schedule/layout', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ rows: rows })
   }).then(function(r) {
@@ -347,18 +370,11 @@ function saveBracketLayout() {
     return reloadScheduleAndRender();
   }).then(function() {
     showToast('Saved ' + n + ' card position' + (n === 1 ? '' : 's'));
+    return true;
   }).catch(function(err) {
     showToast('Save failed: ' + (err.message || 'unknown error'), true);
+    return false;
   });
-}
-
-// Throw the draft away without touching what is stored.
-function discardBracketLayout() {
-  if (!layoutDraftCount()) return;
-  _layoutDraft = {};
-  updateBracketEditBar();
-  renderBracket();
-  showToast('Unsaved moves discarded');
 }
 
 // Hand every card back to the automatic layout. This one DOES write, and it
@@ -1661,13 +1677,20 @@ function editGhostHTML(colTops, feederTops, slotVh, gridH, fullRows, alignTops) 
   var cardH = slotVh * CARD_RATIO;
   var out = '';
   editGhostRows(slotVh, gridH, feederTops, fullRows, alignTops).forEach(function(r) {
-    // Rows a card physically covers are unreachable — the card is painted on
-    // top and takes the pointer first — so they would only be noise.
-    var taken = colTops.some(function(t) { return Math.abs(t - r.topVh) < cardH * 0.5; });
-    if (taken) return;
+    // A card covers roughly three half-step rows, and those used to be dropped
+    // from the markup entirely as unreachable. That made the commonest edit —
+    // nudge this card half a row — impossible: the rows either side of a card
+    // are inside its own footprint, so a TD had to drag far out of line and
+    // back. They are emitted now but marked covered: inert and invisible at
+    // rest (a drop row paints above the cards, so live ones would make the
+    // card underneath impossible to grab), and switched on by initBracketDrag
+    // for the duration of a drag when the ONLY card covering them is the one
+    // in the air.
+    var covered = colTops.some(function(t) { return Math.abs(t - r.topVh) < cardH * 0.5; });
     var row = layoutRowFromTop(r.topVh, slotVh, gridH);
     out += '<div class="bc-drop-row' + (r.cascade ? ' bc-drop-row--cascade' : '')
       + (r.align ? ' bc-drop-row--align' : '')
+      + (covered ? ' bc-drop-row--covered' : '')
       + '"' + (r.align ? ' title="Level with the feeding game"' : '')
       + ' data-row="' + row.toFixed(5) + '" data-css="top:' + (r.topVh + cardH / 2) + 'vh"></div>';
   });
@@ -1676,7 +1699,13 @@ function editGhostHTML(colTops, feederTops, slotVh, gridH, fullRows, alignTops) 
 
 function buildConnPcts(srcCol, dstCol, slotVh, posMap) {
   var totalVh = slotVh * gridHeight(), conns = [];
+  // MUST match cardTopVh's precedence, hand-placed row first. It didn't, and
+  // the bug was invisible on the losers side (applyPins writes pinned cards
+  // straight into lbPosMap, so those lines followed) while every winners-side
+  // card left its feed line behind on the canonical grid when a TD moved it.
   function getTop(col, entry) {
+    var row = layoutRowOf(entry.gid);
+    if (row !== null) return layoutTopVh(row, slotVh, gridHeight());
     return (posMap && posMap[entry.gid] !== undefined)
       ? posMap[entry.gid]
       : slotTopVh(col.round, entry.slot, slotVh, col.side);
@@ -2828,7 +2857,11 @@ function renderDesktopBracket(root,dims){
   // omitGid: a game to leave OUT of this side. The LB final is drawn once, up
   // in the winners row via `extra`, so the losers row omits it — that was the
   // only game in its column, which means the whole column goes with it.
-  function sideHTML(side,label,isRight,extra,omitGid){
+  // noteFor: {gid: text} — a caption under a card saying where its winner
+  // goes. Needed once a game's next game is drawn in the OTHER stacked row:
+  // the connector line stops at the edge of the row and the eye has nothing
+  // to follow, so the card has to say it.
+  function sideHTML(side,label,isRight,extra,omitGid,noteFor){
     var cols=buildSideColumns(side);
     if (omitGid) {
       // Filter a COPY: buildSideColumns also feeds computeLBPositions, whose
@@ -2851,12 +2884,16 @@ function renderDesktopBracket(root,dims){
       var cardsHTML='';
       if (extra && ci === ordCols.length - 1 && GAMES[extra.gid]) {
         // A real card, not a dashed reference: this is now the only place the
-        // losers final is drawn.
-        cardsHTML += '<div class="bc" data-gid="' + esc(extra.gid) + '" data-css="top:' + extra.topVh + 'vh">'
+        // losers final is drawn. data-row is what makes it draggable like any
+        // other card — initBracketDrag reads a card's current position from it
+        // (and a swap-drop refuses a card that hasn't got one).
+        var exPin = (_bracketEditMode && layoutRowOf(extra.gid) !== null) ? ' bc-pinned' : '';
+        var exRow = _bracketEditMode
+          ? ' data-row="' + layoutRowFromTop(extra.topVh, slotVh, gridH).toFixed(5) + '"' : '';
+        cardsHTML += '<div class="bc' + exPin + '" data-gid="' + esc(extra.gid) + '"' + exRow
+          + ' data-css="top:' + extra.topVh + 'vh">'
           + cardHTML(extra.gid) + '</div>'
-          + '<div class="bc-final-cap" data-css="top:' + (extra.topVh - 1.9) + 'vh">' + esc(extra.caption) + '</div>'
-          + '<div class="bc-final-cap bc-final-cap--note" data-css="top:' + (extra.topVh + slotVh * CARD_RATIO + 0.5) + 'vh">'
-          +   esc(extra.note) + '</div>';
+          + '<div class="bc-final-cap" data-css="top:' + (extra.topVh - 1.9) + 'vh">' + esc(extra.caption) + '</div>';
       }
       var colTops = topsByCol[ci];
       col.games.forEach(function(entry, gi){
@@ -2867,10 +2904,21 @@ function renderDesktopBracket(root,dims){
         var rowAttr = _bracketEditMode
           ? ' data-row="' + layoutRowFromTop(colTops[gi], slotVh, gridH).toFixed(5) + '"' : '';
         cardsHTML+='<div class="bc'+pinCls+'" data-gid="'+esc(entry.gid)+'"'+rowAttr+' data-css="top:'+colTops[gi]+'vh">'+cardHTML(entry.gid)+'</div>';
+        if (noteFor && noteFor[entry.gid]) {
+          cardsHTML += '<div class="bc-final-cap bc-final-cap--note" data-css="top:'
+            + (colTops[gi] + slotVh * CARD_RATIO + 0.5) + 'vh">' + esc(noteFor[entry.gid]) + '</div>';
+        }
       });
       if (_bracketEditMode) {
         var fi = isRight ? ci + 1 : ci - 1;
-        cardsHTML += editGhostHTML(colTops, topsByCol[fi], slotVh, gridH, fullBracketRows(),
+        // The extra card (losers final) is in this column but not in
+        // col.games, so its top has to be added by hand — otherwise no drop
+        // row is marked as covering it, a live row paints over the card, and
+        // the pointerdown that should start a drag lands on the row instead.
+        // That is exactly why the losers final could not be moved.
+        var ghostTops = (extra && ci === ordCols.length - 1 && GAMES[extra.gid])
+          ? colTops.concat([extra.topVh]) : colTops;
+        cardsHTML += editGhostHTML(ghostTops, topsByCol[fi], slotVh, gridH, fullBracketRows(),
                                    winnerFeederTops(col, ordCols[fi], topsByCol[fi]));
       }
       html+='<div class="round-col" data-css="width:'+colVw+'vw;height:'+totalVh+'vh">'
@@ -2971,8 +3019,14 @@ function renderDesktopBracket(root,dims){
         else if (fg.side === 'L') wbFinalTop = slotTopVh(p[0], parseInt(p[2], 10), slotVh, 'L');
       });
     }
-    // Two rows below the winners final: clear of it, still obviously paired.
-    var lbFinalTop = Math.min(wbFinalTop + slotVh * 2, totalVh - slotVh * CARD_RATIO);
+    // Two rows below the winners final: clear of it, still obviously paired —
+    // unless the TD has dragged it, which wins here exactly as it does for
+    // every other card (this one is drawn outside the normal column loop, so
+    // it has to consult layoutRowOf itself or Edit mode can't move it).
+    var lbFinalRow = lbFinalGid ? layoutRowOf(lbFinalGid) : null;
+    var lbFinalTop = lbFinalRow !== null
+      ? layoutTopVh(lbFinalRow, slotVh, gridH)
+      : Math.min(wbFinalTop + slotVh * 2, totalVh - slotVh * CARD_RATIO);
     var champTop = lbFinalGid ? (wbFinalTop + lbFinalTop) / 2 : wbFinalTop;
     var cardMid = slotVh * CARD_RATIO / 2;
 
@@ -3002,13 +3056,27 @@ function renderDesktopBracket(root,dims){
                                         dstPct: (champTop + cardMid) / totalVh * 100 });
     }
 
+    var lbLabel = getSetting('rightLabel') || 'Loser\u2019s Bracket';
     var extra = lbFinalGid
-      ? { gid: lbFinalGid, topVh: lbFinalTop,
-          caption: (getSetting('rightLabel') || 'Loser\u2019s Bracket') + ' Final',
-          // Drawn here and nowhere else, so it has to say where its winner
-          // goes \u2014 the losers row no longer carries the game to imply it.
-          note: 'Winner to Championship' }
+      ? { gid: lbFinalGid, topVh: lbFinalTop, caption: lbLabel + ' Final' }
       : null;
+
+    // The break in the reading is one column EARLIER than it looks. The final
+    // itself sits beside the winners final with a line into the championship,
+    // so it explains itself; the game that FEEDS it is the one now left with a
+    // line running off the end of the losers row into nothing. Put the note
+    // there, on the card whose winner makes the jump between rows.
+    var lbNotes = null;
+    if (lbFinalGid && GAMES[lbFinalGid]) {
+      var lbf = GAMES[lbFinalGid];
+      lbNotes = {};
+      [lbf.t1, lbf.t2].forEach(function(sd) {
+        if (!sd || sd.type !== 'winner' || !sd.slot) return;
+        var fg = GAMES[sd.slot];
+        if (fg && fg.side === 'R') lbNotes[sd.slot] = 'Winner to ' + lbLabel + ' Final';
+      });
+      if (!Object.keys(lbNotes).length) lbNotes = null;
+    }
 
     root.innerHTML = '<div class="bracket-shell"><div class="bcc-stack">'
       + '<div class="bcc-stack-rows">'
@@ -3021,7 +3089,7 @@ function renderDesktopBracket(root,dims){
       +       champStack
       +     '</div>'
       +   '</div>'
-      +   '<div class="bcc-stack-row">' + sideHTML('R', getSetting('rightLabel'), false, null, lbFinalGid) + '</div>'
+      +   '<div class="bcc-stack-row">' + sideHTML('R', getSetting('rightLabel'), false, null, lbFinalGid, lbNotes) + '</div>'
       + '</div>'
       + '</div></div>';
   } else {
@@ -5573,10 +5641,33 @@ function initBracketDrag(root) {
     document.body.classList.add('bc-drag-active');
     dragState.w = rect.width;
     dragState.h = rect.height;
+    freeCoveredRows(card);
 
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup',   onUp);
     document.addEventListener('pointercancel', onCancel);
+  }
+
+  // Turn on the drop rows that only the dragged card was covering, so a card
+  // can be nudged half a row without leaving its own footprint. Rows covered
+  // by any OTHER card stay inert — they paint above the cards, and making
+  // them live would make those cards impossible to pick up.
+  function freeCoveredRows(card) {
+    var col = card.parentElement;
+    if (!col) return;
+    var others = [];
+    col.querySelectorAll('.bc[data-gid]').forEach(function(c) {
+      if (c !== card) others.push(c.getBoundingClientRect());
+    });
+    dragState.freed = [];
+    col.querySelectorAll('.bc-drop-row--covered').forEach(function(rowEl) {
+      var r = rowEl.getBoundingClientRect();
+      var mid = r.top + r.height / 2;
+      var blocked = others.some(function(o) { return mid >= o.top && mid <= o.bottom; });
+      if (blocked) return;
+      rowEl.classList.add('bc-drop-row--live');
+      dragState.freed.push(rowEl);
+    });
   }
 
   function onMove(e) {
@@ -5667,7 +5758,11 @@ function initBracketDrag(root) {
     preview = null;
     document.body.classList.remove('bc-drag-active');
     if (ghost)     { ghost.remove(); ghost = null; }
-    if (dragState) { dragState.el.classList.remove('bc-dragging'); dragState = null; }
+    if (dragState) {
+      dragState.el.classList.remove('bc-dragging');
+      (dragState.freed || []).forEach(function(r) { r.classList.remove('bc-drop-row--live'); });
+      dragState = null;
+    }
     if (overEl)    { overEl.classList.remove('bc-drop-target'); overEl = null; }
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup',   onUp);
@@ -5821,8 +5916,6 @@ Object.assign(TT_ACTIONS, {
   shareCopy: function() { copyToClipboard(teamShareUrl(), 'Link copied!'); closeShareMenu(); },
   toggleBracketEdit: function() { toggleBracketEdit(); },
   resetBracketLayout: function() { if (_sessionRole === 'admin') resetBracketLayout(); },
-  saveBracketLayout: function() { if (_sessionRole === 'admin') saveBracketLayout(); },
-  discardBracketLayout: function() { if (_sessionRole === 'admin') discardBracketLayout(); },
   gotoScheduleTab:   function() {
     var tab = document.querySelector('.view-tab[data-view="schedule"]');
     if (tab) tab.click();
