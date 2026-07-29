@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.54">
-<link rel="stylesheet" href="/admin.css?v=3.54">
-<link rel="stylesheet" href="/lineup.css?v=3.54">
-<link rel="stylesheet" href="/builder.css?v=3.54">
-<link rel="stylesheet" href="/score.css?v=3.54">
-<script src="/app-h.js?v=3.54"></script>
+<link rel="stylesheet" href="/base.css?v=3.55">
+<link rel="stylesheet" href="/admin.css?v=3.55">
+<link rel="stylesheet" href="/lineup.css?v=3.55">
+<link rel="stylesheet" href="/builder.css?v=3.55">
+<link rel="stylesheet" href="/score.css?v=3.55">
+<script src="/app-h.js?v=3.55"></script>
 </head>
 <body>
 
@@ -112,9 +112,13 @@
 </div>
 
 <header class="site-header" id="siteHeader">
+  <!-- Same per-tournament logo the public header carries, set from the
+       validated data URI in applyThemeColors(). Staff switching between
+       tournaments get the same at-a-glance confirmation of which one they
+       are looking at that the public page gives. -->
+  <img id="adminSiteLogo" class="site-logo" alt="" hidden>
   <div class="header-name-block">
     <h1 id="adminSiteName">Tournament Admin</h1>
-    <div id="adminSiteSubtitle" class="site-subtitle" class="u-invisible">&#8203;</div>
   </div>
   <div class="header-controls">
     <select class="styled admin-tournament-switcher" id="tournamentSwitcher" data-action-change="switchTournament" hidden title="Active tournament"></select>
@@ -851,14 +855,14 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.54"></script>
-<script src="/tt-common.js?v=3.54"></script>
-<script src="/bracket-data.js?v=3.54"></script>
-<script src="/admin.js?v=3.54"></script>
-<script src="/lineup.js?v=3.54"></script>
-<script src="/score.js?v=3.54"></script>
-<script src="/builder-form.js?v=3.54"></script>
-<script src="/builder.js?v=3.54"></script>
-<script src="/sw-register.js?v=3.54" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.55"></script>
+<script src="/tt-common.js?v=3.55"></script>
+<script src="/bracket-data.js?v=3.55"></script>
+<script src="/admin.js?v=3.55"></script>
+<script src="/lineup.js?v=3.55"></script>
+<script src="/score.js?v=3.55"></script>
+<script src="/builder-form.js?v=3.55"></script>
+<script src="/builder.js?v=3.55"></script>
+<script src="/sw-register.js?v=3.55" data-sw="/admin-sw.js"></script>
 </body>
 </html>

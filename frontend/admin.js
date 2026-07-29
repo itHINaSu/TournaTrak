@@ -3047,6 +3047,20 @@ function _lightModeColor(hex) {
 function applyThemeColors() {
   var root = document.documentElement;
   var tc = _themeColors;
+  // Per-tournament logo in the admin header — assigned via the src PROPERTY,
+  // never innerHTML, and only for the data URIs the server validates on the
+  // way in. Same guard as the public header; a logo is attacker-supplied
+  // content as far as this page is concerned.
+  var logoEl = document.getElementById('adminSiteLogo');
+  if (logoEl) {
+    if (tc.logo && /^data:image\/(png|jpeg|webp);base64,/.test(tc.logo)) {
+      logoEl.src = tc.logo;
+      logoEl.hidden = false;
+    } else {
+      logoEl.removeAttribute('src');
+      logoEl.hidden = true;
+    }
+  }
   // Drives the preview img in the logo picker too — it carries .site-logo, so
   // the admin sees the size the public header will actually use.
   ttApplyLogoScale(tc.logoScale);
