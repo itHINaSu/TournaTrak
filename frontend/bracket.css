@@ -499,7 +499,10 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   display: flex;
   gap: 0.4em;
   justify-content: center;
-  margin: 0.4em auto 0.8em;
+  /* Top margin (space OUTSIDE the row) rather than padding: this row paints
+     its own --bg panel, so padding-top would grow that panel instead of
+     moving the pills down off the header rule above them. */
+  margin: 1em auto 0.8em;
   max-width: 30em;
   /* The bracket canvas below is absolutely positioned and can extend up over
      this control row; keep the pills on top so they stay clickable. */
@@ -509,7 +512,7 @@ select.styled:focus { outline: 0.13em solid var(--blue-lt); outline-offset: 0.07
   padding: 0.15em 0.4em;
   border-radius: var(--radius-sm);
 }
-.sched-flights { margin: 0.6em auto 0.4em; }
+.sched-flights { margin: 1em auto 0.4em; }
 .flight-pill {
   flex: 1;
   font-family: 'Oswald', sans-serif;
@@ -2469,7 +2472,7 @@ body.bc-drag-active .bc-drop-row.bc-drop-target { opacity: 1; }
   align-items: center;
   min-width: min-content;
 }
-.bracket-shell > .bracket-flights { margin: 0 auto 0.15em; }
+.bracket-shell > .bracket-flights { margin: 0.9em auto 0.15em; }
 
 .bcc-stack {
   display: flex;
