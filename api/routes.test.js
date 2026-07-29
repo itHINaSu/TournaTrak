@@ -796,3 +796,94 @@ describe('team lineup links', () => {
     await a.post('/api/teams', { showSeeds: false, teams: [{ name: 'Alpha' }, { name: 'Beta' }] });
   });
 });
+
+// ── Coach teams across tournaments (superadmin) ───────────────────────
+// The per-tournament routes above are the TD's tools and stop at req.tid.
+// These address a tournament explicitly, so the same coach can be placed in
+// several tournaments without switching the admin's scope — and they must be
+// unreachable by anyone who isn't a global admin.
+describe('cross-tournament coach grants', () => {
+  // A tournament admin who is NOT a superadmin, signed in and past the
+  // forced password change.
+  async function tournamentAdmin(a, username) {
+    const made = await a.post('/api/users', { username, role: 'admin' });
+    assert.equal(made.status, 200, JSON.stringify(made.json));
+    const c = agent();
+    const hit = await c.req('GET', '/api/setup-password/' + made.json.setupToken, undefined, { manual: true });
+    assert.equal(hit.status, 302);
+    assert.equal((await c.post('/api/change-password', { password: 'not-a-superadmin' })).status, 200);
+    const who = await c.get('/api/session');
+    assert.equal(who.json.role, 'admin');
+    assert.ok(!who.json.superadmin, 'must not be a superadmin');
+    return c;
+  }
+
+  rtest('a superadmin assigns teams in a tournament without switching to it', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.post('/api/users', { username: 'coach-global', role: 'team', teamName: 'Alpha' });
+
+    const listed = await a.get('/api/users/coach-global/grants');
+    assert.equal(listed.status, 200);
+    const g = listed.json.grants.find(x => x.role === 'team');
+    assert.ok(g, 'the coach is listed in the tournament they were created in');
+    assert.deepEqual(g.teams, ['Alpha']);
+    // The roster comes back with the grant so the UI needs no second fetch.
+    assert.ok(g.availableTeams.includes('Beta'), 'roster resolved server-side');
+
+    const saved = await a.post('/api/users/coach-global/grants/' + g.tid + '/teams', { teams: ['Alpha', 'Beta'] });
+    assert.equal(saved.status, 200, JSON.stringify(saved.json));
+    assert.deepEqual(saved.json.teams, ['Alpha', 'Beta']);
+
+    // And it really landed on the account, not just in the response.
+    const after = (await a.get('/api/users')).json.find(u => u.username === 'coach-global');
+    assert.deepEqual(after.teams, ['Alpha', 'Beta']);
+  });
+
+  rtest('duplicates collapse and a blank name is refused', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.post('/api/users', { username: 'coach-dupe', role: 'team', teamName: 'Alpha' });
+    const tid = (await a.get('/api/users/coach-dupe/grants')).json.grants.find(x => x.role === 'team').tid;
+
+    const dup = await a.post('/api/users/coach-dupe/grants/' + tid + '/teams', { teams: ['Alpha', 'Alpha', 'Beta'] });
+    assert.deepEqual(dup.json.teams, ['Alpha', 'Beta'], 'the same team twice is one team');
+
+    assert.equal((await a.post('/api/users/coach-dupe/grants/' + tid + '/teams', { teams: ['  '] })).status, 400);
+    assert.equal((await a.post('/api/users/coach-dupe/grants/999/teams', { teams: ['Alpha'] })).status, 404);
+    assert.equal((await a.get('/api/users/nobody-here/grants')).status, 404);
+  });
+
+  rtest('clearing every team removes the coach from that tournament', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.post('/api/users', { username: 'coach-clear', role: 'team', teamName: 'Alpha' });
+    const tid = (await a.get('/api/users/coach-clear/grants')).json.grants.find(x => x.role === 'team').tid;
+
+    const gone = await a.del('/api/users/coach-clear/grants/' + tid);
+    assert.equal(gone.status, 200);
+    // It was their only grant, so the account is removed rather than stranded
+    // somewhere no UI can reach it.
+    assert.equal(gone.json.deleted, true);
+    assert.equal((await a.get('/api/users/coach-clear/grants')).status, 404);
+  });
+
+  rtest('a tournament admin cannot reach across tournaments', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.post('/api/users', { username: 'coach-fenced', role: 'team', teamName: 'Alpha' });
+    const tid = (await a.get('/api/users/coach-fenced/grants')).json.grants.find(x => x.role === 'team').tid;
+
+    const td = await tournamentAdmin(a, 'td-not-super');
+    assert.equal((await td.get('/api/users/coach-fenced/grants')).status, 403);
+    assert.equal((await td.post('/api/users/coach-fenced/grants/' + tid + '/teams', { teams: ['Beta'] })).status, 403);
+    assert.equal((await td.del('/api/users/coach-fenced/grants/' + tid)).status, 403);
+
+    // Anonymous callers get 401, not 403 — no information about the account.
+    assert.equal((await agent().get('/api/users/coach-fenced/grants')).status, 401);
+
+    // The TD's own scoped route still works — this fences the global routes,
+    // it does not take a TD's coaches away from them.
+    assert.equal((await td.post('/api/users/coach-fenced/teams', { teamName: 'Beta' })).status, 200);
+  });
+});

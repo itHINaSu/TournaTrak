@@ -740,7 +740,10 @@ async function lineupInit() {
     // A team-link session has no account behind it, so there is no password to
     // set — offering the button would open a form with nothing to save to.
     viaTeamLink = !!session.viaTeamLink;
-    if (session.role === 'team' && !viaTeamLink) setupCoachAccountBtn(!!session.hasPassword);
+    if (session.role === 'team' && !viaTeamLink) {
+      setupCoachAccountBtn(!!session.hasPassword);
+      maybeOfferPassword(session);
+    }
     currentTeamName = session.teamName || null;
     myTeams = isAdmin
       ? [] // admin can edit any team — checked in isSlotEditable
@@ -891,6 +894,31 @@ function openCoachPw() {
   errEl.hidden = true;
   errEl.style.color = '';
   document.getElementById('coachPwOverlay').hidden = false;
+}
+
+// A coach arriving on their magic link with no password yet can ONLY get back
+// in through that link — lose the text message and they're phoning the TD
+// mid-tournament. /api/team-access appends ?setpw=1 on exactly that arrival,
+// so offer to turn the link into a real account right then, while they're
+// looking at the page. Offer, not force: a coach who came to fix a batting
+// order two minutes before first pitch must be able to wave this away.
+function maybeOfferPassword(session) {
+  var url = new URL(window.location.href);
+  if (url.searchParams.get('setpw') !== '1') return;
+  // Drop the flag so a refresh (or a link forwarded to someone else) doesn't
+  // re-prompt forever.
+  url.searchParams.delete('setpw');
+  window.history.replaceState({}, '', url.pathname + url.search);
+  if (session.hasPassword || !session.username) return;
+
+  var desc = document.getElementById('coachPwDesc');
+  if (desc) {
+    desc.textContent = 'Set a password and you can sign in as "' + session.username
+      + '" from any device — no access link needed. You can skip this and keep using your link.';
+  }
+  var cancel = document.querySelector('#coachPwOverlay .lineup-tool-btn--cancel');
+  if (cancel) cancel.textContent = 'Not now';
+  openCoachPw();
 }
 
 function closeCoachPw(e) {

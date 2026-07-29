@@ -3476,10 +3476,126 @@ function renderCoachesList(coaches) {
       // Access tokens are stored hashed, so the link can only be copied at
       // creation or via Regenerate (which copies the fresh link).
       +   (u.hasAccessToken ? '<button class="admin-clear-btn user-regen-btn" data-action="regenerateToken" data-arg="' + esc(u.username) + '">Regenerate Link</button>' : '')
+      // Teams in OTHER tournaments are a global-admin concern: a TD's edits
+      // stop at their own tournament by design.
+      +   (_isSuperadmin ? '<button class="admin-edit-btn" data-action="openCoachGrants" data-arg="' + esc(u.username) + '">All Tournaments</button>' : '')
       +   '<button class="admin-clear-btn user-delete-btn" data-action="deleteUser" data-arg="' + esc(u.username) + '">Delete</button>'
       + '</div>'
+      + '<div class="coach-grants" id="cg-' + esc(u.username) + '" hidden></div>'
       + '</div>';
   }).join('');
+}
+
+// ── Coach teams across tournaments (superadmin) ───────────────────────
+// The rest of this panel acts on the tournament the header switcher is
+// pointed at. A global admin running several tournaments off one deployment
+// needs to place the same coach in each of them without switching three
+// times, so this panel addresses each tournament explicitly.
+var _coachGrants = {};   // username -> grants array from the server
+
+async function openCoachGrants(username) {
+  var box = document.getElementById('cg-' + username);
+  if (!box) return;
+  if (!box.hidden) { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = '<div class="admin-subtitle admin-subtitle--pad">Loading…</div>';
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/grants');
+  if (!r || !r.ok) { box.innerHTML = '<div class="admin-subtitle admin-subtitle--pad">Could not load tournaments.</div>'; return; }
+  var data = await r.json().catch(function() { return {}; });
+  _coachGrants[username] = data.grants || [];
+  renderCoachGrants(username);
+}
+
+function renderCoachGrants(username) {
+  var box = document.getElementById('cg-' + username);
+  if (!box) return;
+  var grants = _coachGrants[username] || [];
+  if (!grants.length) { box.innerHTML = '<div class="admin-subtitle admin-subtitle--pad">No tournaments.</div>'; return; }
+
+  box.innerHTML = grants.map(function(g, gi) {
+    var teams = g.teams || [];
+    // A non-team grant (they're an admin or scorekeeper there) is shown but
+    // not editable here — changing it is a role decision, not a team one.
+    var body;
+    if (g.role && g.role !== 'team') {
+      body = '<span class="cg-note">' + esc(g.role) + ' in this tournament — teams not applicable</span>';
+    } else {
+      var tags = teams.map(function(t) {
+        return '<span class="coach-team-tag">' + esc(t)
+          + '<button class="coach-team-remove" data-action="cgRemoveTeam" data-arg="' + esc(username) + '" data-arg2="' + gi + '|' + esc(t) + '" title="Remove">✕</button>'
+          + '</span>';
+      }).join('');
+      var all  = g.availableTeams || [];
+      var free = all.filter(function(t) { return teams.indexOf(t) === -1; });
+      var picker;
+      if (free.length) {
+        picker = '<select class="styled cg-sel" id="cg-sel-' + esc(username) + '-' + gi + '">'
+              +    free.map(function(t) { return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('')
+              +  '</select>'
+              +  '<button class="admin-save-btn" data-action="cgAddTeam" data-arg="' + esc(username) + '" data-arg2="' + gi + '">Add</button>';
+      } else if (!all.length) {
+        picker = '<span class="cg-note">No teams in this tournament yet</span>';
+      } else {
+        picker = '<span class="cg-note">Every team assigned</span>';
+      }
+      body = '<div class="cg-teams">' + (tags || '<span class="cg-note">Not assigned</span>') + '</div>'
+           + '<div class="cg-add">' + picker + '</div>';
+    }
+    return '<div class="cg-row">'
+      + '<div class="cg-name">' + esc(g.name) + (g.role ? '' : ' <span class="cg-note">(no access)</span>') + '</div>'
+      + body
+      + '</div>';
+  }).join('');
+}
+
+// data-arg2 carries "<grantIndex>|<teamName>" because team names contain
+// characters that would need escaping in a second attribute anyway.
+async function cgRemoveTeam(username, arg2) {
+  var i = arg2.indexOf('|');
+  var gi = parseInt(arg2.slice(0, i), 10);
+  var team = arg2.slice(i + 1);
+  var g = (_coachGrants[username] || [])[gi];
+  if (!g) return;
+  await cgSaveTeams(username, gi, (g.teams || []).filter(function(t) { return t !== team; }));
+}
+
+async function cgAddTeam(username, gi) {
+  gi = parseInt(gi, 10);
+  var g = (_coachGrants[username] || [])[gi];
+  var sel = document.getElementById('cg-sel-' + username + '-' + gi);
+  if (!g || !sel || !sel.value) return;
+  await cgSaveTeams(username, gi, (g.teams || []).concat(sel.value));
+}
+
+async function cgSaveTeams(username, gi, teams) {
+  var g = (_coachGrants[username] || [])[gi];
+  if (!g) return;
+  // Removing the last team would leave a coach with a grant and nothing to
+  // edit; treat that as removing them from the tournament instead, which is
+  // what the TD-scoped Delete does too.
+  if (!teams.length && g.role) {
+    if (!await ttConfirm('Remove ' + username + ' from "' + g.name + '" entirely?', { okLabel: 'Remove', danger: true })) return;
+    var d = await apiFetch('/api/users/' + encodeURIComponent(username) + '/grants/' + g.tid, { method: 'DELETE' });
+    if (!d || !d.ok) { showToast('Failed', true); return; }
+    var dj = await d.json().catch(function() { return {}; });
+    showToast(dj.deleted ? 'Account removed (no tournaments left)' : 'Removed from ' + g.name);
+    if (dj.deleted) { loadCoaches(); return; }
+    g.role = null; g.teams = [];
+    renderCoachGrants(username);
+    loadCoaches();
+    return;
+  }
+  var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/grants/' + g.tid + '/teams', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ teams: teams }),
+  });
+  if (!r) return;
+  var data = await r.json().catch(function() { return {}; });
+  if (!r.ok) { showToast(data.error || 'Failed', true); return; }
+  g.role = data.role; g.teams = data.teams || [];
+  renderCoachGrants(username);
+  showToast('Saved');
+  loadCoaches();   // this tournament's card may have changed too
 }
 
 function showAddCoachTeam(username) {
@@ -4177,6 +4293,9 @@ Object.assign(TT_ACTIONS, {
   removeCoachTeam:     function(arg, el) { removeCoachTeam(arg, el.dataset.arg2); },
   showAddCoachTeam:    function(arg) { showAddCoachTeam(arg); },
   addCoachTeam:        function(arg) { addCoachTeam(arg); },
+  openCoachGrants:     function(arg) { openCoachGrants(arg); },
+  cgAddTeam:           function(arg, el) { cgAddTeam(arg, el.dataset.arg2); },
+  cgRemoveTeam:        function(arg, el) { cgRemoveTeam(arg, el.dataset.arg2); },
   hideAddCoachTeam:    function(arg) { hideAddCoachTeam(arg); },
 });
 

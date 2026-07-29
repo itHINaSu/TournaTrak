@@ -718,6 +718,90 @@ api.delete('/users/:username/teams/:teamName', requireAdmin, ah(async (req, res)
   res.json({ ok: true });
 }));
 
+// ── Cross-tournament grants (superadmin) ──────────────────────────────
+//
+// The routes above all act on req.tid: a TD manages coaches inside their own
+// tournament, which is the right blast radius for a TD. A superadmin running
+// several tournaments off one deployment has the opposite problem — the same
+// coach turns up in three of them, and switching the header selector three
+// times to fix one person's teams is how a coach ends up assigned to the
+// wrong bracket. These routes address a tournament EXPLICITLY, so team
+// assignment works at either level without a TD ever reaching outside theirs.
+api.get('/users/:username/grants', requireSuperadmin, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const user = await store.findUser(req.params.username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  const tournaments = await store.listTournaments();
+  const out = [];
+  for (const t of tournaments) {
+    const role = user.role === 'superadmin' ? 'superadmin' : (user.roles[t.id] || null);
+    // Every tournament is listed, granted or not, so the UI can offer to add
+    // the coach to one. availableTeams is the same roster the Teams editor
+    // shows, resolved server-side — the alternative is the browser fetching
+    // /api/t/<slug>/teams once per tournament just to fill a dropdown.
+    out.push({
+      tid: t.id, slug: t.slug, name: t.name, role,
+      teams: role ? store.teamsFor(user, t.id) : [],
+      availableTeams: (await rosterFor(t.id)).teams.map(x => x.name),
+    });
+  }
+  res.json({ username: user.username, accountRole: user.role, grants: out });
+}));
+
+// Replace a user's teams in ONE named tournament. Superadmin-only because it
+// reaches across tournament boundaries; the tid comes from the path, never
+// from req.tid.
+api.post('/users/:username/grants/:tid/teams', requireSuperadmin, ah(async (req, res) => {
+  const { username } = req.params;
+  const tid = parseInt(req.params.tid, 10);
+  const { teams } = req.body || {};
+  if (!Number.isInteger(tid)) return res.status(400).json({ error: 'invalid tournament' });
+  if (!Array.isArray(teams)) return res.status(400).json({ error: 'teams must be an array' });
+  if (teams.length > 50) return res.status(400).json({ error: 'too many teams (max 50)' });
+
+  const clean = [];
+  for (const t of teams) {
+    const name = String(t || '').trim().slice(0, 100);
+    if (!name) return res.status(400).json({ error: 'team name cannot be blank' });
+    if (!clean.includes(name)) clean.push(name);
+  }
+  const user = await store.findUser(username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!(await store.tournamentById(tid))) return res.status(404).json({ error: 'Tournament not found' });
+  if (user.role === 'superadmin') {
+    return res.status(400).json({ error: 'Superadmins already have access everywhere' });
+  }
+  // A team list is only meaningful alongside a team grant. Granting one here
+  // rather than erroring is deliberate: "add this coach to that tournament"
+  // is exactly the action a global admin is trying to take.
+  const existing = user.roles[tid] || null;
+  if (existing && existing !== 'team') {
+    return res.status(400).json({ error: 'That account is ' + existing + ' in this tournament, not a coach' });
+  }
+  if (!clean.length && !existing) return res.json({ ok: true, role: null, teams: [] });
+  if (!existing) await store.grantRole(username, tid, 'team');
+  await store.setUserTeams(username, tid, clean);
+  res.json({ ok: true, role: 'team', teams: clean });
+}));
+
+// Remove the account from a tournament entirely (revoke grant + teams).
+api.delete('/users/:username/grants/:tid', requireSuperadmin, ah(async (req, res) => {
+  const { username } = req.params;
+  const tid = parseInt(req.params.tid, 10);
+  if (!Number.isInteger(tid)) return res.status(400).json({ error: 'invalid tournament' });
+  const user = await store.findUser(username);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user.roles[tid]) return res.status(404).json({ error: 'No grant in that tournament' });
+  const remaining = await store.revokeRole(username, tid);
+  // Same orphan rule as DELETE /users/:username — an account with no grants
+  // left anywhere can't be reached by any UI, so don't strand it.
+  if (remaining === 0) {
+    await store.deleteUser(username);
+    return res.json({ ok: true, deleted: true });
+  }
+  res.json({ ok: true, deleted: false });
+}));
+
 api.get('/setup-password/:token', ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const { token } = req.params;
@@ -751,6 +835,12 @@ api.get('/team-access/:token', ah(async (req, res) => {
     const t = (await store.listTournaments()).find(x => x.id === destTid);
     if (t) dest = '/lineup?t=' + encodeURIComponent(t.slug);
   }
+  // A coach who has never set a password can only ever get back in through
+  // this link. Flag the arrival so the lineup page offers to turn it into a
+  // real account — the offer has to ride the URL because by the time the page
+  // asks /api/session it can no longer tell a magic-link arrival from a
+  // returning session.
+  if (!user.passwordHash) dest += (dest.includes('?') ? '&' : '?') + 'setpw=1';
   startSession(req, { username: user.username },
     () => res.redirect(dest),
     () => res.redirect('/lineup?invalid=1'));
@@ -1517,32 +1607,30 @@ async function teamsFromSchedule(tid) {
 // keep their order; new schedule teams are appended; teams no longer in the
 // schedule drop. When the schedule has no fixed team names yet, fall back to
 // the saved list so a manually-curated roster isn't wiped.
+async function rosterFor(tid) {
+  const data = await store.get(tid, 'teams');
+  const saved = Array.isArray(data.teams) ? data.teams : [];
+  const fromSched = await teamsFromSchedule(tid);
+  if (!fromSched.length) return { data, teams: saved };
+
+  const schedSet = new Set(fromSched);
+  const savedSet = new Set();
+  const kept = [];
+  saved.forEach(t => {
+    if (t && t.name && schedSet.has(t.name) && !savedSet.has(t.name)) {
+      savedSet.add(t.name);
+      kept.push({ name: t.name });
+    }
+  });
+  const appended = fromSched.filter(name => !savedSet.has(name)).map(name => ({ name }));
+  return { data, teams: kept.concat(appended) };
+}
+
 api.get('/teams', ah(async (req, res) => {
   // Same staleness rule as /settings: generate rewrites the seed display,
   // so this must revalidate rather than ride the browser's heuristic cache.
   res.setHeader('Cache-Control', 'no-cache');
-  const data = await store.get(req.tid, 'teams');
-  const saved = Array.isArray(data.teams) ? data.teams : [];
-  const fromSched = await teamsFromSchedule(req.tid);
-
-  let teams;
-  if (fromSched.length) {
-    const schedSet = new Set(fromSched);
-    const savedSet = new Set();
-    const kept = [];
-    saved.forEach(t => {
-      if (t && t.name && schedSet.has(t.name) && !savedSet.has(t.name)) {
-        savedSet.add(t.name);
-        kept.push({ name: t.name });
-      }
-    });
-    const appended = fromSched
-      .filter(name => !savedSet.has(name))
-      .map(name => ({ name }));
-    teams = kept.concat(appended);
-  } else {
-    teams = saved;
-  }
+  const { data, teams } = await rosterFor(req.tid);
 
   // seedCount: with partial seeding only the first N teams hold real seeds —
   // the public page numbers just those.

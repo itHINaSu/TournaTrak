@@ -648,6 +648,32 @@ input[type="time"]:focus {
 }
 .coach-add-team-row input:focus { outline: 0.13em solid var(--blue-lt); border-color: var(--blue-lt); }
 
+/* ── Coach teams across tournaments (superadmin only) ── */
+.coach-grants {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  margin-top: 0.5em;
+  padding: 0.6em 0.7em;
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-xs);
+}
+.cg-row { display: flex; flex-direction: column; gap: 0.3em; }
+.cg-row + .cg-row { padding-top: 0.5em; border-top: 0.07em solid var(--border); }
+.cg-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.cg-teams { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3em; }
+.cg-add   { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4em; }
+.cg-sel   { max-width: 14em; }
+.cg-note  { font-size: 0.74rem; color: var(--text-mute); font-style: italic; }
+
 /* ── Coach link row ── */
 .coach-link-row {
   display: flex;
