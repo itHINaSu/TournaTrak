@@ -447,11 +447,24 @@ function renderAdmin() {
     var tm = ft.match(/^(\d+\/\d+\s+\S+)\s+(.+)$/);
     if (tm) { dayStr = tm[1]; timeStr = tm[2]; }
 
+    // Running late or early. The public card has carried this badge for a
+    // while; the TD posting scores could not see it, which is backwards —
+    // they are the one who has to decide whether the next game slips.
+    var offMin = (typeof getGameOffset === 'function') ? getGameOffset(sid) : null;
+    var offHTML = '';
+    if (offMin) {
+      offHTML = '<span class="admin-res-offset admin-res-offset--'
+        + (offMin > 0 ? 'late' : 'early') + '" title="'
+        + (offMin > 0 ? 'Running behind schedule' : 'Running ahead of schedule')
+        + '">' + (offMin > 0 ? '+' : '') + offMin + ' min</span>';
+    }
+
     var hdr = '<div class="admin-res-hdr">'
       + '<span class="admin-game-id">' + esc(lbl) + '</span>'
       + '<div class="admin-res-dt">'
       + (dayStr  ? '<span class="admin-res-day">'  + esc(dayStr)  + '</span>' : '')
       + (timeStr ? '<span class="admin-res-time">' + esc(timeStr) + '</span>' : '')
+      + offHTML
       + '</div></div>';
 
     if (set) {
@@ -3129,6 +3142,7 @@ async function applyOffset() {
     showToast('Offset applied');
     if (status) { status.textContent = '✓ Applied'; setTimeout(function(){ status.textContent = ''; }, 3000); }
     renderDelaysAdmin();
+    renderAdmin();   // the scoring cards carry the +/- badge
   } catch(e) {
     showToast('Save failed', true);
     if (status) { status.textContent = '✗ Error'; setTimeout(function(){ status.textContent = ''; }, 3000); }
@@ -3143,6 +3157,7 @@ async function deleteOffset(idx) {
     if (!r.ok) throw new Error();
     _offsets = { entries: entries, banner: _offsets.banner || '' };
     renderDelaysAdmin();
+    renderAdmin();
   } catch(e) { showToast('Delete failed', true); }
 }
 
@@ -3153,6 +3168,7 @@ async function clearAllOffsets() {
     if (!r) return;
     if (!r.ok) throw new Error();
     _offsets = { entries: [], banner: _offsets.banner || '' };
+    renderAdmin();
     showToast('All offsets cleared');
     if (status) { status.textContent = '✓ Cleared'; setTimeout(function(){ status.textContent = ''; }, 3000); }
     renderDelaysAdmin();

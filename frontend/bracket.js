@@ -1181,22 +1181,7 @@ function liveHeaderHTML(sid) {
 
 // Date/time block for round-style cards — swapped for the live indicator when
 // a game is live, restored to date/time once finalized.
-function getGameOffset(sid) {
-  var g = GAMES[sid]; if (!g) return null;
-  var r = results[sid]; if (r && r.winner) return null;
-  var gameField = g.field || '';
-  var gameTime  = g.time  || '';
-  var gameDate  = gameTime.slice(0, 10);
-  var lastMatch = null;
-  (_offsets.entries || []).forEach(function(entry) {
-    var noFields = !entry.fields || entry.fields.length === 0;
-    var noDays   = !entry.days   || entry.days.length   === 0;
-    var fieldsOk = noFields || (gameField && entry.fields.indexOf(gameField) !== -1);
-    var daysOk   = noDays   || (gameDate  && entry.days.indexOf(gameDate)   !== -1);
-    if (fieldsOk && daysOk) lastMatch = entry;
-  });
-  return lastMatch ? lastMatch.minutes : null;
-}
+// getGameOffset() is shared with the admin panel — see bracket-data.js.
 
 function timeOrLiveHTML(sid, dateStr, dowStr, timeStr) {
   if (gameIsLive(sid)) {

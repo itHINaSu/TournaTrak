@@ -502,9 +502,41 @@ function scheduleHealth(schedule) {
   return out.sort((a, b) => (a.level === b.level) ? 0 : (a.level === 'error' ? -1 : 1));
 }
 
+// How far off schedule a game is, in minutes (+ late, − early), or null when
+// no delay entry applies or the game has already been played.
+//
+// Lives here rather than in bracket.js because BOTH the public card and the
+// admin's scoring card show this badge, and a TD reading "+20" on the field
+// while the admin panel says nothing is worse than neither showing it. Reads
+// the page globals `results` and `_offsets`, which both pages define; the
+// server never calls it.
+function getGameOffset(sid) {
+  const g = GAMES[sid];
+  if (!g) return null;
+  const res = (typeof results !== 'undefined' && results) ? results : {};
+  if (res[sid] && res[sid].winner) return null;   // it happened; drift is moot
+  const offs = (typeof _offsets !== 'undefined' && _offsets) ? _offsets : null;
+  if (!offs || !Array.isArray(offs.entries)) return null;
+
+  const gameField = g.field || '';
+  const gameDate = (g.time || '').slice(0, 10);
+  let lastMatch = null;
+  // Last matching entry wins: entries are ordered, and a later, narrower one
+  // (this field, this day) is the TD's more recent word on the same games.
+  offs.entries.forEach(entry => {
+    const noFields = !entry.fields || entry.fields.length === 0;
+    const noDays   = !entry.days   || entry.days.length   === 0;
+    const fieldsOk = noFields || (gameField && entry.fields.indexOf(gameField) !== -1);
+    const daysOk   = noDays   || (gameDate  && entry.days.indexOf(gameDate)   !== -1);
+    if (fieldsOk && daysOk) lastMatch = entry;
+  });
+  return lastMatch ? lastMatch.minutes : null;
+}
+
 if (typeof module !== 'undefined') {
   module.exports = {
     GAMES, SLOT_DEFS, ROUND_ORDER, ROUND_LABELS, roundLabel, roundIndex, scheduleHealth,
+    getGameOffset,
     rankStandings, STANDINGS_TIEBREAKS,
     allSlotIds, parseSlotId, tierGameRound, occupiedSlots, slotsForRoundSide,
     resolveSlot, slotLabel, smartLabel, shortName,

@@ -217,6 +217,17 @@ input, select, textarea { font-size: max(1rem, 16px); }
   flex: 1;
 }
 .admin-res-day, .admin-res-time { font-family: 'Oswald', sans-serif; font-size: clamp(1.1rem, 0.18vw + 1.05rem, 1.4rem); font-weight: 700; color: var(--gold-lt); line-height: 1; }
+/* Schedule drift, same colours and reading as the public card's badge:
+   late is the losing colour, early the winning one. */
+.admin-res-offset {
+  font-family: 'Oswald', sans-serif;
+  font-size: clamp(0.82rem, 0.1vw + 0.8rem, 0.95rem);
+  font-weight: 700;
+  line-height: 1;
+  margin-left: 0.1em;
+}
+.admin-res-offset--late  { color: var(--lose-color); }
+.admin-res-offset--early { color: var(--win-color); }
 
 .admin-res-team-row {
   display: flex;
@@ -953,6 +964,7 @@ input[type="time"]:focus {
   .admin-res-card { margin-bottom: 0.85em; }
   .admin-res-hdr { padding: 0.4em 0.75em; }
   .admin-res-day, .admin-res-time { font-size: clamp(0.82rem, 0.14vw + 0.79rem, 1rem); }
+  .admin-res-offset { font-size: 0.75rem; }
   .admin-res-team-row { padding: 0.5em 0.75em; min-height: 2.5em; }
   .admin-res-team { font-size: 0.88rem; }
   .admin-res-footer { padding: 0.45em 0.75em; }
