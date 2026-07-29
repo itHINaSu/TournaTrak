@@ -56,14 +56,26 @@ under different hashes. Check whether each apparent gap is a real gap
 deliberate behavioural reversal to the owner instead of silently picking a
 side.
 
-## Outstanding work (what's still needed) — updated 2026-07-28
+## Outstanding work (what's still needed) — updated 2026-07-29
 
-**Shipped 2026-07-28 on `main`, newest first.** Every item is detailed below;
+**Shipped 2026-07-29 on `main`, newest first.** Every item is detailed below;
 this is the index.
 
 | commit | what |
 |--------|------|
-| (this branch) | Per-team lineup links; coaches no longer offered other teams; `startSession` fixes the sign-in save race |
+| `14db802` | Web Push to staff when a team submits a lineup, with a per-account opt-out |
+| `b93b888` | Lineup number/name/position each independently requirable; rule shared with the server |
+| `8860c8b` | Undo banner → a button in the mode bar; healthy notice dismissible (an unhealthy one never is) |
+| `108109c` | Team Path selector + What if? on one line on mobile (131px → 66px) |
+| `a224b69` | Scorekeeper mode embedded as Admin → Results → **Live**; Games tab stops being a second scoreboard |
+| `e3b045d` | Quick-delay chips captioned ahead/behind, plus a custom amount |
+| `e5bce00` | Schedule drift (+/- min) on the admin scoring cards; `getGameOffset` moved to the shared file |
+| `acbf95e` | Print: line up round 1 / centered / line up championships across stacked brackets |
+| `5cb6848` | Small flights get a usable edit grid; A/B brackets draw lines into their championship |
+| `d5cadfa` | Bracket Edit: lines follow moved cards, LB final draggable, own-footprint drops, Done asks Save/Discard/Cancel |
+| `7449cd6` | Losers final drawn once (saves a column); header logo size is a per-tournament setting |
+| `e97f1ba` `abdfddf` | Coach magic link offers to set a password; superadmin places coaches across tournaments |
+| `c1103e7` `ffc8740` | Per-team lineup links; `startSession` fixes the sign-in save race; flight pill spacing |
 | `7af0ae0` | Lineup position dropdown groups what's already taken; optional required player numbers |
 | `3c48624` | Bucket Challenge hidden in Admin → Results when the tournament isn't running one |
 | `c022e87` | ISSA losers round-3 column ordered by its feeders, not by paper game number |
@@ -941,8 +953,15 @@ The `.round-game-header` row shows: **[Game ID] [Date] [Field + DOW + Time + Off
   field WITH byes — that is where both faults showed.
 
 ## Live scoring
-- Admin: each pending result card has **▶ Live** + **Final**. `startLive` / `updateLive` /
-  `endLive` / `saveResult` manage state.
+- **Live scoring lives in Admin → Results → Live** (score.js embedded — see its
+  own section). The Games sub-tab is no longer a second scoreboard: its **Live**
+  button calls `goToLiveTab(sid)`, which awaits the `/api/live` POST (or the
+  Live tab reloads before the game knows it is live), switches sub-tab and
+  scrolls to the card. A game already live shows a status card there — badge,
+  inning as TEXT, scores, `Score ⚡` jump — keeping editable scores only so a
+  desktop TD can still post the Final. `updateLive()` was DELETED with the old
+  inline editor; do not reintroduce a second place that pushes a live score.
+- `startLive` / `endLive` / `saveResult` manage the Games-side state.
 - API: `GET /api/live` (public, no-store), `POST /api/live`, `DELETE /api/live/:sid`.
   File: `/data/live.json`.
 - Public: `gameIsLive`, `liveScoreHTML`, `liveHeaderHTML`, `timeOrLiveHTML`. When live,
@@ -956,15 +975,30 @@ Admin Results tab → Delays panel (also reachable via "→ Delays" button in th
   `{ minutes: N, fields: ["Field 1"], days: ["2025-06-20"] }`. Empty arrays = all.
 - **Sign convention:** +N = behind/late (red), −N = ahead/early (green).
 - **Server:** `GET /api/offsets` (public, max-age=15), `POST /api/offsets` (admin).
-- **Public page:** `_offsets` loaded in `fetchAll()`. `getGameOffset(sid)` finds the
-  last-matching entry; returns `null` for completed games. `timeOrLiveHTML` appends
-  `.round-game-offset--late` / `--early` spans. Bracket `.bc` cards show compact
-  `.bc-offset` span. Offset is **suppressed** once a result is recorded.
+- **`getGameOffset(sid)` lives in `bracket-data.js`**, not bracket.js, because
+  BOTH the public card and the admin's scoring card show the badge and a TD
+  reading "+20" on the field while the admin panel says nothing is worse than
+  neither showing it. It finds the last-matching entry and returns `null` for
+  completed games; `timeOrLiveHTML` appends `.round-game-offset--late/--early`
+  and the admin cards `.admin-res-offset--late/--early`. Offset is
+  **suppressed** once a result is recorded.
+- **Any write to offsets must repaint the scoring cards**, not just the Delays
+  panel — `applyOffset`, `deleteOffset` and `clearAllOffsets` all call
+  `renderAdmin()` now. Same reason score.js calls back into it: `_offsets` is
+  one global shared by admin.js and score.js when Live is embedded.
 - **Delay notice banner:** `_offsets.banner` (free text) shown in `.delay-notice` strip
   on the public page via `updateDelayNotice()`. Saved/cleared via the Delays panel.
 - **UI (admin):** Field and day selection via toggle chips (tap to select/deselect;
   none selected = all). Active offsets listed with delete buttons. "Clear All" resets
-  everything. The Delays panel is one of three Results sub-modes (Games / Bucket Challenge / Delays).
+  everything. The Delays panel is one of FOUR Results sub-modes
+  (Games / Bucket Challenge / Delays / ⚡ Live).
+- **Scorekeeper quick-delay row** (`renderOffsetRow` in score.js) is three
+  captioned groups — Ahead of schedule / On time / Behind schedule — plus a
+  Custom amount (whole minutes, capped at ±720). The captions exist because a
+  bare "−30" reads as "thirty minutes late" as easily as "thirty minutes
+  early" to someone outdoors in a hurry. When the stored offset is not one of
+  the presets the Custom chip shows the value and reads as selected, so an odd
+  amount still looks set.
 
 ## Admin mobile UX
 - **Quick bar** (mobile-only, order:9, above tab bar): visible only when Results tab
@@ -1025,9 +1059,22 @@ is the ONE copy (loaded by all pages before tt-common.js; require()d by
 server.js from the read-only /frontend mount). Its keys ARE the POST
 /api/settings allowlist — a key missing there is silently dropped. Adding a
 setting is a one-file change (plus the admin form field). **Field colors are NOT in settings** — they use
-`/api/field-colors`. Current settings keys: `tournamentName, pageTitle, adminName,
-subtitle, leftLabel, rightLabel, playInLabel, showSideDividers, periodLabel,
-showDate, showDay, dateFormat, dayFormat, defaultTab, defaultTabScope, defaultScheduleGroup`.
+`/api/field-colors`. For the current key list, read `SETTINGS_DEFAULTS` — it is
+the source of truth and any list copied here goes stale within a session.
+
+`settings-defaults.js` is no longer only a defaults table. It also holds the
+lineup COLUMN LAYOUT and the required-field rule (`LINEUP_PRESETS`,
+`lineupConfigFrom`, `lineupRequiredFrom`, `lineupRowIssues`,
+`lineupIssueMessage`), because the server has to derive the same columns the
+coach was shown: requiring Position under a preset that has no position column
+would otherwise reject every lineup with no way to satisfy it. The page check
+and the server check are literally the same function — the page one names the
+offending rows as a courtesy, the server one is the control.
+
+`lineupRequireNumbers` is a DEPRECATED alias for `lineupRequireJersey`, kept
+because dropping it would silently switch the rule off for every tournament
+that had it on. It is read by `lineupRequiredFrom` and no longer offered in the
+admin UI; there is a route test that it still bites.
 
 Admin Settings → Page Info is organized into **5 sections** (merged from 7):
 1. Tournament Identity — name, page title, subtitle, admin name
@@ -1035,6 +1082,9 @@ Admin Settings → Page Info is organized into **5 sections** (merged from 7):
 3. Bracket — left/right labels, play-in label, side dividers (formerly 2 separate sections)
 4. Date & Time Display — show/format pairs for date and day-of-week, grouped with left-border
 5. Live Scoring — period label
+
+Settings → Account also carries **Notifications** (per-account push opt-out +
+the per-device subscribe button) — see the push section.
 
 Section headers: blue (`--blue-lt`), 0.82rem, bold bottom border. All selects in settings
 fields use `class="styled"` (the `admin-winner-sel` inline-style inconsistency is fixed).
@@ -1097,6 +1147,54 @@ data — the fix was not "tell everyone to be careful", it was removing the
 thing `-v` could delete. And a backup script nobody has ever restored from is
 not a backup: this one had been wrong since it was written, and the first
 person to find out was the person who needed it.
+
+## Session notes / traps worth inheriting (2026-07-29)
+Environment things that cost real time this session. None of them are bugs in
+the app; all of them will happen again to the next session.
+
+- **The container rolled the working tree back TWICE, mid-session, without
+  warning.** Both times `git log` in the repo showed a commit from hours
+  earlier and every uncommitted edit was gone; both times the work was safe on
+  `origin` because it had been pushed. Recovery: `git fetch origin main` then
+  `git reset --hard origin/main`, and re-apply any in-flight edits from
+  `git diff > patch` if you saved one. **Commit and push after every verified
+  chunk** — not at the end of a feature. Treat anything uncommitted as
+  something you are willing to redo.
+- **Never `pkill -f "node ..."` from a Bash tool call.** The pattern matches
+  the harness's own shell (its command line contains the string you are
+  grepping for), so the call kills itself and returns exit 144. Same for
+  `pgrep -f` — it will report the shell's PID and you will "confirm" a service
+  is running when it is not. Use `ps -eo pid,args --no-headers | grep -E 'node
+  (api/server|/tmp.*proxy)' | grep -v grep`, and kill by explicit PID.
+- **Background dev servers die with the shell that spawned them.** `cmd &` and
+  even `nohup ... & disown` did not survive. What works: a small script plus
+  `setsid sh -c "./api.sh > log 2>&1" < /dev/null > /dev/null 2>&1 &`, then
+  sleep and curl to confirm it is actually up before driving a browser at it.
+- **There is no Docker in the session container**, so the stack cannot be run
+  as the owner runs it. What works: a local Postgres (`service postgresql
+  start`, then `su postgres -c "psql -tAc \"ALTER ROLE postgres PASSWORD
+  'x'\""` for a password the tests can use), the API on a spare port, and a
+  ~20-line static-file proxy standing in for nginx. The proxy MUST forward
+  `/api`, `/lineup`, `/t/…` and `/` to the API and serve everything else from
+  `frontend/` — `/admin` and `/score` are static files, `/` and `/t/:slug` are
+  server-rendered, and getting that split wrong produces confusing 404s.
+- **The API caches `index.html` per tournament** (`invalidateIndexCache`), so
+  editing `index.html` and reloading `/t/<slug>` shows the OLD markup until the
+  API restarts. Cost a debugging detour chasing "my HTML isn't there".
+- **Headless Chromium reports `Notification.permission === 'denied'` always**
+  and has no push service. Granting the permission through Playwright does not
+  change it. To exercise a push UI, stub `Notification.permission`,
+  `Notification.requestPermission` and `navigator.serviceWorker.ready`'s
+  `pushManager` via `context.addInitScript` — everything below that line is
+  still your own code, so the round-trip is genuinely tested.
+- **Playwright + this app, two recurring selector traps**: `.results-mode-bar`
+  is hidden below 1280px (the mobile layout uses `#adminQuickBar` instead), and
+  `.share-box` / `.round-col` match several elements — scope to an id or the
+  strict-mode violation stops the run.
+- **Native `confirm()` is auto-dismissed by Playwright**, so a flow gated on
+  one silently does nothing and the test "passes" having tested nothing. The
+  app uses `ttConfirm` everywhere for this reason; score.js's last native
+  `confirm` was converted this session.
 
 ## Session notes / traps worth inheriting (2026-07-28)
 Things that cost time this session, written down so they don't again.
@@ -1437,6 +1535,49 @@ BracketHQ/youth-TD sheets offer):
   table exists, with a documented tiebreak order (see rankStandings).
 - SW bumped to v2.66 (bracket.js + bracket-data.js precached).
 
+## Bracket Edit (hand-placed cards) — 2026-07-29 fixes
+Four faults, all reported from a live bracket, all worth knowing because each
+one has a shape that will recur.
+
+- **Feed lines must use the SAME precedence as the cards.** `buildConnPcts`
+  resolved a card's height from the LB position map or the canonical slot row
+  and never consulted `layoutRowOf`. The losers side happened to work —
+  `applyPins` writes pinned cards straight into `lbPosMap` — so the bug looked
+  like "winners-side only" when it was really "one of two code paths forgot".
+  Any new consumer of card geometry must go through the same order:
+  hand-placed → LB map → slot row.
+- **A drop row paints ABOVE the cards** (it is appended after them in the
+  column's markup). That is why rows covering a card are inert by default: a
+  live one swallows the `pointerdown` that starts a drag. It is also exactly
+  why the losers final could not be moved — it is drawn outside the column
+  loop, so its top was missing from `colTops` and no row was marked as
+  covering it. If you add another card outside that loop, add its top too.
+- **A card's own footprint used to be undroppable**, so the commonest edit —
+  nudge this card half a row — required dragging far out of line and back.
+  Covered rows are emitted now and switched on by `freeCoveredRows()` for the
+  duration of a drag, but only when the ONLY card covering them is the one in
+  the air.
+- **A flight computes its own `gridH` from its biggest column**, which for a
+  4-team B bracket is 2 — putting the edit "half step" at a QUARTER of the
+  column, three drop rows total, two of them under its own cards. The main
+  tree never hit this because `gridHeight()` floors at 8. `EDIT_GRID_MIN_ROWS`
+  now floors the drop grid the same way.
+- **Done asks Save / Discard / Cancel** (`ttDialog` grew an opt-in `buttons`
+  list for choices that aren't yes/no) and only leaves Edit once the write
+  lands. Save no longer lives in the bar below — one exit decision, one place.
+
+## Losers final is drawn ONCE (stacked layout)
+The stacked layout used to draw the losers final twice: a dashed copy beside
+the winners final, and the real game again at the end of the losers row. That
+cost the losers side a whole column to say the same thing twice. Now:
+`sideHTML(side, label, isRight, extra, omitGid, noteFor)` — the winners row
+gets it via `extra`, the losers row omits it via `omitGid`. The omission
+filters a COPY of the column list because `buildSideColumns` also feeds
+`computeLBPositions`, whose geometry chain still needs the final in place.
+The "Winner to <losers bracket> Final" note sits under the game that FEEDS the
+final, not under the final itself — that is where the line now runs off the
+end of the row with nothing to follow.
+
 ## Coach passwords (optional, alongside magic links)
 Coaches auth primarily by magic link, but may OPTIONALLY set a password:
 - `/api/session` exposes `hasPassword` (all authenticated users).
@@ -1555,6 +1696,41 @@ Staff get a real push — phone, app closed — when a team submits a lineup.
   push service, so browser-level testing needs the APIs stubbed — see the
   session's push3.js approach. The route tests cover everything up to the wire.
 
+## Small UI decisions worth not re-litigating (2026-07-29)
+Each of these was a specific owner request; the reasoning is here so a future
+session doesn't "improve" them back.
+
+- **Header logo size is a per-tournament setting** (`logoScale`: sm/md/lg/xl,
+  stored beside the logo in `theme_colors`, default raised to `md`). A round
+  crest and a wide wordmark look nothing alike at the same height, so one
+  hardcoded number is wrong for somebody. It is a CLOSED SET, not a length —
+  the browser writes it into a CSS custom property and free text there is
+  somebody else's stylesheet injection. Phones drop one notch; the scale table
+  is `TT_LOGO_SCALES` in tt-common.js and the server allowlist is
+  `LOGO_SCALES` in server.js. Keep the two in step.
+- **The undo banner is gone; undo is not.** It is a button in the schedule mode
+  bar with the details in its tooltip. It remains the only way back from a bad
+  Save all or Regenerate — do not remove it because the banner went.
+- **The healthy bracket notice is dismissible and stays dismissed**
+  (localStorage `ttHealthOkDismissed`); an UNHEALTHY one is not, by either the
+  × or the swipe. The × is only rendered on the healthy branch and the swipe
+  handler checks for `.sched-health--dismissible` before it does anything.
+  That notice is the whole reason the check exists.
+- **Team Path controls stay on one line on mobile.** The select carries
+  `min-width: 0`, which is what actually lets a flex item shrink below its
+  content width — without it the select refuses to give ground and the
+  "What if?" button wraps, which is what made that bar 131px tall.
+- **Stacked print images can align left / centre / right.** Aligning the
+  canvases alone looked half-broken: the bracket shell centres itself in the
+  viewport, so a narrow flight paints with wide margins INSIDE its own canvas.
+  The content is pinned to the chosen edge in the render frame first, then the
+  canvases are aligned to match.
+- **Flight championship connectors are MEASURED, not computed.** The champ
+  column centres a block — trophy, title, time, then the card — so the card's
+  centre sits below the column's by an amount that depends on font metrics and
+  on whether the game has a time. `alignFlightChampConn()` re-derives it from
+  the card's real position after render.
+
 ## Lineup: softball-specific — needs v3 attention
 Lineup fields (`jersey`, `name`, `position`) are sport-specific. For v3 multi-sport,
 these need to be configurable or abstracted. **Do not change in v2.**
@@ -1564,20 +1740,29 @@ Static HTML/CSS/JS marketing site — separate nginx:alpine container, port 8081
 See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `index.html`.
 
 ## Current state
-`main` at `c6dee73` (2026-07-28, end of day) holds everything below plus both
-2026-07-28 shipped lists at the top of "Outstanding work" — the parallel
-session's UI work and the eight commits that continued after it. Nothing is
-unmerged; `claude/bracket-generation-missing-lines-tbbhro` tracks `main`.
+`main` at `14db802` (2026-07-29, end of day) holds everything below plus the
+2026-07-29 list at the top of "Outstanding work". Nothing is unmerged;
+`claude/handoff-continuation-9elo3q` tracks `main`.
+
+The owner deploys with `git pull && docker compose up -d --build`. `--build`
+matters now: `web-push` is a runtime dependency and `npm ci` only runs at build
+time. No `.env` change is needed for push — `compose.yml` loads the whole
+`.env` into the api container via `env_file`, and the VAPID keypair generates
+itself on first boot.
+
 SW cache version lives in `frontend/sw.js` (at the time of writing
-`tournatrak-v3.26`) — **read it there, don't trust this number**, and keep
+`tournatrak-v3.51`) — **read it there, don't trust this number**, and keep
 the `?v=` stamps in step with it on ALL FIVE HTML files, not just the admin
 pages. Phase 0 evaluation is in `EVALUATION.md`.
 
 ## Tests
-`node --test api/routes.test.js api/schedule-formats.test.js api/standings.test.js`
-— **74 tests**, no fixtures to set up. List the files; `node --test api/`
+```
+node --test api/routes.test.js api/schedule-formats.test.js \
+             api/standings.test.js api/schedule-health.test.js
+```
+— **100 tests**, no fixtures to set up. List the files; `node --test api/`
 tries to execute `server.js` as a test and dies on the `/frontend` require.
-Postgres must be reachable or the 48 route tests SKIP rather than fail, which
+Postgres must be reachable or the 60 route tests SKIP rather than fail, which
 reads as green: check the skipped count, not just the failure count.
 - `schedule-formats.test.js` — generators, simulated to completion under
   random result sequences at every format × count. Includes full Swiss
@@ -1589,12 +1774,20 @@ reads as green: check the skipped count, not just the failure count.
   fail) when Postgres isn't reachable or the role can't CREATE DATABASE.
   Needs PG* env vars pointing at a cluster to actually run.
 - `standings.test.js` — the documented tiebreak order.
+- `schedule-health.test.js` — the pre-publish checks behind the health notice.
+
+`routes.test.js` now also covers, in rough order of how easy each is to break
+by accident: cross-tournament coach grants (a tournament admin must get 403
+from all three superadmin routes while their own scoped route still returns
+200), team lineup links (a link is not an account — every role-guarded route
+still refuses it), the per-field lineup requirements including the retired
+`lineupRequireNumbers` alias, and the push routes up to the wire (who may
+reach them, that one browser counts once, that the opt-out sticks).
 
 **Check the skip count, not just the exit code.** Without a usable Postgres
-role the run reports `35 skipped` and still exits 0 — that is 26 real tests,
-not 61, and it hides every route regression. A genuine full run says
-`0 skipped`; see the Postgres-role note in "Session notes / traps" for how
-to get one. Run the suite after ANY generator, route, or standings change.
+role the run reports the route tests as `skipped` and still exits 0, which
+hides every route regression. A genuine full run says `0 skipped`; see the
+Postgres-role note in "Session notes / traps" for how to get one. Run the suite after ANY generator, route, or standings change.
 
 Also run `node scripts/build-issa-state-2026.js` after touching
 `ROUND_ORDER`, `SLOT_DEFS`, or the generators — it re-derives the ISSA
