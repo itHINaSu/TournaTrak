@@ -949,6 +949,21 @@ var _revealedSlots = {}; // sid -> true, for empty slots manually revealed
 // bracket-data.js) does the detection over the RAW schedule; this renders
 // it above the editor. Called after every load and every save so it always
 // reflects what is actually published.
+// "Everything is fine" is worth saying once, not on every visit forever — so
+// the healthy notice can be dismissed and stays dismissed. A bracket with
+// warnings or errors CANNOT be: that one is the whole reason this exists, and
+// a TD who swipes it away an hour before first pitch has hidden the only
+// warning that a game will silently not appear on the public page.
+var HEALTH_DISMISS_KEY = 'ttHealthOkDismissed';
+function healthOkDismissed() {
+  try { return localStorage.getItem(HEALTH_DISMISS_KEY) === '1'; } catch (e) { return false; }
+}
+function dismissHealthOk() {
+  try { localStorage.setItem(HEALTH_DISMISS_KEY, '1'); } catch (e) {}
+  var el = document.getElementById('schedHealth');
+  if (el) el.hidden = true;
+}
+
 function renderSchedHealth() {
   var el = document.getElementById('schedHealth');
   if (!el || typeof scheduleHealth !== 'function') return;
@@ -956,8 +971,12 @@ function renderSchedHealth() {
   if (!Object.keys(schedule || {}).length) { el.hidden = true; return; }
   el.hidden = false;
   if (!issues.length) {
-    el.className = 'sched-health sched-health--ok';
-    el.innerHTML = '<div class="sched-health-hdr">Bracket looks healthy — every game is complete, every feed resolves, and no game is scheduled before the game that feeds it.</div>';
+    if (healthOkDismissed()) { el.hidden = true; return; }
+    el.className = 'sched-health sched-health--ok sched-health--dismissible';
+    el.innerHTML = '<div class="sched-health-hdr">Bracket looks healthy — every game is complete, every feed resolves, and no game is scheduled before the game that feeds it.</div>'
+      + '<button type="button" class="sched-health-x" data-action="dismissHealthOk"'
+      + ' aria-label="Hide this notice" title="Hide this notice">&times;</button>';
+    wireHealthSwipe(el);
     return;
   }
   var errors = issues.filter(function(i) { return i.level === 'error'; }).length;
@@ -977,24 +996,64 @@ function renderSchedHealth() {
     + '</ul>';
 }
 
+// Swipe the healthy notice away on a touch screen — the same gesture that
+// dismisses a notification everywhere else. Bound only on the dismissible
+// (healthy) render, so there is no way to swipe a warning off the screen.
+function wireHealthSwipe(el) {
+  if (el._swipeWired) return;
+  el._swipeWired = true;
+  var x0 = null, y0 = null, dx = 0;
+  el.addEventListener('touchstart', function(e) {
+    if (!el.classList.contains('sched-health--dismissible')) return;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0;
+    el.style.transition = '';
+  }, { passive: true });
+  el.addEventListener('touchmove', function(e) {
+    if (x0 === null) return;
+    dx = e.touches[0].clientX - x0;
+    // Ignore a vertical scroll that happens to drift sideways.
+    if (Math.abs(e.touches[0].clientY - y0) > Math.abs(dx)) { x0 = null; el.style.transform = ''; return; }
+    el.style.transform = 'translateX(' + dx + 'px)';
+    el.style.opacity = String(Math.max(0, 1 - Math.abs(dx) / 220));
+  }, { passive: true });
+  el.addEventListener('touchend', function() {
+    if (x0 === null) return;
+    x0 = null;
+    if (Math.abs(dx) > 70) {
+      el.style.transition = 'transform 0.18s ease, opacity 0.18s ease';
+      el.style.transform = 'translateX(' + (dx > 0 ? 400 : -400) + 'px)';
+      el.style.opacity = '0';
+      setTimeout(function() {
+        el.style.transition = ''; el.style.transform = ''; el.style.opacity = '';
+        dismissHealthOk();
+      }, 180);
+      return;
+    }
+    el.style.transition = 'transform 0.15s ease, opacity 0.15s ease';
+    el.style.transform = ''; el.style.opacity = '';
+  }, { passive: true });
+}
+
 // ── Undo ──────────────────────────────────────────────────────────────
 // The server keeps one snapshot taken just before the last destructive
 // write. This shows what it is and offers to restore it. Refreshed whenever
 // the schedule editor renders, so the offer appears right after a
 // regenerate — which is exactly when a TD realises the mistake.
 async function refreshUndoBar() {
-  var bar = document.getElementById('schedUndo');
-  var txt = document.getElementById('schedUndoText');
-  if (!bar || !txt) return;
+  var btn = document.getElementById('schedUndoBtn');
+  if (!btn) return;
   try {
     var r = await apiFetch('/api/undo');
-    if (!r.ok) { bar.hidden = true; return; }
+    if (!r.ok) { btn.hidden = true; return; }
     var u = await r.json();
-    if (!u.available) { bar.hidden = true; return; }
-    txt.textContent = 'You can undo the last ' + u.label + (u.at ? ' (' + agoText(u.at) + ')' : '')
-      + ' — this restores the schedule, results, live scores, and delays as they were.';
-    bar.hidden = false;
-  } catch (e) { bar.hidden = true; }
+    if (!u.available) { btn.hidden = true; return; }
+    // What it would restore moves into the tooltip; the confirm dialog spells
+    // it out again before anything happens, so nothing is lost by not
+    // shouting it across a banner.
+    btn.title = 'Undo the last ' + u.label + (u.at ? ' (' + agoText(u.at) + ')' : '')
+      + ' — restores the schedule, results, live scores, and delays as they were.';
+    btn.hidden = false;
+  } catch (e) { btn.hidden = true; }
 }
 
 // "3 minutes ago" for the undo offer. Anything older than a day is stale
@@ -4360,6 +4419,7 @@ Object.assign(TT_ACTIONS, {
   onFaviconStyleChange: function() { onFaviconStyleChange(); },
   exportCsv:           function(arg) { exportCsv(arg); },
   undoLastChange:      function() { undoLastChange(); },
+  dismissHealthOk:     function() { dismissHealthOk(); },
   pickFavicon:         function(arg, el) { pickFavicon(arg, el); },
   removeFavicon:       function() { removeFavicon(); },
   resetOneFieldColor:  function(arg, el) { resetOneFieldColor(el); },

@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.48">
-<link rel="stylesheet" href="/admin.css?v=3.48">
-<link rel="stylesheet" href="/lineup.css?v=3.48">
-<link rel="stylesheet" href="/builder.css?v=3.48">
-<link rel="stylesheet" href="/score.css?v=3.48">
-<script src="/app-h.js?v=3.48"></script>
+<link rel="stylesheet" href="/base.css?v=3.49">
+<link rel="stylesheet" href="/admin.css?v=3.49">
+<link rel="stylesheet" href="/lineup.css?v=3.49">
+<link rel="stylesheet" href="/builder.css?v=3.49">
+<link rel="stylesheet" href="/score.css?v=3.49">
+<script src="/app-h.js?v=3.49"></script>
 </head>
 <body>
 
@@ -221,11 +221,11 @@
       <button class="results-mode-btn" id="modeSchedDelaysBtn" data-action="setSchedMode" data-arg="delays">Delays</button>
       <button class="results-mode-btn" id="modeSchedTeamsBtn" data-action="setSchedMode" data-arg="teams">Teams</button>
       <button class="results-mode-btn" id="modeScheduleBtn" data-action="setSchedMode" data-arg="editor">Advanced</button>
-    </div>
-    <!-- One-step undo for the last destructive write (regenerate / save-all) -->
-    <div class="sched-undo" id="schedUndo" hidden>
-      <span class="sched-undo-text" id="schedUndoText"></span>
-      <button class="admin-clear-btn" data-action="undoLastChange">Undo</button>
+      <!-- One-step undo for the last destructive write (regenerate / save-all).
+           Was a full-width banner above the editor; it is the only way back
+           from a bad Save all, so it stays reachable — just as a button that
+           costs no vertical space, with the details in its tooltip. -->
+      <button class="admin-clear-btn sched-undo-btn u-push-right-b" id="schedUndoBtn" hidden data-action="undoLastChange">↶ Undo</button>
     </div>
     <!-- Bracket health: pre-publish warnings, shared by Edit and Advanced -->
     <div class="sched-health" id="schedHealth" hidden></div>
@@ -833,14 +833,14 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.48"></script>
-<script src="/tt-common.js?v=3.48"></script>
-<script src="/bracket-data.js?v=3.48"></script>
-<script src="/admin.js?v=3.48"></script>
-<script src="/lineup.js?v=3.48"></script>
-<script src="/score.js?v=3.48"></script>
-<script src="/builder-form.js?v=3.48"></script>
-<script src="/builder.js?v=3.48"></script>
-<script src="/sw-register.js?v=3.48" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.49"></script>
+<script src="/tt-common.js?v=3.49"></script>
+<script src="/bracket-data.js?v=3.49"></script>
+<script src="/admin.js?v=3.49"></script>
+<script src="/lineup.js?v=3.49"></script>
+<script src="/score.js?v=3.49"></script>
+<script src="/builder-form.js?v=3.49"></script>
+<script src="/builder.js?v=3.49"></script>
+<script src="/sw-register.js?v=3.49" data-sw="/admin-sw.js"></script>
 </body>
 </html>

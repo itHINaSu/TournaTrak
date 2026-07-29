@@ -341,25 +341,17 @@ input, select, textarea { font-size: max(1rem, 16px); }
 
 /* Undo offer for the last destructive write. Gold rather than red — it is a
    safety net being offered, not an error being reported. */
-.sched-undo {
-  display: flex;
-  align-items: center;
-  gap: 0.8em;
-  flex-wrap: wrap;
-  border: 0.07em solid var(--border);
-  border-left: 0.28em solid var(--gold-lt);
-  border-radius: var(--radius-sm);
-  background: var(--surface2);
-  padding: 0.6em 0.9em;
-  margin-bottom: 0.8em;
+/* Undo sits in the schedule mode bar rather than a banner above the editor:
+   it is a rare action, and a permanent full-width block explaining it cost
+   more vertical space than the editor could spare. */
+.sched-undo-btn {
+  flex: 0 0 auto;
+  border-color: var(--gold-lt);
+  color: var(--gold-lt);
+  white-space: nowrap;
 }
-.sched-undo-text {
-  flex: 1 1 16em;
-  font-family: 'Barlow', sans-serif;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  color: var(--text-dim);
-}
+.sched-undo-btn:hover,
+.sched-undo-btn:active { background: color-mix(in srgb, var(--gold-lt) 12%, transparent); }
 
 /* Bracket health panel — pre-publish warnings above the schedule editor.
    Left border carries the severity so the panel reads at a glance. */
@@ -381,6 +373,37 @@ input, select, textarea { font-size: max(1rem, 16px); }
   color: var(--text);
 }
 .sched-health--ok .sched-health-hdr { color: var(--text-dim); font-weight: 400; }
+/* Only the healthy notice is dismissible — the × and the swipe handler are
+   both bound on that render alone, so a warning cannot be swiped off the
+   screen an hour before first pitch. */
+.sched-health--dismissible {
+  position: relative;
+  padding-right: 2.6em;
+  touch-action: pan-y;   /* let a vertical scroll through; we read the X drift */
+}
+.sched-health-x {
+  position: absolute;
+  top: 0.15em;
+  right: 0.15em;
+  width: 2.1em;
+  height: 2.1em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.05rem;
+  line-height: 1;
+  border: none;
+  background: transparent;
+  color: var(--text-mute);
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+  -webkit-tap-highlight-color: transparent;
+}
+.sched-health-x:hover { color: var(--text); background: var(--surface); }
+@media (pointer: coarse) {
+  .sched-health-x { width: 2.75rem; height: 2.75rem; }
+  .sched-health--dismissible { padding-right: 3.1em; }
+}
 .sched-health-list { list-style: none; margin: 0.6em 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.4em; }
 .sched-health-item { font-size: 0.76rem; line-height: 1.45; color: var(--text-dim); }
 .sched-health-item--error .sched-health-slot { color: var(--lose-color); }
