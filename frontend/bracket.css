@@ -2003,6 +2003,32 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
   }
   #view-buckets.active .bucket-panel::-webkit-scrollbar { display: none; }
 
+  /* Team Path controls stay on ONE line. The select is the only elastic thing
+     here, so it gives up the width: with "What if?" wrapping to a second row
+     this bar was 131px tall on a 390px phone, and it sits at the bottom of the
+     viewport where every pixel it takes comes straight off the bracket. The
+     buttons tighten a little too, but keep the 2.75rem touch target. */
+  #view-teampath .selector-inner {
+    flex-wrap: nowrap;
+    gap: 0.4em;
+    padding: 0.6em 0.8em;
+  }
+  #view-teampath .selector-inner select.styled {
+    /* min-width:0 is what actually lets a flex item shrink below its content
+       width — without it the select refuses to give ground and the button
+       wraps anyway. */
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: var(--text-md);
+    padding: 0.5em 0.6em;
+    min-height: 2.75rem;
+  }
+  #view-teampath .selector-inner .team-share-btn {
+    flex: 0 0 auto;
+    padding: var(--btn-pad-v) 0.7em;
+    min-height: 2.75rem;
+  }
+
   /* Selector row: flex item at the bottom of its view panel — no position:fixed needed.
      Sits naturally above the tab bar via the outer body flex layout.
      Avoids iOS Safari safe-area timing issues that caused gaps with position:fixed. */
