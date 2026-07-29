@@ -2597,10 +2597,12 @@ function shareOpts() {
   var res = document.getElementById('shareResults');
   var sel = document.querySelector('input[name="shareTheme"]:checked');
   var sc  = document.querySelector('input[name="shareScope"]:checked');
+  var al  = document.querySelector('input[name="shareAlign"]:checked');
   return {
     withResults: !res || res.checked,
     theme: (sel && sel.value) || 'dark',
     scope: (sc && sc.value) || 'current',
+    align: (al && al.value) || 'center',
   };
 }
 
@@ -2625,6 +2627,16 @@ function updateShareScopeRow() {
     var cur = document.querySelector('input[name="shareScope"][value="current"]');
     if (cur) cur.checked = true;
   }
+  updateShareAlignRow();
+}
+
+// Alignment only means something when several brackets share one sheet; with
+// separate files each bracket is alone on its own.
+function updateShareAlignRow() {
+  var row = document.getElementById('shareAlignRow');
+  if (!row) return;
+  var sc = document.querySelector('input[name="shareScope"]:checked');
+  row.hidden = !(sc && sc.value === 'all-one');
 }
 
 function openShareImage() {
@@ -2655,6 +2667,18 @@ function paintFlights(win, doc, opts, flights) {
     // and only the last one drawn was visible. Apply them by hand instead of
     // sleeping and hoping.
     try { win.ttApplyDataCss(doc.body); } catch (e) { /* older frame */ }
+    // The bracket shell centres itself in the viewport, so a narrow flight
+    // paints with wide margins INSIDE its own canvas. Aligning the finished
+    // canvases then lines up the canvases while their contents still float in
+    // the middle — the B bracket stayed stranded mid-page. Pin the content to
+    // the chosen edge here, before it is painted.
+    try {
+      var stack = doc.querySelector('.bcc-stack');
+      if (stack) {
+        stack.style.justifyContent = opts.align === 'left' ? 'flex-start'
+          : opts.align === 'right' ? 'flex-end' : 'center';
+      }
+    } catch (e) { /* older frame markup */ }
     var c = paintBracketCanvas(win, doc, Object.assign({}, opts, { flight: fl }));
     if (c) out.push({ flight: fl, canvas: c });
   });
@@ -2679,9 +2703,20 @@ function stackCanvases(shots, opts) {
   // mismatch showed as pale bands down either side of every small bracket.
   ctx.fillStyle = canvasBackdrop(shots[0].canvas, opts);
   ctx.fillRect(0, 0, W, H);
+  // Brackets on one sheet are rarely the same width — an Open tree runs five
+  // or six columns while a 4-team B flight runs two — so stacking them
+  // centred leaves every edge ragged. Which edge should agree depends on what
+  // the reader is doing: 'left' lines up round 1 (who plays first, read down
+  // the page), 'right' lines up the championship cards (who is playing for
+  // what), 'center' is the old behaviour.
+  var xOf = function(w) {
+    if (opts && opts.align === 'left')  return 0;
+    if (opts && opts.align === 'right') return W - w;
+    return Math.round((W - w) / 2);
+  };
   var y = 0;
   shots.forEach(function(s, i) {
-    ctx.drawImage(s.canvas, Math.round((W - s.canvas.width) / 2), y);
+    ctx.drawImage(s.canvas, xOf(s.canvas.width), y);
     y += s.canvas.height;
     if (i < shots.length - 1) {
       ctx.strokeStyle = opts.theme === 'print' ? '#cccccc' : 'rgba(128,128,128,0.55)';
@@ -2711,6 +2746,9 @@ var _shareShots = [];   // last rendered set, reused by download
 function refreshShareImage() {
   var img = document.getElementById('sharePreview');
   var hint = document.getElementById('shareHint');
+  // Every option in this dialog re-renders through here, so this is where the
+  // alignment row learns that the scope changed.
+  updateShareAlignRow();
   if (!img || _shareBusy) return;
   _shareBusy = true;
   if (hint) hint.textContent = 'Rendering\u2026';
