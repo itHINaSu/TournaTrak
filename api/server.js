@@ -905,7 +905,11 @@ api.delete('/live/:slot', requireResults, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
-api.post('/offsets', requireAdmin, ah(async (req, res) => {
+// requireResults, not requireAdmin: the person who knows a field is running
+// thirty minutes late is the scorekeeper standing on it, and making them find
+// a TD to say so is how a delay goes unposted. Same role that already writes
+// live scores and finals, so it grants nothing new in kind.
+api.post('/offsets', requireResults, ah(async (req, res) => {
   const { entries, banner } = req.body || {};
   if (!Array.isArray(entries)) return res.status(400).json({ error: 'entries must be an array' });
   for (const e of entries) {

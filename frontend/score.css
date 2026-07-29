@@ -53,6 +53,37 @@
   cursor: pointer;
 }
 .score-chip--sel { border-color: var(--blue); color: var(--blue-lt); background: var(--surface2); }
+/* Running-late control. Sits on the field row as one more chip, pushed to the
+   right so it reads as a control rather than another field. */
+.score-chip--offset { margin-left: auto; border-style: dashed; }
+/* A posted delay is the exception, not the resting state — say so in gold. */
+.score-chip--offset-set { border-style: solid; border-color: var(--gold); color: var(--gold-lt); }
+.score-offset-row {
+  display: flex;
+  gap: 0.4em;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0 0 0.8em;
+}
+.score-offset-lbl {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin-right: 0.2em;
+}
+/* Fixed width, never grow: with flex-grow the two chips that wrapped onto a
+   second row stretched to half the screen each and read as different, more
+   important buttons than the seven above them. */
+.score-chip--step {
+  flex: 0 0 auto;
+  padding: 0.5em 0.55em;
+  min-width: 3.1em;
+  text-align: center;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
 
 /* ── Game cards ── */
 .score-list { display: flex; flex-direction: column; gap: 0.9em; }
@@ -162,6 +193,9 @@
 }
 .score-btn--primary { border-color: var(--blue); color: var(--blue-lt); }
 .score-btn--final   { border-color: var(--win-color); color: var(--win-color); margin-left: auto; }
+/* Undo an accidental "Start Live". Muted — it is a correction, not a step in
+   the normal flow, and must not compete with Final for a thumb. */
+.score-btn--clear   { border-color: var(--border); color: var(--text-mute); }
 
 .score-empty {
   text-align: center;
