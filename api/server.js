@@ -1863,9 +1863,37 @@ api.post('/settings', requireAdmin, ah(async (req, res) => {
 }));
 
 // ── Teams / seeding endpoints ────────────────────────────────────────
-// The teams domain holds { showSeeds: bool, teams: [{ name }] }.
+// The teams domain holds
+//   { showSeeds: bool, teams: [{ id, name, displayName?, shortName? }] }.
 // When nothing is saved yet the list is auto-derived from the schedule's
 // fixed team names so the Teams tab is always populated.
+//
+// ── Why teams have a hidden id ───────────────────────────────────────
+// The NAME is still the key everywhere else in the product — the schedule
+// stores t1name/t2name, results record a winner by name, lineups and team
+// links are keyed by name. That is exactly the problem: it makes a rename a
+// data migration, which is why a coach could never be trusted to set one.
+//
+// The id is the stable identity a team keeps across a rename. Nothing is
+// migrated onto it yet and nothing needs to be: today it anchors the
+// display/short names below, so `name` stays the immutable join key while the
+// thing PEOPLE see becomes editable. Longer term it is what lets a team carry
+// records between tournaments. Hidden from the UI on purpose — it is a
+// database fact, not something a TD should have to think about.
+const TEAM_ID_RE = /^t_[0-9a-f]{12}$/;
+function newTeamId() { return 't_' + crypto.randomBytes(6).toString('hex'); }
+
+// Coach-facing names. Length caps are display constraints, not storage ones:
+// a bracket card is a fixed-width box and a 60-character "display name" would
+// simply be ellipsised into uselessness.
+const TEAM_DISPLAY_MAX = 40;
+const TEAM_SHORT_MAX   = 12;
+function cleanTeamLabel(v, max) {
+  if (typeof v !== 'string') return '';
+  // Collapse whitespace so a name cannot be padded to fake indentation, and
+  // strip control characters that would break a single-line card.
+  return v.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
 
 async function teamsFromSchedule(tid) {
   const sched = await store.get(tid, 'schedule');
@@ -1888,6 +1916,30 @@ async function teamsFromSchedule(tid) {
 // keep their order; new schedule teams are appended; teams no longer in the
 // schedule drop. When the schedule has no fixed team names yet, fall back to
 // the saved list so a manually-curated roster isn't wiped.
+// One team record, with an id guaranteed. Ids are minted here but only
+// PERSISTED by ensureTeamIds() below — a freshly minted id that is never
+// written would differ on every request, which is worse than having none.
+function normalizeTeam(t) {
+  const out = { id: TEAM_ID_RE.test(t.id || '') ? t.id : newTeamId(), name: t.name };
+  const d = cleanTeamLabel(t.displayName, TEAM_DISPLAY_MAX);
+  const sh = cleanTeamLabel(t.shortName, TEAM_SHORT_MAX);
+  if (d)  out.displayName = d;
+  if (sh) out.shortName = sh;
+  return out;
+}
+
+// One-time backfill for tournaments created before ids existed. Writes only
+// when something is actually missing, so it costs one query per request after
+// the first and never churns the row.
+async function ensureTeamIds(tid) {
+  const { data, teams } = await rosterFor(tid);
+  const saved = Array.isArray(data.teams) ? data.teams : [];
+  const missing = teams.some(t => !TEAM_ID_RE.test((saved.find(s => s && s.name === t.name) || {}).id || ''));
+  if (!missing && saved.length === teams.length) return teams;
+  await store.put(tid, 'teams', { ...data, teams });
+  return teams;
+}
+
 async function rosterFor(tid) {
   const data = await store.get(tid, 'teams');
   const saved = Array.isArray(data.teams) ? data.teams : [];
@@ -1900,10 +1952,10 @@ async function rosterFor(tid) {
   saved.forEach(t => {
     if (t && t.name && schedSet.has(t.name) && !savedSet.has(t.name)) {
       savedSet.add(t.name);
-      kept.push({ name: t.name });
+      kept.push(normalizeTeam(t));
     }
   });
-  const appended = fromSched.filter(name => !savedSet.has(name)).map(name => ({ name }));
+  const appended = fromSched.filter(name => !savedSet.has(name)).map(name => normalizeTeam({ name }));
   return { data, teams: kept.concat(appended) };
 }
 
@@ -1911,6 +1963,7 @@ api.get('/teams', ah(async (req, res) => {
   // Same staleness rule as /settings: generate rewrites the seed display,
   // so this must revalidate rather than ride the browser's heuristic cache.
   res.setHeader('Cache-Control', 'no-cache');
+  await ensureTeamIds(req.tid);              // one-time backfill for old data
   const { data, teams } = await rosterFor(req.tid);
 
   // seedCount: with partial seeding only the first N teams hold real seeds —
@@ -1923,13 +1976,33 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
   const { showSeeds, teams } = req.body || {};
   if (!Array.isArray(teams)) return res.status(400).json({ error: 'teams must be an array' });
   if (teams.length > 200) return res.status(400).json({ error: 'too many teams (max 200)' });
+  const prev = await store.get(req.tid, 'teams');
+  // Ids must SURVIVE an edit. The editor posts the whole list back, so an id
+  // that isn't echoed has to be recovered from what is already stored —
+  // matched by id first, then by name for a row the client sent without one.
+  // Losing an id here would silently detach a team from its coach-set names.
+  const prevTeams = Array.isArray(prev && prev.teams) ? prev.teams : [];
+  const byId = new Map(prevTeams.filter(t => t && t.id).map(t => [t.id, t]));
+  const byName = new Map(prevTeams.filter(t => t && t.name).map(t => [t.name, t]));
   const clean = [];
+  const seenIds = new Set();
   for (const t of teams) {
     const name = String((t && t.name) || '').trim().slice(0, 100);
     if (!name) return res.status(400).json({ error: 'team name cannot be blank' });
-    clean.push({ name });
+    const prior = (t && t.id && byId.get(t.id)) || byName.get(name) || {};
+    const rec = normalizeTeam({
+      id: (t && t.id) || prior.id,
+      name,
+      // An explicitly-sent empty string CLEARS; an absent field keeps what was
+      // stored, so a client that doesn't know about these fields cannot wipe
+      // them just by saving the team list.
+      displayName: t && 'displayName' in t ? t.displayName : prior.displayName,
+      shortName:   t && 'shortName'   in t ? t.shortName   : prior.shortName,
+    });
+    if (seenIds.has(rec.id)) rec.id = newTeamId();   // never emit a duplicate
+    seenIds.add(rec.id);
+    clean.push(rec);
   }
-  const prev = await store.get(req.tid, 'teams');
   // Lineup links are keyed by team name, so a rename or a removal would leave
   // a working credential pointing at a team that no longer exists. Drop those
   // rather than let them linger — and report which, so the TD finds out from a

@@ -120,6 +120,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **Teams get a hidden stable id** + coach-facing display/short names; picks now key off `data-team`, not rendered text |
 | (this) | **Header menu at every width**, not just mobile; **Refresh is PWA-only** |
 | (this) | **One "Sign in" replaces the PWA guesswork** — signed-out visitors get a login route in any context; coaches signing in at /admin are routed instead of dead-ended |
 | (this) | **Dark band above the mobile nav** — the carousel was sized from the VISUAL viewport; header menu reordered per owner |
@@ -2548,6 +2549,43 @@ px-to-vh conversions want the visual one. Don't "fix" them to match.
 
 This cannot be reproduced in headless Chromium, where the two measurements are
 identical — which is also why the change is a no-op on desktop.
+
+## Teams have a hidden id (2026-07-30) — READ BEFORE TOUCHING TEAM NAMES
+Owner: "Let's assign team a unique ID that is hidden. This will serve us best
+in the long run." Right call, and the reason is worth stating plainly.
+
+**The team NAME is the join key across the whole product**: the schedule
+stores `t1name`/`t2name`, results record a winner by name, lineups and team
+links are keyed by name, `user_teams.team_name` grants a coach their team.
+That is exactly why a rename was never safe, and why a coach could not be
+allowed to set one.
+
+So `teams.teams[]` is now `{ id, name, displayName?, shortName? }`:
+- `id` (`t_` + 12 hex) is the stable identity that survives a rename. Nothing
+  is migrated onto it yet and nothing needs to be — it anchors the two
+  coach-facing names, so `name` stays immutable while what people SEE becomes
+  editable. Longer term it is what lets a team carry records between events.
+- Backfilled lazily by `ensureTeamIds()` on `GET /teams`, which writes ONLY
+  when something is missing. Ids are minted in `normalizeTeam()` but must be
+  persisted — a minted-and-discarded id would differ on every request.
+- `POST /teams` recovers ids by id, then by name, for rows the client sent
+  without one. **An absent field keeps what is stored; only an explicit empty
+  string clears.** Otherwise the Teams editor (or any older client) would wipe
+  a coach's display name just by saving the roster.
+
+**The trap, and it is a silent one.** `onProjectTap` used to identify a team by
+the card's rendered TEXT. That was fine while the label and the canonical name
+were the same string, and broken the instant a display name existed. Team rows
+now carry `data-team="<canonical>"` and the pick path reads that. **Anything
+else that needs team IDENTITY must read `data-team`, never `textContent`.**
+
+Two label forms in bracket.js: `teamLabel()` (full display name) and
+`teamLabelShort()` (prefers the short one) — cards are fixed-width boxes where
+a long name is ellipsised into uselessness. Both fall back to the canonical
+name, so an unbranded tournament renders exactly as before.
+
+Still to come: coach editing of these names (with the TD override and the
+tournament-wide off switch the owner chose), and the coach panel itself.
 
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in

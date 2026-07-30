@@ -58,6 +58,46 @@ var _mbcScrollTop = 0;
 
 
 
+// ── Team labels ───────────────────────────────────────────────────────
+// The canonical `name` is the join key — the schedule, results, lineups and
+// team links are all keyed by it, which is exactly why it must never change.
+// What people SEE is a separate, editable thing hanging off the team's id.
+//
+// Two forms, because a bracket card and a schedule row have very different
+// amounts of room: teamLabel() is the full display name, teamLabelShort()
+// prefers the short one and is used on cards, which are fixed-width boxes
+// where a long name is ellipsised into uselessness.
+var _teamLabels = {};       // canonical name -> { display, short }
+
+function rebuildTeamLabels() {
+  _teamLabels = {};
+  var list = (_teamsData && _teamsData.teams) || [];
+  list.forEach(function(t) {
+    if (!t || !t.name) return;
+    if (t.displayName || t.shortName) {
+      _teamLabels[t.name] = { display: t.displayName || '', short: t.shortName || '' };
+    }
+  });
+}
+
+function teamLabel(name) {
+  var l = _teamLabels[name];
+  return (l && l.display) || name;
+}
+
+// The CANONICAL name, on the element, for anything that needs team identity
+// rather than a label. Projection matching used to read the displayed text —
+// which was fine while the two were the same string and silently broken the
+// moment a coach set a display name.
+function teamAttr(t) {
+  return (t && t.actual && t.name) ? ' data-team="' + esc(t.name) + '"' : '';
+}
+
+function teamLabelShort(name) {
+  var l = _teamLabels[name];
+  return (l && (l.short || l.display)) || name;
+}
+
 function seedChip(name) {
   var n = _seedMap[name];
   return n ? '<span class="tt-seed">(' + n + ')</span>' : '';
@@ -581,6 +621,7 @@ async function fetchAll(){
     var _offParsed=JSON.parse(rawTexts[5]); _offsets=(_offParsed&&Array.isArray(_offParsed.entries))?_offParsed:{entries:[]};
     _fieldColors=fc.ok ? await fc.json() : {};
     _teamsData = tmr.ok ? await tmr.json() : { showSeeds: false, teams: [] };
+    rebuildTeamLabels();
     _seedMap = {};
     if (_teamsData.showSeeds && Array.isArray(_teamsData.teams)) {
       // Partial seeding: only the first seedCount teams hold real seeds —
@@ -1307,10 +1348,10 @@ function cardHTML(gid, asChamp){
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
         : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'+offHTML))
     +'</div>'
-    +'<div class="bc-team '+c1+'">'+seedChip(t1.name)+'<span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
+    +'<div class="bc-team '+c1+'"'+teamAttr(t1)+'>'+seedChip(t1.name)+'<span class="bc-name">'+esc(teamLabelShort(t1.name))+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
     +(g.bye
       ? '<div class="bc-team bye"><span class="bc-bye-label">— BYE —</span>'+projChip+'</div>'
-      : '<div class="bc-team '+c2+'">'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+projChip+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
+      : '<div class="bc-team '+c2+'"'+teamAttr(t2)+'>'+seedChip(t2.name)+'<span class="bc-name">'+esc(teamLabelShort(t2.name))+'</span>'+projChip+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2004,8 +2045,10 @@ function onProjectTap(e){
   var gid = card && card.getAttribute('data-gid');
   if (!gid || !GAMES[gid] || GAMES[gid].bye) return;
   if (results[gid] && results[gid].winner) return;   // real result — locked
+  // data-team, NOT the rendered text: the card may be showing a coach's
+  // display or short name, while picks are keyed by the canonical name.
   var nameEl = teamEl.querySelector(PROJ_NAME_SEL);
-  var name = nameEl && nameEl.textContent;
+  var name = teamEl.getAttribute('data-team') || (nameEl && nameEl.textContent);
   var merged = mergedResults();
   var g = GAMES[gid];
   var p1 = resolveSlot(g.t1, merged), p2 = resolveSlot(g.t2, merged);
@@ -3850,13 +3893,13 @@ function champCardHTML(gid, title) {
     + '</div>'
     + '<div class="mbc-champ-sep"></div>'
     + '<div class="mbc-champ-teams">'
-    +   '<div class="mbc-champ-team ' + c1 + '">'
-    +     '<span class="mbc-champ-name">' + esc(t1.name) + '</span>'
+    +   '<div class="mbc-champ-team ' + c1 + '"' + teamAttr(t1) + '>'
+    +     '<span class="mbc-champ-name">' + esc(teamLabelShort(t1.name)) + '</span>'
     +     (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     +   '</div>'
     +   '<div class="mbc-champ-vs">vs</div>'
-    +   '<div class="mbc-champ-team ' + c2 + '">'
-    +     '<span class="mbc-champ-name">' + esc(t2.name) + '</span>'
+    +   '<div class="mbc-champ-team ' + c2 + '"' + teamAttr(t2) + '>'
+    +     '<span class="mbc-champ-name">' + esc(teamLabelShort(t2.name)) + '</span>'
     +     (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     +   '</div>'
     + '</div>'
@@ -3908,12 +3951,12 @@ function mobileRoundCardHTML(gid) {
             + offHTML
             + '</span>')
     + '</div>'
-    + '<div class="mbc-game-team ' + c1 + '">'
-    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
+    + '<div class="mbc-game-team ' + c1 + '"' + teamAttr(t1) + '>'
+    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(teamLabelShort(t1.name)) + '</span>'
     +   (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     + '</div>'
-    + '<div class="mbc-game-team ' + c2 + '">'
-    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
+    + '<div class="mbc-game-team ' + c2 + '"' + teamAttr(t2) + '>'
+    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(teamLabelShort(t2.name)) + '</span>'
     +   projChip
     +   (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     + '</div>'

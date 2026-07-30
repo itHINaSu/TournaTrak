@@ -200,6 +200,76 @@ describe('auth guards', () => {
   });
 });
 
+describe('team identity: hidden ids and coach-facing names', () => {
+  // The NAME stays the join key — schedule, results, lineups and team links
+  // are all keyed by it. The id is the stable identity that survives a rename,
+  // and today it anchors the display/short names so what people SEE can change
+  // while what the data joins on cannot.
+  rtest('backfills ids and keeps them stable across reads', async () => {
+    const a = await loginAdmin();
+    assert.equal((await a.post('/api/schedule', MINI)).status, 200);
+    const one = await a.get('/api/teams');
+    assert.equal(one.status, 200);
+    assert.ok(one.json.teams.length >= 4, 'teams come from the schedule');
+    for (const t of one.json.teams) {
+      assert.match(t.id, /^t_[0-9a-f]{12}$/, 'every team has an id');
+    }
+    const two = await a.get('/api/teams');
+    assert.deepEqual(two.json.teams.map(t => t.id), one.json.teams.map(t => t.id),
+      'ids must not be re-minted on every read');
+  });
+
+  rtest('ids survive an edit, and names round-trip', async () => {
+    const a = await loginAdmin();
+    const before = (await a.get('/api/teams')).json.teams;
+    const target = before[0];
+    const edited = before.map(t => t.name === target.name
+      ? { ...t, displayName: 'Alpha Squad 14U', shortName: 'Alpha14' } : t);
+    assert.equal((await a.post('/api/teams', { showSeeds: false, teams: edited })).status, 200);
+
+    const after = (await a.get('/api/teams')).json.teams;
+    const got = after.find(t => t.name === target.name);
+    assert.equal(got.id, target.id, 'the id must survive the save');
+    assert.equal(got.displayName, 'Alpha Squad 14U');
+    assert.equal(got.shortName, 'Alpha14');
+  });
+
+  rtest('a client that omits the new fields does not wipe them', async () => {
+    // The Teams editor posts the whole list back. An older client — or any
+    // caller that only knows about `name` — must not silently clear a coach's
+    // display name just by saving the roster.
+    const a = await loginAdmin();
+    const before = (await a.get('/api/teams')).json.teams;
+    const bare = before.map(t => ({ name: t.name }));
+    assert.equal((await a.post('/api/teams', { showSeeds: false, teams: bare })).status, 200);
+    const after = (await a.get('/api/teams')).json.teams;
+    const got = after.find(t => t.displayName);
+    assert.ok(got, 'display names survive a bare save');
+    assert.equal(got.shortName, 'Alpha14');
+    assert.equal(got.id, before.find(t => t.name === got.name).id, 'and so does the id');
+  });
+
+  rtest('an explicit empty string clears a name', async () => {
+    const a = await loginAdmin();
+    const before = (await a.get('/api/teams')).json.teams;
+    const cleared = before.map(t => t.displayName ? { ...t, displayName: '', shortName: '' } : t);
+    assert.equal((await a.post('/api/teams', { showSeeds: false, teams: cleared })).status, 200);
+    const after = (await a.get('/api/teams')).json.teams;
+    assert.ok(!after.some(t => t.displayName || t.shortName), 'clearing works');
+  });
+
+  rtest('labels are trimmed, capped and stripped of control characters', async () => {
+    const a = await loginAdmin();
+    const before = (await a.get('/api/teams')).json.teams;
+    const dirty = before.map((t, i) => i === 0
+      ? { ...t, displayName: '  Spaced\u0000\u0007   Out  ', shortName: 'x'.repeat(40) } : t);
+    assert.equal((await a.post('/api/teams', { showSeeds: false, teams: dirty })).status, 200);
+    const got = (await a.get('/api/teams')).json.teams[0];
+    assert.equal(got.displayName, 'Spaced Out', 'collapsed, trimmed, control chars gone');
+    assert.equal(got.shortName.length, 12, 'short name capped for a fixed-width card');
+  });
+});
+
 describe('first password set can also claim a username', () => {
   // The username an admin types when creating an account is a placeholder for
   // their own reference. People set a password off a setup link and never learn
