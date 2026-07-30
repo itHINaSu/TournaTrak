@@ -183,6 +183,28 @@ mid-task, add it there in the SAME commit as the work you did ship** — that is
 precisely the case it was created for. HANDOFF stays the narrative of what
 happened and why; PENDING is the short scannable status.
 
+**Staff can coach without a second account (2026-07-30).** The owner was
+running an admin login AND a coach login for the same person, to manage their
+own team's subs. Two things were true and neither was obvious:
+
+1. **Staff could already edit any team's lineup, including subs**, from
+   Admin → Lineups — `isSlotEditable` returns true for admin/results on every
+   team. The second account was never needed for ACCESS.
+2. What was missing was **owning a team on a staff account**, so the panel
+   behaves like a coach's for the team they actually coach. The routes for that
+   were relaxed earlier the same day (`POST|DELETE /users/:u/teams`,
+   `DELETE /users/:u/coach`), but `GET /users` only returned `teams` for
+   accounts whose ROLE was `team`, so a TD who coached looked like plain staff
+   and there was no UI to change it.
+
+`GET /users` now returns coached teams for everyone, and the users panel grows
+an "Also coaches" row on every staff user — **including your own row**, which is
+the common case. It reuses the existing `addCoachTeam`/`removeCoachTeam`
+actions; both now refresh the users list as well as the Coaches panel, since the
+same assignment is visible in two places. BYE is filtered out of the picker:
+it is a bracket placeholder, and offering it invites making someone the coach of
+nothing.
+
 **PUSH NOTIFICATIONS ARE TABLED (owner, 2026-07-30).** Shipped as a preview,
 known buggy, paused so real bugs can be fixed first. Do not extend it — and do
 not read the sections below as "finished, just needs polish". The spectator

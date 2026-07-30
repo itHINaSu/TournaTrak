@@ -586,10 +586,13 @@ api.get('/users', requireAdmin, ah(async (req, res) => {
       if (u.role === 'superadmin') out.superadmin = true;
       // Grants in other tournaments — delete here only revokes this grant.
       out.grantsElsewhere = Object.keys(u.roles).some(t => Number(t) !== req.tid);
+      // Coached teams for EVERYONE, not just coach accounts. Staff may also
+      // coach — a TD whose own kid plays should not need a second login — so
+      // the users panel has to be able to show and change it.
+      out.teams = store.teamsFor(u, req.tid);
       if (role === 'team') {
-        const teams = store.teamsFor(u, req.tid);
+        const teams = out.teams;
         out.teamName = teams[0] || u.teamName;
-        out.teams    = teams;
         // Only the hash is stored, so the raw link can't be re-shown here —
         // the UI offers Regenerate (which returns a fresh raw token once).
         out.hasAccessToken = !!u.accessToken;

@@ -1122,6 +1122,27 @@ describe('cross-tournament coach grants', () => {
     assert.equal((await other.get('/api/t/td-cup/users')).status, 403);
   });
 
+  // The users list has to SHOW coaching, or the admin panel cannot offer it —
+  // GET /users only returned teams for coach accounts, so a TD who also
+  // coaches looked like plain staff and needed a second login.
+  rtest('the users list reports coached teams for staff, not just coaches', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.post('/api/users', { username: 'td-who-coaches', role: 'results' });
+    assert.equal((await a.post('/api/users/td-who-coaches/teams', { teamName: 'Alpha' })).status, 200);
+
+    const listed = (await a.get('/api/users')).json.find(u => u.username === 'td-who-coaches');
+    assert.ok(listed, 'staff user is listed');
+    assert.equal(listed.role, 'results', 'still a scorekeeper, not reclassified as a coach');
+    assert.deepEqual(listed.teams, ['Alpha'], 'and the coached team is visible');
+
+    // Removing it through the same route leaves the staff role alone.
+    assert.equal((await a.del('/api/users/td-who-coaches/coach')).status, 200);
+    const after = (await a.get('/api/users')).json.find(u => u.username === 'td-who-coaches');
+    assert.equal(after.role, 'results');
+    assert.deepEqual(after.teams, []);
+  });
+
   // Removing the coaching side of an account. This was unreachable: the route
   // refused any user whose role was not 'team', so staff who picked up a team
   // (via a lineup link, say) could never hand it back.

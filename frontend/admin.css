@@ -1365,3 +1365,27 @@ input[type="time"]:focus {
   flex: 1;
   min-width: 14em;
 }
+
+/* "Also coaches" on a staff user's row. Staff can already edit any team's
+   lineups; this exists so a TD who coaches gets their OWN team on their OWN
+   account rather than running a second coach login. Full-width child of the
+   flex row, same trick .team-ed-row uses for its link panel. */
+.user-coach-row {
+  flex: 0 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4em 0.6em;
+  margin-top: 0.5em;
+  padding-top: 0.5em;
+  border-top: 0.07em solid var(--border);
+}
+.user-coach-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+}
+.user-coach-none { font-size: 0.78rem; color: var(--text-mute); font-style: italic; }
+.user-coach-row .coach-add-team-row { flex: 0 0 100%; }

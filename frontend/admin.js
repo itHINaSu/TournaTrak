@@ -1977,6 +1977,32 @@ function renderUsersList(users) {
       actions += '<span class="user-self-label">(you)</span>';
     }
 
+    // Coaching on top of a staff role. Staff can already edit any team's
+    // lineups from Admin -> Lineups, so this is not about access — it is about
+    // a TD who coaches getting their own team without a second account to
+    // manage. Offered on YOUR OWN row too, which is the common case.
+    var coachRow = '';
+    if (u.role !== 'team') {
+      var myCoachTeams = (u.teams || []).map(function(t) {
+        return '<span class="coach-team-tag">' + esc(t)
+          + '<button class="coach-team-remove" data-action="removeCoachTeam" data-arg="'
+          + esc(u.username) + '" data-arg2="' + esc(t) + '" title="Remove team">&#10005;</button>'
+          + '</span>';
+      }).join('');
+      coachRow = '<div class="user-coach-row">'
+        + '<span class="user-coach-label">Also coaches</span>'
+        + '<div class="coach-teams-wrap">'
+        +   (myCoachTeams || '<span class="user-coach-none">no teams</span>')
+        +   '<button class="coach-add-team-btn" data-action="showAddCoachTeam" data-arg="' + esc(u.username) + '">+ Team</button>'
+        + '</div>'
+        + '<div class="coach-add-team-row" id="cat-' + esc(u.username) + '" hidden>'
+        +   '<select class="styled" id="cat-sel-' + esc(u.username) + '"></select>'
+        +   '<button class="admin-save-btn" data-action="addCoachTeam" data-arg="' + esc(u.username) + '">Add</button>'
+        +   '<button class="admin-clear-btn" data-action="hideAddCoachTeam" data-arg="' + esc(u.username) + '">Cancel</button>'
+        + '</div>'
+        + '</div>';
+    }
+
     return '<div class="user-row">'
       + '<div class="user-info">'
       +   '<span class="user-name">' + esc(u.username) + '</span>'
@@ -1985,6 +2011,7 @@ function renderUsersList(users) {
       + '<span class="user-role user-role--' + esc(u.role) + '">' + esc(roleLabel) + '</span>'
       + statusLine
       + '<div class="user-actions">' + actions + '</div>'
+      + coachRow
       + '</div>';
   }).join('');
 }
@@ -4019,7 +4046,10 @@ function showAddCoachTeam(username) {
   var row = document.getElementById('cat-' + username);
   var sel = document.getElementById('cat-sel-' + username);
   if (!row || !sel) return;
-  var schedTeams = typeof getScheduleTeams === 'function' ? getScheduleTeams() : [];
+  // BYE is a bracket placeholder, not a team — offering it invites someone to
+  // be made the coach of nothing.
+  var schedTeams = (typeof getScheduleTeams === 'function' ? getScheduleTeams() : [])
+    .filter(function(t) { return t && t.trim().toUpperCase() !== 'BYE'; });
   sel.innerHTML = schedTeams.length
     ? schedTeams.map(function(t){ return '<option value="' + esc(t) + '">' + esc(t) + '</option>'; }).join('')
     : '<option value="">No schedule loaded</option>';
@@ -4043,7 +4073,10 @@ async function addCoachTeam(username) {
   var data = await r.json().catch(function(){ return {}; });
   if (!r.ok) { showToast(data.error || 'Failed', true); return; }
   showToast('Team added');
+  // The same assignment shows in two places now (the Coaches panel and the
+  // users list), so both refresh — each is a no-op when its panel is absent.
   loadCoaches();
+  loadUsers();
 }
 
 async function removeCoachTeam(username, teamName) {
@@ -4054,6 +4087,7 @@ async function removeCoachTeam(username, teamName) {
   if (!r.ok) { showToast(data.error || 'Failed', true); return; }
   showToast('Team removed');
   loadCoaches();
+  loadUsers();
 }
 
 async function addCoach() {
