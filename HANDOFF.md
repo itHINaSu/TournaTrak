@@ -84,7 +84,8 @@ side.
 
 | commit | what |
 |--------|------|
-| (this) | Spectator notification UI: bell + panel on the bracket, push handlers in the PUBLIC `sw.js`, `.admin-clear-btn` moved to `base.css` |
+| (this) | **Every auth error message was invisible** — `.login-error` had `display: none` |
+| `db9f0f4` | Spectator notification UI: bell + panel on the bracket, push handlers in the PUBLIC `sw.js`, `.admin-clear-btn` moved to `base.css` |
 | `49dc46a` | Anonymous public push subscriptions (live / final / schedule / delay notice) + **the delay banner was never served** |
 | `84103bf` | TDs create their own tournaments; the admin panel reads its role from the ACTIVE tournament; coach role removable |
 | `faa30b2` | Team links offer the team to signed-in staff instead of regenerating their session |
@@ -140,6 +141,22 @@ sends are untouched. Two things worth not undoing:
   `getSubscription()` returns null. Without that a cleared-site-data browser
   leaves a live row delivering pushes while the panel says off. Found because a
   Playwright stub reset per page load — the artifact was real behaviour.
+
+**A class rule that sets `display` beats removing the `hidden` attribute.**
+`.login-error` carried `display: none`, so `errEl.hidden = false` could never
+reveal it — the message was written to the DOM and stayed invisible. That hit
+SIX elements, i.e. every authentication error in the app: wrong password,
+first-run setup, forced password change, admin password reset, and both coach
+forms. All of them failed in silence. Fixed by deleting the `display: none` and
+putting `hidden` in the markup instead; `base.css` has
+`[hidden] { display: none !important }`, which is the mechanism the rest of the
+codebase relies on.
+- **The pattern to watch**: `hidden` is an attribute, styled by a UA/base rule
+  of low specificity. Any `.class { display: ... }` outranks it permanently.
+  If an element is toggled with `.hidden`, its classes must not set `display`.
+- Swept the rest of the codebase for the same shape (classes setting
+  `display:none` on elements the JS unhides by id) — **no other cases**. The
+  scan is worth repeating after adding a toggled element.
 
 **`.admin-clear-btn` was only in `admin.css`**, which `index.html` does not
 load, so FIVE public-page buttons rendered as raw browser buttons: the

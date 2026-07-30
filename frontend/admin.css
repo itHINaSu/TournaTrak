@@ -80,11 +80,17 @@ input, select, textarea { font-size: max(1rem, 16px); }
   color: var(--blue-lt);
   margin-bottom: 1.2em;
 }
+/* NO `display: none` here. Every one of these elements is shown by setting
+   .hidden = false, and a class rule setting display beats removing the
+   attribute — so the rule that looked like "starts hidden" actually made the
+   element impossible to show. Wrong password, first-run setup, forced password
+   change, admin password reset and both coach forms all failed in silence
+   because of it. base.css has `[hidden] { display: none !important }`, which is
+   what hides them; the markup carries `hidden` so they start that way. */
 .login-error {
   color: var(--clear-color);
   font-size: 0.8em;
   margin-bottom: 0.6em;
-  display: none;
 }
 .login-btn { width: 100%; margin-top: 0.25em; }
 .login-desc { font-size: 0.8em; color: var(--text-mute); margin-bottom: 1.2em; }

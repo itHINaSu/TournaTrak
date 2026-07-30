@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.60">
-<link rel="stylesheet" href="/admin.css?v=3.60">
-<link rel="stylesheet" href="/lineup.css?v=3.60">
-<link rel="stylesheet" href="/builder.css?v=3.60">
-<link rel="stylesheet" href="/score.css?v=3.60">
-<script src="/app-h.js?v=3.60"></script>
+<link rel="stylesheet" href="/base.css?v=3.61">
+<link rel="stylesheet" href="/admin.css?v=3.61">
+<link rel="stylesheet" href="/lineup.css?v=3.61">
+<link rel="stylesheet" href="/builder.css?v=3.61">
+<link rel="stylesheet" href="/score.css?v=3.61">
+<script src="/app-h.js?v=3.61"></script>
 </head>
 <body>
 
@@ -38,7 +38,7 @@
         <label>Password</label>
         <input type="password" id="loginPass" autocomplete="current-password" placeholder="Password">
       </div>
-      <div class="login-error" id="loginError"></div>
+      <div class="login-error" id="loginError" hidden></div>
       <button type="submit" id="loginBtn" class="sched-save-btn login-btn">Sign In</button>
     </form>
     <!-- Escape hatch for the admin PWA: reach the public bracket without
@@ -66,7 +66,7 @@
         <label>Confirm Password</label>
         <input type="password" id="setupPass2" autocomplete="new-password" placeholder="Confirm password">
       </div>
-      <div class="login-error" id="setupError"></div>
+      <div class="login-error" id="setupError" hidden></div>
       <button type="submit" id="setupBtn" class="sched-save-btn login-btn">Create Account</button>
     </form>
   </div>
@@ -86,7 +86,7 @@
         <label>Confirm Password</label>
         <input type="password" id="cpNewPass2" autocomplete="new-password" placeholder="Confirm password">
       </div>
-      <div class="login-error" id="cpError"></div>
+      <div class="login-error" id="cpError" hidden></div>
       <button type="submit" id="cpBtn" class="sched-save-btn login-btn">Set Password</button>
     </form>
   </div>
@@ -102,7 +102,7 @@
         <label>New Password</label>
         <input type="password" id="resetPwInput" autocomplete="new-password" placeholder="At least 8 characters">
       </div>
-      <div class="login-error" id="resetPwError"></div>
+      <div class="login-error" id="resetPwError" hidden></div>
       <div class="u-flexrow-gap">
         <button type="submit" class="sched-save-btn">Reset Password</button>
         <button type="button" class="admin-clear-btn" data-action="closeResetPwModal">Cancel</button>
@@ -872,14 +872,14 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.60"></script>
-<script src="/tt-common.js?v=3.60"></script>
-<script src="/bracket-data.js?v=3.60"></script>
-<script src="/admin.js?v=3.60"></script>
-<script src="/lineup.js?v=3.60"></script>
-<script src="/score.js?v=3.60"></script>
-<script src="/builder-form.js?v=3.60"></script>
-<script src="/builder.js?v=3.60"></script>
-<script src="/sw-register.js?v=3.60" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.61"></script>
+<script src="/tt-common.js?v=3.61"></script>
+<script src="/bracket-data.js?v=3.61"></script>
+<script src="/admin.js?v=3.61"></script>
+<script src="/lineup.js?v=3.61"></script>
+<script src="/score.js?v=3.61"></script>
+<script src="/builder-form.js?v=3.61"></script>
+<script src="/builder.js?v=3.61"></script>
+<script src="/sw-register.js?v=3.61" data-sw="/admin-sw.js"></script>
 </body>
 </html>
