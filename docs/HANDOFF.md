@@ -111,7 +111,7 @@ side.
 
 | commit | what |
 |--------|------|
-| (this) | **Share / Download / Print**, open to every visitor — "Save image" becomes a three-action dialog; PNG/JPEG/PDF; sharing moves off Team Path onto the bracket |
+| `886b242` | **Share / Download / Print**, open to every visitor — "Save image" becomes a three-action dialog; PNG/JPEG/PDF; sharing moves off Team Path onto the bracket |
 | `8161faf` | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
 | `3a82e4f` | **nginx re-resolves the api upstream** — the real fix for the reboot 502 (variable `proxy_pass` + Docker DNS), tested against a real nginx |
 | `f9f8c66` | DB wait 30s → 120s (`TT_DB_WAIT_SECONDS`) — hardening, NOT the cause of the 502 |
@@ -2247,8 +2247,42 @@ never asked about.
 same green as real ones (desktop always distinguished them), and a projected
 champion got the full gold trophy banner. Both are blue + italic + labelled now.
 
-**Save image is still staff-only.** So a public projector can screenshot but not
-export. Flagged to the owner as a one-line change if they want it.
+## Share / Download / Print (2026-07-30)
+"Save image" — one staff-only button doing one thing — became **Share**, a
+dialog with the three things people do with a bracket, open to every visitor.
+Opening it is the other half of the watermark: a visitor who builds a what-if
+and cannot export it screenshots it instead, which is the path we do not
+control. Now the artifact they share is the one we drew.
+
+- **Sharing moved off Team Path onto the bracket.** Per-team sharing put the
+  only share control in the view most people never open, and it could offer
+  nothing but a URL. `bracketShareUrl/Text` replaced `teamShareUrl/Text`; the
+  link menu (copy/Facebook/X/SMS/email) moved into the dialog and opens
+  UPWARD, since the action row is at the bottom of the box.
+- **Download → the phone's own save UI on a coarse pointer.** An
+  `<a download>` does nothing in an installed PWA on iOS — the owner hit this
+  as a silent failure. `navigator.share({files})` opens the sheet that holds
+  "Save Image" / "Save to Files". Gated on pointer, NOT on `canShare` alone:
+  desktop Chrome shares files too and a sheet is not what Download means
+  there. An aborted sheet is a decision — do not fall through to a download.
+- **Files are built EAGERLY** (`prepareShareFiles` / `prepareDownloadFiles`),
+  two sets: PNG for Share, the selected format for Download, the latter
+  rebuilt on format change. This is not premature optimisation —
+  `navigator.share` must be reached from the user's gesture and Safari does
+  not forgive an `await` in between, so the file has to already exist.
+- **The PDF is hand-built** (`buildPdf`). script-src is `'self'`, so a library
+  would have to be vendored and kept current, and this needs one feature: a
+  page per image, JPEG passed through verbatim as a `DCTDecode` XObject. Pages
+  take the image's own size at 96dpi (px × 0.75 = pt) so a wide bracket stays
+  a wide page instead of being letterboxed into a stripe down US Letter.
+  Offsets are computed from real byte lengths — the `%âãÏÓ` binary marker MUST
+  be pushed as raw bytes, since TextEncoder would expand it to eight bytes of
+  UTF-8 and it would stop being the marker. Verified through poppler.
+- **Print uses a hidden iframe**, not `window.open` — a popup blocker eats a
+  new window even on a click. Do not remove the frame in the same turn; that
+  cancels the print dialog in Safari.
+- Narrow screens get their own action-row rule: the row wrapped one button at
+  a time and stranded Share, the primary action, alone in the corner.
 
 ## Small UI decisions worth not re-litigating (2026-07-29)
 Each of these was a specific owner request; the reasoning is here so a future
