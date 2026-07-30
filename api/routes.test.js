@@ -1032,6 +1032,67 @@ describe('cross-tournament coach grants', () => {
     assert.equal((await td.post('/api/users/coach-fenced/teams', { teamName: 'Beta' })).status, 200);
   });
 
+  // The schedule-edit capability: a scorekeeper a TD has explicitly trusted
+  // with the schedule, without handing over the tournament. docs/ROLES.md.
+  rtest('can_edit_schedule opens exactly the schedule routes and nothing else', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+
+    const made = await a.post('/api/users', { username: 'sk-deputy', role: 'results' });
+    assert.equal(made.status, 200, JSON.stringify(made.json));
+    const c = agent();
+    await c.req('GET', '/api/setup-password/' + made.json.setupToken, undefined, { manual: true });
+    assert.equal((await c.post('/api/change-password', { password: 'deputy-pass-1' })).status, 200);
+    assert.equal((await c.get('/api/session')).json.role, 'results');
+    assert.equal((await c.get('/api/session')).json.canEditSchedule, false, 'off by default');
+
+    // WITHOUT the flag: every schedule write is refused.
+    const SCHED = [
+      ['POST', '/api/schedule', MINI],
+      ['POST', '/api/schedule/swap', { slotA: 'R1.L.1', slotB: 'R1.L.2' }],
+      ['POST', '/api/schedule/layout', { rows: { 'R1.L.1': 0.5 } }],
+      ['POST', '/api/schedule/unpin', {}],
+      ['POST', '/api/schedule/format', { format: '' }],
+    ];
+    for (const [m, u, b] of SCHED) {
+      assert.equal((await c.req(m, u, b)).status, 403, m + ' ' + u + ' before the flag');
+    }
+    // ...but results still work, so the flag took nothing away.
+    assert.equal((await c.post('/api/results',
+      { game: 'R1.L.1', winner: 'Alpha', loser: 'Beta' })).status, 200);
+
+    // Grant it.
+    const on = await a.post('/api/users/sk-deputy/schedule-cap', { on: true });
+    assert.equal(on.status, 200, JSON.stringify(on.json));
+    assert.equal((await c.get('/api/session')).json.canEditSchedule, true);
+
+    for (const [m, u, b] of SCHED) {
+      const r = await c.req(m, u, b);
+      assert.ok(r.status === 200 || r.status === 400,
+        m + ' ' + u + ' should be allowed with the flag, got ' + r.status);
+    }
+
+    // It is a SCHEDULE capability and nothing more — still not a TD.
+    for (const [m, u, b] of [
+      ['POST', '/api/settings', { tournamentName: 'Hacked' }],
+      ['GET',  '/api/users', undefined],
+      ['POST', '/api/tournaments', { slug: 'nope-cup', name: 'Nope' }],
+      ['POST', '/api/users/sk-deputy/schedule-cap', { on: true }],
+    ]) {
+      assert.equal((await c.req(m, u, b)).status, 403, m + ' ' + u + ' must stay refused');
+    }
+
+    // Revoking closes it again.
+    assert.equal((await a.post('/api/users/sk-deputy/schedule-cap', { on: false })).status, 200);
+    assert.equal((await c.get('/api/session')).json.canEditSchedule, false);
+    assert.equal((await c.post('/api/schedule/unpin', {})).status, 403, 'revoked');
+
+    // A TD always has it, and it cannot be toggled on them.
+    const td = await tournamentAdmin(a, 'td-has-sched');
+    assert.equal((await td.get('/api/session')).json.canEditSchedule, true);
+    assert.equal((await a.post('/api/users/td-has-sched/schedule-cap', { on: false })).status, 400);
+  });
+
   // A Tournament Director runs their own events, so they create them — but
   // must not be able to take over the tournament served at /.
   rtest('a TD can create a tournament, becomes its admin, and cannot make it live', async () => {

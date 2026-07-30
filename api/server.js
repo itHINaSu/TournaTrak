@@ -319,6 +319,20 @@ const requireAdmin        = requireRole('admin');
 const requireResults      = requireRole('admin', 'results');
 const requireBucketsEdit  = requireRole('admin', 'results', 'buckets');
 
+// Schedule and bracket-layout writes. A TD (or superadmin) always may; a
+// scorekeeper may only when the TD has explicitly ticked the box on their
+// grant. Deliberately NOT folded into requireResults — a scorekeeper's default
+// stays results-only, and the capability is the whole point of the flag.
+// See docs/ROLES.md.
+function requireScheduleEdit(req, res, next) {
+  if (!req.user)                   return res.status(401).json({ error: 'Authentication required' });
+  if (req.user.mustChangePassword) return res.status(403).json({ error: 'Password change required', mustChangePassword: true });
+  if (!store.canEditSchedule(req.user, req.tid)) {
+    return res.status(403).json({ error: 'Insufficient permissions' });
+  }
+  next();
+}
+
 function requireSuperadmin(req, res, next) {
   if (!req.user)                   return res.status(401).json({ error: 'Authentication required' });
   if (req.user.mustChangePassword) return res.status(403).json({ error: 'Password change required', mustChangePassword: true });
@@ -403,6 +417,9 @@ api.get('/session', ah(async (req, res) => {
     teamName:           teams[0] || u.teamName || null,
     teams,
     tournaments,
+    // Optional powers on THIS tournament's grant. A TD has it implicitly; a
+    // scorekeeper only when the TD ticked it.
+    canEditSchedule:    store.canEditSchedule(u, req.tid),
     // A team lineup link opened while already signed in as staff. Carries no
     // access on its own — it is a note that the lineup page should OFFER to
     // add the team, and POST /team-link/claim is where anything is granted.
@@ -751,6 +768,25 @@ api.delete('/users/:username/teams/:teamName', requireAdmin, ah(async (req, res)
   }
   await store.setUserTeams(username, req.tid, left);
   res.json({ ok: true });
+}));
+
+// Grant or revoke the schedule-edit capability on a scorekeeper's grant.
+// requireAdmin, so a TD may do this within their own tournament (the agreed
+// rule in docs/ROLES.md) but nobody below TD can hand the power to themselves.
+api.post('/users/:username/schedule-cap', requireAdmin, ah(async (req, res) => {
+  const { username } = req.params;
+  const on = !!(req.body && req.body.on);
+  const user = await store.findUser(username);
+  if (!user || !userActionAllowed(req, user)) return res.status(404).json({ error: 'User not found' });
+  const role = store.effectiveRole(user, req.tid);
+  if (!role) return res.status(400).json({ error: 'User has no role in this tournament' });
+  // A TD already edits the schedule; storing a flag for them would imply it
+  // could be revoked, which it cannot.
+  if (role === 'admin' || role === 'superadmin') {
+    return res.status(400).json({ error: 'Tournament Directors always have schedule access' });
+  }
+  await store.setScheduleCap(username, req.tid, on);
+  res.json({ ok: true, canEditSchedule: on });
 }));
 
 // Remove the coaching side of an account in THIS tournament: every team goes,
@@ -1422,7 +1458,7 @@ api.post('/theme-colors', requireAdmin, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
-api.post('/schedule', requireAdmin, ah(async (req, res) => {
+api.post('/schedule', requireScheduleEdit, ah(async (req, res) => {
   const err = validateSchedule(req.body);
   if (err) return res.status(400).json({ error: err });
   // Whole-schedule replace — this is the Save-all path, so a bad
@@ -1465,7 +1501,7 @@ function fmtWhen(iso) {
     { weekday: 'short', hour: 'numeric', minute: '2-digit' });
 }
 
-api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
+api.post('/schedule/swap', requireScheduleEdit, ah(async (req, res) => {
   const { slotA, slotB } = req.body || {};
   if (!isValidSlotId(slotA) || !isValidSlotId(slotB))
     return res.status(400).json({ error: 'invalid slot ID' });
@@ -1511,7 +1547,7 @@ api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
 // "Revert changes" restores the whole editing session rather than the last
 // nudge. Positions only: no slot changes, no feed rewiring, no results moved.
 // `null` for a slot hands that card back to the automatic layout.
-api.post('/schedule/layout', requireAdmin, ah(async (req, res) => {
+api.post('/schedule/layout', requireScheduleEdit, ah(async (req, res) => {
   const { rows } = req.body || {};
   if (!rows || typeof rows !== 'object' || Array.isArray(rows))
     return res.status(400).json({ error: 'rows must be an object' });
@@ -1543,7 +1579,7 @@ api.post('/schedule/layout', requireAdmin, ah(async (req, res) => {
 
 // Hand every card back to the automatic layout. Snapshots first, so this is
 // itself revertible — a TD who resets by mistake has not lost the arrangement.
-api.post('/schedule/unpin', requireAdmin, ah(async (req, res) => {
+api.post('/schedule/unpin', requireScheduleEdit, ah(async (req, res) => {
   const sched = await store.get(req.tid, 'schedule');
   let cleared = 0;
   for (const entry of Object.values(sched)) {
@@ -1638,7 +1674,7 @@ async function applyFormatProvenance(tid, format, teamCount) {
 // Declare which format the CURRENT schedule came from — or none, for a
 // hand-wired one. `scripts/import-schedule.js` calls this after pushing a
 // transcribed bracket; the generator applies the same reset inline.
-api.post('/schedule/format', requireAdmin, ah(async (req, res) => {
+api.post('/schedule/format', requireScheduleEdit, ah(async (req, res) => {
   const { format, teamCount } = req.body || {};
   const f = format == null ? '' : String(format);
   if (f && !FORMATS[f]) return res.status(400).json({ error: 'unknown format: ' + f });
@@ -1649,7 +1685,7 @@ api.post('/schedule/format', requireAdmin, ah(async (req, res) => {
 
 // Generate a full bracket schedule from a format + teams and REPLACE the
 // current schedule. Destructive — the UI confirms before calling this.
-api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
+api.post('/schedule/generate', requireScheduleEdit, ah(async (req, res) => {
   const { format, startDate, teams, seedMode, seedCount, byeTeams, shuffle, playingDays, ifNecessary, thirdPlace, showSeeds, gamePrefix } = req.body || {};
   let schedule, seededTeams;
   try {
@@ -1709,7 +1745,7 @@ api.post('/schedule/generate', requireAdmin, ah(async (req, res) => {
 // Swiss: pair the next round from current standings. The generator only
 // emits round 1; each later round exists only after the TD asks for it,
 // because its pairings depend on results (same record, no rematches).
-api.post('/schedule/swiss-next-round', requireAdmin, ah(async (req, res) => {
+api.post('/schedule/swiss-next-round', requireScheduleEdit, ah(async (req, res) => {
   const settings = await store.get(req.tid, 'settings');
   if (settings.format !== 'swiss') {
     return res.status(400).json({ error: 'This tournament is not a Swiss format' });

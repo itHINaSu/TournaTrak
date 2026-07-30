@@ -271,11 +271,16 @@ async function deleteSlot(tid, domain, slotId) {
 
 async function _loadUsers() {
   const ur = await pool.query('SELECT * FROM users ORDER BY id');
-  const rr = await pool.query('SELECT user_id, tournament_id, role FROM user_roles');
+  const rr = await pool.query('SELECT user_id, tournament_id, role, can_edit_schedule FROM user_roles');
   const tr = await pool.query('SELECT user_id, tournament_id, team_name FROM user_teams ORDER BY user_id, tournament_id, ord');
-  const rolesByUser = {}, teamsByUser = {};
+  const rolesByUser = {}, teamsByUser = {}, capsByUser = {};
   rr.rows.forEach(r => {
     (rolesByUser[r.user_id] = rolesByUser[r.user_id] || {})[r.tournament_id] = r.role;
+    // Capabilities ride alongside the role rather than inside it, so
+    // effectiveRole() keeps returning a plain role string and every existing
+    // caller is unaffected.
+    (capsByUser[r.user_id] = capsByUser[r.user_id] || {})[r.tournament_id] =
+      { canEditSchedule: r.can_edit_schedule === true };
   });
   tr.rows.forEach(r => {
     const byTid = (teamsByUser[r.user_id] = teamsByUser[r.user_id] || {});
@@ -286,6 +291,7 @@ async function _loadUsers() {
       id: row.id, username: row.username, role: row.role,
       mustChangePassword: row.must_change_password,
       roles: rolesByUser[row.id] || {},
+      caps: capsByUser[row.id] || {},
       teamsByTid: teamsByUser[row.id] || {},
     };
     u.notifyLineups = row.notify_lineups !== false;
@@ -310,6 +316,14 @@ function effectiveRole(user, tid) {
   if (!user) return null;
   if (user.role === 'superadmin') return 'superadmin';
   return user.roles[tid] || null;
+}
+
+// May this user edit the schedule/bracket of `tid`? A TD or superadmin always
+// can; anyone else needs the flag explicitly set on their grant.
+function canEditSchedule(user, tid) {
+  const eff = effectiveRole(user, tid);
+  if (eff === 'superadmin' || eff === 'admin') return true;
+  return !!(user && user.caps && user.caps[tid] && user.caps[tid].canEditSchedule);
 }
 
 function teamsFor(user, tid) {
@@ -396,6 +410,19 @@ async function revokeRole(username, tid) {
   });
   _invalidateUsers();
   return remaining;
+}
+
+// Set (or clear) the schedule-edit capability on an existing grant. Does
+// nothing if the user has no grant in that tournament — a capability without a
+// role would be an orphan the guards never consult.
+async function setScheduleCap(username, tid, on) {
+  const r = await pool.query(
+    `UPDATE user_roles SET can_edit_schedule = $3
+       WHERE tournament_id = $2
+         AND user_id = (SELECT id FROM users WHERE username = $1)`,
+    [username, tid, !!on]);
+  _invalidateUsers();
+  return r.rowCount > 0;
 }
 
 // Replace a user's team list for one tournament (order = array order).
@@ -773,7 +800,7 @@ async function pushSubscriptionCount(username) {
 
 module.exports = {
   pool, init, get, put, putSlot, deleteSlot, etag, clearCache,
-  allUsers, findUser, effectiveRole, teamsFor,
+  allUsers, findUser, effectiveRole, teamsFor, canEditSchedule, setScheduleCap,
   getMeta, setMeta,
   addPushSubscription, deletePushSubscription, detachStaffPushSubscription,
   pushSubscriptionsFor, pushSubscriptionCount,

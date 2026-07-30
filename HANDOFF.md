@@ -183,8 +183,15 @@ mobile/PWA only).
   the threshold in the same function.
 - Threshold is 2+ controls. Guests get the menu too.
 
-**Role model: `docs/ROLES.md` — ACCEPTED by the owner 2026-07-30, not yet
-built.** It is the spec to build to; §4 is the order. Recommendation in one line: **one capability flag
+**Role model: `docs/ROLES.md` — ACCEPTED, and steps 1–2 of §4 are BUILT
+(2026-07-30).** Display renames are live (Global Admin / Tournament Director /
+Scorekeeper / Coach / Standings Keeper) — **labels only, stored values are
+untouched and must stay that way**. `can_edit_schedule` exists on `user_roles`,
+`requireScheduleEdit` guards the seven schedule-write routes (they were
+`requireAdmin`), `POST /users/:u/schedule-cap` toggles it, and
+`/api/session` reports `canEditSchedule`. Verified the ALTER applies cleanly
+over a populated pre-change database. Still to do: step 3 (assignment UI) and
+step 4 (standings). It is the spec to build to; §4 is the order. Recommendation in one line: **one capability flag
 (`can_edit_schedule` on a `user_roles` grant) for the TD's deputy, and rename
 `buckets` to "Standings Keeper" for the concession-counter case rather than
 adding roles.** Guards enumerate roles (`requireRole('admin','results')`), so a
@@ -1019,7 +1026,14 @@ Swiss odd-counts/byes, 17–20-team pools.
    repository" tail.
 
 **Security** (see "Security items" for detail)
-5. ⬜ **Leaked secrets in git history — STILL PRESENT, verified 2026-07-30.**
+5. ✅ **Leaked secrets in git history — CLOSED 2026-07-30.** The plaintext token
+   and hashes are still readable at `9960403:files/users.json` on `origin/dev`
+   and `origin/feature/regional`, but the owner confirms **Dale and Jon are not
+   active users in the current instance**, so the credentials are inert. No
+   rotation needed. Branch cleanup remains optional hygiene, not a security
+   task. Historical detail below.
+
+   ⬜ *(was)* **Leaked secrets in git history — verified present 2026-07-30.**
    `git show 9960403:files/users.json` still returns three accounts: a team
    user ("Dale") with a **64-char plaintext accessToken**, plus bcrypt password
    hashes for `admin` and `Jon`. Reachable on `origin/dev` and

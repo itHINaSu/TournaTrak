@@ -177,6 +177,13 @@ CREATE TABLE IF NOT EXISTS push_subscription_teams (
   PRIMARY KEY (subscription_id, team_name)
 );
 
+-- Optional powers ON a grant, rather than new roles. "May edit the schedule" is
+-- something a TD either trusts a scorekeeper with or does not; it is not a rung
+-- on a ladder, and adding a tier would mean auditing every requireRole call
+-- site (they enumerate roles, so one miss is a silent privilege bug).
+-- See docs/ROLES.md. A TD/superadmin has this implicitly and needs no row.
+ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS can_edit_schedule BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- Express sessions (replaces the JSON FileSessionStore).
 CREATE TABLE IF NOT EXISTS sessions (
   sid     TEXT        PRIMARY KEY,

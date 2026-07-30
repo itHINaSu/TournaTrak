@@ -1947,7 +1947,12 @@ function renderUsersList(users) {
   }
   el.innerHTML = users.map(function(u) {
     var isSelf = u.username === me;
-    var roleLabel = { admin: 'Admin', results: 'Results', team: 'Team' }[u.role] || u.role;
+    // Display names only — the STORED values stay admin/results/team/buckets.
+    // Renaming stored values would mean a migration and a constraint refresh
+    // for no benefit. See docs/ROLES.md.
+    var roleLabel = { superadmin: 'Global Admin', admin: 'Tournament Director',
+                      results: 'Scorekeeper', team: 'Coach',
+                      buckets: 'Standings Keeper' }[u.role] || u.role;
     var teamLine = u.role === 'team' && u.teamName
       ? '<span class="user-team-name">' + esc(u.teamName) + '</span>' : '';
     var statusLine = u.mustChangePassword ? '<span class="user-must-change">pw change pending</span>' : '';

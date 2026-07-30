@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.63">
-<link rel="stylesheet" href="/admin.css?v=3.63">
-<link rel="stylesheet" href="/lineup.css?v=3.63">
-<link rel="stylesheet" href="/builder.css?v=3.63">
-<link rel="stylesheet" href="/score.css?v=3.63">
-<script src="/app-h.js?v=3.63"></script>
+<link rel="stylesheet" href="/base.css?v=3.64">
+<link rel="stylesheet" href="/admin.css?v=3.64">
+<link rel="stylesheet" href="/lineup.css?v=3.64">
+<link rel="stylesheet" href="/builder.css?v=3.64">
+<link rel="stylesheet" href="/score.css?v=3.64">
+<script src="/app-h.js?v=3.64"></script>
 </head>
 <body>
 
@@ -749,9 +749,12 @@
             <div class="settings-field">
               <label>Role</label>
               <select id="newUserRole" class="styled" data-action-change="onNewUserRoleChange">
-                <option value="results">Results — enter results only</option>
-                <option value="admin">Admin — full access</option>
-                <option value="team">Team — lineup submission</option>
+                <!-- Values are the STORED roles and must not change; only the
+                     labels were renamed. See docs/ROLES.md. -->
+                <option value="results">Scorekeeper — results and live scores</option>
+                <option value="admin">Tournament Director — full access to this tournament</option>
+                <option value="team">Coach — lineup submission for one team</option>
+                <option value="buckets">Standings Keeper — standings counts only</option>
               </select>
             </div>
             <div class="settings-field" id="newTeamNameField" hidden>
@@ -872,14 +875,14 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.63"></script>
-<script src="/tt-common.js?v=3.63"></script>
-<script src="/bracket-data.js?v=3.63"></script>
-<script src="/admin.js?v=3.63"></script>
-<script src="/lineup.js?v=3.63"></script>
-<script src="/score.js?v=3.63"></script>
-<script src="/builder-form.js?v=3.63"></script>
-<script src="/builder.js?v=3.63"></script>
-<script src="/sw-register.js?v=3.63" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.64"></script>
+<script src="/tt-common.js?v=3.64"></script>
+<script src="/bracket-data.js?v=3.64"></script>
+<script src="/admin.js?v=3.64"></script>
+<script src="/lineup.js?v=3.64"></script>
+<script src="/score.js?v=3.64"></script>
+<script src="/builder-form.js?v=3.64"></script>
+<script src="/builder.js?v=3.64"></script>
+<script src="/sw-register.js?v=3.64" data-sw="/admin-sw.js"></script>
 </body>
 </html>
