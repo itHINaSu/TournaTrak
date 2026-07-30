@@ -56,6 +56,53 @@ What "current" means, concretely:
 - prune what is now false. Deleting a stale paragraph is as valuable as adding
   a true one.
 
+## EVERY NEW ENTITY GETS A UNIQUE ID (owner directive, 2026-07-30)
+**Anything that is a *thing* in this product — a team, a player, a game, a
+season, a venue, whatever comes next — is created with a hidden, generated
+id, and that id is its identity.** Owner: *"A user generated field is just a
+bit unreliable and not flexible enough."* Both halves of that matter:
+
+- **Unreliable.** A name or a number is typed by a person on a phone at a
+  ballfield. It arrives misspelled, in the wrong case, with a trailing space,
+  or as "Thunder" one week and "The Thunder" the next. Every one of those is a
+  *different entity* if the text is the key.
+- **Not flexible enough.** Text people own is text people will change, and
+  they are entitled to. If the name is the key, a rename is a data migration —
+  so the product ends up forbidding the edit to protect its own storage, which
+  is the tail wagging the dog. Both times this has come up (a coach wanting to
+  set a team's display name, a player switching jersey numbers) the feature was
+  blocked by exactly this.
+
+The shape is settled — copy it rather than inventing a variant:
+
+```js
+const THING_ID_RE = /^x_[0-9a-f]{12}$/;              // one-letter prefix
+function newThingId() { return 'x_' + crypto.randomBytes(6).toString('hex'); }
+```
+
+`t_` = team, `p_` = player. Prefixes are for humans reading a payload or a log
+line; the length is arbitrary but consistent. Rules that came out of doing this
+twice:
+
+1. **Mint on first read, not in a migration script.** A `normalize*()` on the
+   read path that writes back once when something was missing gives you a
+   backfill for free and keeps old data working through a deploy.
+2. **Only honour an id already present on the record you are writing.** An id
+   arriving from a client that is unknown, malformed, or a duplicate of another
+   row's gets a *fresh* one. Otherwise a caller can hand itself someone else's
+   entity by guessing.
+3. **Keep the user-facing text as the record of what was written**, and let the
+   id carry the relationship. A saved lineup row shows the name as it was typed
+   that day *and* points at the player; those are two different questions and
+   they need two different fields.
+4. **Do not rip out the name as a join key to celebrate.** Team names are still
+   the join key across the schedule, results, lineups and grants — the id
+   exists alongside, ready for the migration, and that migration is its own
+   piece of work (see "Team database (decided, not built)").
+
+Worked examples: "Teams have a hidden id" and, for the fuller version including
+lineup rows, "The roster, and why it is not a lineup".
+
 ## Branch rule
 **`main` is the leading/integration branch as of 2026-07-15** (owner
 decision, superseding the 2026-07-04 note that pointed at
@@ -2565,6 +2612,8 @@ link counts as that team). Blank editor rows are dropped on save rather than
 rejected, and an emptied roster is deleted rather than stored as `[]`.
 
 #### Players have a hidden id, and numbers are NOT unique
+The fullest worked example of "EVERY NEW ENTITY GETS A UNIQUE ID" — read that
+rule first; this is what it looks like applied to an entity people edit daily.
 Owner, 2026-07-30: *"some players have different numbers pending what jersey is
 worn"*, and *"players should also get a unique hidden id and modifications to
 players name, and number don't break the app."* Both rules follow from that:
@@ -2693,7 +2742,9 @@ identical — which is also why the change is a no-op on desktop.
 
 ## Teams have a hidden id (2026-07-30) — READ BEFORE TOUCHING TEAM NAMES
 Owner: "Let's assign team a unique ID that is hidden. This will serve us best
-in the long run." Right call, and the reason is worth stating plainly.
+in the long run." Right call, and the reason is worth stating plainly. This
+was the first case of what is now a standing rule — see "EVERY NEW ENTITY GETS
+A UNIQUE ID" before adding an entity of your own.
 
 **The team NAME is the join key across the whole product**: the schedule
 stores `t1name`/`t2name`, results record a winner by name, lineups and team
@@ -2935,7 +2986,10 @@ below. Nothing is unmerged;
    2026-07-30, not started. See "Team database (decided, not built)" below.
 
 ### Team database (decided, not built) — 2026-07-30
-Owner decisions, so build to these rather than re-litigating:
+Owner decisions, so build to these rather than re-litigating. This is where
+"EVERY NEW ENTITY GETS A UNIQUE ID" gets its real test — canonical teams,
+seasons and players are all entities, and none of them may be keyed by a name
+someone typed:
 - **Global team, per-event name.** A real `teams` table holds the canonical
   team; `tournament_teams` links each event to it with the display name used
   that event ("some teams use a different name per tournament").
