@@ -84,7 +84,8 @@ side.
 
 | commit | what |
 |--------|------|
-| (this) | **Every auth error message was invisible** — `.login-error` had `display: none` |
+| `9dfdfe5` | **Staff and spectator push share one browser row** — the device toggle lied, and staff-off deleted the spectator's subscription |
+| `ff86c8a` | **Every auth error message was invisible** — `.login-error` had `display: none` |
 | `db9f0f4` | Spectator notification UI: bell + panel on the bracket, push handlers in the PUBLIC `sw.js`, `.admin-clear-btn` moved to `base.css` |
 | `49dc46a` | Anonymous public push subscriptions (live / final / schedule / delay notice) + **the delay banner was never served** |
 | `84103bf` | TDs create their own tournaments; the admin panel reads its role from the ACTIVE tournament; coach role removable |
@@ -1281,6 +1282,27 @@ thing `-v` could delete. And a backup script nobody has ever restored from is
 not a backup: this one had been wrong since it was written, and the first
 person to find out was the person who needed it.
 
+## Session notes / traps worth inheriting (2026-07-30)
+- **The working tree rolled back a THIRD time** (the 2026-07-29 entry covers the
+  first two). It happened mid-scan, and the first pass of that scan silently ran
+  against the stale tree and reported everything clean. If a check comes back
+  suspiciously clean, `git log --oneline -1` before you believe it.
+- **Route tests reported as SKIPPED is not always Postgres.** The skip reason was
+  `server did not start`, and the cause was `web-push` missing from
+  `api/node_modules` after a rollback restored an older copy — `package.json`
+  listed it, so nothing looked wrong. `npm ci` in `api/` fixed it. Read the SKIP
+  reason; don't assume the documented cause.
+- **A bug can live entirely in the SEAM between two sessions' work.** Neither the
+  staff push nor the spectator push was wrong alone; sharing one browser row
+  broke both (`9dfdfe5`). Worth scanning the overlap deliberately whenever the
+  other session has touched a table or a route you own — a green test suite on
+  each side proves nothing about the join.
+- **Both agents edit this file, so rebase it.** `git fetch origin main && git
+  rebase origin/main` before pushing. Conflicts are almost always both sides
+  adding a row to the shipped table; merge by hand, keep both, and never
+  force-push over the other session's entry. Resolve a stale `(this)` in the
+  table to its real hash once a later commit lands.
+
 ## Session notes / traps worth inheriting (2026-07-29)
 Environment things that cost real time this session. None of them are bugs in
 the app; all of them will happen again to the next session.
@@ -1743,8 +1765,12 @@ several people can collaborate on the same lineup.
 - Routes: `GET /team-links` (admin, the whole map), `POST /team-links/:teamName`
   (idempotent — returns the EXISTING token unless `{regenerate:true}`),
   `DELETE /team-links/:teamName`, and public `GET /team-link/:token` which
-  scans tournaments, sets `req.session.teamLink = { tid, team }` via
-  `startSession`, and redirects to `/lineup` (with `?t=` when not the default).
+  scans tournaments and then FORKS (changed by `faa30b2`): a visitor with no
+  usable session gets `req.session.teamLink = { tid, team }` via `startSession`,
+  but a signed-in staff member keeps their session and is offered the team as
+  `req.session.pendingTeamClaim` with `?claim=1` — opening a team link used to
+  sign a TD out of their own admin session. Either way it redirects to
+  `/lineup` (with `?t=` when not the default).
 - **Tokens are stored in the CLEAR**, unlike coach `accessToken`s which are
   hashed. Deliberate: a hash can't be shown twice, so the only recovery would
   be regenerating — which silently breaks the link already sitting in a team's
@@ -1806,21 +1832,41 @@ Staff get a real push — phone, app closed — when a team submits a lineup.
   grant. Off + subscribed is a sensible state: quiet now, no re-grant later.
   The opt-out is applied inside `store.pushSubscriptionsFor()` so a caller
   cannot forget it.
-- `push_subscriptions.endpoint` is UNIQUE because it identifies the BROWSER,
-  not the person — re-subscribing replaces, and a handed-over phone stops
-  notifying its previous owner.
+- **`endpoint` is UNIQUE, so ONE BROWSER IS ONE ROW — and staff and spectator
+  subscriptions share it.** This is the sharpest edge in the whole feature and
+  it produced two real bugs (`9dfdfe5`), so read this before touching either
+  side. A staff row has `user_id` set and `tournament_id` NULL; a spectator row
+  has `user_id` NULL and `tournament_id` set. The same browser doing both ends
+  up with ONE row carrying both, which is the behaviour you want — but it means:
+  - **a browser subscription is NOT proof the account will be notified.** The
+    staff lookup inner-joins `users`, so a row created by the public page is
+    invisible to it. The admin device toggle must read the SERVER's count for
+    the account, never `pushManager.getSubscription()` alone; it used to, and
+    showed "Turn off on this device" over a Send test that answered "not
+    subscribed".
+  - **staff "off" DETACHES, it does not delete** (`detachStaffPushSubscription`):
+    it clears `user_id` and removes the row only when `tournament_id IS NULL`,
+    i.e. it was staff-only. Deleting outright took the spectator's alerts with
+    it. It also must not call `subscription.unsubscribe()` in the browser, for
+    the same reason.
+  - **the staff insert writes `notify_live/final/schedule` explicitly FALSE.**
+    `notify_schedule` DEFAULTS TRUE for spectators, and inheriting that made
+    every staff row claim to want spectator alerts. Inert only because every
+    public query filters `user_id IS NULL` — do not rely on that holding.
 - **Dead subscriptions are pruned on 404/410.** That status is the only signal
   a browser gives that it threw the grant away; without pruning the table grows
-  forever and every send retries corpses.
+  forever and every send retries corpses. Pruning DOES delete the whole row,
+  correctly: a dead endpoint is dead for both audiences.
 - The send is fired AFTER the response and never awaited — a push service
   having a bad day must not slow down or fail a coach's save.
 - Only fires for submissions BY a team (coach account or team link); staff
   editing a lineup are not told about their own edit, and the submitter is
   excluded from the recipients.
-- Delivery needs the SERVICE WORKER, so the handlers are in `admin-sw.js`
-  (`push` + `notificationclick`). A `push` handler MUST end in
-  `showNotification()` or the browser posts its own "site updated in the
-  background" notice instead.
+- Delivery needs the SERVICE WORKER, and there are TWO: `admin-sw.js` for staff
+  and `sw.js` for spectators. Both need `push` + `notificationclick`; the public
+  one was missing them at first, so nothing a spectator subscribed to could
+  arrive. A `push` handler MUST end in `showNotification()` or the browser posts
+  its own "site updated in the background" notice instead.
 - **Two things no amount of code fixes**: browsers only deliver Web Push over
   HTTPS (localhost counts), and iOS only to an installed PWA. The Settings
   toggle detects both and says which one is missing rather than presenting a
@@ -1924,7 +1970,7 @@ time. No `.env` change is needed for push — `compose.yml` loads the whole
 itself on first boot.
 
 SW cache version lives in `frontend/sw.js` (at the time of writing
-`tournatrak-v3.60`) — **read it there, don't trust this number**, and keep
+`tournatrak-v3.61`) — **read it there, don't trust this number**, and keep
 the `?v=` stamps in step with it on ALL FIVE HTML files, not just the admin
 pages. Phase 0 evaluation is in `EVALUATION.md`.
 
@@ -1933,9 +1979,9 @@ pages. Phase 0 evaluation is in `EVALUATION.md`.
 node --test api/routes.test.js api/schedule-formats.test.js \
              api/standings.test.js api/schedule-health.test.js
 ```
-— **110 tests** (count it, don't trust this number), no fixtures to set up. List the files; `node --test api/`
+— **111 tests** (count it, don't trust this number), no fixtures to set up. List the files; `node --test api/`
 tries to execute `server.js` as a test and dies on the `/frontend` require.
-Postgres must be reachable or the 60 route tests SKIP rather than fail, which
+Postgres must be reachable or the 71 route tests SKIP rather than fail, which
 reads as green: check the skipped count, not just the failure count.
 - `schedule-formats.test.js` — generators, simulated to completion under
   random result sequences at every format × count. Includes full Swiss
