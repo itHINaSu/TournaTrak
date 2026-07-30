@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.78">
-<link rel="stylesheet" href="/bracket.css?v=3.78">
-<script src="/app-h.js?v=3.78"></script>
+<link rel="stylesheet" href="/base.css?v=3.79">
+<link rel="stylesheet" href="/bracket.css?v=3.79">
+<script src="/app-h.js?v=3.79"></script>
 </head>
 <body>
 
@@ -45,10 +45,12 @@
     <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
     <button class="admin-public-btn" id="notifyBtn" hidden data-action="openNotifyPanel" title="Get notified about games">Notifications</button>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
-    <!-- Always visible, every visitor. The PWA has no browser reload button of
-         its own, so this is the only way to force a refresh from an installed
-         app; pull-to-refresh (bracket.js) is the same action by gesture. -->
-    <button class="admin-public-btn" id="refreshBtn" data-action="refreshNow" title="Reload the latest scores and schedule">Refresh</button>
+    <!-- INSTALLED APP ONLY (hidden by default, shown by the session handler
+         when isPwa). A PWA has no browser reload button, so this is the only
+         way to force a refresh there; in a browser it duplicates a control the
+         user already has. pull-to-refresh (bracket.js) is the same action by
+         gesture and stays available everywhere. -->
+    <button class="admin-public-btn" id="refreshBtn" hidden data-action="refreshNow" title="Reload the latest scores and schedule">Refresh</button>
     <button class="admin-public-btn" id="bracketEditBtn" hidden data-action="toggleBracketEdit">Edit</button>
     <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
     <a href="/lineup" class="admin-public-btn" id="lineupPortalBtn" hidden>Coach Panel →</a>
@@ -345,11 +347,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.78"></script>
-<script src="/theme-css.js?v=3.78"></script>
-<script src="/tt-common.js?v=3.78"></script>
-<script src="/bracket-data.js?v=3.78"></script>
-<script src="/bracket.js?v=3.78"></script>
-<script src="/sw-register.js?v=3.78" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.79"></script>
+<script src="/theme-css.js?v=3.79"></script>
+<script src="/tt-common.js?v=3.79"></script>
+<script src="/bracket-data.js?v=3.79"></script>
+<script src="/bracket.js?v=3.79"></script>
+<script src="/sw-register.js?v=3.79" data-sw="/sw.js"></script>
 </body>
 </html>

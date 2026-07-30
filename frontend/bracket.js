@@ -6533,6 +6533,11 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   // Signed in: the panel links, by role, and no Sign in. Signing in is what
   // decides which panel you are offered, rather than the visitor guessing
   // first and being told afterwards that they picked the wrong door.
+  // Refresh exists ONLY because an installed app has no browser reload button.
+  // In a browser it duplicates a control the user already has, in a better
+  // place, so it is one more thing crowding the menu for no gain.
+  var refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn)     refreshBtn.hidden = !isPwa;
   if (signInBtn)      signInBtn.hidden = !(!_sessionRole);
   if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
   if (lineupBtn)      lineupBtn.hidden = !((_sessionRole === 'team'));

@@ -120,6 +120,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **Header menu at every width**, not just mobile; **Refresh is PWA-only** |
 | (this) | **One "Sign in" replaces the PWA guesswork** — signed-out visitors get a login route in any context; coaches signing in at /admin are routed instead of dead-ended |
 | (this) | **Dark band above the mobile nav** — the carousel was sized from the VISUAL viewport; header menu reordered per owner |
 | (this) | **First password set can also claim a username** — the placeholder name an admin typed was never shown to the person using it |
@@ -2572,6 +2573,24 @@ header now, so the largest group who will ever see it are spectators who
 should turn around, and that has to be said BEFORE the fields. And a coach
 signing in there is no longer dead-ended with "you do not have access to this
 page": `showCoachBlock` now redirects to the coach side.
+
+## The header menu is EVERY width now (owner, 2026-07-30)
+It was behind `@media (max-width: 1279px)`. The header had grown to Share,
+Project winners, Notifications, theme, Refresh, Edit and a panel link — a row
+of seven chips is no tidier on a laptop than on a phone — so the rules were
+un-nested and apply at all widths. Nothing in them was breakpoint-dependent;
+`updateHeaderMenu()` already decides WHETHER to show the hamburger (two or
+more visible controls), so a page with one control still renders inline.
+
+The old `@media (min-width: 1280px) { .header-menu-btn { display: none } }` is
+gone. If you are looking for the mobile/desktop split, it lives in the bracket
+layout, not here any more.
+
+**Refresh is installed-app only.** It exists solely because a PWA has no
+browser reload button; in a browser it duplicates a control the user already
+has in a better place. `hidden` in the markup, shown by the session handler
+when `isPwa`. Pull-to-refresh is the same action by gesture and stays
+available everywhere.
 
 ## Header menu order (owner, 2026-07-30)
 Share, Project winners, Notifications, theme, Refresh, then Coach Panel and
