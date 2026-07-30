@@ -169,6 +169,35 @@ broken:
 - So: nginx healthy, Postgres healthy, api healthy, and still 502. The upstream
   is the only thing left.
 
+**Docs moved to `docs/` (2026-07-30).** Only `README.md` stays at the repo
+root. `HANDOFF.md`, `ROADMAP.md`, `EVALUATION.md`, `LINEUP_STARTER.md` now live
+alongside `ROLES.md`, `GUEST_ACCOUNTS.md` and `PENDING.md`.
+
+**`docs/PENDING.md` is the answer to "is X built yet?"** The owner has more than
+once believed something was shipped when it had been deferred. This file exists
+so a design discussion can never be mistaken for shipped behaviour: an item
+moves to Done only when it is on `main` AND verified. **If you defer something
+mid-task, add it there in the SAME commit as the work you did ship** — that is
+precisely the case it was created for. HANDOFF stays the narrative of what
+happened and why; PENDING is the short scannable status.
+
+**Notification settings are a settings SURFACE, not a dialog.** The owner could
+not save on desktop and tapping Notify me on mobile appeared to do nothing. The
+second had a findable cause: `.share-box` caps at `max-height: 88vh` with **no
+`overflow-y`**, so a 20-team picker overflowed and "Turn on" sat past the bottom
+of the screen with no way to scroll to it. The panel now scrolls its BODY while
+the title and actions stay put (`min-height: 0` on the scrolling flex child is
+the part that actually makes that work). Verified with 23 teams at 390x844 and
+360x640 — actions reachable in both.
+- The desktop failure ("Notifications were not allowed") was a browser
+  permission refusal. That path now says which of the two happened — blocked in
+  site settings, or the prompt dismissed — because a browser asks ONCE and the
+  two look identical afterwards. It also KEEPS the user's choices on the device
+  so nothing has to be re-picked after fixing the permission.
+- The panel states plainly that settings live on that device only and do not
+  survive clearing site data. That is true: anonymous push is one row keyed on
+  the browser's endpoint plus `localStorage`, with no account behind it.
+
 **Mobile header menu (2026-07-30).** Below 1280px the public header's controls
 collapse behind a hamburger; desktop keeps them inline, which the owner
 confirmed is what they want (there is room there, and the hamburger is

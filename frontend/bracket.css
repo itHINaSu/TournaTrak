@@ -2739,3 +2739,37 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
 }
 .notify-team { margin: 0; }
 .notify-teams-row { margin-top: 0.5em; }
+
+/* Notification settings panel. The BODY scrolls; the title and the actions do
+   not. Without this the box hits .share-box's 88vh cap and simply overflows —
+   a 20-team picker put "Turn on" past the bottom of a phone screen with no way
+   to scroll to it, so the panel looked like it had done nothing. */
+.notify-box { width: min(92vw, 34em); }
+.notify-body {
+  flex: 1 1 auto;
+  min-height: 0;          /* the part that actually lets a flex child scroll */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.notify-section-hdr {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-mute);
+  margin: 0.9em 0 0.3em;
+}
+.notify-body > #notifyForm > .notify-section-hdr:first-child { margin-top: 0; }
+.notify-note {
+  margin-top: 1em;
+  padding: 0.7em 0.8em;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+  background: var(--surface2);
+  border-left: 0.2em solid var(--gold);
+  border-radius: var(--radius-xs);
+}
+.notify-note strong { color: var(--text); }
+/* The actions must never scroll away — they are the reason the panel is open. */
+.notify-box .share-actions { flex: 0 0 auto; }

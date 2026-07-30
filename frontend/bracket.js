@@ -6351,7 +6351,18 @@ async function notifySave() {
   try {
     var perm = await Notification.requestPermission();
     if (perm !== 'granted') {
-      hint.textContent = 'Notifications were not allowed.';
+      // Be specific about what happened and what to do. "Not allowed" alone
+      // left the owner with a panel full of choices and no idea why it failed
+      // — and the browser only ever asks ONCE, so a dismissed prompt looks
+      // identical to a refusal until you go into site settings.
+      hint.textContent = Notification.permission === 'denied'
+        ? 'Your browser is blocking notifications for this site. Allow them in the '
+          + 'site settings (the icon beside the address bar), then press Turn on again.'
+        : 'The permission prompt was dismissed. Press Turn on to ask again — some '
+          + 'browsers only offer it once, and then it has to be enabled in site settings.';
+      // Keep their choices on the device so nothing has to be re-picked when
+      // they come back after fixing the permission.
+      saveNotifyPrefs(Object.assign({ on: false }, form));
       return;
     }
     var reg = await navigator.serviceWorker.ready;
