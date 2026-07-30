@@ -1,5 +1,13 @@
 # TournaTrak — Product & Marketing Brief
 
+> ⚠️ **Read `docs/FEATURES.md` first.** This brief is still correct on
+> *positioning* — tone, page structure, screenshots, CTAs, branding — but it was
+> written against an older version of the product, and **§3 (features), §5
+> (screenshots), §6 (FAQ) and §9 (guardrails) are out of date**: the app is no
+> longer double-elimination-only, multi-tournament hosting and clean URLs now
+> ship, and the Bucket Challenge is being retired. `docs/FEATURES.md` is the
+> authoritative list of what exists today, and it wins wherever the two disagree.
+
 > **Purpose of this file:** Hand this to a fresh chat to build a *promotional /
 > "sales" website* for TournaTrak. The goal is a public page you can send people
 > to in order to promote the product — highlights, screenshots, and use cases.
