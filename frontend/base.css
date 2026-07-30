@@ -22,6 +22,11 @@
   --clear-color:  #c05050;
   --clear-border: #8a3a3a;
   --live-color:   #e03030;
+  /* Diagonal hatch behind a "Potential Outcome" card. A plain rgba (not a
+     color-mix on --blue-lt) because the bracket image exporter reads this
+     token straight into a canvas fillStyle, which parses CSS colours but not
+     colour functions. Keep it in every theme block below. */
+  --proj-hatch:   rgba(74, 144, 217, 0.17);
 
   /* Medal colors for bucket top-3 */
   --medal-gold-bg:     #3d2d00;
@@ -92,6 +97,7 @@ body.light {
   --clear-color:#8a2a2a;
   --clear-border:#c05050;
   --live-color: #c81e1e; /* ≥4.5:1 on white surface */
+  --proj-hatch:rgba(26, 74, 138, 0.16);
 
   /* Medal colors — light mode */
   --medal-gold-bg:     #fffacc;
@@ -406,6 +412,7 @@ body.print-palette.light {
   --lose-color:#8a2a2a;
   --line-color:#666666;
   --live-color:#c81e1e;
+  --proj-hatch:rgba(0, 0, 0, 0.13);
 }
 body.print-palette * { box-shadow: none !important; text-shadow: none !important; }
 
@@ -427,6 +434,7 @@ body.print-palette * { box-shadow: none !important; text-shadow: none !important
     --lose-color:#8a2a2a;
     --line-color:#666666;
     --live-color:#c81e1e;
+    --proj-hatch:rgba(0, 0, 0, 0.13);
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }

@@ -2441,6 +2441,10 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
 /* Projected picks: tinted blue + italic, distinct from a real (green) win */
 .bc-team.won.projected { color: var(--blue-lt); }
 .bc-team.won.projected .bc-name { font-style: italic; }
+/* Same on the mobile carousel and its championship card — green there read as
+   a settled win. */
+.mbc-game-team.won.projected,
+.mbc-champ-team.won.projected { color: var(--blue-lt); font-style: italic; }
 /* Same convention on the Team Path chain, which renders projections too. */
 .round-team-name.won.projected,
 .round-team-name.lost.projected { color: var(--blue-lt); font-style: italic; }
@@ -2450,17 +2454,84 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
   background: color-mix(in srgb, var(--blue-lt) 10%, transparent);
 }
 .round-win-side--proj .round-win-tag { color: var(--blue-lt); }
+/* ── "Potential Outcome" marking ──────────────────────────────────────────
+   A screenshot is the one channel nothing can prevent, so the marking has to
+   live in the pixels and survive being cropped to a single card. Hence: on the
+   CARD (a banner is one crop away from gone), a fill rather than only a border
+   (a tight crop can miss an edge), and the words spelled out rather than a
+   glyph or a colour convention nobody outside this app knows.
+   Deliberately not subtle. This is the one place where being unmissable beats
+   being handsome.
+
+   Drawn as a ::before overlay rather than a background-image, because the
+   cards it has to mark do not share a background: the championship card is a
+   gold gradient and the carousel card paints its own header bar, so anything
+   set on the card itself is either replaced or painted over. An overlay sits
+   above all of that, and above the text — which is the point of a watermark.
+   pointer-events stay off so picking still works through it. */
+.bc--proj,
+.round-game--proj,
+.mbc--proj { position: relative; border-color: color-mix(in srgb, var(--blue-lt) 60%, transparent); }
+.bc--proj::before,
+.round-game--proj::before,
+.mbc--proj::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--proj-hatch) 0 0.55em,
+    transparent 0.55em 1.5em
+  );
+}
+/* .bc is absolutely positioned already; re-declaring position would drop it
+   back into the flow and pile every card at the top of its column. */
+.bc--proj { position: absolute; }
 .bc-proj-chip {
   font-family: 'Oswald', sans-serif;
   font-size: 0.52rem;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  white-space: nowrap;
   color: var(--blue-lt);
-  border: 0.09em solid color-mix(in srgb, var(--blue-lt) 55%, transparent);
+  background: color-mix(in srgb, var(--blue-lt) 16%, var(--surface));
+  border: 0.09em solid color-mix(in srgb, var(--blue-lt) 65%, transparent);
   border-radius: 0.25em;
-  padding: 0.05em 0.35em;
+  padding: 0.05em 0.4em;
   margin-left: 0.35em;
+}
+/* Carousel card: the chip rides the bottom-right corner instead of the header
+   row, which on a phone is already label + field + date + time. That corner is
+   the score column, and a pick carries no score, so it is always free. */
+/* The champion banner. A projected champion in gold, alone under a trophy, is
+   the single most convincing thing this page can render — so it loses the gold
+   and says what it is. */
+.champ-winner--proj {
+  color: var(--blue-lt) !important;
+  font-style: italic;
+}
+.champ-winner--proj .trophy-img { opacity: 0.5; }
+/* On a game card the chip sits at the end of the bottom team row, where the
+   score would go — and a pick never has a score. It must never be the thing
+   that shrinks: the team name beside it already ellipsises, so the chip holds
+   its size and the name gives way. */
+.bc-team > .bc-proj-chip,
+.mbc-game-team > .bc-proj-chip {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+/* Print/export palette: --proj-hatch already switches to grey there (see
+   base.css), so only the border and the chip need saying. */
+body.print-palette .bc--proj,
+body.print-palette .round-game--proj,
+body.print-palette .mbc--proj { border-color: #666 !important; }
+body.print-palette .bc-proj-chip {
+  color: #000 !important;
+  background: #fff !important;
+  border-color: #000 !important;
 }
 
 /* ── CSP refactor: classes replacing generated inline styles ── */

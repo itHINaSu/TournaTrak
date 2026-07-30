@@ -9,15 +9,32 @@ var _sessionRole = null;
 var _bucketEditMode = false;
 var _bracketEditMode = false;
 
-// ── Project-winners mode (owner spec): viewers step through the bracket
-// picking hypothetical winners. Deliberately in-memory ONLY — never synced,
-// never in localStorage — so picks survive the 20s live poll (which only
-// rebuilds results/schedule) but NOT a hard refresh.
+// ── Project-winners mode: viewers step through the bracket picking
+// hypothetical winners. Deliberately in-memory ONLY — never synced, never in
+// localStorage — so picks survive the 20s live poll (which only rebuilds
+// results/schedule) but NOT a hard refresh.
+//
+// Open to the public (TD can switch it off; see publicProjections). It was
+// staff-only, on the theory that containment keeps a stranger's what-if from
+// being screenshotted as a result. That trade doesn't hold: nothing stops a
+// screenshot anyway, and people work out who plays whom with or without us —
+// on paper, or on a site that marks nothing. So the marking moved into the
+// pixels instead. Every card a pick affects is watermarked, on every surface
+// and in the exported image, which is strictly better than a photo of a guess
+// with no marking at all.
 var _projectMode = false;
-var _projected = {};   // slot id -> picked winner name (bracket-wide, admin)
-// Team Path's own projector, open to every visitor. Kept SEPARATE from
-// _projected so path picks can never render on the Bracket or in Standings —
-// a stranger's what-if must not be screenshottable as a result.
+// One label, every surface. It is read out of context — in a photo, by someone
+// who does not know this app has a what-if mode — so it has to say that this
+// did not happen without relying on any of that context. "Projected" alone was
+// rejected for being ambiguous: plenty of tournaments legitimately publish
+// projected seedings.
+var PROJ_LABEL = 'Potential Outcome';
+
+var _projected = {};   // slot id -> picked winner name (bracket-wide)
+// Team Path's own projector, driven by the What-if stepper. Still SEPARATE
+// from _projected — not for containment now, but because they answer
+// different questions: the stepper walks one team's path and would otherwise
+// scatter picks across a bracket the viewer never asked about.
 var _pathProjected = {};
 var scheduleMode = null; // null = uninitialised; set from settings on first render
 
@@ -639,6 +656,7 @@ async function fetchAll(){
 
   // Measure header heights so sticky offsets can be applied
   applyStickyOffsets();
+  syncProjectBtn();
 
   // Skip the render when data is identical to the last fetch AND no tab/view change
   // is pending (qView/savedTab already applied above, so we compare post-apply state).
@@ -1269,8 +1287,16 @@ function cardHTML(gid, asChamp){
   var offHTML = (offMin !== null && offMin !== 0)
     ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
     : '';
+  // The mark goes on any card DISPLAYING projection-derived content, not only
+  // the one that was picked, and it says what it means to someone who sees
+  // only a photo of it with no idea this app has a what-if mode.
+  // The chip goes on the BOTTOM row, not in the header. The header is sized
+  // for label + field + time and the time is what got truncated; the bottom
+  // row ends in the score column, which a pick never fills. In flow (not
+  // absolute) so the team name ellipsises around it instead of under it.
+  var proj = cardIsProjected(gid);
+  var projChip = proj ? '<span class="bc-proj-chip">'+esc(PROJ_LABEL)+'</span>' : '';
   return '<div class="bc-hdr">'+(g.bye?'<span class="bc-id u-invisible">x</span>':'<span class="bc-id">'+esc(gameLabel(gid))+'</span>')
-    +(r.projected?'<span class="bc-proj-chip">pick</span>':'')
     +fieldTagHTML(gid)
     +(gameIsLive(gid)
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
@@ -1278,8 +1304,8 @@ function cardHTML(gid, asChamp){
     +'</div>'
     +'<div class="bc-team '+c1+'">'+seedChip(t1.name)+'<span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
     +(g.bye
-      ? '<div class="bc-team bye"><span class="bc-bye-label">— BYE —</span></div>'
-      : '<div class="bc-team '+c2+'">'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
+      ? '<div class="bc-team bye"><span class="bc-bye-label">— BYE —</span>'+projChip+'</div>'
+      : '<div class="bc-team '+c2+'">'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+projChip+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1792,13 +1818,12 @@ var _schedFlight = 'open';
 // That is a topological walk without building the graph, and unlike a round
 // ordering it copes with the cross-side drops, same-column chains and
 // hand-wired topologies a double elim actually contains.
-// The bracket-wide projector (admin only). Drives Bracket and Standings.
+// The bracket-wide projector. Drives Bracket and Standings.
 function mergedResults(){ return mergedResultsFrom([_projected]); }
 
-// Team Path additionally honours the path projector, which ANY visitor can
-// use. Deliberately one-way: path picks reach this view and nothing else, so
-// a screenshot of the Bracket or the Standings table can never show a
-// stranger's hypotheticals as if they were results.
+// Team Path additionally honours the path projector. One-way: bracket picks
+// reach the path, path picks stay on the path — the stepper's answers are
+// about one team's route and don't belong on everyone else's card.
 function mergedPathResults(){ return mergedResultsFrom([_projected, _pathProjected]); }
 
 // `sets` are pick objects in precedence order. A pick that can no longer
@@ -1867,6 +1892,32 @@ function updatePathProjectBar(){
   if (bar) bar.hidden = !n;
 }
 
+// Who gets the "Project winners" button. Open to every visitor unless the TD
+// switches publicProjections off; staff keep it either way.
+//
+// Called from BOTH the /session handler and fetchAll, because neither alone is
+// enough: the session lands first and would read the default 'true' out of
+// SETTINGS_DEFAULTS before the tournament's own settings exist, showing the
+// button for a second on a tournament that turned it off.
+function syncProjectBtn() {
+  var btn = document.getElementById('projectToggleBtn');
+  if (!btn) return;
+  var allowed = _sessionRole === 'admin' || getSetting('publicProjections') !== 'false';
+  var was = btn.hidden;
+  btn.hidden = !allowed;
+  // The hamburger appears at two visible header buttons, so changing one
+  // changes that count.
+  if (was !== btn.hidden) updateHeaderMenu();
+  // Revoked mid-session (another admin saved the setting): drop out of the
+  // mode and clear the picks, or the viewer keeps a bracket they can no
+  // longer turn off.
+  if (!allowed && (_projectMode || Object.keys(_projected).length)) {
+    _projectMode = false;
+    _projected = {};
+    updateProjectBar();
+  }
+}
+
 function updateProjectBar(){
   var t = document.getElementById('projectToggleBtn');
   if (!t) return;
@@ -1903,13 +1954,87 @@ function onProjectTap(e){
   updateProjectBar();
 }
 
+// Which games DISPLAY projection-derived content — not just the ones somebody
+// picked. This is the whole point of the watermark: if you pick round 1, the
+// misleading card is the round-3 one that now reads a team name where it read
+// "Winner of Game 12". Nobody clicked that card, and it is the one that looks
+// like a result.
+//
+// A game is tainted when its own merged result is projected, or when either
+// feed comes from a tainted game. Transitive, because a name only appears at
+// all once every game upstream of it has a winner — real or projected — so the
+// chain is what decides whether it is real.
+function projectionTaint(merged) {
+  var memo = {};
+  function tainted(sid) {
+    if (Object.prototype.hasOwnProperty.call(memo, sid)) return memo[sid];
+    memo[sid] = false;                       // cycle guard for hand-wired loops
+    var m = merged[sid], g = GAMES[sid];
+    var t = !!(m && m.projected);
+    if (!t && g) {
+      [g.t1, g.t2].forEach(function(sd) {
+        if (!sd || !sd.slot) return;
+        if (sd.type !== 'winner' && sd.type !== 'loser') return;
+        if (tainted(sd.slot)) t = true;
+      });
+    }
+    memo[sid] = t;
+    return t;
+  }
+  Object.keys(GAMES).forEach(tainted);
+  return memo;
+}
+
+// Set for the duration of a render, like `results` itself — cardHTML and the
+// mobile renderer read it without threading a parameter through everything.
+var _projTaint = {};
+
+// Does THIS card show anything that came out of a pick?
+//
+// Taint alone is too broad. A game two rounds downstream of a pick is tainted,
+// but if both its slots still read "Winner of Game 13" it displays nothing a
+// stranger could misread — striping it just adds noise to the surrounding
+// cards that DO carry a projected name. So a tainted card is marked only once
+// a tainted feed has actually resolved into a name on it.
+function cardIsProjected(gid) {
+  var r = results[gid];
+  if (r && r.projected) return true;          // picked here
+  var g = GAMES[gid];
+  if (!g || !_projTaint[gid]) return false;
+  return [g.t1, g.t2].some(function(sd, i) {
+    if (!sd || !sd.slot) return false;
+    if (sd.type !== 'winner' && sd.type !== 'loser') return false;
+    if (!_projTaint[sd.slot]) return false;   // this side came from real play
+    return disp(gid, i === 0 ? g.t1 : g.t2).actual;
+  });
+}
+
+// Class for a card wrapper on any surface. Returns '' when nothing is
+// projected, so a normal bracket carries no extra markup at all.
+function projCls(gid) {
+  return cardIsProjected(gid) ? ' bc--proj' : '';
+}
+
+// The champion banner under the championship card — the biggest, most
+// screenshot-worthy thing on the page, and the one furthest from any card, so
+// it carries its own mark rather than relying on the card's.
+function champWinnerHTML(gid, name) {
+  if (!name) return '';
+  var proj = projCls(gid) !== '';
+  return '<div class="champ-winner' + (proj ? ' champ-winner--proj' : '') + '">'
+    + esc(name)
+    + (proj ? '<span class="bc-proj-chip">' + esc(PROJ_LABEL) + '</span>' : '')
+    + '</div>';
+}
+
 // renderBracket swaps the results global for the merged projection view for
 // the duration of the (synchronous) render, so every card/connector helper
 // sees projected winners without threading a parameter through all of them.
 function renderBracket(){
   var _real = results;
   results = mergedResults();
-  try { renderBracketInner(); } finally { results = _real; }
+  _projTaint = projectionTaint(results);
+  try { renderBracketInner(); } finally { results = _real; _projTaint = {}; }
 }
 
 // The flight pills belong WITH the bracket. Rendered as a sibling above
@@ -2150,7 +2275,7 @@ function renderFlightBracket(root, tier) {
       var pinCls = (_bracketEditMode && layoutRowOf(gid) !== null) ? ' bc-pinned' : '';
       var rowAttr = _bracketEditMode
         ? ' data-row="' + layoutRowFromTop(pos[gid], dims.slotVh, gridH).toFixed(5) + '"' : '';
-      return '<div class="bc' + pinCls + '" data-gid="' + esc(gid) + '"' + rowAttr + ' data-css="top:' + pos[gid] + 'vh">'
+      return '<div class="bc' + pinCls + projCls(gid) + '" data-gid="' + esc(gid) + '"' + rowAttr + ' data-css="top:' + pos[gid] + 'vh">'
         + cardHTML(gid) + '</div>';
     }).join('');
     // Flights are editable on exactly the same terms as the main tree — they
@@ -2256,8 +2381,8 @@ function renderFlightBracket(root, tier) {
       // against 66.2px feeders left its centre 8.2px below their midpoint. The
       // Open tree has no such override, which is why its title card sits
       // exactly level. Same card height here means level for free.
-      + '<div class="champ-bc"><div class="bc bc--static" data-gid="' + esc(champGid) + '">' + cardHTML(champGid, true) + '</div></div>'
-      + (fr.winner ? '<div class="champ-winner">' + esc(fr.winner) + '</div>' : '');
+      + '<div class="champ-bc"><div class="bc bc--static' + projCls(champGid) + '" data-gid="' + esc(champGid) + '">' + cardHTML(champGid, true) + '</div></div>'
+      + champWinnerHTML(champGid, fr.winner);
 
     // Height + top margin match a round column exactly, so the tinted column
     // spans the bracket the way the Open tree's does instead of hugging its
@@ -2338,6 +2463,43 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
+// The "Potential Outcome" hatch, redrawn by hand.
+//
+// On screen it is a ::before overlay with a repeating-linear-gradient. This
+// painter draws ELEMENTS — background colour, borders, text — and knows about
+// neither pseudo-elements nor background images, so without this the exported
+// PNG would ship an unmarked bracket while the screen showed a marked one.
+// That is the one failure mode this whole feature exists to prevent.
+//
+// The stripe colour comes from --proj-hatch rather than being hardcoded, so
+// the dark, light and print palettes each get their own without this function
+// knowing which is active. It is a plain rgba() for exactly this reason:
+// canvas fillStyle parses CSS colours, not color-mix().
+function paintProjHatch(ctx, el, x, y, w, h, radius, win) {
+  var cs = win.getComputedStyle(el);
+  var col = (cs.getPropertyValue('--proj-hatch') || '').trim();
+  if (!col) return;
+  // Same geometry as the CSS: 45° stripes, 0.55em on / 0.95em off.
+  var em = parseFloat(cs.fontSize) || 16;
+  var band = 0.55 * em, period = 1.5 * em;
+  ctx.save();
+  roundRectPath(ctx, x, y, w, h, radius);
+  ctx.clip();
+  ctx.fillStyle = col;
+  // -45deg in CSS runs bottom-left to top-right; stepping along x and
+  // shearing by the box height draws the same family of parallel bands.
+  for (var o = -h; o < w + h; o += period) {
+    ctx.beginPath();
+    ctx.moveTo(x + o, y + h);
+    ctx.lineTo(x + o + band, y + h);
+    ctx.lineTo(x + o + band + h, y);
+    ctx.lineTo(x + o + h, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 // One element: background, borders, its own text, then its children.
 function paintEl(ctx, el, base, win) {
   var cs = win.getComputedStyle(el);
@@ -2356,6 +2518,11 @@ function paintEl(ctx, el, base, win) {
       ctx.fillStyle = bg;
       roundRectPath(ctx, x, y, r.width, r.height, radius);
       ctx.fill();
+    }
+    if (el.classList && (el.classList.contains('bc--proj')
+        || el.classList.contains('round-game--proj')
+        || el.classList.contains('mbc--proj'))) {
+      paintProjHatch(ctx, el, x, y, r.width, r.height, radius, win);
     }
     // Sides are drawn individually: the card headers and the standings rows
     // use single-side borders, and a uniform stroke would invent edges.
@@ -2530,12 +2697,23 @@ function withRenderFrame(opts, cb) {
       doc.body.classList.toggle('light', opts.theme !== 'dark');
       doc.body.classList.toggle('print-palette', opts.theme === 'print');
       if (!opts.withResults) win.results = {};
-      // Path picks never reach an exported image either — the whole point of
-      // scoping them was that nobody screenshots a stranger's hypotheticals.
-      win._projected = {};
+      // Projections travel WITH the image now. Stripping them meant Save image
+      // handed back a bracket that didn't match the screen, and someone who
+      // wanted to share their what-if would just screenshot instead — pushing
+      // people off the path we control and onto the one we don't. The frame
+      // renders them through the same watermark as the page, so the exported
+      // PNG says "Potential Outcome" on every affected card.
+      //
+      // Not on a blank bracket: with results emptied there is nothing for a
+      // pick to hang off, so the few that still resolved would be noise.
+      win._projected = opts.withResults ? Object.assign({}, _projected) : {};
+      // Team Path picks stay out — this is the Bracket image, and they are
+      // scoped to that one view by design.
       win._pathProjected = {};
       win._bracketFlight = opts.flight || _bracketFlight;
-      try { win.renderBracketInner(); } catch (e) { /* fall through to paint whatever rendered */ }
+      // renderBracket, not renderBracketInner: the outer function is what
+      // overlays the picks and computes the watermark taint.
+      try { win.renderBracket(); } catch (e) { /* fall through to paint whatever rendered */ }
       // One more frame so fonts/layout settle before measuring.
       setTimeout(function() { finish(win, doc); }, 120);
     })();
@@ -2718,7 +2896,7 @@ function paintFlights(win, doc, opts, flights) {
   var out = [];
   flights.forEach(function(fl) {
     win._bracketFlight = fl;
-    try { win.renderBracketInner(); } catch (e) { return; }
+    try { win.renderBracket(); } catch (e) { return; }
     // Card positions ship as data-css (style-src has no 'unsafe-inline'), and
     // the MutationObserver that transfers them to CSSOM runs as a microtask —
     // AFTER this synchronous function returns. Painting straight away
@@ -3054,7 +3232,7 @@ function renderDesktopBracket(root,dims){
         var exPin = (_bracketEditMode && layoutRowOf(extra.gid) !== null) ? ' bc-pinned' : '';
         var exRow = _bracketEditMode
           ? ' data-row="' + layoutRowFromTop(extra.topVh, slotVh, gridH).toFixed(5) + '"' : '';
-        cardsHTML += '<div class="bc' + exPin + '" data-gid="' + esc(extra.gid) + '"' + exRow
+        cardsHTML += '<div class="bc' + exPin + projCls(extra.gid) + '" data-gid="' + esc(extra.gid) + '"' + exRow
           + ' data-css="top:' + extra.topVh + 'vh">'
           + cardHTML(extra.gid) + '</div>'
           + '<div class="bc-final-cap" data-css="top:' + (extra.topVh - 1.9) + 'vh">' + esc(extra.caption) + '</div>';
@@ -3067,7 +3245,7 @@ function renderDesktopBracket(root,dims){
         // card can exchange the two positions without re-deriving geometry.
         var rowAttr = _bracketEditMode
           ? ' data-row="' + layoutRowFromTop(colTops[gi], slotVh, gridH).toFixed(5) + '"' : '';
-        cardsHTML+='<div class="bc'+pinCls+'" data-gid="'+esc(entry.gid)+'"'+rowAttr+' data-css="top:'+colTops[gi]+'vh">'+cardHTML(entry.gid)+'</div>';
+        cardsHTML+='<div class="bc'+pinCls+projCls(entry.gid)+'" data-gid="'+esc(entry.gid)+'"'+rowAttr+' data-css="top:'+colTops[gi]+'vh">'+cardHTML(entry.gid)+'</div>';
         if (capFor && capFor[entry.gid]) {
           cardsHTML += '<div class="bc-final-cap" data-css="top:'
             + (colTops[gi] - 1.9) + 'vh">' + esc(capFor[entry.gid]) + '</div>';
@@ -3132,8 +3310,8 @@ function renderDesktopBracket(root,dims){
           +'<div class="champ-ifnec-label">' + (c2s === 'third-place' ? '3rd Place' : 'If Necessary') + '</div>'
           + c2Note
           +(champ2G.time?'<div class="champ-gametime">'+esc(formatTime(champ2G.time))+'</div>':'')
-          +'<div class="champ-bc" data-css="height:'+cardVh+'vh"><div class="bc bc--static" data-gid="CHAMP2.C.1" data-css="height:'+cardVh+'vh">'+cardHTML('CHAMP2.C.1')+'</div></div>'
-          +(cr2.winner?'<div class="champ-winner">'+esc(cr2.winner)+'</div>':'')
+          +'<div class="champ-bc" data-css="height:'+cardVh+'vh"><div class="bc bc--static'+projCls('CHAMP2.C.1')+'" data-gid="CHAMP2.C.1" data-css="height:'+cardVh+'vh">'+cardHTML('CHAMP2.C.1')+'</div></div>'
+          +champWinnerHTML('CHAMP2.C.1', cr2.winner)
           +'</div>';
       }
     }
@@ -3167,8 +3345,8 @@ function renderDesktopBracket(root,dims){
       +'<div class="champ-title">Championship</div>'
       +'<div class="champ-gametime">'+esc(formatTime(champG.time))+'</div>'
       +'</div>'
-      +'<div class="champ-bc" data-css="height:'+cardVh+'vh"><div class="bc bc--static" data-gid="CHAMP.C.1" data-css="height:'+cardVh+'vh">'+cardHTML('CHAMP.C.1')+'</div></div>'
-      +(showChampWinner?'<div class="champ-winner">'+esc(cr.winner)+'</div>':'')
+      +'<div class="champ-bc" data-css="height:'+cardVh+'vh"><div class="bc bc--static'+projCls('CHAMP.C.1')+'" data-gid="CHAMP.C.1" data-css="height:'+cardVh+'vh">'+cardHTML('CHAMP.C.1')+'</div></div>'
+      +(showChampWinner?champWinnerHTML('CHAMP.C.1', cr.winner):'')
       +ifNecHTML
       +'</div>'
       +'</div>';
@@ -3221,8 +3399,8 @@ function renderDesktopBracket(root,dims){
         +   '<div class="champ-title">Championship</div>'
         +   '<div class="champ-gametime">' + esc(formatTime(champG.time)) + '</div>'
         + '</div>'
-        + '<div class="champ-bc" data-css="height:' + cardVh + 'vh"><div class="bc bc--static" data-gid="CHAMP.C.1" data-css="height:' + cardVh + 'vh">' + cardHTML('CHAMP.C.1') + '</div></div>'
-        + (showChampWinner ? '<div class="champ-winner">' + esc(cr.winner) + '</div>' : '')
+        + '<div class="champ-bc" data-css="height:' + cardVh + 'vh"><div class="bc bc--static'+projCls('CHAMP.C.1')+'" data-gid="CHAMP.C.1" data-css="height:' + cardVh + 'vh">' + cardHTML('CHAMP.C.1') + '</div></div>'
+        + (showChampWinner ? champWinnerHTML('CHAMP.C.1', cr.winner) : '')
         + ifNecHTML
         + '</div>'
       : '<div class="champ-inner u-dim30">'
@@ -3315,15 +3493,18 @@ function champCardHTML(gid, title) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
+  if (r.projected) { if (t1.won) c1 += ' projected'; if (t2.won) c2 += ' projected'; }
   var ft = formatTime(g.time);
   var offMin = getGameOffset(gid);
   var offHTML = (offMin !== null && offMin !== 0)
     ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
     : '';
-  return '<div class="mbc-champ-card">'
+  var proj = cardIsProjected(gid);
+  return '<div class="mbc-champ-card' + (proj ? ' mbc--proj' : '') + '">'
     + '<div class="mbc-champ-top">'
     +   '<div class="mbc-champ-trophy">'+trophySVG()+'</div>'
-    +   '<div class="mbc-champ-label">' + esc(title || 'Championship') + fieldTagHTML(gid) + '</div>'
+    +   '<div class="mbc-champ-label">' + esc(title || 'Championship') + fieldTagHTML(gid)
+    +     (proj ? '<span class="bc-proj-chip">' + esc(PROJ_LABEL) + '</span>' : '') + '</div>'
     +   (gameIsLive(gid)
           ? '<div class="mbc-champ-time mbc-champ-live">' + liveHeaderHTML(gid) + '</div>'
           : ((ft || offHTML) ? '<div class="mbc-champ-time">' + esc(ft) + offHTML + '</div>' : ''))
@@ -3340,7 +3521,10 @@ function champCardHTML(gid, title) {
     +     (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     +   '</div>'
     + '</div>'
-    + (r.winner ? '<div class="mbc-champ-winner">' + trophySVG() + ' ' + esc(r.winner) + '</div>' : '')
+    + (r.winner
+        ? '<div class="mbc-champ-winner' + (proj ? ' champ-winner--proj' : '') + '">'
+          + trophySVG() + ' ' + esc(r.winner) + '</div>'
+        : '')
     + '</div>';
 }
 
@@ -3351,6 +3535,9 @@ function mobileRoundCardHTML(gid) {
   var t1 = disp(gid, g.t1), t2 = disp(gid, g.t2), r = results[gid] || {};
   var c1 = !t1.actual ? 'tbd' : t1.won ? 'won' : t1.lost ? 'lost' : '';
   var c2 = !t2.actual ? 'tbd' : t2.won ? 'won' : t2.lost ? 'lost' : '';
+  // A picked winner must not wear the same green as one who actually won —
+  // the desktop card has always drawn that distinction, the carousel didn't.
+  if (r.projected) { if (t1.won) c1 += ' projected'; if (t2.won) c2 += ' projected'; }
   if (g.bye) { c1 = 'won'; c2 = 'bye'; }   // lone team advances; opponent is a greyed BYE
   var ft = formatTime(g.time), dateStr = '', dowStr = '', timeStr = ft;
   var m = ft.match(/^(\d+\/\d+)\s+(\S+)\s+(.+)$/);
@@ -3361,8 +3548,15 @@ function mobileRoundCardHTML(gid) {
   var offHTML = (offMin !== null && offMin !== 0)
     ? '<span class="round-game-offset '+(offMin>0?'round-game-offset--late':'round-game-offset--early')+'">'+(offMin>0?'+':'')+offMin+' min</span>'
     : '';
+  // The carousel card's header row is already label + field + date + time
+  // across ~72% of a phone; the chip does not fit there. It rides the bottom
+  // team row instead, ending in the score column — and a pick never has a
+  // score, so nothing there competes with it.
+  var proj = cardIsProjected(gid);
+  var projChip = proj
+    ? '<span class="bc-proj-chip">' + esc(PROJ_LABEL) + '</span>' : '';
   // Header (top 25%), team 1 (37.5%), team 2 (37.5%)
-  return '<div class="mbc-game-card' + upcoming + '">'
+  return '<div class="mbc-game-card' + upcoming + (proj ? ' mbc--proj' : '') + '">'
     + '<div class="mbc-game-mid">'
     +   '<span class="mbc-game-lbl">' + esc(gameLabel(gid)) + '</span>'
     +   fieldTagHTML(gid)
@@ -3381,6 +3575,7 @@ function mobileRoundCardHTML(gid) {
     + '</div>'
     + '<div class="mbc-game-team ' + c2 + '">'
     +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
+    +   projChip
     +   (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     + '</div>'
     + '</div>';
@@ -5015,11 +5210,15 @@ function buildWinChain(sid){
 // out three trophies, so a bare "Champion" on the A-bracket path claims the
 // wrong one. Named explicitly on every flight, including Open, so the three
 // can't be confused; a tournament with no flights keeps the plain word.
-function champBannerHTML(crowned, tier) {
+function champBannerHTML(crowned, tier, proj) {
   var label = 'Champion';
   if (tier === 'A' || tier === 'B') label = bracketDisplayName(tier) + ' Champion';
   else if (shareFlights().length > 1) label = 'Open Champion';
-  return '<div class="team-path-champion' + (crowned ? ' is-crowned' : '') + '">'
+  // A crown won by a pick is still a crown in a photo. Say so on the banner
+  // itself — it can be cropped away from the card that explains it.
+  if (crowned && proj) label += ' (' + PROJ_LABEL + ')';
+  return '<div class="team-path-champion' + (crowned ? ' is-crowned' : '')
+    + (crowned && proj ? ' champ-winner--proj' : '') + '">'
     + (crowned ? '' : '<span class="tpc-pre">WIN</span><span class="tpc-pre">→</span>')
     + '<span class="tpc-trophy">'+trophySVG()+'</span>'
     + '<span class="tpc-word">' + esc(label) + '</span>'
@@ -5098,7 +5297,9 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
     // through it — but it must never look like a settled result. Same
     // convention as the bracket card: blue + italic instead of green/red,
     // plus a PICK chip.
-    var proj = !!r.projected;
+    // Picked here, or showing a name that came from a pick: both read as a
+    // result in a screenshot, so both get marked.
+    var proj = cardIsProjected(gid);
     var pj = proj ? ' projected' : '';
     var c1  = !t1r ? 'tbd' : (r.winner===t1r ? 'won' + pj : r.loser===t1r ? 'lost' + pj : '');
     var c2  = !t2r ? 'tbd' : (r.winner===t2r ? 'won' + pj : r.loser===t2r ? 'lost' + pj : '');
@@ -5151,14 +5352,15 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
       }
     }
 
-    html += '<div class="round-game-card" data-css="border-color:' + borderColor + '"'
+    html += '<div class="round-game-card' + (proj ? ' round-game--proj' : '') + '"'
+      + ' data-css="border-color:' + borderColor + '"'
       + ' data-jump-gid="' + esc(gid) + '">'
       + '<div class="round-game-main">'
       + '<div class="round-game-header">'
       + gameDateHTML(dt2)
       + timeOrLiveHTML(gid, dt2, dw2, tm2)
       + '<span class="round-game-id u-push-right">' + esc(gameLabel(gid)) + '</span>'
-      + (proj ? '<span class="bc-proj-chip">pick</span>' : '')
+      + (proj ? '<span class="bc-proj-chip">' + esc(PROJ_LABEL) + '</span>' : '')
       + '</div>'
       + '<div class="round-team-row">'
       + '<span class="round-team-name ' + c1 + '">' + t1html + '</span>'
@@ -5190,7 +5392,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
     // CHAMP2 only applies if they LOSE CHAMP — that continuation is shown via the
     // loser path in renderTeamView. LB finalist (isLosePath=true) continues past CHAMP.
     if (!isLosePath && g && g.round === 'CHAMP') {
-      html += champBannerHTML(teamWon, g.tier);
+      html += champBannerHTML(teamWon, g.tier, proj);
       break;
     }
 
@@ -5213,7 +5415,7 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
           + '</div>';
       } else {
         // Nowhere left to advance: this game ends whichever bracket it is in.
-        html += champBannerHTML(teamWon, g.tier);
+        html += champBannerHTML(teamWon, g.tier, proj);
       }
     }
   }
@@ -5232,7 +5434,8 @@ function makeVerticalChain(chain, team, isLosePath, showElimOnLoss, entryGid) {
 function renderTeamView(){
   var _real = results;
   results = mergedPathResults();
-  try { renderTeamViewInner(_real); } finally { results = _real; }
+  _projTaint = projectionTaint(results);
+  try { renderTeamViewInner(_real); } finally { results = _real; _projTaint = {}; }
 }
 
 // Mark `team` the winner of every unplayed game on its path up to and
@@ -5978,7 +6181,6 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   var lineupBtn      = document.getElementById('lineupPortalBtn');
   var editBtn        = document.getElementById('bucketEditBtn');
   var bracketEditBtn = document.getElementById('bracketEditBtn');
-  var projectBtn     = document.getElementById('projectToggleBtn');
   // Signed-out visitors in an installed PWA also get the Admin button —
   // an admin who tapped "view public bracket" from the admin PWA's login
   // screen (or whose session expired) needs a way back to sign in; browser
@@ -5987,7 +6189,7 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   if (lineupBtn)      lineupBtn.hidden = !((_sessionRole === 'team'));
   if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
   if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));
-  if (projectBtn)     projectBtn.hidden = !((_sessionRole === 'admin'));
+  syncProjectBtn();
   // Saving the bracket image is a tournament-director job (posting to the
   // league page), so it sits with the other staff controls in the header
   // rather than taking a full-width row above the bracket.
@@ -6061,7 +6263,10 @@ document.addEventListener('visibilitychange', function() {
 // ── Delegated actions (see tt-common.js) ──────────────────────────────
 Object.assign(TT_ACTIONS, {
   toggleProject: function() {
-    if (_sessionRole !== 'admin') return;   // admin-only (button is hidden too)
+    // Same rule as the button's visibility, re-checked here: hidden is a UI
+    // state, not a permission, and the setting can change under a page that
+    // has been open all afternoon.
+    if (_sessionRole !== 'admin' && getSetting('publicProjections') === 'false') return;
     _projectMode = !_projectMode;
     if (_projectMode && _bracketEditMode) toggleBracketEdit();  // mutually exclusive
     updateProjectBar();

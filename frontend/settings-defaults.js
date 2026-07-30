@@ -52,6 +52,13 @@ const SETTINGS_DEFAULTS = {
   // Standings table, or nothing. Plenty of tournaments run no bucket
   // challenge and would rather show records.
   fourthTab:            'buckets',
+  // Whether anyone (not just staff) can pick hypothetical winners on the
+  // Bracket tab. On by default: people work out who plays whom regardless, and
+  // a picker inside the app is the version we can mark as hypothetical — every
+  // affected card carries a "Potential Outcome" watermark, which a screenshot
+  // of a hand-drawn guess or a rival site would not. Turn it off for a
+  // tournament where even a marked what-if would cause arguments.
+  publicProjections:    'true',
   // Custom display names for storage rounds; '' = use the built-in label.
   roundNameR0:     '',
   roundNameR1:     '',

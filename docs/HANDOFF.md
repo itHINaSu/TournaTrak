@@ -70,7 +70,8 @@ Work on `main`, commit, push. Do not open PRs unless asked.
 
 **Parallel-session hazard (happened twice — read this).** Two sessions
 working different branches produced the same feature twice and made
-*opposite* product calls on it (project-winners public vs admin-only). When
+*opposite* product calls on it (project-winners public vs admin-only —
+**settled 2026-07-30 in favour of public**, see the watermark section). When
 merging a divergent `claude/*` branch, compare by CONTENT not by commit —
 `git log main..origin/<branch>` shows commits that may already exist in main
 under different hashes. Check whether each apparent gap is a real gap
@@ -84,7 +85,8 @@ side.
 
 | commit | what |
 |--------|------|
-| (this) | **nginx re-resolves the api upstream** — the real fix for the reboot 502 (variable `proxy_pass` + Docker DNS), tested against a real nginx |
+| (this) | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
+| `3a82e4f` | **nginx re-resolves the api upstream** — the real fix for the reboot 502 (variable `proxy_pass` + Docker DNS), tested against a real nginx |
 | `f9f8c66` | DB wait 30s → 120s (`TT_DB_WAIT_SECONDS`) — hardening, NOT the cause of the 502 |
 | `9dfdfe5` | **Staff and spectator push share one browser row** — the device toggle lied, and staff-off deleted the spectator's subscription |
 | `ff86c8a` | **Every auth error message was invisible** — `.login-error` had `display: none` |
@@ -2082,6 +2084,76 @@ Staff get a real push — phone, app closed — when a team submits a lineup.
   push service, so browser-level testing needs the APIs stubbed — see the
   session's push3.js approach. The route tests cover everything up to the wire.
 
+## Projections and the "Potential Outcome" watermark (2026-07-30)
+
+**Anyone can project winners now.** `publicProjections` (default `'true'`) is a
+TD toggle in Settings → Navigation Defaults. This REVERSES the earlier
+admin-only decision, deliberately and with the owner's agreement.
+
+The old reasoning was containment: keep the picker away from the public so a
+stranger's what-if can never be screenshotted as a result. That trade does not
+hold. Nothing stops a screenshot, people work out who plays whom regardless —
+on paper, or on a site that marks nothing at all — and the version we host is
+the only one we can annotate. So the marking moved out of the permission model
+and into the pixels.
+
+**What gets marked.** `cardIsProjected(gid)` in bracket.js, on every surface.
+A card is marked when its own result is a pick, OR when a name it is DISPLAYING
+arrived through a tainted feed (`projectionTaint()` walks the feeder graph, with
+a cycle guard for hand-wired topologies).
+
+Both halves of that rule matter:
+- Marking only the picked card is wrong. Nobody misreads the card they just
+  tapped. The misleading one is three rounds later, where a slot that read
+  "Winner of Game 12" now reads a team name.
+- Marking every tainted card is also wrong. A card still showing
+  "Winner of Game 13 / Winner of Game 14" displays nothing anyone could
+  misread, and striping it buries the cards that DO carry a projected name.
+
+**How it is drawn.** A diagonal hatch as a `::before` overlay (`--proj-hatch`,
+one token per palette in base.css) plus a spelled-out `PROJ_LABEL` chip. Both
+deliberately unsubtle — this is the one place where unmissable beats handsome.
+Design constraints behind those choices, so they are not "tidied" away:
+- On the CARD, not as a page banner: a banner is one crop away from gone.
+- A fill, not just a border: a tight crop can miss an edge.
+- The words spelled out, not a glyph or a colour convention: it is read in a
+  photo by someone who does not know this app has a what-if mode. "Projected"
+  alone was rejected — plenty of tournaments legitimately publish projected
+  seedings.
+- An overlay, not a `background-image` on the card: the championship card is a
+  gold gradient and the carousel card paints its own header bar, so anything
+  set on the card is either replaced or painted over.
+- The chip sits at the END OF THE BOTTOM TEAM ROW, in flow. In the header it
+  competed with label + field tag + date/time and the TIME is what got
+  truncated. The bottom row ends in the score column, and a pick never carries
+  a score, so that space is always free.
+
+**The exporter had to be taught the hatch by hand** (`paintProjHatch`). The PNG
+exporter paints ELEMENTS onto a canvas — background colour, borders, text, SVG
+— and knows about neither pseudo-elements nor background images. Left alone it
+would have shipped an UNMARKED bracket while the screen showed a marked one:
+precisely the failure this feature exists to prevent. `--proj-hatch` is a plain
+`rgba()` in every palette for this reason — canvas `fillStyle` parses CSS
+colours but not `color-mix()`.
+
+**Exports now carry picks instead of stripping them.** They used to be zeroed
+out "so nobody screenshots a stranger's hypotheticals". That handed back an
+image not matching the screen, which pushes people off the path we control and
+onto the one we do not. Blank-bracket exports (`withResults` off) still drop
+them — with no results there is nothing for a pick to hang off.
+
+**Still separate:** `_pathProjected` (Team Path's what-if stepper) does not
+render on the Bracket. No longer for containment — because the stepper walks
+ONE team's route and would otherwise scatter picks across a bracket the viewer
+never asked about.
+
+**Two bugs this surfaced:** the mobile carousel painted picked winners in the
+same green as real ones (desktop always distinguished them), and a projected
+champion got the full gold trophy banner. Both are blue + italic + labelled now.
+
+**Save image is still staff-only.** So a public projector can screenshot but not
+export. Flagged to the owner as a one-line change if they want it.
+
 ## Small UI decisions worth not re-litigating (2026-07-29)
 Each of these was a specific owner request; the reasoning is here so a future
 session doesn't "improve" them back.
@@ -2186,10 +2258,14 @@ pages. Phase 0 evaluation is in `EVALUATION.md`.
 node --test api/routes.test.js api/schedule-formats.test.js \
              api/standings.test.js api/schedule-health.test.js
 ```
-— **111 tests** (count it, don't trust this number), no fixtures to set up. List the files; `node --test api/`
+— **112 tests** (count it, don't trust this number), no fixtures to set up. List the files; `node --test api/`
 tries to execute `server.js` as a test and dies on the `/frontend` require.
-Postgres must be reachable or the 71 route tests SKIP rather than fail, which
-reads as green: check the skipped count, not just the failure count.
+Postgres must be reachable or the 72 route tests SKIP rather than fail, which
+reads as green: check the skipped count, not just the failure count. In a
+container running as root, "no usable Postgres" can ALSO mean the `pg` client
+could not work out a user name: start the cluster and run with
+`PGUSER=root PGHOST=/var/run/postgresql npm test` (there is a `root` role).
+`PGUSER=postgres` fails peer auth — the OS user is what peer auth checks.
 - `schedule-formats.test.js` — generators, simulated to completion under
   random result sequences at every format × count. Includes full Swiss
   events (round-by-round pairing) for every field 4–32, and (added with
