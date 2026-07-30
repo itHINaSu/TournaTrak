@@ -727,6 +727,8 @@ async function lineupInit() {
   try {
     var sr      = await fetch(lineupApiBase() + '/session');  // scoped: role/teams are per-tournament
     var session = await sr.json();
+    _coachUsername = session.username || '';
+    _coachHasPassword = !!session.hasPassword;
     document.getElementById('lineupLoading').hidden = true;
 
     if (new URLSearchParams(window.location.search).get('invalid')) {
@@ -907,7 +909,18 @@ function setupCoachAccountBtn(hasPassword) {
   if (title) title.textContent = hasPassword ? 'Change Your Password' : 'Set a Password';
 }
 
+// The signed-in coach, so the password form can show them the username they
+// were given rather than assume they know it.
+var _coachUsername = '';
+var _coachHasPassword = false;
+
 function openCoachPw() {
+  var uEl = document.getElementById('coachPwUsername');
+  var uField = document.getElementById('coachPwUserField');
+  if (uEl) uEl.value = _coachUsername;
+  // Only offered while setting the FIRST password — the server refuses a
+  // rename after that and points at Account settings.
+  if (uField) uField.hidden = _coachHasPassword;
   document.getElementById('coachPwNew1').value = '';
   document.getElementById('coachPwNew2').value = '';
   var errEl = document.getElementById('coachPwError');
@@ -959,10 +972,14 @@ async function saveCoachPw() {
     errEl.hidden = false;
     return;
   }
+  var uEl = document.getElementById('coachPwUsername');
+  var newName = (!_coachHasPassword && uEl) ? uEl.value.trim() : '';
+  var body = { password: p1 };
+  if (newName && newName !== _coachUsername) body.username = newName;
   var r = await fetch(lineupApiBase() + '/change-password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: p1 })
+    body: JSON.stringify(body)
   });
   var data = await r.json().catch(function(){ return {}; });
   if (!r.ok) {
@@ -970,8 +987,10 @@ async function saveCoachPw() {
     errEl.hidden = false;
     return;
   }
+  if (newName) _coachUsername = newName;
+  _coachHasPassword = true;
   setupCoachAccountBtn(true);
-  errEl.textContent = '✓ Password saved — you can now sign in with your username';
+  errEl.textContent = '✓ Saved — sign in as "' + _coachUsername + '" from now on';
   errEl.style.color = 'var(--win-color)';
   errEl.hidden = false;
   setTimeout(function() { document.getElementById('coachPwOverlay').hidden = true; }, 1600);

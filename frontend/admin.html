@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.75">
-<link rel="stylesheet" href="/admin.css?v=3.75">
-<link rel="stylesheet" href="/lineup.css?v=3.75">
-<link rel="stylesheet" href="/builder.css?v=3.75">
-<link rel="stylesheet" href="/score.css?v=3.75">
-<script src="/app-h.js?v=3.75"></script>
+<link rel="stylesheet" href="/base.css?v=3.76">
+<link rel="stylesheet" href="/admin.css?v=3.76">
+<link rel="stylesheet" href="/lineup.css?v=3.76">
+<link rel="stylesheet" href="/builder.css?v=3.76">
+<link rel="stylesheet" href="/score.css?v=3.76">
+<script src="/app-h.js?v=3.76"></script>
 </head>
 <body>
 
@@ -75,9 +75,18 @@
 <!-- Change-password overlay — shown on first login when FORCE_PASSWORD_CHANGE=true -->
 <div class="login-overlay" id="changePasswordOverlay" hidden>
   <div class="login-box">
-    <div class="login-title">Set a New Password</div>
-    <div class="login-desc">Choose a permanent password before continuing. Must be at least 8 characters.</div>
+    <div class="login-title">Set Up Your Account</div>
+    <div class="login-desc">Choose the username and password you'll sign in with from now on.</div>
     <form id="firstLoginForm">
+      <!-- Prefilled with whatever the admin typed when creating the account.
+           That name was for THEIR reference; showing it here is the only
+           moment the person using it finds out what it is — and the only
+           moment they can change it to something they'll remember. -->
+      <div class="sched-field">
+        <label>Username</label>
+        <input type="text" id="cpUsername" autocomplete="username" maxlength="32" placeholder="2–32 characters">
+        <div class="field-hint">This is what you'll type to sign in. Keep it or change it now.</div>
+      </div>
       <div class="sched-field">
         <label>New Password</label>
         <input type="password" id="cpNewPass1" autocomplete="new-password" placeholder="At least 8 characters">
@@ -926,15 +935,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.75"></script>
-<script src="/theme-css.js?v=3.75"></script>
-<script src="/tt-common.js?v=3.75"></script>
-<script src="/bracket-data.js?v=3.75"></script>
-<script src="/admin.js?v=3.75"></script>
-<script src="/lineup.js?v=3.75"></script>
-<script src="/score.js?v=3.75"></script>
-<script src="/builder-form.js?v=3.75"></script>
-<script src="/builder.js?v=3.75"></script>
-<script src="/sw-register.js?v=3.75" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.76"></script>
+<script src="/theme-css.js?v=3.76"></script>
+<script src="/tt-common.js?v=3.76"></script>
+<script src="/bracket-data.js?v=3.76"></script>
+<script src="/admin.js?v=3.76"></script>
+<script src="/lineup.js?v=3.76"></script>
+<script src="/score.js?v=3.76"></script>
+<script src="/builder-form.js?v=3.76"></script>
+<script src="/builder.js?v=3.76"></script>
+<script src="/sw-register.js?v=3.76" data-sw="/admin-sw.js"></script>
 </body>
 </html>

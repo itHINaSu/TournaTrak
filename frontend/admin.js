@@ -8,6 +8,9 @@ var _teamLinks = {};      // team name -> { token, createdAt }, from /api/team-l
 var _teamLinkOpen = null; // team name whose link panel is expanded, if any
 var currentRole = null;
 var currentTeamName = null;
+// Held alongside role/team so the first-login form can rename and the panel
+// can reopen under the new name without reading it back out of the DOM.
+var currentUsername = null;
 var _bucketTeams = [];
 
 // ── Multi-tournament scoping ───────────────────────────────────────────
@@ -1553,6 +1556,7 @@ function applyStickyOffsets() {
 
 function showAdmin(username, role, teamName) {
   resetIOSZoom();
+  if (username) currentUsername = username;
   if (role !== undefined) currentRole = role;
   if (teamName !== undefined) currentTeamName = teamName;
   document.getElementById('loginOverlay').hidden = true;
@@ -1741,6 +1745,10 @@ function showChangePassword() {
   document.getElementById('cpError').hidden = true;
   document.getElementById('cpNewPass1').value = '';
   document.getElementById('cpNewPass2').value = '';
+  // Prefilled, not blank: the point is to SHOW people the name they were given
+  // before asking whether they want to keep it.
+  var uEl = document.getElementById('cpUsername');
+  if (uEl) uEl.value = (currentUsername || '');
 }
 
 async function doLogin(e) {
@@ -1784,7 +1792,7 @@ async function doLogout() {
 
 // Shared helper: validates, POSTs to /api/change-password, calls onSuccess or
 // writes error to errEl. Returns true on success.
-async function submitPasswordChange(p1, p2, errEl, onSuccess) {
+async function submitPasswordChange(p1, p2, errEl, onSuccess, username) {
   errEl.hidden = true;
   if (p1.length < 8) {
     errEl.textContent = 'Password must be at least 8 characters';
@@ -1796,10 +1804,14 @@ async function submitPasswordChange(p1, p2, errEl, onSuccess) {
     errEl.hidden = false;
     return false;
   }
+  var body = { password: p1 };
+  // Only the first-time form sends this; the server rejects it afterwards and
+  // points at Account settings.
+  if (username) body.username = username;
   var r = await apiFetch('/api/change-password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: p1 })
+    body: JSON.stringify(body)
   });
   if (!r) return false;
   if (!r.ok) {
@@ -1817,13 +1829,17 @@ async function doFirstLoginPasswordChange(e) {
   if (e) e.preventDefault();
   var btn = document.getElementById('cpBtn');
   btn.disabled = true;
+  var uEl = document.getElementById('cpUsername');
+  var newName = uEl ? uEl.value.trim() : '';
   var ok = await submitPasswordChange(
     document.getElementById('cpNewPass1').value,
     document.getElementById('cpNewPass2').value,
     document.getElementById('cpError'),
     function() {
-      showAdmin(document.getElementById('accountUsername').textContent, currentRole, currentTeamName);
-    }
+      if (newName) currentUsername = newName;
+      showAdmin(currentUsername, currentRole, currentTeamName);
+    },
+    newName
   );
   if (!ok) btn.disabled = false;
 }

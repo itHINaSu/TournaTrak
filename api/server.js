@@ -588,7 +588,7 @@ api.post('/change-password', ah(async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-  const { password } = req.body || {};
+  const { password, username } = req.body || {};
   if (typeof password !== 'string' || password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
   }
@@ -596,12 +596,38 @@ api.post('/change-password', ah(async (req, res) => {
   if (Buffer.byteLength(password, 'utf8') > 72) {
     return res.status(400).json({ error: 'Password too long (max 72 characters)' });
   }
+  // Setting a password for the first time is the ONE moment a user can also
+  // name themselves. The username an admin typed when creating the account is
+  // a placeholder for their own reference — people set a password off a link
+  // and never learn the name that goes with it, then cannot sign in again.
+  // Coaches included: they are exactly the people this happens to.
+  const firstTime = !!req.user.mustChangePassword || !req.user.passwordHash;
+  let rename = null;
+  if (typeof username === 'string' && username.trim() && username.trim() !== req.user.username) {
+    if (!firstTime) {
+      return res.status(403).json({ error: 'Use Account settings to change your username' });
+    }
+    rename = username.trim();
+    if (!USERNAME_RE.test(rename)) {
+      return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
+    }
+    if (await store.findUser(rename)) {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+  }
   try {
     const hash = await bcrypt.hash(password, 12);
     const updated = await store.updateUser(req.user.username, {
       passwordHash: hash, mustChangePassword: false, setupToken: null,
     });
     if (!updated) return res.status(404).json({ error: 'User not found' });
+    // Rename AFTER the password lands: grants hang off user_id, so the rename
+    // is safe, but doing it second means a failure here leaves a working
+    // account under the old name rather than an account nobody can reach.
+    if (rename) {
+      await store.updateUser(req.user.username, { username: rename });
+      req.session.username = rename;
+    }
     // First-boot recovery file: once any password change succeeds, the
     // generated initial admin password is stale — remove the plaintext.
     try { fs.unlinkSync((process.env.SECRETS_DIR || '/run/tt-secrets') + '/initial_admin_password'); } catch (e) {}

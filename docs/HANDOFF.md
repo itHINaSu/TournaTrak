@@ -120,6 +120,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **First password set can also claim a username** — the placeholder name an admin typed was never shown to the person using it |
 | (this) | **Coach links now carry the tournament's icon and a link preview** (`/lineup` proxied + branded); **installed-app name is settable** (`pwaName`/`pwaShortName`) |
 | (this) | **The public header is server-rendered** — name, subtitle, logo and palette now correct in the FIRST paint; colour maths deduplicated into theme-css.js |
 | (this) | **Admin had no Add Subs / Delete Sub / Reorder / Import** — admin.html was missing the whole lineup tools block that lineup.js looks up by id |
@@ -2522,6 +2523,24 @@ recreate, not just an API restart.
 `tournamentName`). The reason it exists: `short_name` is the label under the
 home-screen icon and gets 12 characters, so "Summer Classic 2026" installed as
 "Summer Class". Existing installs update on their own PWA refresh cycle.
+
+## First password set can also claim a username (2026-07-30)
+Owner: "far too many people create a password and never know their username."
+Exactly right — an admin types a placeholder when creating the account, the
+person sets a password off the link, and the name they were given is never
+shown to them. They can then never sign in again without the link.
+
+So `POST /api/change-password` accepts an optional `username`, applied ONLY
+while `mustChangePassword` is set or no password exists yet. Afterwards it
+403s and points at Account settings. **Coaches (`role: 'team'`) are included
+deliberately** — `/api/change-username` excludes them, but they are precisely
+the people this bites. The rename happens after the password lands, so a
+failure leaves a working account under the old name rather than an
+unreachable one; grants hang off `user_id`, so a rename never orphans them.
+
+Both first-time forms prefill the field with the current name rather than
+leaving it blank: the point is to SHOW people the name they were given before
+asking whether to keep it. Covered by four route tests.
 
 ## The header is SERVER-RENDERED (2026-07-30)
 Navigating admin -> public flashed the stock header — "Tournament Bracket", no

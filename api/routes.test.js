@@ -200,6 +200,88 @@ describe('auth guards', () => {
   });
 });
 
+describe('first password set can also claim a username', () => {
+  // The username an admin types when creating an account is a placeholder for
+  // their own reference. People set a password off a setup link and never learn
+  // the name that goes with it, then cannot sign in again. So the first — and
+  // only the first — password set may also rename the account.
+  async function pendingUser(name, role) {
+    const a = await loginAdmin();
+    const r = await a.post('/api/users', { username: name, role: role || 'results' });
+    assert.equal(r.status, 200, 'create should succeed');
+    const u = agent();
+    const claim = await u.req('GET', '/api/setup-password/' + r.json.setupToken, undefined, { manual: true });
+    assert.equal(claim.status, 302, 'setup link should start a session');
+    return u;
+  }
+
+  rtest('renames the account and moves the login to the new name', async () => {
+    const u = await pendingUser('placeholder_a');
+    const before = await u.get('/api/session');
+    assert.equal(before.json.username, 'placeholder_a');
+    assert.equal(before.json.hasPassword, false);
+
+    const r = await u.post('/api/change-password',
+      { password: 'pitchcount99', username: 'coach_rivera' });
+    assert.equal(r.status, 200);
+
+    const after = await u.get('/api/session');
+    assert.equal(after.json.username, 'coach_rivera', 'session follows the rename');
+    assert.equal(after.json.hasPassword, true);
+
+    const old = agent();
+    assert.equal((await old.post('/api/login',
+      { username: 'placeholder_a', password: 'pitchcount99' })).status, 401,
+      'the placeholder name must stop working');
+    const now = agent();
+    assert.equal((await now.post('/api/login',
+      { username: 'coach_rivera', password: 'pitchcount99' })).status, 200,
+      'the chosen name must work');
+  });
+
+  rtest('refuses a rename once a password already exists', async () => {
+    const u = await pendingUser('placeholder_b');
+    assert.equal((await u.post('/api/change-password', { password: 'firstpass123' })).status, 200);
+    const r = await u.post('/api/change-password',
+      { password: 'secondpass123', username: 'sneaky_rename' });
+    assert.equal(r.status, 403, 'later renames belong in Account settings');
+    // And the whole request is rejected, not half-applied.
+    assert.equal((await u.get('/api/session')).json.username, 'placeholder_b');
+    const still = agent();
+    assert.equal((await still.post('/api/login',
+      { username: 'placeholder_b', password: 'firstpass123' })).status, 200,
+      'the original password must survive a rejected request');
+  });
+
+  rtest('validates the chosen name', async () => {
+    for (const [bad, code] of [['has spaces', 400], ['a', 400], ['x'.repeat(33), 400], ['admin', 409]]) {
+      const u = await pendingUser('ph_' + Math.random().toString(36).slice(2, 8));
+      const r = await u.post('/api/change-password', { password: 'validpass123', username: bad });
+      assert.equal(r.status, code, 'username ' + JSON.stringify(bad) + ' should be rejected');
+      // Rejected outright: no password set either.
+      assert.equal((await u.get('/api/session')).json.hasPassword, false);
+    }
+  });
+
+  rtest('a coach (team role) can claim a username too', async () => {
+    // The people this bug actually bites. Team users arrive by access token
+    // rather than setup link, so drive it the same way the magic link does.
+    const a = await loginAdmin();
+    const mk = await a.post('/api/users',
+      { username: 'team_placeholder', role: 'team', teamName: 'Alpha' });
+    assert.equal(mk.status, 200);
+    const tok = mk.json.accessToken;
+    assert.ok(tok, 'team users get an access token');
+    const u = agent();
+    const claim = await u.req('GET', '/api/team-access/' + tok, undefined, { manual: true });
+    assert.equal(claim.status, 302);
+    const r = await u.post('/api/change-password',
+      { password: 'battingorder7', username: 'coach_lopez' });
+    assert.equal(r.status, 200, 'a coach must be able to name themselves');
+    assert.equal((await u.get('/api/session')).json.username, 'coach_lopez');
+  });
+});
+
 describe('schedule contract', () => {
   rtest('accepts a valid schedule and reads it back', async () => {
     const a = await loginAdmin();
