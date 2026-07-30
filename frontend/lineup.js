@@ -158,7 +158,8 @@ function buildRows(rows, readOnly) {
     } else {
       orderCell = '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>';
     }
-    html += '<tr class="' + rowCls + '"' + (isReorderMode ? ' data-idx="' + i + '"' : '') + '>' + orderCell;
+    html += '<tr class="' + rowCls + '"' + (isReorderMode ? ' data-idx="' + i + '"' : '')
+      + (r.playerId ? ' data-pid="' + esc(r.playerId) + '"' : '') + '>' + orderCell;
     cfg.cols.forEach(function(c, ci) {
       var id = 'lc' + ci + '-' + i;
       if (c.kind === 'pos') {
@@ -192,6 +193,11 @@ function buildRows(rows, readOnly) {
 // help that loses work.
 var _lineupRoster = { team: null, players: [] };
 
+// Which roster player a lineup ROW is lives on the <tr> itself (data-pid),
+// not in a side map keyed by index: Reorder and Import both rebuild the table
+// from getCurrentRows(), splicing the array, and an index-keyed map would
+// quietly reattach every id to the wrong player.
+
 function lineupSetRoster(team, players) {
   _lineupRoster = { team: team, players: players || [] };
   renderRosterDatalist();
@@ -207,8 +213,8 @@ function renderRosterDatalist() {
     document.body.appendChild(dl);
   }
   dl.innerHTML = _lineupRoster.players.map(function(p) {
-    return '<option value="' + esc(p.name || '') + '">'
-      + (p.jersey ? '#' + esc(p.jersey) : '') + '</option>';
+    var js = (p.jerseys || []).map(function(n) { return '#' + n; }).join(' / ');
+    return '<option value="' + esc(p.name || '') + '">' + esc(js) + '</option>';
   }).join('');
 }
 
@@ -227,14 +233,16 @@ async function loadRosterForTeam(team) {
   }
 }
 
-function rosterPlayerByJersey(j) {
+// A player may wear several numbers, and two players may share one. Returns
+// EVERY match, so the caller can tell "found them" from "cannot tell which".
+function rosterPlayersByJersey(j) {
   var key = String(j || '').trim().toLowerCase();
-  if (!key) return null;
-  for (var i = 0; i < _lineupRoster.players.length; i++) {
-    var p = _lineupRoster.players[i];
-    if (String(p.jersey || '').trim().toLowerCase() === key) return p;
-  }
-  return null;
+  if (!key) return [];
+  return _lineupRoster.players.filter(function(p) {
+    return (p.jerseys || []).some(function(n) {
+      return String(n).trim().toLowerCase() === key;
+    });
+  });
 }
 
 // The row a given input belongs to, as an index into the lineup's ids
@@ -247,8 +255,14 @@ function lineupRowIndexOf(el) {
 function onJerseyEntered(input) {
   var idx = lineupRowIndexOf(input);
   if (idx < 0) return;
-  var p = rosterPlayerByJersey(input.value);
-  if (!p) return;
+  var found = rosterPlayersByJersey(input.value);
+  var tr = input.closest ? input.closest('tr') : null;
+  // Exactly one, or not at all. Two players sharing a number is legal on a
+  // roster, and picking one of them here would be a guess presented as a
+  // fact — the coach types the name and the datalist still helps.
+  if (found.length !== 1) { if (tr) delete tr.dataset.pid; return; }
+  var p = found[0];
+  if (tr && p.id) tr.dataset.pid = p.id;
   var cfg = lineupConfig();
   cfg.cols.forEach(function(c, ci) {
     var el = document.getElementById('lc' + ci + '-' + idx);
@@ -489,6 +503,11 @@ function getCurrentRows() {
       var el = document.getElementById('lc' + ci + '-' + i);
       row[c.key] = (c.kind === 'pos' && isSub) ? 'Sub' : (el ? el.value : '');
     });
+    // Carry the roster player this row came from, so a later rename or
+    // number change does not orphan it. Dropped if the row has been blanked.
+    var tr = document.querySelector('#lineupBody tr:nth-child(' + (i + 1) + ')');
+    var pid = tr && tr.dataset ? tr.dataset.pid : '';
+    if (pid && (row.jersey || row.name)) row.playerId = pid;
     rows.push(row);
   }
   return rows;

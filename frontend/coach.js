@@ -113,13 +113,31 @@ async function initCoachPanel() {
   restoreCoachTab();
 }
 
+// Transient status text. The timer is keyed per element and cancelled on each
+// new message: two saves less than three seconds apart used to leave the
+// first one's timer to wipe the second one's confirmation, so a save that
+// worked looked like a save that did nothing.
+var _statusTimers = {};
+function setStatus(id, text, transient) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  if (_statusTimers[id]) { clearTimeout(_statusTimers[id]); delete _statusTimers[id]; }
+  el.textContent = text;
+  if (transient && text) {
+    _statusTimers[id] = setTimeout(function () {
+      delete _statusTimers[id];
+      if (el.textContent === text) el.textContent = '';
+    }, 3000);
+  }
+}
+
 // ── Roster ────────────────────────────────────────────────────────────
 // The squad, in no particular order. Deliberately NOT a lineup: no batting
 // order, no game, no lock once a game is final. Its payoff is in the Lineups
 // tab, where typing a number fills in the player.
 
 var _rosterTeam = null;      // whose roster is on screen
-var _rosterRows = [];        // [{jersey,name,position}] — the editing buffer
+var _rosterRows = [];        // [{id,jerseys[],name,position}] — the editing buffer
 var ROSTER_BLANKS = 3;       // empty rows to type into
 
 function rosterTeams() {
@@ -144,17 +162,32 @@ function rosterPosOptions(selected) {
   }).join('');
 }
 
+// One player may wear several numbers, so the cell holds a LIST. Comma is the
+// separator people reach for; whitespace is accepted too because a phone
+// keyboard makes commas a trip to the symbol layer.
+function jerseysToText(js) {
+  return (js || []).join(', ');
+}
+function jerseysFromText(t) {
+  return String(t || '').split(/[,\s]+/).filter(Boolean);
+}
+
 function renderRoster() {
   var body = document.getElementById('rosterBody');
   if (!body) return;
   var html = '';
+  var dup = duplicateJerseys();
   for (var i = 0; i < _rosterRows.length; i++) {
     var r = _rosterRows[i] || {};
     var opts = rosterPosOptions(r.position);
+    var mine = r.jerseys || [];
+    var clash = mine.some(function (j) { return dup[String(j).toLowerCase()]; });
     html += '<tr class="lineup-row">'
       + '<td class="lineup-td-num">'
-      +   '<input type="text" class="lineup-inp lineup-inp--num" id="rj-' + i + '" '
-      +     'inputmode="numeric" maxlength="4" placeholder="#" value="' + esc(r.jersey || '') + '">'
+      +   '<input type="text" class="lineup-inp lineup-inp--num roster-jerseys'
+      +     (clash ? ' roster-jerseys--dup' : '') + '" id="rj-' + i + '" '
+      +     (clash ? 'title="Another player also wears this number — a lineup will not autofill from it" ' : '')
+      +     'maxlength="40" placeholder="7, 21" value="' + esc(jerseysToText(mine)) + '">'
       + '</td>'
       + '<td class="lineup-td-name">'
       +   '<input type="text" class="lineup-inp lineup-inp--name" id="rn-' + i + '" '
@@ -172,6 +205,7 @@ function renderRoster() {
       + '</tr>';
   }
   body.innerHTML = html;
+  updateRosterDupNote();
 }
 
 // Read the inputs back into the buffer. Called before anything that
@@ -182,21 +216,56 @@ function harvestRoster() {
     var n = document.getElementById('rn-' + i);
     var p = document.getElementById('rp-' + i);
     if (!j && !n && !p) continue;
+    var prev = _rosterRows[i] || {};
     _rosterRows[i] = {
-      jersey:   j ? j.value : '',
+      // The id is never edited, only carried. Losing it here would turn every
+      // save into "delete this player, create a new one who happens to look
+      // the same", which is exactly what the id exists to prevent.
+      id:       prev.id,
+      jerseys:  j ? jerseysFromText(j.value) : (prev.jerseys || []),
       name:     n ? n.value : '',
       position: p ? p.value : '',
     };
   }
 }
 
+// Numbers worn by MORE THAN ONE player. Allowed — a home and an away set
+// rarely agree — but worth flagging, because a lineup cannot autofill from an
+// ambiguous number and a coach should find that out here rather than there.
+function duplicateJerseys() {
+  var count = {}, dup = {};
+  _rosterRows.forEach(function (p) {
+    var seen = {};
+    (p.jerseys || []).forEach(function (j) {
+      var k = String(j).toLowerCase();
+      if (!k || seen[k]) return;       // one player repeating a number is a typo, not a clash
+      seen[k] = true;
+      count[k] = (count[k] || 0) + 1;
+      if (count[k] > 1) dup[k] = true;
+    });
+  });
+  return dup;
+}
+
+// Say it in words as well as colour — the tint alone does not survive a
+// colour-blind reader or a phone in sunlight.
+function updateRosterDupNote() {
+  var note = document.getElementById('rosterDupNote');
+  if (!note) return;
+  var dup = Object.keys(duplicateJerseys());
+  if (!dup.length) { note.hidden = true; return; }
+  note.hidden = false;
+  note.textContent = 'Shared by more than one player: #' + dup.join(', #')
+    + '. That is fine to save — but a lineup will not fill a player in from a shared number.';
+}
+
 function addRosterRow() {
   harvestRoster();
   if (_rosterRows.length >= 40) {
-    document.getElementById('rosterStatus').textContent = 'Maximum 40 players';
+    setStatus('rosterStatus', 'Maximum 40 players', true);
     return;
   }
-  _rosterRows.push({ jersey: '', name: '', position: '' });
+  _rosterRows.push({ jerseys: [], name: '', position: '' });
   renderRoster();
   var el = document.getElementById('rj-' + (_rosterRows.length - 1));
   if (el) el.focus();
@@ -205,13 +274,12 @@ function addRosterRow() {
 function deleteRosterRow(idx) {
   harvestRoster();
   _rosterRows.splice(Number(idx), 1);
-  if (!_rosterRows.length) _rosterRows.push({ jersey: '', name: '', position: '' });
+  if (!_rosterRows.length) _rosterRows.push({ jerseys: [], name: '', position: '' });
   renderRoster();
 }
 
 async function loadRoster(team) {
-  var status = document.getElementById('rosterStatus');
-  if (status) status.textContent = '';
+  setStatus('rosterStatus', '');
   _rosterTeam = team;
   _rosterRows = [];
   if (!team) { renderRoster(); return; }
@@ -221,17 +289,16 @@ async function loadRoster(team) {
   _rosterRows = (data && data.players) ? data.players.slice() : [];
   // Always leave somewhere to type. A roster that opens with no visible row
   // reads as broken rather than empty.
-  for (var i = 0; i < ROSTER_BLANKS; i++) _rosterRows.push({ jersey: '', name: '', position: '' });
+  for (var i = 0; i < ROSTER_BLANKS; i++) _rosterRows.push({ jerseys: [], name: '', position: '' });
   renderRoster();
 }
 
 async function saveRoster() {
   harvestRoster();
-  var status = document.getElementById('rosterStatus');
-  status.textContent = '';
-  if (!_rosterTeam) { status.textContent = 'No team selected'; return; }
+  setStatus('rosterStatus', '');
+  if (!_rosterTeam) { setStatus('rosterStatus', 'No team selected', true); return; }
   var players = _rosterRows.filter(function (p) {
-    return (p.jersey || '').trim() || (p.name || '').trim();
+    return (p.jerseys && p.jerseys.length) || (p.name || '').trim();
   });
   var r = await fetch(coachApiBase() + '/roster/' + encodeURIComponent(_rosterTeam), {
     method: 'POST',
@@ -239,17 +306,16 @@ async function saveRoster() {
     body: JSON.stringify({ players: players }),
   });
   var data = await r.json().catch(function () { return {}; });
-  if (!r.ok) { status.textContent = data.error || 'Could not save'; return; }
+  if (!r.ok) { setStatus('rosterStatus', data.error || 'Could not save', true); return; }
   // Redraw from what the server actually stored — it trims and drops blanks,
   // and showing anything else would make the next save look like a change.
   _rosterRows = (data.players || []).slice();
-  for (var i = 0; i < ROSTER_BLANKS; i++) _rosterRows.push({ jersey: '', name: '', position: '' });
+  for (var i = 0; i < ROSTER_BLANKS; i++) _rosterRows.push({ jerseys: [], name: '', position: '' });
   renderRoster();
-  status.textContent = '✓ Saved';
+  setStatus('rosterStatus', '\u2713 Saved', true);
   showToast('Roster saved');
   // The Lineups tab autofills from this, so hand it the fresh copy.
   if (typeof lineupSetRoster === 'function') lineupSetRoster(_rosterTeam, data.players || []);
-  setTimeout(function () { status.textContent = ''; }, 3000);
 }
 
 async function initRosterTab() {
@@ -271,42 +337,38 @@ async function initRosterTab() {
 // ── Account ───────────────────────────────────────────────────────────
 async function saveCoachUsername() {
   var el = document.getElementById('coachSetUsername');
-  var status = document.getElementById('coachUsernameStatus');
   var name = (el.value || '').trim();
-  status.textContent = '';
-  if (!name) { status.textContent = 'Username cannot be blank'; return; }
+  setStatus('coachUsernameStatus', '');
+  if (!name) { setStatus('coachUsernameStatus', 'Username cannot be blank', true); return; }
   var r = await fetch(coachApiBase() + '/change-username', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: name }),
   });
   var data = await r.json().catch(function () { return {}; });
-  if (!r.ok) { status.textContent = data.error || 'Could not save'; return; }
-  status.textContent = '✓ Saved';
+  if (!r.ok) { setStatus('coachUsernameStatus', data.error || 'Could not save', true); return; }
+  setStatus('coachUsernameStatus', '\u2713 Saved', true);
   document.getElementById('coachAccountUser').textContent = name;
   showToast('Username updated');
-  setTimeout(function () { status.textContent = ''; }, 3000);
 }
 
 async function saveCoachPassword() {
   var p1 = document.getElementById('coachSetPass1').value;
   var p2 = document.getElementById('coachSetPass2').value;
-  var status = document.getElementById('coachPasswordStatus');
-  status.textContent = '';
-  if (p1.length < 8) { status.textContent = 'At least 8 characters'; return; }
-  if (p1 !== p2)     { status.textContent = 'Passwords do not match'; return; }
+  setStatus('coachPasswordStatus', '');
+  if (p1.length < 8) { setStatus('coachPasswordStatus', 'At least 8 characters', true); return; }
+  if (p1 !== p2)     { setStatus('coachPasswordStatus', 'Passwords do not match', true); return; }
   var r = await fetch(coachApiBase() + '/change-password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password: p1 }),
   });
   var data = await r.json().catch(function () { return {}; });
-  if (!r.ok) { status.textContent = data.error || 'Could not save'; return; }
+  if (!r.ok) { setStatus('coachPasswordStatus', data.error || 'Could not save', true); return; }
   document.getElementById('coachSetPass1').value = '';
   document.getElementById('coachSetPass2').value = '';
-  status.textContent = '✓ Saved';
+  setStatus('coachPasswordStatus', '\u2713 Saved', true);
   showToast('Password updated');
-  setTimeout(function () { status.textContent = ''; }, 3000);
 }
 
 async function coachLogout() {

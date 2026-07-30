@@ -937,7 +937,10 @@ describe('lineup access and rules', () => {
 describe('rosters', () => {
   // A roster is the SQUAD; a lineup is a batting order drawn from it. The
   // access rules are the lineup's, so the interesting cases are the ones
-  // where a roster deliberately behaves DIFFERENTLY from a lineup.
+  // where a roster deliberately behaves DIFFERENTLY from a lineup — and the
+  // player identity, which has to survive everything a coach types.
+  const PID = /^p_[0-9a-f]{12}$/;
+
   async function coachFor(a, username, team) {
     const r = await a.post('/api/users', { username, role: 'team', teamName: team });
     assert.ok(r.status === 200 || r.status === 409, 'coach created: ' + JSON.stringify(r.json));
@@ -956,44 +959,116 @@ describe('rosters', () => {
       'an unset roster is empty, not missing');
 
     const save = await c.post('/api/roster/Alpha', { players: [
-      { jersey: '7',  name: 'Alex Rivera', position: 'SS' },
-      { jersey: '12', name: 'Sam Cruz',    position: 'P'  },
-      { jersey: '',   name: '' },                    // a blank editor row
+      { jerseys: '7',  name: 'Alex Rivera', position: 'SS' },
+      { jerseys: '12', name: 'Sam Cruz',    position: 'P'  },
+      { jerseys: '',   name: '' },                    // a blank editor row
     ]});
     assert.equal(save.status, 200);
     assert.equal(save.json.players.length, 2, 'blank rows are dropped, not rejected');
+    save.json.players.forEach(p => assert.match(p.id, PID, 'every player gets a hidden id'));
 
-    const back = await c.get('/api/roster/Alpha');
-    assert.deepEqual(back.json.players, [
-      { jersey: '7',  name: 'Alex Rivera', position: 'SS' },
-      { jersey: '12', name: 'Sam Cruz',    position: 'P'  },
-    ]);
+    const back = (await c.get('/api/roster/Alpha')).json.players;
+    assert.equal(back[0].name, 'Alex Rivera');
+    assert.deepEqual(back[0].jerseys, ['7']);
+    assert.equal(back[0].position, 'SS');
   });
 
-  rtest('duplicate jersey numbers are refused', async () => {
+  rtest('one player may wear several numbers', async () => {
+    // Owner: "some players have different numbers pending what jersey is
+    // worn." Accept a list or the comma/space text the editor sends.
     const a = await loginAdmin();
     await a.post('/api/schedule', MINI);
-    const c = await coachFor(a, 'roster-coach-dup', 'Alpha');
-    // Tests share one tournament, so capture what is actually there rather
-    // than assuming empty — the point is that a rejected save changes NOTHING.
-    const before = (await c.get('/api/roster/Alpha')).json.players;
-    // The lineup autofill looks players up BY number, so two #7s make it
-    // ambiguous — this is the one roster rule worth blocking a save for.
+    const c = await coachFor(a, 'roster-coach-multi', 'Alpha');
     const r = await c.post('/api/roster/Alpha', { players: [
-      { jersey: '7', name: 'One' }, { jersey: '7', name: 'Two' },
+      { name: 'Two Shirts',  jerseys: ['7', '21'] },
+      { name: 'Typed',       jerseys: '3, 14' },
+      { name: 'Spaced',      jerseys: '5 8' },
+      { name: 'Repeats',     jerseys: '9, 9' },
     ]});
-    assert.equal(r.status, 400);
-    assert.match(r.json.error, /#7/, 'the message names the clashing number');
-    assert.deepEqual((await c.get('/api/roster/Alpha')).json.players, before,
-      'a rejected save writes nothing');
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.json.players[0].jerseys, ['7', '21']);
+    assert.deepEqual(r.json.players[1].jerseys, ['3', '14'], 'commas split');
+    assert.deepEqual(r.json.players[2].jerseys, ['5', '8'], 'whitespace splits too');
+    assert.deepEqual(r.json.players[3].jerseys, ['9'],
+      'a number repeated by ONE player is a typo, deduped silently');
+  });
+
+  rtest('two players may share a number', async () => {
+    // This used to be a 400. It is legal: a home set and an away set rarely
+    // agree, so A's home #7 can be B's away #7. The lineup declines to
+    // autofill from an ambiguous number instead — see the browser spec.
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const c = await coachFor(a, 'roster-coach-share', 'Alpha');
+    const r = await c.post('/api/roster/Alpha', { players: [
+      { name: 'One', jerseys: '7' },
+      { name: 'Two', jerseys: '7' },
+    ]});
+    assert.equal(r.status, 200, 'a shared number saves: ' + JSON.stringify(r.json));
+    assert.equal(r.json.players.length, 2);
+    assert.notEqual(r.json.players[0].id, r.json.players[1].id, 'they stay separate people');
+  });
+
+  rtest('a player id survives a rename and a renumber', async () => {
+    // The whole reason ids exist: neither the name nor the number is stable,
+    // so neither can be the identity.
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const c = await coachFor(a, 'roster-coach-id', 'Alpha');
+    const made = await c.post('/api/roster/Alpha',
+      { players: [{ name: 'Mispelt', jerseys: '7' }] });
+    const id = made.json.players[0].id;
+    assert.match(id, PID);
+
+    const edited = await c.post('/api/roster/Alpha',
+      { players: [{ id, name: 'Misspelt', jerseys: '21, 7' }] });
+    assert.equal(edited.json.players[0].id, id, 'same person after both changes');
+    assert.equal(edited.json.players[0].name, 'Misspelt');
+    assert.deepEqual(edited.json.players[0].jerseys, ['21', '7']);
+  });
+
+  rtest('an id that is not already on this roster is not adopted', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const c = await coachFor(a, 'roster-coach-forge', 'Alpha');
+    // A well-formed but unknown id, and a duplicate of a real one, must both
+    // mint fresh ids rather than silently taking over an identity.
+    const seed = await c.post('/api/roster/Alpha', { players: [{ name: 'Real', jerseys: '1' }] });
+    const real = seed.json.players[0].id;
+    const r = await c.post('/api/roster/Alpha', { players: [
+      { id: real,             name: 'Real',     jerseys: '1' },
+      { id: 'p_ffffffffffff', name: 'Unknown',  jerseys: '2' },
+      { id: real,             name: 'Copycat',  jerseys: '3' },
+      { id: 'not-an-id',      name: 'Garbage',  jerseys: '4' },
+    ]});
+    assert.equal(r.status, 200);
+    const ids = r.json.players.map(p => p.id);
+    assert.equal(ids[0], real, 'the genuine one keeps its id');
+    assert.notEqual(ids[1], 'p_ffffffffffff', 'an unknown id is replaced');
+    assert.notEqual(ids[2], real, 'a duplicate does not steal the identity');
+    ids.forEach(id => assert.match(id, PID));
+    assert.equal(new Set(ids).size, 4, 'all four end up distinct');
+  });
+
+  rtest('rosters saved before ids and multi-numbers still read', async () => {
+    // Old shape: { jersey: '7', name, position }. Migrated on READ so a
+    // tournament mid-event does not lose its squad to a deploy.
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const r = await a.post('/api/roster/Beta',
+      { players: [{ jersey: '11', name: 'Legacy Player', position: 'C' }] });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.json.players[0].jerseys, ['11'], 'the single number is carried over');
+    assert.match(r.json.players[0].id, PID, 'and it gains an id');
+    assert.equal(r.json.players[0].name, 'Legacy Player');
   });
 
   rtest('a coach cannot touch another team\'s roster', async () => {
     const a = await loginAdmin();
     await a.post('/api/schedule', MINI);
     const c = await coachFor(a, 'roster-coach-b', 'Alpha');
-    assert.equal((await c.get('/api/roster/Beta')).status, 403);
-    assert.equal((await c.post('/api/roster/Beta', { players: [{ jersey: '1', name: 'X' }] })).status, 403);
+    assert.equal((await c.get('/api/roster/Gamma')).status, 403);
+    assert.equal((await c.post('/api/roster/Gamma', { players: [{ jerseys: '1', name: 'X' }] })).status, 403);
   });
 
   rtest('anonymous callers get nothing', async () => {
@@ -1006,7 +1081,7 @@ describe('rosters', () => {
     const a = await loginAdmin();
     await a.post('/api/schedule', MINI);
     assert.equal((await a.post('/api/roster/Delta',
-      { players: [{ jersey: '4', name: 'Phoned In' }] })).status, 200);
+      { players: [{ jerseys: '4', name: 'Phoned In' }] })).status, 200);
     assert.equal((await a.get('/api/roster/Delta')).json.players[0].name, 'Phoned In');
   });
 
@@ -1018,14 +1093,14 @@ describe('rosters', () => {
     await a.post('/api/schedule', MINI);
     const c = await coachFor(a, 'roster-coach-late', 'Alpha');
     assert.equal((await c.post('/api/roster/Alpha',
-      { players: [{ jersey: '9', name: 'Mispelt' }] })).status, 200);
+      { players: [{ jerseys: '9', name: 'Mispelt' }] })).status, 200);
     assert.equal((await a.post('/api/results',
       { game: 'R1.L.1', winner: 'Alpha', loser: 'Beta' })).status, 200);
     // The lineup is now locked...
     assert.equal((await c.post('/api/lineups/game/R1.L.1/Alpha',
       { rows: [{ jersey: '9', name: 'Mispelt' }] })).status, 403);
     // ...but the roster is not.
-    const r = await c.post('/api/roster/Alpha', { players: [{ jersey: '9', name: 'Misspelt' }] });
+    const r = await c.post('/api/roster/Alpha', { players: [{ jerseys: '9', name: 'Misspelt' }] });
     assert.equal(r.status, 200, 'the roster stays editable after a result');
     assert.equal(r.json.players[0].name, 'Misspelt');
   });
@@ -1034,17 +1109,56 @@ describe('rosters', () => {
     const a = await loginAdmin();
     await a.post('/api/schedule', MINI);
     assert.equal((await a.post('/api/roster/Gamma',
-      { players: [{ jersey: '1', name: 'Solo' }] })).status, 200);
+      { players: [{ jerseys: '1', name: 'Solo' }] })).status, 200);
     assert.equal((await a.post('/api/roster/Gamma', { players: [] })).status, 200);
     assert.deepEqual((await a.get('/api/roster/Gamma')).json, { players: [] });
   });
 
-  rtest('rejects a non-array and an oversized squad', async () => {
+  rtest('rejects a non-array, an oversized squad and too many numbers', async () => {
     const a = await loginAdmin();
     await a.post('/api/schedule', MINI);
     assert.equal((await a.post('/api/roster/Alpha', { players: 'nope' })).status, 400);
-    const many = Array.from({ length: 41 }, (_, i) => ({ jersey: String(i + 1), name: 'P' + i }));
+    const many = Array.from({ length: 41 }, (_, i) => ({ jerseys: String(i + 1), name: 'P' + i }));
     assert.equal((await a.post('/api/roster/Alpha', { players: many })).status, 400);
+    // Numbers per player are capped by truncation, not by an error — a coach
+    // pasting junk into the cell should not lose the player.
+    const r = await a.post('/api/roster/Delta',
+      { players: [{ name: 'Hoarder', jerseys: '1,2,3,4,5,6,7,8,9' }] });
+    assert.equal(r.status, 200);
+    assert.equal(r.json.players[0].jerseys.length, 6, 'capped at six numbers');
+  });
+
+  rtest('a lineup row remembers which roster player it was', async () => {
+    // The durability the id buys: rename the player afterwards and the saved
+    // row still points at them, while its TEXT stays what was on the card.
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.del('/api/results/R1.L.1');
+    const made = await a.post('/api/roster/Alpha',
+      { players: [{ name: 'Before', jerseys: '7' }] });
+    const id = made.json.players[0].id;
+
+    assert.equal((await a.post('/api/lineups/game/R1.L.1/Alpha', { rows: [
+      { jersey: '7', name: 'Before', position: 'SS', playerId: id },
+    ]})).status, 200);
+    await a.post('/api/roster/Alpha', { players: [{ id, name: 'After', jerseys: '21' }] });
+
+    const row = (await a.get('/api/lineups/game/R1.L.1/Alpha')).json.rows[0];
+    assert.equal(row.playerId, id, 'the row still names the player');
+    assert.equal(row.name, 'Before', 'and still records what was written that day');
+  });
+
+  rtest('a bogus playerId on a lineup row is dropped, not stored', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    await a.del('/api/results/R1.L.1');
+    assert.equal((await a.post('/api/lineups/game/R1.L.1/Alpha', { rows: [
+      { jersey: '1', name: 'Typed by hand' },
+      { jersey: '2', name: 'Junk id', playerId: '<script>' },
+    ]})).status, 200);
+    const rows = (await a.get('/api/lineups/game/R1.L.1/Alpha')).json.rows;
+    assert.equal(rows[0].playerId, undefined, 'a hand-typed row carries none');
+    assert.equal(rows[1].playerId, undefined, 'a malformed one is dropped');
   });
 });
 

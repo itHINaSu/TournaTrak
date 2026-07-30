@@ -428,6 +428,26 @@
   .lineup-td-order--reorder { min-width: 2.75rem; }
 }
 
+/* ── Roster: numbers column ────────────────────────────────────────────
+   Wider than a lineup's # cell because it holds a LIST — a player who wears
+   different numbers in the home and away sets carries both. */
+.lineup-th--nums { text-align: left; white-space: nowrap; }
+.roster-jerseys  { text-align: left; min-width: 5.5rem; }
+
+/* Two PLAYERS sharing a number is allowed and saves fine; it only means a
+   lineup cannot autofill from that number. So this is a hint, not an error
+   state — amber rather than red, and never blocking. */
+.roster-jerseys--dup {
+  border-color: var(--warn, #b8860b);
+  background: var(--warn-bg, rgba(184, 134, 11, 0.1));
+}
+.roster-dup-note {
+  color: var(--text-dim);
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  margin: 0.6rem 0 0;
+}
+
 /* ── Roster row remove button ──────────────────────────────────────────
    Sits in the order column, which the roster has no other use for (a squad
    list has no batting order). Deliberately quiet until hovered: it deletes a

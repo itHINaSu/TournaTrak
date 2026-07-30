@@ -2556,13 +2556,45 @@ the entire design, and the differences are deliberate, not oversights:
 
 A roster does NOT lock after a result: a squad list is not the record of what
 was played, and a coach fixing a spelling after the last game should not be
-refused. Only one rule blocks a save — **duplicate jersey numbers**, because
-the lineup autofill looks players up by number and two #7s make it ambiguous.
+refused. **Nothing blocks a save** except malformed input — see the numbers
+section below, which is the part most likely to be "fixed" back into a bug.
 
 `GET|POST /roster/:teamName`, guarded by `requireLineupAccess`, so the rules
 are the ones coaches already have (own team only; staff see everyone; a team
 link counts as that team). Blank editor rows are dropped on save rather than
 rejected, and an emptied roster is deleted rather than stored as `[]`.
+
+#### Players have a hidden id, and numbers are NOT unique
+Owner, 2026-07-30: *"some players have different numbers pending what jersey is
+worn"*, and *"players should also get a unique hidden id and modifications to
+players name, and number don't break the app."* Both rules follow from that:
+
+- **A player carries a LIST of numbers** — `jerseys: ['7','21']`, not `jersey`.
+  A home set and an away set rarely agree, and one number per player made a
+  coach choose which half of the season to be wrong about. The editor sends
+  comma- or space-separated text; the server accepts an array or that text.
+  Capped at 6 by truncation, not by an error — a coach pasting junk into the
+  cell should not lose the player.
+- **Two players may share a number.** This was briefly a 400 and that was
+  wrong: A's home #7 can be B's away #7. The roster tab warns (amber tint plus
+  a sentence naming the number) and saves anyway.
+- **Autofill declines to guess.** A number matching exactly one player fills
+  the row; a number matching two fills nothing and claims no id. Picking one
+  would be a guess presented as a fact.
+- **`id` is the identity, `p_<12 hex>`**, same shape and reasoning as team ids:
+  the name and the number are what people type, change and mistype, so neither
+  can be the identity. Minted on first read, and **ids are only honoured if
+  already on that roster** — an unknown, forged or duplicated id mints a fresh
+  one rather than silently adopting an identity.
+- Old `{jersey, name, position}` rosters are **migrated on READ** and written
+  back once, so a tournament mid-event does not lose its squad to a deploy.
+
+A lineup row may carry an optional **`playerId`**. The row's TEXT stays the
+record of what was written on the card that day — it must never change under a
+coach later — while the id keeps the row attached to a real person through a
+rename or a jersey swap. It lives on the `<tr>` as `data-pid`, **not** in a map
+keyed by row index: Reorder and Import both splice the rows array and rebuild,
+so an index-keyed map would quietly reattach every id to the wrong player.
 
 Storage is the `rosters` **config domain** — one JSON blob per tournament,
 `{ teamName: [{jersey,name,position}] }`. **Adding a config domain needs TWO
@@ -2579,6 +2611,12 @@ matches first — and it only ever fills a **blank** name, because overwriting
 something a coach deliberately typed is the kind of help that loses work. A
 403 there is normal and ignored: autofill is a convenience and must never
 disturb the lineup itself.
+
+One more thing worth not reintroducing: transient status text in the coach
+panel goes through `setStatus(id, text, transient)`, which **cancels the
+previous element's clear-timer**. Two saves less than three seconds apart used
+to leave the first one's `setTimeout` to wipe the second one's confirmation, so
+a save that worked looked like a save that did nothing.
 
 ## /admin and /coach are PROXIED, not served from disk (2026-07-30)
 Both panels used to be `try_files`d straight off disk, which made them the only

@@ -2216,13 +2216,22 @@ api.post('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, 
     const issues = lineupRowIssues(rows, settings);
     if (issues.length) return res.status(400).json({ error: lineupIssueMessage(issues) });
   }
-  const clean = rows.slice(0, 20).map(r => ({
-    jersey:   String(r.jersey   || '').slice(0, 8),
-    name:     String(r.name     || '').slice(0, 64),
-    position: String(r.position || '').slice(0, 12),
-    // 4th column for custom lineup layouts; unused by the built-in presets.
-    extra:    String(r.extra    || '').slice(0, 32),
-  }));
+  const clean = rows.slice(0, 20).map(r => {
+    const out = {
+      jersey:   String(r.jersey   || '').slice(0, 8),
+      name:     String(r.name     || '').slice(0, 64),
+      position: String(r.position || '').slice(0, 12),
+      // 4th column for custom lineup layouts; unused by the built-in presets.
+      extra:    String(r.extra    || '').slice(0, 32),
+    };
+    // Which roster player this row IS, when it came from one. The text stays
+    // the record of what was written on the card that day — it must not
+    // change under a coach later — while the id keeps the row attached to a
+    // real person through a rename or a jersey swap. Optional by design: a
+    // row typed by hand, or for a guest who is not on the roster, has none.
+    if (PLAYER_ID_RE.test(r.playerId || '')) out.playerId = r.playerId;
+    return out;
+  });
   const lineups = await store.get(req.tid, 'lineups');
   if (!lineups[slotId]) lineups[slotId] = {};
   const isFirst = !lineups[slotId][teamName];
@@ -2261,11 +2270,80 @@ api.post('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, 
 // not the record of what was played, and a coach fixing a spelling after the
 // last game should not be refused.
 const ROSTER_MAX = 40;
+const JERSEYS_MAX = 6;          // numbers one player may carry
+
+// ── Player identity ───────────────────────────────────────────────────
+// The same reasoning as team ids: the NAME and the NUMBER are what people
+// type, change and mistype, so neither can be the identity. A player gets a
+// hidden id at creation and keeps it through every rename and number change,
+// which is what lets a saved lineup still point at a real person after a
+// coach fixes a spelling or a squad swaps jersey sets mid-season.
+const PLAYER_ID_RE = /^p_[0-9a-f]{12}$/;
+function newPlayerId() { return 'p_' + crypto.randomBytes(6).toString('hex'); }
+
+// One player, several numbers. Owner: "some players have different numbers
+// pending what jersey is worn" — a home set and an away set rarely agree, and
+// forcing one number per player made a coach choose which half of the season
+// to be wrong about. Numbers are therefore NOT unique across a roster either:
+// player A's home #7 is perfectly able to be player B's away #7.
+function cleanJerseys(v) {
+  var list;
+  if (Array.isArray(v)) list = v;
+  // A single string is the editor's format (and the old one-number shape):
+  // split on commas or whitespace so "7, 21" and "7 21" both work.
+  else if (typeof v === 'string') list = v.split(/[,\s]+/);
+  else list = [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of list) {
+    const j = String(raw == null ? '' : raw)
+      .replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 8);
+    if (!j) continue;
+    const k = j.toLowerCase();
+    // Within ONE player a repeat is just a typo — dedupe silently rather
+    // than making someone hunt for it.
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(j);
+    if (out.length >= JERSEYS_MAX) break;
+  }
+  return out;
+}
+
+function normalizePlayer(p) {
+  // `jersey` (singular) is the pre-multi-number shape. Read it so rosters
+  // saved before this change keep working, and so a client that still sends
+  // it is understood rather than silently losing the number.
+  const jerseys = cleanJerseys(
+    p.jerseys !== undefined && p.jerseys !== null ? p.jerseys : p.jersey);
+  return {
+    id: PLAYER_ID_RE.test(p.id || '') ? p.id : newPlayerId(),
+    name: String(p.name || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 64),
+    jerseys,
+    position: String(p.position || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 12),
+  };
+}
+
+// Read side: migrate whatever is stored into the current shape, and persist
+// the minted ids once so an id is stable from the first read onward. Writing
+// only when something actually changed keeps this from churning the row on
+// every request.
+async function playerRosterFor(tid, teamName) {
+  const rosters = await store.get(tid, 'rosters');
+  const stored = Array.isArray(rosters[teamName]) ? rosters[teamName] : [];
+  if (!stored.length) return [];
+  const players = stored.map(normalizePlayer);
+  const changed = JSON.stringify(players) !== JSON.stringify(stored);
+  if (changed) {
+    rosters[teamName] = players;
+    await store.put(tid, 'rosters', rosters);
+  }
+  return players;
+}
 
 api.get('/roster/:teamName', requireLineupAccess, ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
-  const rosters = await store.get(req.tid, 'rosters');
-  res.json({ players: (rosters[req.params.teamName] || []) });
+  res.json({ players: await playerRosterFor(req.tid, req.params.teamName) });
 }));
 
 api.post('/roster/:teamName', requireLineupAccess, ah(async (req, res) => {
@@ -2276,25 +2354,24 @@ api.post('/roster/:teamName', requireLineupAccess, ah(async (req, res) => {
   if (players.length > ROSTER_MAX) {
     return res.status(400).json({ error: `Maximum ${ROSTER_MAX} players` });
   }
+
+  const existing = await playerRosterFor(req.tid, teamName);
+  const byId = new Map(existing.map(p => [p.id, p]));
+  const usedIds = new Set();
+
   // Drop blank rows rather than rejecting them: the editor always renders a
   // few empty rows to type into, and making a coach clear them before saving
   // would be a rule invented by the form rather than by the sport.
-  const clean = players.map(p => ({
-    jersey:   String(p.jersey   || '').slice(0, 8).trim(),
-    name:     String(p.name     || '').slice(0, 64).trim(),
-    position: String(p.position || '').slice(0, 12).trim(),
-  })).filter(p => p.jersey || p.name);
-
-  // A duplicate number is the one error worth blocking on: the lineup
-  // autofill looks players up BY number, so two #7s make it ambiguous.
-  const seen = new Set();
-  for (const p of clean) {
-    if (!p.jersey) continue;
-    const k = p.jersey.toLowerCase();
-    if (seen.has(k)) {
-      return res.status(400).json({ error: 'Two players share #' + p.jersey + ' — numbers must be unique' });
-    }
-    seen.add(k);
+  const clean = [];
+  for (const raw of players) {
+    const p = normalizePlayer(raw || {});
+    if (!p.jerseys.length && !p.name) continue;
+    // Keep the id the client sent ONLY if it names a player already on this
+    // roster. Anything else — a stale id, an id copied from another team, a
+    // guess — gets a fresh one rather than silently adopting an identity.
+    if (!byId.has(p.id) || usedIds.has(p.id)) p.id = newPlayerId();
+    usedIds.add(p.id);
+    clean.push(p);
   }
 
   const rosters = await store.get(req.tid, 'rosters');
