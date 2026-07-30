@@ -1152,6 +1152,36 @@ describe('push notifications', () => {
     assert.equal((await a.post('/api/push/prefs', { notifyLineups: 'yes' })).status, 400);
   });
 
+  rtest('staff off DETACHES a shared row instead of deleting it', async () => {
+    // One browser, one row (endpoint is UNIQUE), so a staff member who also
+    // subscribed on the public page shares it. Turning staff notifications off
+    // used to delete the row and silently take their spectator alerts with it.
+    const a = await loginAdmin();
+    const shared = { endpoint: 'https://push.example.com/sub/shared-browser', keys: SUB.keys };
+    await agent().post('/api/push/public-subscribe',
+      { ...shared, final: true, schedule: true });
+    assert.equal((await a.post('/api/push/subscribe', shared)).json.devices, 1,
+      'staff attaches to the row the public page created');
+
+    assert.equal((await a.post('/api/push/unsubscribe', { endpoint: shared.endpoint })).json.devices, 0);
+    // Still reachable as a spectator: re-POSTing the same public subscription
+    // updates a row that must still exist.
+    const still = await agent().post('/api/push/public-subscribe',
+      { ...shared, final: true, schedule: true });
+    assert.equal(still.status, 200);
+    assert.equal(still.json.subscribed, true);
+
+    // A staff-ONLY device has no spectator side, so off removes it outright.
+    const solo = { endpoint: 'https://push.example.com/sub/staff-only', keys: SUB.keys };
+    assert.equal((await a.post('/api/push/subscribe', solo)).json.devices, 1);
+    assert.equal((await a.post('/api/push/unsubscribe', { endpoint: solo.endpoint })).json.devices, 0);
+    assert.equal((await a.post('/api/push/subscribe', solo)).json.devices, 1, 're-subscribing works');
+    await a.post('/api/push/unsubscribe', { endpoint: solo.endpoint });
+    // Tidy up the shared row so later tests see a clean slate.
+    await agent().post('/api/push/public-subscribe',
+      { ...shared, live: false, final: false, schedule: false });
+  });
+
   rtest('the opt-out persists on the account', async () => {
     const a = await loginAdmin();
     assert.equal((await a.post('/api/push/prefs', { notifyLineups: false })).status, 200);

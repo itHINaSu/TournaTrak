@@ -619,12 +619,37 @@ async function setMeta(key, value) {
 async function addPushSubscription(username, sub) {
   const u = await pool.query('SELECT id FROM users WHERE username = $1', [username]);
   if (!u.rows[0]) throw new Error('User not found: ' + username);
+  // notify_* are set explicitly FALSE rather than left to their column
+  // defaults (notify_schedule defaults TRUE, for spectators). A staff row that
+  // claimed to want spectator schedule alerts is inert today only because the
+  // public queries all filter on `user_id IS NULL`; leaving it TRUE is a
+  // landmine for the first query that forgets to.
+  //
+  // ON CONFLICT touches only the account and the keys — a row created by the
+  // spectator page keeps the preferences it was created with, so a staff
+  // member enabling notifications does not silently rewrite what they asked
+  // for as a spectator on the same browser.
   await pool.query(
-    `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO push_subscriptions
+       (user_id, endpoint, p256dh, auth, notify_live, notify_final, notify_schedule)
+     VALUES ($1, $2, $3, $4, FALSE, FALSE, FALSE)
      ON CONFLICT (endpoint) DO UPDATE SET user_id = EXCLUDED.user_id,
        p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth`,
     [u.rows[0].id, sub.endpoint, sub.p256dh, sub.auth]);
+}
+
+// Staff "turn off on this device". NOT a delete: the same row may also be a
+// spectator subscription made on the public page (one browser, one row —
+// endpoint is UNIQUE), and deleting it took those alerts with it. Detach the
+// account instead, then remove the row only if it was staff-only, which
+// tournament_id tells us — the public page always sets it, this file never does.
+async function detachStaffPushSubscription(endpoint) {
+  const r = await pool.query(
+    `UPDATE push_subscriptions SET user_id = NULL WHERE endpoint = $1`, [endpoint]);
+  await pool.query(
+    `DELETE FROM push_subscriptions
+      WHERE endpoint = $1 AND user_id IS NULL AND tournament_id IS NULL`, [endpoint]);
+  return r.rowCount > 0;
 }
 
 async function deletePushSubscription(endpoint) {
@@ -732,7 +757,8 @@ module.exports = {
   pool, init, get, put, putSlot, deleteSlot, etag, clearCache,
   allUsers, findUser, effectiveRole, teamsFor,
   getMeta, setMeta,
-  addPushSubscription, deletePushSubscription, pushSubscriptionsFor, pushSubscriptionCount,
+  addPushSubscription, deletePushSubscription, detachStaffPushSubscription,
+  pushSubscriptionsFor, pushSubscriptionCount,
   savePublicPushSubscription, publicPushTargets, publicPushAll,
   createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
   grantRole, revokeRole,

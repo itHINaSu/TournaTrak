@@ -2431,7 +2431,9 @@ api.post('/push/subscribe', requirePushUser, ah(async (req, res) => {
 api.post('/push/unsubscribe', requirePushUser, ah(async (req, res) => {
   const { endpoint } = req.body || {};
   if (typeof endpoint !== 'string') return res.status(400).json({ error: 'endpoint required' });
-  await store.deletePushSubscription(endpoint);
+  // Detach, don't delete — the row may be shared with a spectator subscription
+  // made on the public page from the same browser.
+  await store.detachStaffPushSubscription(endpoint);
   res.json({ ok: true, devices: await store.pushSubscriptionCount(req.user.username) });
 }));
 

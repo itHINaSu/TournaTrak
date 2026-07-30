@@ -2304,17 +2304,35 @@ async function renderPushDevice() {
   }
 
   var sub = await currentPushSub();
+  // A browser subscription is NOT proof this account will be notified. The
+  // spectator page subscribes the same browser with no account attached
+  // (user_id NULL), and the staff lookup inner-joins users — so a TD who
+  // subscribed for spectator alerts and then opened this panel used to see
+  // "Turn off on this device" and a Send test that answered "not subscribed",
+  // while no lineup notification would ever arrive. Trust the SERVER's count
+  // for this account; pressing Enable re-POSTs the same endpoint and the
+  // upsert attaches the account without disturbing the spectator preferences
+  // already on that row.
+  var enabled = !!sub && !!(_pushCfg && _pushCfg.devices > 0);
   btn.disabled = false;
-  btn.textContent = sub ? 'Turn off on this device' : 'Enable on this device';
-  btn.classList.toggle('admin-clear-btn', !!sub);
-  btn.classList.toggle('sched-save-btn', !sub);
-  if (test) test.hidden = !sub;
+  btn.textContent = enabled ? 'Turn off on this device' : 'Enable on this device';
+  btn.classList.toggle('admin-clear-btn', enabled);
+  btn.classList.toggle('sched-save-btn', !enabled);
+  if (test) test.hidden = !enabled;
   if (hint) {
-    hint.textContent = sub
+    hint.textContent = enabled
       ? 'This device is set up. Each device needs its own opt-in.'
-      : 'Needs permission from this browser, and a separate opt-in on every device you use.'
+      : (sub
+          ? 'This browser is subscribed for public alerts, but not for your staff notifications yet — Enable adds them.'
+          : 'Needs permission from this browser, and a separate opt-in on every device you use.')
         + (isIosNotInstalled() ? ' On iPhone and iPad you must add this app to your home screen first.' : '');
   }
+}
+
+// The wire shape of a PushSubscription, from whichever object we hold.
+function subPayload(sub) {
+  var j = sub.toJSON ? sub.toJSON() : sub;
+  return { endpoint: j.endpoint, keys: j.keys };
 }
 
 // iOS only delivers push to an installed PWA. Saying so up front beats a
@@ -2341,13 +2359,29 @@ async function togglePushDevice() {
   if (btn) btn.disabled = true;
   try {
     var sub = await currentPushSub();
-    if (sub) {
-      await apiFetch('/api/push/unsubscribe', {
+    var staffOn = !!sub && !!(_pushCfg && _pushCfg.devices > 0);
+    if (staffOn) {
+      var off = await apiFetch('/api/push/unsubscribe', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: sub.endpoint }),
       });
-      await sub.unsubscribe().catch(function() {});
+      var offBody = off ? await off.json().catch(function() { return {}; }) : {};
+      if (_pushCfg) _pushCfg.devices = offBody.devices || 0;
+      // Deliberately NOT calling sub.unsubscribe(): the row is shared with the
+      // spectator subscription made on the public page, and dropping the
+      // browser grant would silently kill those alerts too. Removing the staff
+      // row is what "off for this device" means here.
       showToast('Notifications off for this device');
+    } else if (sub) {
+      // Browser already subscribed (public page), just not to this account.
+      var att = await apiFetch('/api/push/subscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(subPayload(sub)),
+      });
+      if (!att || !att.ok) throw new Error('server rejected the subscription');
+      var attBody = await att.json().catch(function() { return {}; });
+      if (_pushCfg) _pushCfg.devices = attBody.devices || 1;
+      showToast('Notifications on for this device');
     } else {
       var perm = await Notification.requestPermission();
       if (perm !== 'granted') {
@@ -2360,10 +2394,9 @@ async function togglePushDevice() {
         userVisibleOnly: true,
         applicationServerKey: urlB64ToUint8Array(_pushCfg.publicKey),
       });
-      var json = fresh.toJSON();
       var r = await apiFetch('/api/push/subscribe', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ endpoint: json.endpoint, keys: json.keys }),
+        body: JSON.stringify(subPayload(fresh)),
       });
       if (!r || !r.ok) {
         // Don't leave a browser subscribed to a server that never stored it —
@@ -2371,6 +2404,8 @@ async function togglePushDevice() {
         await fresh.unsubscribe().catch(function() {});
         throw new Error('server rejected the subscription');
       }
+      var body = await r.json().catch(function() { return {}; });
+      if (_pushCfg) _pushCfg.devices = body.devices || 1;
       showToast('Notifications on for this device');
     }
   } catch (e) {
