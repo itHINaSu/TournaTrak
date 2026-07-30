@@ -36,7 +36,7 @@
   </button>
   <div class="header-controls" id="headerControls">
     <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
-    <button class="admin-public-btn" id="shareImageBtn" hidden data-action="openShareImage" title="Save the bracket as an image">Save image</button>
+    <button class="admin-public-btn" id="shareImageBtn" hidden data-action="openShareImage" title="Share, download or print this bracket">Share</button>
     <button class="admin-public-btn" id="bracketEditBtn" hidden data-action="toggleBracketEdit">Edit</button>
     <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
     <button class="admin-public-btn" id="notifyBtn" hidden data-action="openNotifyPanel" title="Get notified about games">Notify me</button>
@@ -112,7 +112,7 @@
   </div>
   <div class="share-overlay" id="shareOverlay" hidden>
     <div class="share-box">
-      <div class="share-title">Save bracket image</div>
+      <div class="share-title">Share bracket</div>
       <div class="share-opts">
         <label class="share-opt"><input type="checkbox" id="shareResults" checked data-action-change="refreshShareImage"> Include scores and winners</label>
       </div>
@@ -139,7 +139,32 @@
       <div class="share-preview-wrap"><img id="sharePreview" class="share-preview" alt="Bracket image preview"></div>
       <div class="share-actions">
         <button class="admin-clear-btn" data-action="closeShareImage">Cancel</button>
-        <button class="flight-pill share-dl" data-action="downloadShareImage">Download PNG</button>
+        <button class="flight-pill share-act" data-action="printShareImage" title="Send this bracket to a printer">Print</button>
+        <!-- Download carries its own format picker rather than making the
+             format a fourth radio row: the format only matters at the moment
+             you save a file, and it is meaningless to Share and Print. -->
+        <span class="share-dl-group">
+          <button class="flight-pill share-act share-act--dl" data-action="downloadShareImage">Download</button>
+          <select class="styled share-fmt" id="shareFormat" title="File format">
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
+            <option value="pdf">PDF</option>
+          </select>
+        </span>
+        <!-- Hands off to the device share sheet where there is one, and falls
+             back to the link menu below everywhere else. Every target is a
+             plain GET link — script-src is 'self', so a vendor SDK could not
+             load even if we wanted one. -->
+        <span class="team-share-wrap">
+          <button class="flight-pill share-act share-dl" data-action="shareShareImage" title="Share this bracket">Share</button>
+          <div class="share-menu share-menu--up" id="bracketShareMenu" hidden>
+            <button class="share-menu-item" data-action="shareCopy">Copy link</button>
+            <a class="share-menu-item" id="shareFb" target="_blank" rel="noopener noreferrer">Facebook</a>
+            <a class="share-menu-item" id="shareX" target="_blank" rel="noopener noreferrer">X</a>
+            <a class="share-menu-item" id="shareSms" hidden>Text message</a>
+            <a class="share-menu-item" id="shareEmail">Email</a>
+          </div>
+        </span>
       </div>
       <div class="share-hint" id="shareHint"></div>
     </div>
@@ -205,20 +230,8 @@
       <select class="styled" id="teamSelect">
         <option value="">— select a team —</option>
       </select>
-      <!-- Share: hands off to the phone's own share sheet where one exists
-           (navigator.share), and falls back to this menu everywhere else.
-           Every target is a plain GET link — script-src is 'self', so a
-           vendor SDK could not load even if we wanted one. -->
-      <span class="team-share-wrap">
-        <button class="team-share-btn" id="teamShareBtn" title="Share this team's path" hidden>Share</button>
-        <div class="share-menu" id="teamShareMenu" hidden>
-          <button class="share-menu-item" data-action="shareCopy">Copy link</button>
-          <a class="share-menu-item" id="shareFb" target="_blank" rel="noopener noreferrer">Facebook</a>
-          <a class="share-menu-item" id="shareX" target="_blank" rel="noopener noreferrer">X</a>
-          <a class="share-menu-item" id="shareSms" hidden>Text message</a>
-          <a class="share-menu-item" id="shareEmail">Email</a>
-        </div>
-      </span>
+      <!-- Sharing lives in the header's Share dialog now, for the whole
+           bracket rather than per team. One share control, one place. -->
       <button class="team-share-btn" id="pathProjectBtn" data-action="togglePathProject" title="Play out this team's path">What if?</button>
     </div>
   </div>

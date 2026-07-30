@@ -2760,8 +2760,37 @@ body.print-palette .bc-proj-chip {
   background: var(--surface2);
 }
 .share-preview { display: block; max-width: 100%; height: auto; }
-.share-actions { display: flex; justify-content: flex-end; gap: 0.6em; flex-wrap: wrap; }
+.share-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.6em; flex-wrap: wrap; }
+/* Cancel goes hard left so the three things you can DO with the bracket sit
+   together on the right, in the order you'd reach for them. */
+.share-actions .admin-clear-btn { margin-right: auto; }
+/* .flight-pill is flex:1 because the flight row divides its width between the
+   pills. These are actions in a toolbar, not a segmented control — each one
+   sizes to its own label. */
+.share-act { flex: 0 0 auto; min-height: 2.5rem; padding-left: 1.1em; padding-right: 1.1em; }
+/* Download and its format picker read as one control. */
+.share-dl-group { display: inline-flex; align-items: stretch; }
+.share-act--dl { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+/* select.styled is the big page-level picker (3.2em tall, flex:1); this one is
+   a suffix on a toolbar button and has to match the button, not the page. */
+.share-fmt.styled {
+  flex: 0 0 auto;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 0;
+  padding: 0 0.6em;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  min-height: 2.5rem;
+}
 .share-dl { background: var(--blue); border-color: var(--blue); color: #fff; }
+/* The dialog's action row is at its BOTTOM, so its menu opens upward — the
+   downward one would land off the box. */
+.share-menu--up { top: auto; bottom: calc(100% + 0.4em); }
+@media (pointer: coarse) {
+  .share-act, .share-fmt.styled { min-height: 44px; }
+}
 .share-hint {
   font-family: 'Barlow', sans-serif;
   font-size: var(--text-xs);

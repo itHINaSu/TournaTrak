@@ -2996,6 +2996,7 @@ function refreshShareImage() {
       var shots = paintFlights(win, doc, opts, flights);
       if (!shots.length) { if (hint) hint.textContent = 'Nothing to render yet.'; return; }
       _shareShots = shots;
+      prepareShareFiles();
       // 'all-separate' produces one file per bracket, so the preview shows the
       // first and says how many will download \u2014 stacking them here would
       // misrepresent what the button does.
@@ -3025,33 +3026,220 @@ function shareFileBase() {
     .replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'bracket');
 }
 
-function saveCanvas(canvas, filename) {
+function saveBlob(blob, filename) {
+  var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
-  a.href = canvas.toDataURL('image/png');
+  a.href = url;
   a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
+  // Revoking immediately can cancel the download in some browsers; the click
+  // has certainly been consumed long before this fires.
+  setTimeout(function() { URL.revokeObjectURL(url); }, 10000);
+}
+
+function canvasBlob(canvas, mime, quality) {
+  return new Promise(function(resolve, reject) {
+    canvas.toBlob(function(b) { b ? resolve(b) : reject(new Error('toBlob failed')); }, mime, quality);
+  });
+}
+
+// What the three action buttons operate on. 'all-separate' means one file per
+// bracket, so it stays a list; everything else is one stacked image. Download,
+// Share and Print all read this, so they can never disagree about what "the
+// bracket" is.
+function shareCanvases() {
+  var opts = shareOpts();
+  if (opts.scope === 'all-separate') {
+    return _shareShots.map(function(s) {
+      return { canvas: s.canvas, name: shareFileBase() + '-'
+        + (s.flight === 'open' ? 'open' : s.flight.toLowerCase() + '-bracket') };
+    });
+  }
+  var suffix = opts.scope === 'all-one' ? '-all-brackets'
+    : (_bracketFlight === 'A' || _bracketFlight === 'B') ? '-' + _bracketFlight.toLowerCase() + '-bracket' : '';
+  return [{ canvas: stackCanvases(_shareShots, opts), name: shareFileBase() + suffix }];
+}
+
+// ── PDF ───────────────────────────────────────────────────────────────
+// Hand-built, because script-src is 'self': a PDF library would have to be
+// vendored and kept current, and this needs exactly one feature — a page per
+// image. The JPEG goes in verbatim as a DCTDecode XObject, which is the one
+// image format a PDF can carry with no re-encoding on our side.
+//
+// Pages are the image's own size at 96dpi (px × 0.75 = pt), so a wide bracket
+// stays a wide page and the printer's "fit to page" does the rest. Forcing
+// Letter here would letterbox every bracket into a stripe up the middle.
+function buildPdf(pages) {
+  var enc = new TextEncoder();
+  var chunks = [], length = 0;
+  function push(part) {
+    var b = typeof part === 'string' ? enc.encode(part) : part;
+    chunks.push(b); length += b.length;
+    return length;
+  }
+  var offsets = [0];                       // object 0 is the free-list head
+  function startObj(n) { offsets[n] = length; }
+
+  push('%PDF-1.4\n');
+  // The conventional "this file is binary, do not translate line endings"
+  // marker. Pushed as raw bytes: through TextEncoder those four would come out
+  // as eight bytes of UTF-8 and stop being the marker.
+  push(new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]));
+  // 1 = catalog, 2 = page tree, then 3 objects per page (page, content, image)
+  var pageIds = pages.map(function(_, i) { return 3 + i * 3; });
+  startObj(1);
+  push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+  startObj(2);
+  push('2 0 obj\n<< /Type /Pages /Kids [' + pageIds.map(function(id) { return id + ' 0 R'; }).join(' ')
+    + '] /Count ' + pages.length + ' >>\nendobj\n');
+
+  pages.forEach(function(pg, i) {
+    var pageId = pageIds[i], contentId = pageId + 1, imgId = pageId + 2;
+    var w = Math.round(pg.width * 0.75), h = Math.round(pg.height * 0.75);
+    startObj(pageId);
+    push(pageId + ' 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + w + ' ' + h + ']'
+      + ' /Resources << /XObject << /Im0 ' + imgId + ' 0 R >> >>'
+      + ' /Contents ' + contentId + ' 0 R >>\nendobj\n');
+    var content = 'q ' + w + ' 0 0 ' + h + ' 0 0 cm /Im0 Do Q\n';
+    startObj(contentId);
+    push(contentId + ' 0 obj\n<< /Length ' + content.length + ' >>\nstream\n' + content + 'endstream\nendobj\n');
+    startObj(imgId);
+    push(imgId + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + pg.width + ' /Height ' + pg.height
+      + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + pg.jpeg.length + ' >>\nstream\n');
+    push(pg.jpeg);
+    push('\nendstream\nendobj\n');
+  });
+
+  var total = 3 + pages.length * 3;
+  var xref = length;
+  var table = 'xref\n0 ' + total + '\n0000000000 65535 f \n';
+  for (var n = 1; n < total; n++) {
+    table += ('0000000000' + (offsets[n] || 0)).slice(-10) + ' 00000 n \n';
+  }
+  push(table);
+  push('trailer\n<< /Size ' + total + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+
+  var out = new Uint8Array(length), at = 0;
+  chunks.forEach(function(c) { out.set(c, at); at += c.length; });
+  return new Blob([out], { type: 'application/pdf' });
 }
 
 function downloadShareImage() {
   if (!_shareShots.length) return;
-  var opts = shareOpts();
-  var base = shareFileBase();
-  if (opts.scope === 'all-separate') {
-    // Browsers throttle rapid programmatic downloads, so space them out.
-    _shareShots.forEach(function(s, i) {
-      setTimeout(function() {
-        saveCanvas(s.canvas, base + '-' + (s.flight === 'open' ? 'open' : s.flight.toLowerCase() + '-bracket') + '.png');
-      }, i * 350);
+  var sel = document.getElementById('shareFormat');
+  var fmt = (sel && sel.value) || 'png';
+  var items = shareCanvases();
+  var hint = document.getElementById('shareHint');
+
+  if (fmt === 'pdf') {
+    if (hint) hint.textContent = 'Building PDF…';
+    // ONE PDF with a page per bracket, rather than one PDF per bracket — a
+    // director printing "all brackets" wants a single thing to hand over.
+    Promise.all(items.map(function(it) {
+      return canvasBlob(it.canvas, 'image/jpeg', 0.92)
+        .then(function(b) { return b.arrayBuffer(); })
+        .then(function(buf) {
+          return { width: it.canvas.width, height: it.canvas.height, jpeg: new Uint8Array(buf) };
+        });
+    })).then(function(pages) {
+      saveBlob(buildPdf(pages), items[0].name + '.pdf');
+      closeShareImage();
+    }).catch(function() {
+      if (hint) hint.textContent = 'Could not build the PDF.';
     });
-  } else {
-    var one = stackCanvases(_shareShots, opts);
-    var suffix = opts.scope === 'all-one' ? '-all-brackets'
-      : (_bracketFlight === 'A' || _bracketFlight === 'B') ? '-' + _bracketFlight.toLowerCase() + '-bracket' : '';
-    saveCanvas(one, base + suffix + '.png');
+    return;
   }
+
+  var mime = fmt === 'jpeg' ? 'image/jpeg' : 'image/png';
+  var ext = fmt === 'jpeg' ? 'jpg' : 'png';
+  // Browsers throttle rapid programmatic downloads, so space them out.
+  items.forEach(function(it, i) {
+    setTimeout(function() {
+      canvasBlob(it.canvas, mime, 0.92).then(function(b) { saveBlob(b, it.name + '.' + ext); });
+    }, i * 350);
+  });
   closeShareImage();
+}
+
+// Files for the device share sheet, built EAGERLY when the preview renders.
+// navigator.share has to be reached from the user's gesture and Safari does
+// not forgive an await in between — so by the time Share is tapped the files
+// have to already exist.
+var _shareFiles = null;
+
+function prepareShareFiles() {
+  _shareFiles = null;
+  if (!_shareShots.length || typeof File === 'undefined') return;
+  var items = shareCanvases();
+  Promise.all(items.map(function(it) {
+    return canvasBlob(it.canvas, 'image/png').then(function(b) {
+      return new File([b], it.name + '.png', { type: 'image/png' });
+    });
+  })).then(function(files) { _shareFiles = files; }).catch(function() { _shareFiles = null; });
+}
+
+function shareUrlOnly(url, text) {
+  if (navigator.share) {
+    navigator.share({ title: text, text: text, url: url }).catch(function(err) {
+      // A cancelled sheet is not a failure; anything else falls back.
+      if (err && err.name === 'AbortError') return;
+      openShareMenu();
+    });
+    return;
+  }
+  openShareMenu();
+}
+
+function shareShareImage() {
+  var menu = document.getElementById('bracketShareMenu');
+  if (menu && !menu.hidden) { closeShareMenu(); return; }
+  var url = bracketShareUrl(), text = bracketShareText();
+  // Phones, tablets and installed PWAs have a share sheet that already knows
+  // every app the user actually messages people in — hand it the IMAGE, which
+  // is the thing worth sending. Desktop Chrome and Firefox share no files and
+  // have no sheet, so they fall back to the link menu.
+  if (_shareFiles && navigator.canShare && navigator.canShare({ files: _shareFiles })) {
+    navigator.share({ files: _shareFiles, title: text, text: text }).catch(function(err) {
+      if (err && err.name === 'AbortError') return;
+      shareUrlOnly(url, text);
+    });
+    return;
+  }
+  shareUrlOnly(url, text);
+}
+
+// Print through a hidden iframe rather than window.open: a popup blocker eats
+// a new window even on a click, and the iframe carries no browser chrome, no
+// about:blank in the header, and disposes of itself.
+function printShareImage() {
+  var items = shareCanvases();
+  if (!items.length) return;
+  var ifr = document.createElement('iframe');
+  ifr.className = 'share-frame';
+  ifr.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(ifr);
+  var doc = ifr.contentDocument;
+  doc.open();
+  doc.write('<!doctype html><html><head><title>' + esc(bracketShareText()) + '</title>'
+    + '<style>@page{margin:8mm}html,body{margin:0;padding:0;background:#fff}'
+    + 'img{display:block;width:100%;page-break-after:always}'
+    + 'img:last-child{page-break-after:auto}</style></head><body>'
+    + items.map(function(it) { return '<img src="' + it.canvas.toDataURL('image/png') + '">'; }).join('')
+    + '</body></html>');
+  doc.close();
+  var imgs = doc.images, left = imgs.length;
+  function go() {
+    try { ifr.contentWindow.focus(); ifr.contentWindow.print(); } catch (e) {}
+    // Removing the frame in the same turn cancels the print dialog in Safari.
+    setTimeout(function() { ifr.remove(); }, 60000);
+  }
+  if (!left) { go(); return; }
+  for (var i = 0; i < imgs.length; i++) {
+    if (imgs[i].complete) { if (!--left) go(); }
+    else imgs[i].onload = imgs[i].onerror = function() { if (!--left) go(); };
+  }
 }
 
 // Show the Open/A/B pill row only for tiered tournaments; keep the active
@@ -5063,7 +5251,7 @@ teamSel.addEventListener('change',function(){
     : window.location.pathname;
   history.replaceState(null, '', url);
   renderTeamView();
-  updateShareBtn();
+
   scrollTeamPathTop();
 });
 
@@ -5080,22 +5268,18 @@ function scrollTeamPathTop() {
   if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
 }
 
-var _shareBtn = document.getElementById('teamShareBtn');
-function updateShareBtn() {
-  if (!_shareBtn) return;
-  var team = teamSel ? teamSel.value : '';
-  _shareBtn.hidden = !(team);
-}
-function teamShareUrl() {
-  var team = teamSel ? teamSel.value : '';
-  if (!team) return '';
-  return window.location.origin + window.location.pathname + '?team=' + encodeURIComponent(team);
+// Sharing is about the BRACKET, not one team. It used to be a per-team button
+// on Team Path, which meant the one place you could share from was the view
+// most people never open, and it could only ever offer a link. The control
+// moved into the header's Share dialog, which already holds the rendered
+// image — so the share sheet gets the picture, not just a URL.
+function bracketShareUrl() {
+  return window.location.origin + window.location.pathname;
 }
 
-function teamShareText() {
-  var team = teamSel ? teamSel.value : '';
+function bracketShareText() {
   var name = (getSetting('tournamentName') || '').trim();
-  return team + (name ? ' at ' + name : '') + ' — bracket, schedule and results';
+  return (name || 'Tournament') + ' — bracket, schedule and results';
 }
 
 function copyToClipboard(text, okMsg) {
@@ -5113,20 +5297,20 @@ function copyToClipboard(text, okMsg) {
 }
 
 function closeShareMenu() {
-  var menu = document.getElementById('teamShareMenu');
+  var menu = document.getElementById('bracketShareMenu');
   if (menu) menu.hidden = true;
 }
 
-// Point the menu's links at the current team before showing it. All four are
+// Point the menu's links at the bracket before showing it. All four are
 // documented GET endpoints with no SDK, no key and no script — which is the
 // only kind that can work under script-src 'self' anyway, and the only kind
 // with no maintenance beyond a vendor retiring the URL.
 function openShareMenu() {
-  var url = teamShareUrl();
+  var url = bracketShareUrl();
   if (!url) return;
-  var menu = document.getElementById('teamShareMenu');
+  var menu = document.getElementById('bracketShareMenu');
   if (!menu) return;
-  var text = teamShareText();
+  var text = bracketShareText();
   var eUrl = encodeURIComponent(url), eText = encodeURIComponent(text);
   var set = function(id, href) { var el = document.getElementById(id); if (el) el.href = href; };
   set('shareFb', 'https://www.facebook.com/sharer/sharer.php?u=' + eUrl);
@@ -5139,35 +5323,14 @@ function openShareMenu() {
   menu.hidden = false;
 }
 
-if (_shareBtn) {
-  _shareBtn.addEventListener('click', function() {
-    var url = teamShareUrl();
-    if (!url) return;
-    var menu = document.getElementById('teamShareMenu');
-    if (menu && !menu.hidden) { closeShareMenu(); return; }
-    // Phones, tablets and installed PWAs have a share sheet that already
-    // knows every app the user actually messages people in — offer that
-    // rather than a list we guessed at. Desktop Chrome and Firefox have no
-    // sheet, so they get the menu.
-    if (navigator.share) {
-      navigator.share({ title: teamShareText(), text: teamShareText(), url: url })
-        .catch(function(err) {
-          // A cancelled sheet is not a failure; anything else falls back.
-          if (err && err.name === 'AbortError') return;
-          openShareMenu();
-        });
-      return;
-    }
-    openShareMenu();
-  });
-  // Any tap outside closes it, including on the button itself (handled above).
-  document.addEventListener('click', function(e) {
-    var menu = document.getElementById('teamShareMenu');
-    if (!menu || menu.hidden) return;
-    if (e.target.closest && e.target.closest('.team-share-wrap')) return;
-    closeShareMenu();
-  });
-}
+// Any tap outside closes the link menu. The Share button itself is excluded —
+// its own handler toggles.
+document.addEventListener('click', function(e) {
+  var menu = document.getElementById('bracketShareMenu');
+  if (!menu || menu.hidden) return;
+  if (e.target.closest && e.target.closest('.team-share-wrap')) return;
+  closeShareMenu();
+});
 
 function populateTeamSelect(){
   while(teamSel.options.length>1) teamSel.remove(1);
@@ -5180,7 +5343,7 @@ function populateTeamSelect(){
     var o=document.createElement('option');
     o.value=name; o.textContent=name; teamSel.appendChild(o);
   });
-  updateShareBtn();
+
 }
 
 function syncLoseSideWidths() {
@@ -5674,7 +5837,7 @@ function renderTeamViewInner(realResults){
         setCookie('tt_team', btn.dataset.team);
         history.replaceState(null, '', window.location.pathname + '?team=' + encodeURIComponent(btn.dataset.team));
         renderTeamView();
-        updateShareBtn();
+
         scrollTeamPathTop();
       });
     });
@@ -6190,11 +6353,13 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
   if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));
   syncProjectBtn();
-  // Saving the bracket image is a tournament-director job (posting to the
-  // league page), so it sits with the other staff controls in the header
-  // rather than taking a full-width row above the bracket.
+  // Sharing the bracket is for everyone, not just staff — a parent posting it
+  // to a team group chat is the same act as a director posting it to the
+  // league page, and what they get is the image we drew (watermark and all)
+  // rather than a screenshot. It sits with the other header controls, which
+  // collapse behind the hamburger on a phone.
   var shareBtn = document.getElementById('shareImageBtn');
-  if (shareBtn) shareBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
+  if (shareBtn) shareBtn.hidden = false;
   // PWA home preference: redirect to admin if user prefers it and is in standalone mode
   if (isPwa && (_sessionRole === 'admin' || _sessionRole === 'results')) {
     var pref; try { pref = localStorage.getItem('ttPwaHome'); } catch(e) {}
@@ -6316,7 +6481,7 @@ Object.assign(TT_ACTIONS, {
     updatePathProjectBar();
     renderTeamView();
   },
-  shareCopy: function() { copyToClipboard(teamShareUrl(), 'Link copied!'); closeShareMenu(); },
+  shareCopy: function() { copyToClipboard(bracketShareUrl(), 'Link copied!'); closeShareMenu(); },
   toggleBracketEdit: function() { toggleBracketEdit(); },
   resetBracketLayout: function() { if (_sessionRole === 'admin') resetBracketLayout(); },
   gotoScheduleTab:   function() {
@@ -6331,6 +6496,8 @@ Object.assign(TT_ACTIONS, {
   closeShareImage:   function() { closeShareImage(); },
   refreshShareImage: function() { refreshShareImage(); },
   downloadShareImage:function() { downloadShareImage(); },
+  shareShareImage: function() { shareShareImage(); },
+  printShareImage: function() { printShareImage(); },
   setSchedFlight:    function(arg) { setSchedFlight(arg); },
   toggleHeaderMenu:  function() { toggleHeaderMenu(); },
   openNotifyPanel:   function() { closeHeaderMenu(); openNotifyPanel(); },
