@@ -7,14 +7,19 @@
 // back into this cache, so the offline copy also self-heals on each online
 // visit — but a forgotten bump still leaves stale assets for fully-offline
 // clients, so bump it.
-var CACHE = 'tournatrak-v3.80';
+var CACHE = 'tournatrak-v3.81';
 var PRECACHE_URLS = [
   '/',
   '/index.html',
   '/fonts.css',
   '/base.css',
   '/bracket.css',
+  // Both of these are loaded by index.html and were missing here: app-h.js
+  // runs before paint and theme-css.js is a parse-time dependency, so an
+  // offline visit that misses either loads a page that cannot theme itself.
+  '/app-h.js',
   '/settings-defaults.js',
+  '/theme-css.js',
   '/tt-common.js',
   '/bracket-data.js',
   '/bracket.js',

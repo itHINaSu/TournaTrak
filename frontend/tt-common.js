@@ -125,6 +125,27 @@ function ttViewportH() {
   return document.documentElement.clientHeight || window.innerHeight || 0;
 }
 
+// ── Sticky panel offsets ───────────────────────────────────────────────
+// SHARED, because the admin panel and the coach panel are the same chrome:
+// a fixed header above a sticky tab bar, with the scrolling body sized off
+// what those two actually measure. Publishing the measurements as custom
+// properties is what lets the stylesheet position everything without either
+// height being hard-coded in CSS — they change with the font size, with a
+// two-line tournament name, and with the browser's collapsing toolbar.
+//
+// This lived inside admin.js, which is why the coach panel threw the moment
+// it tried to show itself. The fallbacks are the design heights, so a page
+// missing either element still lays out rather than collapsing to zero.
+function ttApplyPanelOffsets() {
+  var hdr    = document.getElementById('siteHeader');
+  var tabBar = document.querySelector('.admin-tab-bar');
+  var r      = document.documentElement.style;
+  r.setProperty('--app-h',          ttViewportH() + 'px');
+  r.setProperty('--hdr-h',          (hdr    ? hdr.offsetHeight    : 52) + 'px');
+  r.setProperty('--admin-tabbar-h', (tabBar ? tabBar.offsetHeight : 50) + 'px');
+  r.setProperty('--tabs-h',         (tabBar ? tabBar.offsetHeight : 50) + 'px');
+}
+
 // ── Mobile header menu ─────────────────────────────────────────────────
 // SHARED, because every page has the same header. It used to live in
 // bracket.js, so only the public page had it — and the stylesheet applies the

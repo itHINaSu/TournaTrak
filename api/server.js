@@ -640,7 +640,13 @@ api.post('/change-password', ah(async (req, res) => {
 
 api.post('/change-username', ah(async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Authentication required' });
-  if (req.user.role === 'team') return res.status(403).json({ error: 'Team users cannot change username' });
+  // Team users used to be blocked here, back when their username was an
+  // admin-issued handle (ph14409) that only ever appeared inside a magic
+  // link. They now get an account tab and already choose a username when
+  // they first set a password, so refusing every LATER change was the
+  // inconsistent half: it let a coach name themselves once and never again.
+  // Renaming is safe — teams hang off the user id, and lineups off the team
+  // name, so neither is keyed by this.
   const { username } = req.body || {};
   if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
     return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });

@@ -1544,15 +1544,9 @@ function resetIOSZoom() {
   }, 60);
 }
 
-function applyStickyOffsets() {
-  var hdr    = document.getElementById('siteHeader');
-  var tabBar = document.querySelector('.admin-tab-bar');
-  var r      = document.documentElement.style;
-  r.setProperty('--app-h',          window.innerHeight + 'px');
-  r.setProperty('--hdr-h',          (hdr    ? hdr.offsetHeight    : 52) + 'px');
-  r.setProperty('--admin-tabbar-h', (tabBar ? tabBar.offsetHeight : 50) + 'px');
-  r.setProperty('--tabs-h',         (tabBar ? tabBar.offsetHeight : 50) + 'px');
-}
+// Now shared with the coach panel — see ttApplyPanelOffsets in tt-common.js.
+// The name is kept because this file calls it from a dozen places.
+function applyStickyOffsets() { ttApplyPanelOffsets(); }
 
 function showAdmin(username, role, teamName) {
   resetIOSZoom();
@@ -1744,7 +1738,7 @@ function showCoachBlock(username) {
   if (blockMsg)  blockMsg.hidden = false;
   // Brief pause so the message is readable rather than a flash of a screen
   // they never asked for.
-  setTimeout(function() { window.location.replace('/lineup'); }, 900);
+  setTimeout(function() { window.location.replace('/coach'); }, 900);
 }
 
 function showChangePassword() {
