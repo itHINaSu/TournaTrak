@@ -32,6 +32,28 @@ If any `claude/*` branch is newer than `main`, another session has been
 working there — diff it before assuming `main` is current (this has bitten
 twice; see Branch rule).
 
+## KEEP THIS FILE CURRENT AS YOU GO (owner directive, 2026-07-30)
+**Update `HANDOFF.md` in the SAME commit as the work it describes — not at the
+end of a session, and not "later".** This applies to every agent working this
+repo, not just the one that happened to be asked.
+
+Why it is a rule and not a nicety: this container has rolled its working tree
+back mid-session without warning (twice), sessions end when context runs out
+rather than when the work is finished, and two or more agents have been in this
+repo at once all week. A commit that lands code with no note here is a commit
+the next session has to reverse-engineer from a diff. The commit message and
+this file are the only two durable records.
+
+What "current" means, concretely:
+- add a row to the shipped table under "Outstanding work" (newest first);
+- if the change reverses or supersedes a decision recorded here, EDIT that
+  section rather than appending a contradiction — a file that argues with
+  itself is worse than one that is out of date;
+- if you learned something that cost you time (an environment trap, a
+  measurement that lied), put it in "Session notes / traps worth inheriting";
+- prune what is now false. Deleting a stale paragraph is as valuable as adding
+  a true one.
+
 ## Branch rule
 **`main` is the leading/integration branch as of 2026-07-15** (owner
 decision, superseding the 2026-07-04 note that pointed at
@@ -56,7 +78,88 @@ under different hashes. Check whether each apparent gap is a real gap
 deliberate behavioural reversal to the owner instead of silently picking a
 side.
 
-## Outstanding work (what's still needed) — updated 2026-07-29
+## Outstanding work (what's still needed) — updated 2026-07-30
+
+**Shipped 2026-07-30 on `main`, newest first.**
+
+| commit | what |
+|--------|------|
+| (this) | Spectator notification UI: bell + panel on the bracket, push handlers in the PUBLIC `sw.js`, `.admin-clear-btn` moved to `base.css` |
+| `49dc46a` | Anonymous public push subscriptions (live / final / schedule / delay notice) + **the delay banner was never served** |
+| `84103bf` | TDs create their own tournaments; the admin panel reads its role from the ACTIVE tournament; coach role removable |
+| `faa30b2` | Team links offer the team to signed-in staff instead of regenerating their session |
+| `2fa5117` | Championship cards: full field name, no duplicate time, feed lines on centre (one `data-css` timing bug behind all three) |
+| `d4194db` | Flight championship sits on its feeders' row like the Open tree |
+| `6c1ddd4` | Small flights get a 4-row grid; flight championship gets the Open tree's tinted column |
+| `45bcf02` | Schedule analyzer: flag any game timed at or before the game that feeds it |
+
+### 2026-07-30 in detail
+
+**Roles.** A per-tournament `admin` grant already IS a Tournament Director:
+full admin on assigned tournaments, none elsewhere, assignable to many. No new
+role value was added, and none is needed. What was broken was that
+`/api/session` is answered on the GLOBAL mount, so its top-level `role` is the
+grant on the LIVE tournament — null for a TD who runs other events, which left
+the panel showing only what is not gated on `admin`. That is the whole
+explanation for the owner's report that "an admin in another tournament only
+has results permissions". `activeTournamentRole()` in admin.js now derives it
+from `session.tournaments`, resolved BEFORE the panel renders, and re-derived
+when the switcher changes (a TD may be admin on one event, scorekeeper on
+another).
+- Creating a tournament is a TD capability. Both limits are STRUCTURAL, not
+  checks that can be forgotten: `createTournament` never writes `is_default`,
+  and `POST /tournaments/:slug/live` is still superadmin-only. The creator is
+  granted admin on what they made.
+- Coaching on top of staff: BOTH `/users/:u/teams` routes refused any user
+  whose role was not `team`, so staff could neither be given a team nor hand
+  one back. The team-link claim wrote through `store` directly, which is why
+  that one path worked and no other did. `DELETE /users/:u/coach` removes the
+  coaching side; a pure coach's grant (and orphaned account) goes with it.
+
+**Push.** Spectators subscribe with NO account. `push_subscriptions` was
+extended rather than duplicated: `user_id` nullable, `tournament_id` set,
+preferences on the row. `pushSubscriptionsFor` still JOINs `users`, so staff
+sends are untouched. Two things worth not undoing:
+- the public upsert deliberately does NOT write `user_id` — `endpoint` is
+  UNIQUE, so one browser is one row, and a TD subscribing on the public page
+  must not have their account detached from their own phone;
+- **volume limits are the feature, not an optimisation.** Live fires on the
+  game STARTING (`POST /live` checks whether it already was), schedule fires
+  only for games whose time actually moved and not past a dozen (a Save-all
+  writes every game — 61 pushes for a typo fix otherwise), and the delay
+  notice only on a CHANGE. The failure mode here is someone switching
+  notifications off for good.
+- No route reads preferences back. The endpoint is the only identifier a
+  subscriber has, so a public read keyed on it would leak their team picks.
+- **`window.isSecureContext` is checked in the UI** and each blocked reason
+  gets its own message (no HTTPS / permission denied / iOS outside an installed
+  PWA), because browsers enforce all three SILENTLY — a switch that does
+  nothing is the worst version of this. TLS is terminated by haproxy on a
+  public-facing proxy (owner, 2026-07-30), so push works in production.
+- Turning off posts the unsubscribe from the STORED endpoint when
+  `getSubscription()` returns null. Without that a cleared-site-data browser
+  leaves a live row delivering pushes while the panel says off. Found because a
+  Playwright stub reset per page load — the artifact was real behaviour.
+
+**`.admin-clear-btn` was only in `admin.css`**, which `index.html` does not
+load, so FIVE public-page buttons rendered as raw browser buttons: the
+Save-image Cancel, the Team Path stepper's Back/Done, and the new panel's
+Close/Turn-off. Moved to `base.css`. Check which stylesheet a class lives in
+before reusing it on the other page — `admin-public-btn` is in `base.css`,
+which is why that one always looked right.
+
+**Two real bugs found while testing something else**, both silent:
+- `GET /offsets` stored `banner` and never returned it, so the public
+  `.delay-notice` strip could never appear, the admin's Delays box came up
+  empty every reload, and because admin.js resends its local copy when saving
+  delay ENTRIES, saving an entry WIPED the notice. A TD typing "Lightning hold"
+  got no notice and no error.
+- The championship-card faults below were one bug: `data-css` reaches the CSSOM
+  via a MutationObserver MICROTASK, so `shrinkFieldTags` and
+  `alignFlightChampConn` both measured an unpositioned, unsized tree. **Third
+  time this has caused a bug** (the image export painted 38 of 44 cards at the
+  top of the sheet). Anything that measures straight after a render must call
+  `ttApplyDataCss(root)` first.
 
 **Shipped 2026-07-29 on `main`, newest first.** Every item is detailed below;
 this is the index.
@@ -771,11 +874,21 @@ Swiss odd-counts/byes, 17–20-team pools.
    repository" tail.
 
 **Security** (see "Security items" for detail)
-5. ⬜ **Leaked secrets in git history** — `files/users.json` (commit 9960403,
-   reachable on origin/dev + origin/feature/regional) has a real bcrypt hash +
-   plaintext team accessToken. OWNER ACTION: rotate that token, decide on
-   history/branch cleanup. NOT remediated. (Token hashing at rest is ✅ done,
-   but the old plaintext is still in history.)
+5. ⬜ **Leaked secrets in git history — STILL PRESENT, verified 2026-07-30.**
+   `git show 9960403:files/users.json` still returns three accounts: a team
+   user ("Dale") with a **64-char plaintext accessToken**, plus bcrypt password
+   hashes for `admin` and `Jon`. Reachable on `origin/dev` and
+   `origin/feature/regional`; NOT in `main`'s tree (`files/*` is gitignored
+   except `schedule.example.json`).
+   The owner believes the token was rotated. If it was, the leaked value is
+   inert and this is only history hygiene — but **rotation cannot be confirmed
+   from the repo**, and if Dale's team link was never regenerated that token is
+   a working credential. Check it in Admin → Teams (the 🔗 button) and hit
+   Regenerate to be sure; the two password hashes are offline-crackable
+   regardless, so those passwords are worth changing if they were ever real.
+   Remaining OWNER ACTION: confirm/rotate, then decide whether `dev` and
+   `feature/regional` are deleted or rewritten. Token hashing at rest is ✅
+   done, so nothing NEW leaks this way.
 6. ✅ **CSP `style-src 'unsafe-inline'`** REMOVED 2026-07-08 (was: still present (script-src is already
    locked to 'self'). Removing it means moving generated inline `style="…"`
    attributes to classes — a real refactor. Tracked follow-up.
@@ -790,6 +903,9 @@ Swiss odd-counts/byes, 17–20-team pools.
   nginx`) after any nginx.conf change. By contrast `./frontend` is also
   bind-mounted, so FRONTEND edits serve immediately with no restart, and the
   `api` service has a real `build:`, so `--build` does rebuild + recreate it.
+  The owner now restarts nginx routinely (2026-07-30), so a pending config
+  change is no longer the standing hazard it was — but the mechanism is
+  unchanged, so still say so when you edit the file.
   Pending nginx.conf changes as of 2026-07-28: css/js `no-cache`,
   `client_max_body_size 2m`, the `/standings` tab route and `/tab-icon.png`.
 7. ✅ **Real `docker compose up` on the owner's box** — done; it's the live
@@ -1740,9 +1856,49 @@ Static HTML/CSS/JS marketing site — separate nginx:alpine container, port 8081
 See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `index.html`.
 
 ## Current state
-`main` at `14db802` (2026-07-29, end of day) holds everything below plus the
-2026-07-29 list at the top of "Outstanding work". Nothing is unmerged;
-`claude/handoff-continuation-9elo3q` tracks `main`.
+`main` at the top of the 2026-07-30 list in "Outstanding work" holds everything
+below. Nothing is unmerged;
+`claude/bracket-generation-missing-lines-tbbhro` tracks `main`.
+
+### Next up (owner's stated priorities, 2026-07-30)
+1. ⬜ **Role + tournament assignment UI.** Assign tournaments to a user, set the
+   role per tournament, add/remove the coach role. THE SERVER IS DONE AND
+   TESTED — `POST /users/:username/grant`, `DELETE /users/:u/grants/:tid`,
+   `POST|DELETE /users/:u/teams/...`, `DELETE /users/:u/coach`. Only the panel
+   is missing, so this is frontend work against routes that already exist.
+   Open question the owner has not answered: **may a TD grant roles inside
+   their own tournaments?** Recommendation on the table was yes for
+   scorekeeper/coach, no for admin/TD, never on another event.
+2. ⬜ **Relabels**: `superadmin` → "Global Admin", per-tournament `admin` →
+   "Tournament Director", `results` → "Scorekeeper". Touches the users list,
+   the new-user role `<select>`, `applyRoleRestrictions`, and settings copy.
+   Note the fourth role `buckets` has no name in the new scheme — ask.
+   Careful: renaming the Results TAB is a different job from renaming the ROLE
+   (`TAB_PATHS`, `TT_TAB_PATHS`, both nginx regexes, the `tt_tab` cookie).
+3. ⬜ **Cross-tournament team database.** DESIGN DECIDED by the owner
+   2026-07-30, not started. See "Team database (decided, not built)" below.
+
+### Team database (decided, not built) — 2026-07-30
+Owner decisions, so build to these rather than re-litigating:
+- **Global team, per-event name.** A real `teams` table holds the canonical
+  team; `tournament_teams` links each event to it with the display name used
+  that event ("some teams use a different name per tournament").
+- **Everything follows the canonical team**: win/loss + results history,
+  roster (players), lineups, and team colours/branding.
+- **Seasons** will be needed as a grouping above tournaments, for scoping
+  records.
+- **Comparison metrics wanted**: head-to-head W/L, runs for/against, record vs
+  common opponents, and runs for/against vs common opponents.
+
+Why this is a real migration and not a table addition: **`results` stores
+winner/loser as NAME STRINGS**, scoped per tournament, and lineups are keyed by
+team name with player rows stored inline (there is no `players` table). So
+"Thunder" in two events are unrelated values today, and *common opponents* is
+not computable at all. The migration touches `results`, `lineups`,
+`user_teams`, team links, `standingsGroups`/`rankStandings`, the CSV exports and
+the Bucket Challenge. Back-migration has to mint canonical teams from the name
+strings already stored, which is where a review step probably belongs.
+**Write the plan before the code.**
 
 The owner deploys with `git pull && docker compose up -d --build`. `--build`
 matters now: `web-push` is a runtime dependency and `npm ci` only runs at build
@@ -1751,7 +1907,7 @@ time. No `.env` change is needed for push — `compose.yml` loads the whole
 itself on first boot.
 
 SW cache version lives in `frontend/sw.js` (at the time of writing
-`tournatrak-v3.51`) — **read it there, don't trust this number**, and keep
+`tournatrak-v3.60`) — **read it there, don't trust this number**, and keep
 the `?v=` stamps in step with it on ALL FIVE HTML files, not just the admin
 pages. Phase 0 evaluation is in `EVALUATION.md`.
 
@@ -1760,7 +1916,7 @@ pages. Phase 0 evaluation is in `EVALUATION.md`.
 node --test api/routes.test.js api/schedule-formats.test.js \
              api/standings.test.js api/schedule-health.test.js
 ```
-— **100 tests**, no fixtures to set up. List the files; `node --test api/`
+— **110 tests** (count it, don't trust this number), no fixtures to set up. List the files; `node --test api/`
 tries to execute `server.js` as a test and dies on the `/frontend` require.
 Postgres must be reachable or the 60 route tests SKIP rather than fail, which
 reads as green: check the skipped count, not just the failure count.

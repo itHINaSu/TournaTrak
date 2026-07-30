@@ -169,6 +169,15 @@ body {
 }
 .header-controls { margin-left: auto; display: flex; align-items: center; gap: 0.6em; }
 
+/* Outline "cancel / dismiss" button. Lives HERE, not in admin.css, because
+   index.html does not load admin.css — the Save-image dialog's Cancel, the
+   Team Path stepper's Back/Done and the notification panel's Close all carried
+   this class and rendered as raw browser buttons. One definition, both pages. */
+.admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) var(--btn-pad-h-compact); border-radius: var(--radius-xs); border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
+.admin-clear-btn:hover,
+.admin-clear-btn:active { background: color-mix(in srgb, var(--lose-color) 10%, transparent); }
+
+
 /* Narrow screens: never squeeze the tournament name into a sliver between
    the logo and the header buttons — a long name would wrap one word per
    line and balloon the header to half the viewport. Let the header wrap:

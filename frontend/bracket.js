@@ -653,6 +653,10 @@ async function fetchAll(){
   // is NOT a property of window. Set on the offline path too, so a frame
   // that can't reach the API fails fast instead of hanging.
   window.__ttReady = true;
+  // Needs the teams to exist (the picker lists what is in the bracket) and the
+  // server's push config, so it runs after the first full load. Never awaited:
+  // a page that cannot reach /push/public-config just has no bell.
+  initNotifyButton();
 }
 var resizeTimer;
 window.addEventListener('resize',function(){
@@ -6120,4 +6124,239 @@ Object.assign(TT_ACTIONS, {
   refreshShareImage: function() { refreshShareImage(); },
   downloadShareImage:function() { downloadShareImage(); },
   setSchedFlight:    function(arg) { setSchedFlight(arg); },
+  openNotifyPanel:   function() { openNotifyPanel(); },
+  closeNotifyPanel:  function() { closeNotifyPanel(); },
+  notifyScopeChange: function() { renderNotifyTeams(); notifyDirty(); },
+  notifyDirty:       function() { notifyDirty(); },
+  notifySave:        function() { notifySave(); },
+  notifyTurnOff:     function() { notifyTurnOff(); },
 });
+
+// ══════════════════════════════════════════════════════════
+// SPECTATOR NOTIFICATIONS
+// ══════════════════════════════════════════════════════════
+// Anonymous Web Push: no account, one subscription per browser. The server
+// stores what this endpoint asked for; this device keeps its own copy so the
+// panel can be drawn without a round trip (and there is deliberately no route
+// to read preferences back — the endpoint is the only identifier a subscriber
+// has, so a public read keyed on it would leak their team picks).
+var NOTIFY_LS = 'ttNotifyPrefs';
+var _notifyPubKey = null;
+
+function notifyPrefs() {
+  try {
+    var raw = localStorage.getItem(NOTIFY_LS);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return { on: false, live: false, final: false, schedule: true, allEvents: false, teams: [] };
+}
+function saveNotifyPrefs(p) {
+  try { localStorage.setItem(NOTIFY_LS, JSON.stringify(p)); } catch (e) {}
+}
+
+// Why this browser cannot subscribe, or '' when it can. Each case is worth
+// telling the user apart: two of the three are things they can fix.
+function notifyBlockedReason() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    return 'This browser does not support notifications.';
+  }
+  // Push needs a secure context. Browsers enforce this silently, so without
+  // saying so a tap on "Turn on" would appear to do nothing at all.
+  if (!window.isSecureContext) {
+    return 'Notifications need a secure (https) connection.';
+  }
+  if (typeof Notification === 'undefined') return 'This browser does not support notifications.';
+  if (Notification.permission === 'denied') {
+    return 'Notifications are blocked for this site. Allow them in your browser settings, then try again.';
+  }
+  // iOS only delivers push to an INSTALLED PWA, and only says so by failing.
+  var iOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+  var standalone = window.navigator.standalone === true
+    || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  if (iOS && !standalone) {
+    return 'On iPhone and iPad, add this page to your Home Screen first — then notifications can be switched on.';
+  }
+  return '';
+}
+
+// The button only appears where the feature can actually work, and only once
+// the server confirms push is configured (no VAPID keys = nothing to offer).
+async function initNotifyButton() {
+  var btn = document.getElementById('notifyBtn');
+  if (!btn) return;
+  try {
+    var r = await fetch(apiBase() + '/push/public-config', { cache: 'no-store' });
+    var cfg = r.ok ? await r.json() : {};
+    if (!cfg.enabled || !cfg.publicKey) return;
+    _notifyPubKey = cfg.publicKey;
+  } catch (e) { return; }
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  var p = notifyPrefs();
+  btn.textContent = p.on ? '🔔 Notifying' : '🔔 Notify me';
+  btn.hidden = false;
+}
+
+function openNotifyPanel() {
+  var ov = document.getElementById('notifyOverlay');
+  if (!ov) return;
+  var p = notifyPrefs();
+  document.getElementById('notifyLive').checked     = !!p.live;
+  document.getElementById('notifyFinal').checked    = !!p.final;
+  document.getElementById('notifySchedule').checked = p.schedule !== false;
+  document.getElementById('notifyAllEvents').checked = !!p.allEvents;
+  var pick = p.teams && p.teams.length;
+  var radios = document.querySelectorAll('input[name="notifyScope"]');
+  for (var i = 0; i < radios.length; i++) radios[i].checked = (radios[i].value === (pick ? 'pick' : 'all'));
+  renderNotifyTeams();
+
+  var reason = notifyBlockedReason();
+  var un = document.getElementById('notifyUnsupported');
+  un.textContent = reason;
+  un.hidden = !reason;
+  document.getElementById('notifyForm').hidden = !!reason;
+  document.getElementById('notifySaveBtn').hidden = !!reason;
+  document.getElementById('notifyOffBtn').hidden = !(p.on);
+  document.getElementById('notifyHint').textContent = p.on
+    ? 'Notifications are on for this device.' : '';
+  ov.hidden = false;
+}
+function closeNotifyPanel() {
+  var ov = document.getElementById('notifyOverlay');
+  if (ov) ov.hidden = true;
+}
+function notifyDirty() {
+  var h = document.getElementById('notifyHint');
+  if (h && notifyPrefs().on) h.textContent = 'Press Save to apply.';
+  var b = document.getElementById('notifySaveBtn');
+  if (b) b.textContent = notifyPrefs().on ? 'Save' : 'Turn on';
+}
+
+// Team checkboxes, from the teams actually in this bracket. Hidden entirely on
+// "every team", because no stored teams IS "every team" server-side — which is
+// what lets a spectator follow a whole event without re-saving when a team is
+// added to the draw later.
+function renderNotifyTeams() {
+  var wrap = document.getElementById('notifyTeams');
+  var row  = document.getElementById('notifyAllEventsRow');
+  if (!wrap) return;
+  var picking = (document.querySelector('input[name="notifyScope"]:checked') || {}).value === 'pick';
+  wrap.hidden = !picking;
+  if (row) row.hidden = !picking;
+  if (!picking) { wrap.innerHTML = ''; return; }
+  var chosen = notifyPrefs().teams || [];
+  var teams = getScheduleTeams();
+  if (!teams.length) {
+    wrap.innerHTML = '<div class="share-hint">No teams in the bracket yet.</div>';
+    return;
+  }
+  wrap.innerHTML = teams.map(function(t) {
+    return '<label class="share-opt notify-team"><input type="checkbox" class="notify-team-cb" value="'
+      + esc(t) + '"' + (chosen.indexOf(t) !== -1 ? ' checked' : '') + '> ' + esc(t) + '</label>';
+  }).join('');
+}
+
+function readNotifyForm() {
+  var picking = (document.querySelector('input[name="notifyScope"]:checked') || {}).value === 'pick';
+  var teams = [];
+  if (picking) {
+    var cbs = document.querySelectorAll('.notify-team-cb');
+    for (var i = 0; i < cbs.length; i++) if (cbs[i].checked) teams.push(cbs[i].value);
+  }
+  return {
+    live: document.getElementById('notifyLive').checked,
+    final: document.getElementById('notifyFinal').checked,
+    schedule: document.getElementById('notifySchedule').checked,
+    allEvents: picking && document.getElementById('notifyAllEvents').checked,
+    teams: teams,
+  };
+}
+
+function b64ToUint8(base64) {
+  var pad = '='.repeat((4 - base64.length % 4) % 4);
+  var raw = atob((base64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  var out = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+async function notifySave() {
+  var hint = document.getElementById('notifyHint');
+  var form = readNotifyForm();
+  if (!form.live && !form.final && !form.schedule) {
+    hint.textContent = 'Pick at least one thing to be notified about.';
+    return;
+  }
+  hint.textContent = 'Setting up…';
+  try {
+    var perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      hint.textContent = 'Notifications were not allowed.';
+      return;
+    }
+    var reg = await navigator.serviceWorker.ready;
+    // An existing subscription is reused: re-subscribing with a different key
+    // throws, and the endpoint is what the server keys the row on anyway.
+    var sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: b64ToUint8(_notifyPubKey),
+      });
+    }
+    var json = sub.toJSON();
+    var r = await fetch(apiBase() + '/push/public-subscribe', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        endpoint: json.endpoint, keys: json.keys,
+        live: form.live, final: form.final, schedule: form.schedule,
+        allEvents: form.allEvents, teams: form.teams,
+      }),
+    });
+    if (!r.ok) throw new Error('save failed');
+    // Keep the endpoint. Turning off has to reach the SERVER, and if the
+    // browser has since dropped its subscription object (site data cleared, or
+    // the push service expired it) getSubscription() returns null and there
+    // would be nothing to name in the request — leaving a row that keeps
+    // sending while this panel says notifications are off.
+    saveNotifyPrefs(Object.assign({ on: true, endpoint: json.endpoint }, form));
+    var btn = document.getElementById('notifyBtn');
+    if (btn) btn.textContent = '🔔 Notifying';
+    hint.textContent = 'Notifications are on for this device.';
+    document.getElementById('notifyOffBtn').hidden = false;
+    showToast('Notifications on');
+  } catch (e) {
+    hint.textContent = 'Could not turn notifications on. ' + (e && e.message ? e.message : '');
+  }
+}
+
+async function notifyTurnOff() {
+  var hint = document.getElementById('notifyHint');
+  hint.textContent = 'Turning off…';
+  try {
+    var reg = await navigator.serviceWorker.ready;
+    var sub = await reg.pushManager.getSubscription();
+    // Tell the server FIRST, and from the stored endpoint when the browser no
+    // longer has a subscription object — that is the case where skipping this
+    // leaves a live row delivering pushes to someone who just switched them
+    // off. The server prunes dead endpoints on 404/410 eventually, but "off"
+    // must not depend on eventually.
+    var endpoint = (sub && sub.endpoint) || notifyPrefs().endpoint;
+    if (endpoint) {
+      await fetch(apiBase() + '/push/public-unsubscribe', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint: endpoint }),
+      }).catch(function() {});
+    }
+    // Drop the browser grant too, so "off" means off rather than "the server
+    // has stopped sending to a subscription this device still holds".
+    if (sub) await sub.unsubscribe().catch(function() {});
+    saveNotifyPrefs({ on: false, live: false, final: false, schedule: true, allEvents: false, teams: [] });
+    var btn = document.getElementById('notifyBtn');
+    if (btn) btn.textContent = '🔔 Notify me';
+    document.getElementById('notifyOffBtn').hidden = true;
+    hint.textContent = 'Notifications are off.';
+    showToast('Notifications off');
+  } catch (e) {
+    hint.textContent = 'Could not turn notifications off.';
+  }
+}

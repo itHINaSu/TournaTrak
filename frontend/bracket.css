@@ -2719,3 +2719,23 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
 .share-scope { gap: 0.9em 1.1em; flex-wrap: wrap; }
 .share-align { gap: 0.9em 1.1em; flex-wrap: wrap; }
 .share-opt-note { color: var(--text-mute); }
+
+/* ── Spectator notification panel ──────────────────────────────────────
+   Reuses .share-overlay/.share-box/.share-opt wholesale — it is the same kind
+   of thing (a small settings sheet over the bracket) and inventing a second
+   set of box styles is how the two drift apart. Only the team list needs
+   anything of its own: it can run to 30+ teams, so it scrolls and columns. */
+.notify-teams {
+  max-height: 34vh;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9em, 1fr));
+  gap: 0.15em 0.8em;
+  margin: 0.2em 0 0.6em;
+  padding: 0.5em 0.6em;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+}
+.notify-team { margin: 0; }
+.notify-teams-row { margin-top: 0.5em; }

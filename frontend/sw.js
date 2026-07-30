@@ -7,7 +7,7 @@
 // back into this cache, so the offline copy also self-heals on each online
 // visit — but a forgotten bump still leaves stale assets for fully-offline
 // clients, so bump it.
-var CACHE = 'tournatrak-v3.59';
+var CACHE = 'tournatrak-v3.60';
 var PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -81,4 +81,39 @@ self.addEventListener('fetch', function(e) {
       });
     })
   );
+});
+
+// ── Web Push (spectator notifications) ────────────────────────────────
+// The public page's subscriptions are anonymous — one row per browser, with the
+// preferences stored server-side against the endpoint. Delivery needs handlers
+// HERE: a push event that does not end in showNotification() makes the browser
+// post its own "site updated in the background" notice instead.
+self.addEventListener('push', function(e) {
+  var d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (err) { d = {}; }
+  e.waitUntil(self.registration.showNotification(d.title || 'TournaTrak', {
+    body: d.body || '',
+    // Collapse repeats about the same game rather than stacking them: a game
+    // going live and then finishing are different messages, but two pushes for
+    // one event should leave one notification on the lock screen.
+    tag: d.tag || 'tt-public',
+    renotify: false,
+    icon: '/icons/trophy-192.png',
+    badge: '/icons/trophy-192.png',
+    data: { url: d.url || '/' },
+  }));
+});
+
+self.addEventListener('notificationclick', function(e) {
+  e.notification.close();
+  var url = (e.notification.data && e.notification.data.url) || '/';
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(list) {
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].url.indexOf(self.location.origin) === 0 && 'focus' in list[i]) {
+        if ('navigate' in list[i]) list[i].navigate(url);
+        return list[i].focus();
+      }
+    }
+    if (clients.openWindow) return clients.openWindow(url);
+  }));
 });

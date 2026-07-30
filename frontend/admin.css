@@ -153,9 +153,6 @@ input, select, textarea { font-size: max(1rem, 16px); }
 .admin-winner-sel:focus { outline: 0.13em solid var(--blue-lt); }
 .admin-save-btn { white-space: nowrap; }
 .admin-locked { font-size: 0.74rem; color: var(--text-mute); font-style: italic; }
-.admin-clear-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) var(--btn-pad-h-compact); border-radius: var(--radius-xs); border: 0.07em solid var(--clear-border); background: transparent; color: var(--clear-color); cursor: pointer; }
-.admin-clear-btn:hover,
-.admin-clear-btn:active { background: color-mix(in srgb, var(--lose-color) 10%, transparent); }
 /* Edit a finalized score. Same outline shape as Clear but in the interactive
    accent, not the destructive one — it corrects the game, it doesn't undo it. */
 .admin-edit-btn { font-family: 'Oswald', sans-serif; font-size: var(--btn-font-size); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; padding: var(--btn-pad-v) var(--btn-pad-h-compact); border-radius: var(--radius-xs); border: 0.07em solid var(--blue-lt); background: transparent; color: var(--blue-lt); cursor: pointer; }
