@@ -183,6 +183,13 @@ mid-task, add it there in the SAME commit as the work you did ship** — that is
 precisely the case it was created for. HANDOFF stays the narrative of what
 happened and why; PENDING is the short scannable status.
 
+**PUSH NOTIFICATIONS ARE TABLED (owner, 2026-07-30).** Shipped as a preview,
+known buggy, paused so real bugs can be fixed first. Do not extend it — and do
+not read the sections below as "finished, just needs polish". The spectator
+settings page in particular was reworked twice for a mobile failure that was
+**never reproduced in a dev harness**, so its fix is unconfirmed.
+`docs/PENDING.md` carries the current status and what exists today.
+
 **Account-level notifications — SPEC, NOT BUILT (owner, 2026-07-30).** The
 model the owner wants, recorded before anyone builds half of it:
 

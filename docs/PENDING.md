@@ -44,8 +44,35 @@ Last updated 2026-07-30.
 
 | # | Item | State |
 |---|---|---|
-| N2 | **Account-level notifications for authenticated users** (owner, 2026-07-30) | **SPEC ONLY — no code written.** Signed-in staff should not use the guest device-level settings at all. Their preferences belong to the ACCOUNT, in Admin → Settings → Account → Notifications, and a device only has to be *approved* (subscribed) — with a **popup prompt on first login from a new device**. See `HANDOFF.md` "Account-level notifications" for the model, what already exists, and the three traps. |
-| N1 | **Notification settings are now a PAGE** (owner's call — the existing Admin → Account section is the better long-term shape). No longer a modal, so the whole `position: fixed` failure class that made it unreachable on a phone is gone rather than patched. Verified at 390×844, 360×640 and 1400×900: page opens, 23-team picker renders, actions reachable, device-only note shown, Back returns to the tab you came from. **Still wants confirmation on the owner's actual device** before this moves to Done. |
+*(nothing in progress — see Tabled below)*
+
+---
+
+## TABLED — push notifications (owner, 2026-07-30)
+
+**Shipped as a PREVIEW and known to be buggy.** The owner has paused this to fix
+real bugs first. Do not build further on it until that is lifted; do not treat
+anything below as finished.
+
+| # | Item | State |
+|---|---|---|
+| N1 | Spectator notification settings page (`#view-notify`) | Shipped. Reworked from a modal into a page after it proved unreachable on the owner's phone. **The original mobile symptom was never reproduced in a dev harness** — two plausible causes were fixed (`.share-box` had no `overflow-y`; the panel was inside `#view-bracket` where an ancestor can break `position: fixed`) and neither was confirmed against the device. Treat as unverified. |
+| N2 | Account-level notifications for signed-in users | **SPEC ONLY, no code.** Signed-in staff should not use the guest device-level settings; preferences belong to the ACCOUNT (Admin → Settings → Account → Notifications), a device only needs approving, prompted on first login from a new device. Model and three traps in `HANDOFF.md` under "Account-level notifications". |
+
+What exists today, so nobody has to reverse-engineer it:
+- Anonymous per-device subscriptions — `push_subscriptions` with `user_id` NULL,
+  preferences ON the row, teams in `push_subscription_teams`.
+- Senders fire after the response and are never awaited: live (on a game
+  STARTING only), final, schedule (only games whose time moved, capped at 12),
+  and the delay/weather notice (to everyone subscribed, on change only).
+- Staff lineup push is separate and older, keyed on `users.notify_lineups`.
+- **One browser is one row** (`endpoint` is UNIQUE) and both features write it.
+  That seam has already produced one real bug (`9dfdfe5`).
+- The bell only appears when the server has VAPID keys, so an instance with
+  push unconfigured shows nothing.
+
+**If the preview needs to disappear from the public page**, hiding `#notifyBtn`
+is a one-line change — there is no setting for it yet.
 
 ---
 
