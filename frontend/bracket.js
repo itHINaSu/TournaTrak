@@ -4151,7 +4151,15 @@ function renderMobileBracket(root, dims) {
 function renderMobileColumns(root, cols) {
   var rootTop = Math.max(root.getBoundingClientRect().top, 0);
   var tabsH   = document.getElementById('viewTabs').getBoundingClientRect().height;
-  var viewH   = window.innerHeight - rootTop - tabsH;
+  // ttViewportH(), not window.innerHeight. The carousel is laid out in pixels
+  // inside the normal flow, so it must be measured against the LAYOUT
+  // viewport. innerHeight is the VISUAL one and on iOS — especially in an
+  // installed PWA with viewport-fit=cover — it is taller by the safe-area
+  // strip the tab bar below already reserves. The carousel then sized itself
+  // past the tab bar: the last card was clipped and the page background showed
+  // through as a dark band above the nav. Identical on desktop, where the two
+  // measurements agree.
+  var viewH   = Math.max(ttViewportH() - rootTop - tabsH, 160);
   var winW    = window.innerWidth;
 
   var CARD_H       = Math.max(Math.floor(viewH / 4.5), 80);
@@ -4945,7 +4953,7 @@ function applyStickyOffsets() {
   var sel   = document.querySelector('.selector-row');
   var selH  = sel ? sel.offsetHeight : 0;
   var r = document.documentElement.style;
-  r.setProperty('--app-h',  document.documentElement.clientHeight + 'px');
+  r.setProperty('--app-h',  ttViewportH() + 'px');
   r.setProperty('--hdr-h',  hdrH  + 'px');
   r.setProperty('--bar-h',  barH  + 'px');
   r.setProperty('--tabs-h', tabsH + 'px');
@@ -6883,7 +6891,7 @@ async function initNotifyButton() {
   } catch (e) { return; }
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   var p = notifyPrefs();
-  btn.textContent = p.on ? 'Notifying' : 'Notify me';
+  btn.textContent = p.on ? 'Notifications on' : 'Notifications';
   btn.hidden = false;
 }
 
@@ -7048,7 +7056,7 @@ async function notifySave() {
     // sending while this panel says notifications are off.
     saveNotifyPrefs(Object.assign({ on: true, endpoint: json.endpoint }, form));
     var btn = document.getElementById('notifyBtn');
-    if (btn) btn.textContent = 'Notifying';
+    if (btn) btn.textContent = 'Notifications on';
     hint.textContent = 'Notifications are on for this device.';
     document.getElementById('notifyOffBtn').hidden = false;
     showToast('Notifications on');
@@ -7080,7 +7088,7 @@ async function notifyTurnOff() {
     if (sub) await sub.unsubscribe().catch(function() {});
     saveNotifyPrefs({ on: false, live: false, final: false, schedule: true, allEvents: false, teams: [] });
     var btn = document.getElementById('notifyBtn');
-    if (btn) btn.textContent = 'Notify me';
+    if (btn) btn.textContent = 'Notifications';
     document.getElementById('notifyOffBtn').hidden = true;
     hint.textContent = 'Notifications are off.';
     showToast('Notifications off');

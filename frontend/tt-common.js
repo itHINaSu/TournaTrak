@@ -114,6 +114,17 @@ document.addEventListener('focusin', function(e) {
   if (e.target && e.target.matches && e.target.matches('input[data-selectall]')) e.target.select();
 });
 
+// ── Viewport height ────────────────────────────────────────────────────
+// The LAYOUT viewport — what normal-flow layout is actually sized against.
+// NOT window.innerHeight, which is the VISUAL viewport: on iOS, and most
+// obviously in an installed PWA with viewport-fit=cover, that includes the
+// strip behind the home indicator and the area under collapsed toolbars.
+// Anything laid out in pixels inside the flow must use this one, or it
+// computes itself taller than the space it has.
+function ttViewportH() {
+  return document.documentElement.clientHeight || window.innerHeight || 0;
+}
+
 // ── Mobile header menu ─────────────────────────────────────────────────
 // SHARED, because every page has the same header. It used to live in
 // bracket.js, so only the public page had it — and the stylesheet applies the

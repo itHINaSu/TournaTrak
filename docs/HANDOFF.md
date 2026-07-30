@@ -120,6 +120,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **Dark band above the mobile nav** — the carousel was sized from the VISUAL viewport; header menu reordered per owner |
 | (this) | **First password set can also claim a username** — the placeholder name an admin typed was never shown to the person using it |
 | (this) | **Coach links now carry the tournament's icon and a link preview** (`/lineup` proxied + branded); **installed-app name is settable** (`pwaName`/`pwaShortName`) |
 | (this) | **The public header is server-rendered** — name, subtitle, logo and palette now correct in the FIRST paint; colour maths deduplicated into theme-css.js |
@@ -2523,6 +2524,35 @@ recreate, not just an API restart.
 `tournamentName`). The reason it exists: `short_name` is the label under the
 home-screen icon and gets 12 characters, so "Summer Classic 2026" installed as
 "Summer Class". Existing installs update on their own PWA refresh cycle.
+
+## LAYOUT viewport, not window.innerHeight (2026-07-30)
+Owner: "On mobile/pwa I noticed a large black bar above the nav bar that
+covers some of the game cards."
+
+`renderMobileColumns` sized the carousel with
+`window.innerHeight - rootTop - tabsH`. innerHeight is the VISUAL viewport: on
+iOS, and most obviously in an installed PWA with `viewport-fit=cover`, it is
+taller than the layout viewport by the safe-area strip behind the home
+indicator — which the tab bar below already reserves. The carousel therefore
+sized itself past the tab bar, the last card was clipped, and the page
+background showed through as a dark band.
+
+`ttViewportH()` in tt-common.js is now the one measurement
+(`documentElement.clientHeight`), used by the carousel, `applyStickyOffsets`
+and app-h.js — which previously disagreed with each other by exactly that
+inset. **The vh conversions in the desktop bracket maths still use
+innerHeight on purpose**: CSS `vh` on iOS tracks the large viewport, so those
+px-to-vh conversions want the visual one. Don't "fix" them to match.
+
+This cannot be reproduced in headless Chromium, where the two measurements are
+identical — which is also why the change is a no-op on desktop.
+
+## Header menu order (owner, 2026-07-30)
+Share, Project winners, Notifications, theme, Refresh, then Coach Panel and
+Admin Panel LAST because they leave the page. DOM order is menu order (flex
+column), so reordering means reordering the markup. The panel links stay
+role-gated; the Admin link additionally shows to a SIGNED-OUT visitor in an
+installed PWA, which is not an oversight — see the comment at that line.
 
 ## First password set can also claim a username (2026-07-30)
 Owner: "far too many people create a password and never know their username."

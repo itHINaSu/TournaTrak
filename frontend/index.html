@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.76">
-<link rel="stylesheet" href="/bracket.css?v=3.76">
-<script src="/app-h.js?v=3.76"></script>
+<link rel="stylesheet" href="/base.css?v=3.77">
+<link rel="stylesheet" href="/bracket.css?v=3.77">
+<script src="/app-h.js?v=3.77"></script>
 </head>
 <body>
 
@@ -34,19 +34,25 @@
       <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
     </svg>
   </button>
+  <!-- ORDER IS DELIBERATE (owner, 2026-07-30): Share, Project winners,
+       Notifications, theme, Refresh, then the two panel links LAST because
+       they leave this page — a destination belongs at the end of a menu of
+       actions. Edit sits after Refresh: it is role-gated and invisible to the
+       people this order was chosen for. The panel is a flex column on mobile,
+       so DOM order is menu order. -->
   <div class="header-controls" id="headerControls">
-    <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
     <button class="admin-public-btn" id="shareImageBtn" hidden data-action="openShareImage" title="Share, download or print this bracket">Share</button>
-    <button class="admin-public-btn" id="bracketEditBtn" hidden data-action="toggleBracketEdit">Edit</button>
-    <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
-    <button class="admin-public-btn" id="notifyBtn" hidden data-action="openNotifyPanel" title="Get notified about games">Notify me</button>
+    <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
+    <button class="admin-public-btn" id="notifyBtn" hidden data-action="openNotifyPanel" title="Get notified about games">Notifications</button>
+    <button class="theme-toggle" id="themeToggle">☀ Light</button>
     <!-- Always visible, every visitor. The PWA has no browser reload button of
          its own, so this is the only way to force a refresh from an installed
          app; pull-to-refresh (bracket.js) is the same action by gesture. -->
     <button class="admin-public-btn" id="refreshBtn" data-action="refreshNow" title="Reload the latest scores and schedule">Refresh</button>
-    <a href="/lineup" class="admin-public-btn" id="lineupPortalBtn" hidden>Lineup →</a>
-    <a href="/admin" class="admin-public-btn" id="adminPortalBtn" hidden>Admin →</a>
-    <button class="theme-toggle" id="themeToggle">☀ Light</button>
+    <button class="admin-public-btn" id="bracketEditBtn" hidden data-action="toggleBracketEdit">Edit</button>
+    <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
+    <a href="/lineup" class="admin-public-btn" id="lineupPortalBtn" hidden>Coach Panel →</a>
+    <a href="/admin" class="admin-public-btn" id="adminPortalBtn" hidden>Admin Panel →</a>
   </div>
 </header>
 
@@ -332,11 +338,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.76"></script>
-<script src="/theme-css.js?v=3.76"></script>
-<script src="/tt-common.js?v=3.76"></script>
-<script src="/bracket-data.js?v=3.76"></script>
-<script src="/bracket.js?v=3.76"></script>
-<script src="/sw-register.js?v=3.76" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.77"></script>
+<script src="/theme-css.js?v=3.77"></script>
+<script src="/tt-common.js?v=3.77"></script>
+<script src="/bracket-data.js?v=3.77"></script>
+<script src="/bracket.js?v=3.77"></script>
+<script src="/sw-register.js?v=3.77" data-sw="/sw.js"></script>
 </body>
 </html>
