@@ -17,6 +17,7 @@ const SETTINGS_DEFAULTS = {
   tournamentName:   'Tournament Bracket',
   pageTitle:        'Tournament Bracket',
   adminName:        'Tournament Admin',
+  coachName:        'Coach Panel',
   subtitle:         '',
   leftLabel:        'Left Bracket',
   rightLabel:       'Right Bracket',

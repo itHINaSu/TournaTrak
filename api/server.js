@@ -139,6 +139,7 @@ function invalidateIndexCache(tid) {
   if (tid === undefined) {
     _indexHtmlCache.clear();
     _lineupHtmlCache.clear();
+    _panelHtmlCache.clear();
     return;
   }
   // Keys are `tid|origin` — drop every origin variant for this tournament.
@@ -146,6 +147,11 @@ function invalidateIndexCache(tid) {
     for (const key of cache.keys()) {
       if (key === tid || String(key).startsWith(tid + '|')) cache.delete(key);
     }
+  }
+  // The panel cache prefixes the panel name, so its keys are `panel|tid|origin`.
+  for (const key of _panelHtmlCache.keys()) {
+    const parts = String(key).split('|');
+    if (parts[1] === String(tid)) _panelHtmlCache.delete(key);
   }
 }
 
@@ -2243,6 +2249,61 @@ api.post('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, 
   }
 }));
 
+// ── Roster endpoints ──────────────────────────────────────────────────
+// A roster is the SQUAD — everyone on the team, in no particular order. A
+// lineup is a batting order for one game, drawn from it. Keeping them apart
+// is the whole point: a coach types their players once here, and the lineup
+// table fills itself in from the jersey number afterwards.
+//
+// Guarded by requireLineupAccess, so the rules are the ones coaches already
+// have: your own team only, staff see everyone, and a team link counts as
+// that team. Unlike a lineup a roster has no per-game lock — a squad list is
+// not the record of what was played, and a coach fixing a spelling after the
+// last game should not be refused.
+const ROSTER_MAX = 40;
+
+api.get('/roster/:teamName', requireLineupAccess, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  const rosters = await store.get(req.tid, 'rosters');
+  res.json({ players: (rosters[req.params.teamName] || []) });
+}));
+
+api.post('/roster/:teamName', requireLineupAccess, ah(async (req, res) => {
+  const { teamName } = req.params;
+  if (teamName.length > 100) return res.status(400).json({ error: 'teamName too long' });
+  const { players } = req.body || {};
+  if (!Array.isArray(players)) return res.status(400).json({ error: 'players must be an array' });
+  if (players.length > ROSTER_MAX) {
+    return res.status(400).json({ error: `Maximum ${ROSTER_MAX} players` });
+  }
+  // Drop blank rows rather than rejecting them: the editor always renders a
+  // few empty rows to type into, and making a coach clear them before saving
+  // would be a rule invented by the form rather than by the sport.
+  const clean = players.map(p => ({
+    jersey:   String(p.jersey   || '').slice(0, 8).trim(),
+    name:     String(p.name     || '').slice(0, 64).trim(),
+    position: String(p.position || '').slice(0, 12).trim(),
+  })).filter(p => p.jersey || p.name);
+
+  // A duplicate number is the one error worth blocking on: the lineup
+  // autofill looks players up BY number, so two #7s make it ambiguous.
+  const seen = new Set();
+  for (const p of clean) {
+    if (!p.jersey) continue;
+    const k = p.jersey.toLowerCase();
+    if (seen.has(k)) {
+      return res.status(400).json({ error: 'Two players share #' + p.jersey + ' — numbers must be unique' });
+    }
+    seen.add(k);
+  }
+
+  const rosters = await store.get(req.tid, 'rosters');
+  if (clean.length) rosters[teamName] = clean;
+  else delete rosters[teamName];          // an emptied roster is an absent one
+  await store.put(req.tid, 'rosters', rosters);
+  res.json({ ok: true, players: clean });
+}));
+
 // ── Bucket challenge endpoints ────────────────────────────────────────
 
 api.get('/buckets', ah(async (req, res) => {
@@ -2403,6 +2464,86 @@ async function buildLineupHtml(tid, origin) {
     `  <link rel="stylesheet" href="${scoped}/theme.css">\n</head>`);
   return html;
 }
+
+// ── Staff panels (/admin, /coach), branded ────────────────────────────
+// Both used to be flat files, which meant the two pages staff and coaches
+// live in were the only ones that never wore the tournament's own logo — and
+// on the way from the admin panel to the public page you saw the stock
+// wordmark repaint into the real one. Everything needed is already in memory
+// when the request arrives, so the served HTML can just be correct.
+//
+// These carry NO og: tags on purpose. They are not shareable destinations;
+// a link preview for a login-gated panel is noise at best, and at worst it
+// leaks a tournament's branding into a chat that was never shown the event.
+const _panelHtmlCache = new Map();
+
+const PANELS = {
+  admin: { file: 'admin.html', nameId: 'adminSiteName', logoId: 'adminSiteLogo', setting: 'adminName' },
+  coach: { file: 'coach.html', nameId: 'coachSiteName', logoId: 'coachSiteLogo', setting: 'coachName' },
+};
+
+async function buildPanelHtml(panel, tid, origin) {
+  const p     = PANELS[panel];
+  const s     = Object.assign({}, SETTINGS_DEFAULTS, await store.get(tid, 'settings'));
+  const tname = escHtml(s.tournamentName || SETTINGS_DEFAULTS.tournamentName);
+  // The header title is a SETTING, not the tournament name: staff asked for
+  // "Admin Panel"/"Coach Panel" to be renameable independently, because the
+  // point of that line is telling you which of the two you are looking at.
+  const hname = escHtml(s[p.setting] || SETTINGS_DEFAULTS[p.setting]);
+  const tc    = await store.get(tid, 'theme_colors') || {};
+  const t     = tid === store.tid ? null : await store.tournamentById(tid);
+  const scoped = t ? '/t/' + encodeURIComponent(t.slug) : '';
+  let html = fs.readFileSync(FRONTEND_DIR + '/' + p.file, 'utf8');
+
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>${hname} · ${tname}</title>`);
+  if (tc.favicon) {
+    html = html.replace(/<link rel="icon" href="[^"]*"[^>]*>/,
+      `<link rel="icon" href="${scoped}/tab-icon.png" type="image/png">`);
+  }
+  // The visible header: name first, then the logo — and only un-hide the
+  // logo when there IS one, or every unbranded tournament reserves space
+  // for a broken image.
+  html = html.replace(new RegExp(`(<h1 id="${p.nameId}"[^>]*>)[^<]*(</h1>)`), `$1${hname}$2`);
+  if (/^data:image\/(png|jpeg|webp);base64,/.test(tc.logo || '')) {
+    html = html.replace(new RegExp(`<img id="${p.logoId}" class="site-logo" alt="" hidden`),
+      `<img id="${p.logoId}" class="site-logo" alt="" src="${scoped}/logo.png"`);
+  }
+  // Branding stylesheet last in <head> so it outranks base.css.
+  html = html.replace('</head>',
+    `  <link rel="stylesheet" href="${scoped}/theme.css">\n</head>`);
+  return html;
+}
+
+function panelRoute(panel) {
+  return ah(async (req, res) => {
+    // ?t=<slug> scopes the panel to a tournament the way /lineup does; an
+    // unknown slug falls back to the live one rather than 404ing, because
+    // the page renders its own signed-out state either way.
+    let tid = store.tid;
+    const slug = typeof req.query.t === 'string' ? req.query.t : '';
+    if (slug) {
+      const t = await store.tournamentBySlug(slug);
+      if (t) tid = t.id;
+    }
+    const proto  = req.get('x-forwarded-proto') || req.protocol || 'http';
+    const origin = proto + '://' + req.get('host');
+    const key = panel + '|' + tid + '|' + origin;
+    try {
+      if (!_panelHtmlCache.has(key)) {
+        _panelHtmlCache.set(key, await buildPanelHtml(panel, tid, origin));
+      }
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.send(_panelHtmlCache.get(key));
+    } catch (err) {
+      console.error('Error serving ' + panel + ' panel:', err);
+      res.status(500).send('Server error');
+    }
+  });
+}
+
+app.get(['/admin', '/admin.html'], panelRoute('admin'));
+app.get(['/coach', '/coach.html'], panelRoute('coach'));
 
 app.get(['/lineup', '/lineup.html'], ah(async (req, res) => {
   // The magic link redirects to /lineup?t=<slug> for a non-live tournament;

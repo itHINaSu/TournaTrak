@@ -182,6 +182,85 @@ function buildRows(rows, readOnly) {
 // rows, applies the taken/free split to the position dropdowns, and makes
 // sure the change hook is attached. Six call sites used to set innerHTML
 // directly, which is six chances to forget one of those steps.
+// ── Roster autofill ────────────────────────────────────────────────────
+// The roster is the squad; this is what makes keeping it worthwhile. Type a
+// jersey number into a lineup row and the player's name (and position, if the
+// row has none yet) fill themselves in.
+//
+// Only ever fills a BLANK name. A coach who has typed something means it —
+// overwriting a deliberate entry from a stale roster would be the kind of
+// help that loses work.
+var _lineupRoster = { team: null, players: [] };
+
+function lineupSetRoster(team, players) {
+  _lineupRoster = { team: team, players: players || [] };
+  renderRosterDatalist();
+}
+
+// A <datalist> gives the name field native autocomplete on every platform,
+// including the phone keyboards coaches actually use.
+function renderRosterDatalist() {
+  var dl = document.getElementById('rosterNames');
+  if (!dl) {
+    dl = document.createElement('datalist');
+    dl.id = 'rosterNames';
+    document.body.appendChild(dl);
+  }
+  dl.innerHTML = _lineupRoster.players.map(function(p) {
+    return '<option value="' + esc(p.name || '') + '">'
+      + (p.jersey ? '#' + esc(p.jersey) : '') + '</option>';
+  }).join('');
+}
+
+async function loadRosterForTeam(team) {
+  if (!team) { lineupSetRoster(null, []); return; }
+  if (_lineupRoster.team === team) return;         // already have it
+  try {
+    var r = await fetch(lineupApiBase() + '/roster/' + encodeURIComponent(team));
+    // A 403 is normal here (staff viewing a team they do not coach is fine,
+    // but a team link to another team is not) — autofill is a convenience, so
+    // failing to load one must never disturb the lineup itself.
+    var d = r.ok ? await r.json() : { players: [] };
+    lineupSetRoster(team, d.players || []);
+  } catch (e) {
+    lineupSetRoster(team, []);
+  }
+}
+
+function rosterPlayerByJersey(j) {
+  var key = String(j || '').trim().toLowerCase();
+  if (!key) return null;
+  for (var i = 0; i < _lineupRoster.players.length; i++) {
+    var p = _lineupRoster.players[i];
+    if (String(p.jersey || '').trim().toLowerCase() === key) return p;
+  }
+  return null;
+}
+
+// The row a given input belongs to, as an index into the lineup's ids
+// (`lc<col>-<row>`), so the sibling fields can be found without walking DOM.
+function lineupRowIndexOf(el) {
+  var m = /^lc\d+-(\d+)$/.exec((el && el.id) || '');
+  return m ? Number(m[1]) : -1;
+}
+
+function onJerseyEntered(input) {
+  var idx = lineupRowIndexOf(input);
+  if (idx < 0) return;
+  var p = rosterPlayerByJersey(input.value);
+  if (!p) return;
+  var cfg = lineupConfig();
+  cfg.cols.forEach(function(c, ci) {
+    var el = document.getElementById('lc' + ci + '-' + idx);
+    if (!el || el.disabled) return;
+    if (c.kind === 'text' && c.key === 'name' && !el.value) el.value = p.name || '';
+    if (c.kind === 'pos' && !el.value && p.position) {
+      el.value = p.position;
+      if (el.value === p.position) refreshPosSelects();   // only if it took
+    }
+  });
+}
+
 function renderLineupBody(rows, readOnly) {
   var body = document.getElementById('lineupBody');
   if (!body) return;
@@ -191,6 +270,16 @@ function renderLineupBody(rows, readOnly) {
     body.addEventListener('change', function(e) {
       var t = e.target;
       if (t && t.tagName === 'SELECT' && t.classList.contains('lineup-sel')) onPositionChange(t);
+      // 'change' rather than 'input': filling in on every keystroke fights a
+      // coach typing a two-digit number, because #1 matches before #12 does.
+      if (t && t.classList && t.classList.contains('lineup-inp--num')) onJerseyEntered(t);
+    });
+  }
+  // Point the name inputs at the roster datalist. Done here rather than in
+  // buildRows so the autofill stays entirely inside this section.
+  if (document.getElementById('rosterNames')) {
+    body.querySelectorAll('.lineup-inp--name').forEach(function(el) {
+      el.setAttribute('list', 'rosterNames');
     });
   }
   refreshPosSelects();
@@ -666,6 +755,7 @@ document.addEventListener('DOMContentLoaded', function() {
     teamSel.addEventListener('change', async function() {
       var team = teamSel.value;
       if (!team) return;
+      loadRosterForTeam(team);          // not awaited: autofill must never gate the lineup
       populateGameSelect(team);
       var gameSel = document.getElementById('lineupGameSelect');
       var slotId  = gameSel ? gameSel.value : '';
@@ -822,6 +912,7 @@ async function lineupInit() {
 
     var selectedTeam = (teamSel && teamSel.value) ? teamSel.value : currentTeamName;
     if (selectedTeam) {
+      loadRosterForTeam(selectedTeam);   // not awaited; autofill is a convenience
       populateGameSelect(selectedTeam);
       var gameSel = document.getElementById('lineupGameSelect');
       var slotId  = gameSel ? gameSel.value : '';

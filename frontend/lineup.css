@@ -427,3 +427,28 @@
   /* reorder drag handle cell — widen the grab area */
   .lineup-td-order--reorder { min-width: 2.75rem; }
 }
+
+/* ── Roster row remove button ──────────────────────────────────────────
+   Sits in the order column, which the roster has no other use for (a squad
+   list has no batting order). Deliberately quiet until hovered: it deletes a
+   player, and on a phone it sits under the thumb that is trying to type. */
+.roster-del {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 0.35rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: var(--text-base);
+  line-height: 1;
+  padding: 0.35rem 0.5rem;
+}
+.roster-del:hover,
+.roster-del:focus-visible {
+  background: var(--danger-bg, rgba(220, 60, 60, 0.12));
+  border-color: var(--danger, #c33);
+  color: var(--danger, #c33);
+}
+
+@media (pointer: coarse) {
+  .roster-del { min-height: 2.75rem; min-width: 2.75rem; }
+}

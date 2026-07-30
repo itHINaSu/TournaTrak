@@ -33,7 +33,12 @@ pool.on('error', err => console.error('pg pool error:', err.message));
 // 'undo' holds ONE snapshot taken immediately before a destructive write
 // (see snapshotForUndo in server.js). A config row rather than its own table
 // because it is exactly one JSON blob per tournament and is replaced whole.
-const CONFIG_DOMAINS = ['settings', 'offsets', 'field_colors', 'theme_colors', 'buckets', 'teams', 'undo'];
+// 'rosters' is a config domain rather than a table for the same reason as
+// 'teams': one JSON blob per tournament ({ teamName: [ {jersey,name,position} ] }),
+// always replaced whole, never queried across tournaments. It becomes a real
+// table when the cross-tournament team database lands and a roster has to
+// follow the canonical team instead of a per-event name — see HANDOFF.
+const CONFIG_DOMAINS = ['settings', 'offsets', 'field_colors', 'theme_colors', 'buckets', 'teams', 'undo', 'rosters'];
 const ROW_DOMAINS    = ['schedule', 'results', 'live', 'lineups'];
 
 // Same structured defaults ensureDataFiles() used to write to disk.

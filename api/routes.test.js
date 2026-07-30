@@ -934,6 +934,120 @@ describe('lineup access and rules', () => {
 // ── Team lineup links ─────────────────────────────────────────────────
 // A link, not an account: it grants edit access to exactly one team's
 // lineups in one tournament and nothing else.
+describe('rosters', () => {
+  // A roster is the SQUAD; a lineup is a batting order drawn from it. The
+  // access rules are the lineup's, so the interesting cases are the ones
+  // where a roster deliberately behaves DIFFERENTLY from a lineup.
+  async function coachFor(a, username, team) {
+    const r = await a.post('/api/users', { username, role: 'team', teamName: team });
+    assert.ok(r.status === 200 || r.status === 409, 'coach created: ' + JSON.stringify(r.json));
+    const c = agent();
+    assert.equal((await c.req('GET', '/api/team-access/' + r.json.accessToken,
+      undefined, { manual: true })).status, 302);
+    return c;
+  }
+
+  rtest('a coach saves and reads back their own roster', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const c = await coachFor(a, 'roster-coach-a', 'Alpha');
+
+    assert.deepEqual((await c.get('/api/roster/Alpha')).json, { players: [] },
+      'an unset roster is empty, not missing');
+
+    const save = await c.post('/api/roster/Alpha', { players: [
+      { jersey: '7',  name: 'Alex Rivera', position: 'SS' },
+      { jersey: '12', name: 'Sam Cruz',    position: 'P'  },
+      { jersey: '',   name: '' },                    // a blank editor row
+    ]});
+    assert.equal(save.status, 200);
+    assert.equal(save.json.players.length, 2, 'blank rows are dropped, not rejected');
+
+    const back = await c.get('/api/roster/Alpha');
+    assert.deepEqual(back.json.players, [
+      { jersey: '7',  name: 'Alex Rivera', position: 'SS' },
+      { jersey: '12', name: 'Sam Cruz',    position: 'P'  },
+    ]);
+  });
+
+  rtest('duplicate jersey numbers are refused', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const c = await coachFor(a, 'roster-coach-dup', 'Alpha');
+    // Tests share one tournament, so capture what is actually there rather
+    // than assuming empty — the point is that a rejected save changes NOTHING.
+    const before = (await c.get('/api/roster/Alpha')).json.players;
+    // The lineup autofill looks players up BY number, so two #7s make it
+    // ambiguous — this is the one roster rule worth blocking a save for.
+    const r = await c.post('/api/roster/Alpha', { players: [
+      { jersey: '7', name: 'One' }, { jersey: '7', name: 'Two' },
+    ]});
+    assert.equal(r.status, 400);
+    assert.match(r.json.error, /#7/, 'the message names the clashing number');
+    assert.deepEqual((await c.get('/api/roster/Alpha')).json.players, before,
+      'a rejected save writes nothing');
+  });
+
+  rtest('a coach cannot touch another team\'s roster', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const c = await coachFor(a, 'roster-coach-b', 'Alpha');
+    assert.equal((await c.get('/api/roster/Beta')).status, 403);
+    assert.equal((await c.post('/api/roster/Beta', { players: [{ jersey: '1', name: 'X' }] })).status, 403);
+  });
+
+  rtest('anonymous callers get nothing', async () => {
+    const u = agent();
+    assert.equal((await u.get('/api/roster/Alpha')).status, 401);
+    assert.equal((await u.post('/api/roster/Alpha', { players: [] })).status, 401);
+  });
+
+  rtest('staff may edit any team\'s roster', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    assert.equal((await a.post('/api/roster/Delta',
+      { players: [{ jersey: '4', name: 'Phoned In' }] })).status, 200);
+    assert.equal((await a.get('/api/roster/Delta')).json.players[0].name, 'Phoned In');
+  });
+
+  rtest('a finished game does not lock the roster', async () => {
+    // Lineups lock once a game is final — they are the record of what was
+    // played. A squad list is not, so a coach fixing a spelling afterwards
+    // must still be able to save.
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const c = await coachFor(a, 'roster-coach-late', 'Alpha');
+    assert.equal((await c.post('/api/roster/Alpha',
+      { players: [{ jersey: '9', name: 'Mispelt' }] })).status, 200);
+    assert.equal((await a.post('/api/results',
+      { game: 'R1.L.1', winner: 'Alpha', loser: 'Beta' })).status, 200);
+    // The lineup is now locked...
+    assert.equal((await c.post('/api/lineups/game/R1.L.1/Alpha',
+      { rows: [{ jersey: '9', name: 'Mispelt' }] })).status, 403);
+    // ...but the roster is not.
+    const r = await c.post('/api/roster/Alpha', { players: [{ jersey: '9', name: 'Misspelt' }] });
+    assert.equal(r.status, 200, 'the roster stays editable after a result');
+    assert.equal(r.json.players[0].name, 'Misspelt');
+  });
+
+  rtest('clearing every player removes the roster', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    assert.equal((await a.post('/api/roster/Gamma',
+      { players: [{ jersey: '1', name: 'Solo' }] })).status, 200);
+    assert.equal((await a.post('/api/roster/Gamma', { players: [] })).status, 200);
+    assert.deepEqual((await a.get('/api/roster/Gamma')).json, { players: [] });
+  });
+
+  rtest('rejects a non-array and an oversized squad', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    assert.equal((await a.post('/api/roster/Alpha', { players: 'nope' })).status, 400);
+    const many = Array.from({ length: 41 }, (_, i) => ({ jersey: String(i + 1), name: 'P' + i }));
+    assert.equal((await a.post('/api/roster/Alpha', { players: many })).status, 400);
+  });
+});
+
 describe('team lineup links', () => {
   async function linkFor(a, team) {
     const r = await a.post('/api/team-links/' + encodeURIComponent(team), {});

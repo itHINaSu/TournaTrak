@@ -2521,8 +2521,7 @@ Load-bearing details, in the order they will bite you:
   second description of it — `.admin-tab-bar`, `.admin-tab-panel`, the settings
   sections and the lineup table all come from there. Restyling `.admin-tab*`
   restyles both panels. That is the point.
-- **Roster and Team are stubs.** They say what is coming. Do not read them as
-  broken features.
+- **Team is still a stub.** It says what is coming. Roster is real — see below.
 - **Staff are let in.** A TD checking what a coach sees is reasonable; role
   `team`, `admin` and `results` all reach the panel.
 - **No service worker is registered here on purpose.** `/admin-sw.js` deletes
@@ -2539,10 +2538,69 @@ delegate under the old name. It now measures the LAYOUT viewport (see that
 section) rather than `window.innerHeight`. Any panel with a fixed header over a
 sticky `.admin-tab-bar` should call it.
 
-Not built yet, in the order the owner asked for them: the roster (an unordered
-squad list that lineups pull player names/numbers from), coach-editable team
-display + short names, and coach-managed notification preferences. Adding other
-coaches uses real accounts via the self-chosen-username flow below.
+Not built yet: coach-editable team display + short names, and coach-managed
+notification preferences. Adding other coaches uses real accounts via the
+self-chosen-username flow below.
+
+### The roster, and why it is not a lineup
+A **roster** is the squad — everyone on the team, in no particular order. A
+**lineup** is a batting order for one game, drawn from it. Keeping them apart is
+the entire design, and the differences are deliberate, not oversights:
+
+| | Roster | Lineup |
+|---|---|---|
+| Order | none | is the point |
+| Scope | the team | one team in one game |
+| Locks when a game is final | **no** | yes |
+| Storage | `config` domain `rosters` | `lineups` table |
+
+A roster does NOT lock after a result: a squad list is not the record of what
+was played, and a coach fixing a spelling after the last game should not be
+refused. Only one rule blocks a save — **duplicate jersey numbers**, because
+the lineup autofill looks players up by number and two #7s make it ambiguous.
+
+`GET|POST /roster/:teamName`, guarded by `requireLineupAccess`, so the rules
+are the ones coaches already have (own team only; staff see everyone; a team
+link counts as that team). Blank editor rows are dropped on save rather than
+rejected, and an emptied roster is deleted rather than stored as `[]`.
+
+Storage is the `rosters` **config domain** — one JSON blob per tournament,
+`{ teamName: [{jersey,name,position}] }`. **Adding a config domain needs TWO
+edits**: `CONFIG_DOMAINS` in `store.js` *and* the `config_domain_check`
+constraint in `schema.sql` (it appears twice there — the CREATE TABLE and the
+per-boot `ALTER TABLE` refresh). Miss the schema half and it boots fine, then
+500s on the first WRITE — which reads as one broken feature rather than a
+migration you forgot.
+
+The payoff is in `lineup.js`: `loadRosterForTeam()` fetches on team select,
+and typing a jersey number fills in the player. It fires on `change`, not
+`input` — filling per keystroke fights a coach typing `12`, because `#1`
+matches first — and it only ever fills a **blank** name, because overwriting
+something a coach deliberately typed is the kind of help that loses work. A
+403 there is normal and ignored: autofill is a convenience and must never
+disturb the lineup itself.
+
+## /admin and /coach are PROXIED, not served from disk (2026-07-30)
+Both panels used to be `try_files`d straight off disk, which made them the only
+pages staff and coaches use that never wore the event's own branding — and
+walking from the admin panel to the public page repainted the wordmark in front
+of you. The API now renders both (`buildPanelHtml`, `PANELS`, `panelRoute` in
+server.js) and nginx proxies `/admin`, `/admin.html`, `/coach` and `/coach.html`.
+
+It injects the `<title>`, the tab icon, the logo `src` and the `theme.css`
+link — deliberately **no `og:` tags**: these are login-gated panels, not
+shareable destinations, and a link preview for one is noise at best.
+
+The header title is a SETTING per panel, not the tournament name:
+`adminName` ("Admin Panel Name") and `coachName` ("Coach Panel Name"), both in
+Settings → the pair under Subtitle. The point of that line is telling you WHICH
+panel you are in, so it has to be nameable separately.
+
+Cached in `_panelHtmlCache`, keyed `panel|tid|origin` — note the extra leading
+segment, which is why `invalidateIndexCache` walks it with its own loop rather
+than the shared one. **Markup changes to admin.html/coach.html now need an API
+restart** to be seen, exactly like index.html and lineup.html: `docker compose
+restart api`.
 
 ## Shared links: what is branded, and what nginx serves from disk (2026-07-30)
 A coach link is the most-shared URL this product has — the magic link
@@ -2828,12 +2886,7 @@ below. Nothing is unmerged;
    Note the fourth role `buckets` has no name in the new scheme — ask.
    Careful: renaming the Results TAB is a different job from renaming the ROLE
    (`TAB_PATHS`, `TT_TAB_PATHS`, both nginx regexes, the `tt_tab` cookie).
-3. ⬜ **Team roster** (owner, 2026-07-30, next after the panel shell): "I need
-   to get to a team roster quickly (like a lineup but in no particular order).
-   Lineup would pull from roster when entering players." The Roster tab in
-   `/coach` is the stub waiting for it. Note it is a *squad list*, not a
-   batting order — no order column, no game selector — and its payoff is
-   autofill in the Lineups tab.
+3. ✅ **Team roster** — DONE. See "The roster, and why it is not a lineup".
 4. ⬜ **Coach-editable team names.** Display name + short name, in the coach
    panel's Team tab. Owner decision: coaches CAN set them by default, the TD
    can override (setting: `coachTeamNames`). The hidden team `id` already
