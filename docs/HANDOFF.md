@@ -118,6 +118,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **Download opens a format menu** instead of parking a picker beside it; **the hamburger was em-sized** so it shrank in the PWA |
 | (this) | **The mobile header menu was stuck open on admin/lineup/score** — hamburger logic moved to tt-common.js, panel CSS scoped to `.has-menu` |
 | `886b242` | **Share / Download / Print**, open to every visitor — "Save image" becomes a three-action dialog; PNG/JPEG/PDF; sharing moves off Team Path onto the bracket |
 | `8161faf` | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
@@ -2315,6 +2316,30 @@ control. Now the artifact they share is the one we drew.
   cancels the print dialog in Safari.
 - Narrow screens get their own action-row rule: the row wrapped one button at
   a time and stranded Share, the primary action, alone in the corner.
+
+## Header controls must be sized in REM, not EM (2026-07-30)
+The hamburger looked right in Chrome DevTools and was **tiny in the installed
+PWA** — shorter than the tournament name beside it. Cause: a `<button>` does
+not inherit `font-size`. The UA stylesheet gives it its own (13.3px in Chrome,
+different in iOS Safari), so `width/height: 3.3em` resolved against a number
+that changes per browser, while the header text next to it is sized in `rem`
+off the root. The two drifted apart, and DevTools emulation kept Chrome's
+default so the bug was invisible there.
+
+**Any control whose box is sized without an explicit `font-size` must use
+`rem`** (or set `font-size` first). The same applies to `em` borders —
+`0.07em` on that button had the same problem, so it is `1px` now. The other
+header buttons were already safe because they set an explicit `font-size`.
+
+The regression test is the useful part: set the button's `font-size` to 9px
+and 22px and assert its measured height does not move. An em-sized control
+fails that instantly.
+
+Sizing note: the hamburger is the TALLEST thing in the header, so the header's
+height tracks it 1:1 — growing the button alone chases its own tail and the
+ratio never improves (44px in a 0.8em-padded header is still only 63% of it).
+The mobile header padding was trimmed to 0.45rem instead, which holds the
+header at the height it already had while the control inside grows to ~73%.
 
 ## The mobile header menu is SHARED (2026-07-30)
 `headerMenuActive` / `closeHeaderMenu` / `toggleHeaderMenu` / `updateHeaderMenu`

@@ -496,23 +496,43 @@ body.print-palette .flight-col--champ {
    (see the breakpoint contract in HANDOFF) — not an arbitrary phone width, so
    the menu appears exactly where the carousel layout takes over. */
 @media (max-width: 1279px) {
+  /* REM, NOT EM — this is the whole reason the button looked right in desktop
+     DevTools and shrank to nothing in the installed PWA. A <button> does not
+     inherit font-size: the UA stylesheet gives it its own (13.3px in Chrome,
+     different in iOS Safari), so an em size here resolved against a number
+     that changes per browser, while the tournament name beside it is sized in
+     rem off the root. The two drifted apart, and on iOS the button ended up
+     shorter than the name-and-subtitle block next to it. rem ties it to the
+     same root as everything else it sits beside.
+     2.75rem = 44px at the default root, which is also the minimum touch
+     target. The glyph scales with it — growing the box alone would leave the
+     bars marooned in the middle.
+     The padding trim is what moves the RATIO. The button is the tallest thing
+     in the header, so the header's height tracks it 1:1 and growing the button
+     alone chases its own tail — 44px in a 0.8em-padded header is still only
+     63% of it. Tightening the padding holds the header at the height it
+     already had while the control inside it gets bigger. */
+  .site-header {
+    padding-top: max(0.45rem, calc(0.45rem + env(safe-area-inset-top, 0px)));
+    padding-bottom: 0.45rem;
+  }
   .header-menu-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.6em;
-    height: 2.6em;
+    width: 2.75rem;
+    height: 2.75rem;
     flex-shrink: 0;
     margin-left: auto;
     padding: 0;
     background: none;
-    border: 0.07em solid var(--border);
+    border: 1px solid var(--border);
     border-radius: var(--radius-xs);
     color: var(--text-dim);
     cursor: pointer;
     touch-action: manipulation;
   }
-  .header-menu-btn svg { width: 1.25em; height: 1.25em; }
+  .header-menu-btn svg { width: 1.55rem; height: 1.55rem; }
   .header-menu-btn[aria-expanded="true"] { color: var(--text); border-color: var(--text-dim); }
 
   /* The panel. position:absolute against the sticky header so it overlays the
