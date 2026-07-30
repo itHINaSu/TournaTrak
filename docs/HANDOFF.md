@@ -60,30 +60,37 @@ decision, superseding the 2026-07-04 note that pointed at
 `claude/handoff-continuation-9elo3q` — that branch is merged and dead).
 `main` is where work LANDS. Do not open PRs unless asked.
 
-### Build on a local branch, land on main (owner directive, 2026-07-30)
-**Do the work on your own `claude/<topic>` branch, then merge to `main` and
-push once it is tested.** Do not build directly in a shared checkout on `main`.
+### Build on `logon`, land on main (owner directive, 2026-07-30)
+**One private working branch, `logon`, in its own worktree at
+`/home/user/tt-logon`. Build there; merge to `main` and push when it is
+tested.** Not a branch per task — the SAME branch every session. Do not build
+directly in the shared checkout on `main`.
 
 Why: sessions run concurrently in the SAME working directory, and that
 directory was reset out from under a session five times in one day. On the
-fifth, a finished and passing feature that had not been committed yet was
-lost outright and had to be rebuilt from scratch. **A branch alone does not
-save you — the reset hits the FILES, not the branch pointer.**
+fifth, a finished and passing feature that had not been committed yet was lost
+outright and had to be rebuilt from scratch. **A branch alone does not save
+you — the reset hits the FILES, not the branch pointer.** The worktree is what
+gives your branch its own directory on disk.
 
-Concretely:
-- `git worktree add -b claude/<topic> /home/user/<topic> origin/main` — the
-  worktree gives your branch its own directory, which is the part that
-  actually survives another session's `git reset --hard`. Same `.git`, so
-  merging back is trivial and no remote round-trip is involved.
+Setup, once per session (idempotent — check `git worktree list` first):
+```
+git fetch origin main
+git worktree add -b logon /home/user/tt-logon origin/main   # first time only
+cd /home/user/tt-logon && git rebase origin/main            # if it already existed
+```
 - **Commit early and often.** Anything uncommitted is one reset away from
   gone. The commit is the only durable artifact; the working tree is not.
-- Test on the branch, merge to `main`, push, then `git worktree remove <dir>`
-  and delete the branch.
-- If the shared checkout has drifted (`git rev-list --count HEAD..origin/main`
-  comes back large), it was reset backwards. `git merge --ff-only origin/main`
-  is safe when the tree is clean and HEAD is an ancestor — check both first.
-- Run your dev server against YOUR worktree (`FRONTEND_DIR=`, and a separate
-  `PGDATABASE`/port), or you will be testing the other session's files.
+- Landing: `git fetch origin main`, `git rebase origin/main`, re-run the
+  suites, then push. `main` moves under you — it moved twice during a single
+  landing on 2026-07-30 — so re-check after every push.
+- **`git push … | tail` reports TAIL's exit status, not the push's.** A
+  rejected push read as success that way. Use `if git push …; then` and
+  confirm with `git log origin/main`.
+- Keep `logon` after landing; rebase it onto `main` next time rather than
+  deleting and recreating it.
+- Run your dev server against YOUR worktree (`FRONTEND_DIR=`, plus a separate
+  `PGDATABASE` and port), or you are testing the other session's files.
 
 - `main` — everything. Postgres storage, multi-tournament, all formats.
 - `claude/handoff-continuation-9elo3q`, `claude/tournatrak-eval-buildout-sa3mvv`,
@@ -111,6 +118,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **The mobile header menu was stuck open on admin/lineup/score** — hamburger logic moved to tt-common.js, panel CSS scoped to `.has-menu` |
 | `886b242` | **Share / Download / Print**, open to every visitor — "Save image" becomes a three-action dialog; PNG/JPEG/PDF; sharing moves off Team Path onto the bracket |
 | `8161faf` | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
 | `3a82e4f` | **nginx re-resolves the api upstream** — the real fix for the reboot 502 (variable `proxy_pass` + Docker DNS), tested against a real nginx |
@@ -2307,6 +2315,30 @@ control. Now the artifact they share is the one we drew.
   cancels the print dialog in Safari.
 - Narrow screens get their own action-row rule: the row wrapped one button at
   a time and stranded Share, the primary action, alone in the corner.
+
+## The mobile header menu is SHARED (2026-07-30)
+`headerMenuActive` / `closeHeaderMenu` / `toggleHeaderMenu` / `updateHeaderMenu`
+live in **tt-common.js**, not bracket.js. Every page carries the same header,
+and the `@media (max-width: 1279px)` block gives `.header-controls` the
+dropdown-panel look — absolute, boxed, shadowed. With the logic in bracket.js
+only the public page had a hamburger, so admin, lineup and score rendered that
+panel with nothing to close it: **a menu stuck permanently open on top of the
+page**, covering the first card. That was the owner's report.
+
+Two halves to the fix, and both are needed:
+- every page gets the hamburger markup (`#headerMenuBtn`) plus
+  `id="headerControls"` and `id="siteHeader"` — `.has-menu` is set on the
+  header, so a page without that id silently never collapses;
+- **every panel rule in that media query is scoped to `.has-menu`.** Unscoped,
+  a page below the two-control threshold got the floating-box styling with no
+  hamburger. Now: 2+ controls → hamburger and collapsible panel; 0–1 → a plain
+  inline row.
+
+Controls appear asynchronously (role, push config, the tournament switcher), so
+pages call `updateHeaderMenu()` whenever they show or hide one —
+`renderTournamentSwitcher` in admin.js, `setupCoachAccountBtn` in lineup.js,
+`initNotifyButton`/`syncProjectBtn` in bracket.js. tt-common calls it once on
+`DOMContentLoaded` for the static case.
 
 ## Small UI decisions worth not re-litigating (2026-07-29)
 Each of these was a specific owner request; the reasoning is here so a future

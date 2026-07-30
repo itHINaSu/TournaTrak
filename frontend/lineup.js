@@ -902,6 +902,7 @@ function setupCoachAccountBtn(hasPassword) {
   if (!btn) return;   // embedded in /admin — staff manage passwords in Settings
   btn.textContent = hasPassword ? 'Change Password' : 'Set Password';
   btn.hidden = false;
+  updateHeaderMenu();   // one more header control to account for
   var title = document.getElementById('coachPwTitle');
   if (title) title.textContent = hasPassword ? 'Change Your Password' : 'Set a Password';
 }

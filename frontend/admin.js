@@ -1623,6 +1623,9 @@ function renderTournamentSwitcher() {
   // Show the switcher only when there's a real choice.
   sel.hidden = !(opts.length > 1);
   updateViewPublicLink();
+  // The switcher is a header control, so its visibility decides whether there
+  // are enough of them to be worth a hamburger.
+  updateHeaderMenu();
 }
 
 // Point the "← Bracket" link at the active tournament's public page.

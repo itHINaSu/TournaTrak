@@ -114,6 +114,75 @@ document.addEventListener('focusin', function(e) {
   if (e.target && e.target.matches && e.target.matches('input[data-selectall]')) e.target.select();
 });
 
+// ── Mobile header menu ─────────────────────────────────────────────────
+// SHARED, because every page has the same header. It used to live in
+// bracket.js, so only the public page had it — and the stylesheet applies the
+// collapsed panel's look (absolute, column, surface, shadow) to any
+// .header-controls under 1280px. On admin/lineup/score that produced a
+// floating panel with no hamburger to close it: a menu stuck permanently open
+// on top of the page. One implementation, every header.
+//
+// The hamburger only EXISTS on mobile (CSS hides it at ≥1280px), so the button
+// being visible is the condition — no second breakpoint constant in JS to
+// drift out of step with the stylesheet.
+function headerMenuActive() {
+  var btn = document.getElementById('headerMenuBtn');
+  return !!btn && !btn.hidden && btn.offsetParent !== null;
+}
+function closeHeaderMenu() {
+  var panel = document.getElementById('headerControls');
+  var btn = document.getElementById('headerMenuBtn');
+  if (panel) panel.classList.remove('open');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+function toggleHeaderMenu() {
+  var panel = document.getElementById('headerControls');
+  var btn = document.getElementById('headerMenuBtn');
+  if (!panel || !btn) return;
+  var open = !panel.classList.contains('open');
+  panel.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+// Show the hamburger once there are at least TWO controls to put behind it.
+// Guests get it as well as staff — the menu is where sign-in, notifications,
+// theme and share are heading, so a guest seeing two loose chips while an admin
+// sees a menu would only be temporary inconsistency. A single control (the
+// theme toggle alone, on an instance with push unconfigured) still sits inline:
+// hiding one button behind a menu is worse than showing it.
+function updateHeaderMenu() {
+  var btn = document.getElementById('headerMenuBtn');
+  var panel = document.getElementById('headerControls');
+  if (!btn || !panel) return;
+  var shown = 0;
+  for (var i = 0; i < panel.children.length; i++) {
+    if (!panel.children[i].hidden) shown++;
+  }
+  btn.hidden = shown < 2;
+  // The stylesheet collapses .header-controls only under .has-menu, so the two
+  // decisions cannot disagree and strand the buttons behind a hamburger that
+  // is not being shown.
+  var hdr = document.getElementById('siteHeader');
+  if (hdr) hdr.classList.toggle('has-menu', !btn.hidden);
+  if (btn.hidden) closeHeaderMenu();
+}
+TT_ACTIONS.toggleHeaderMenu = function() { toggleHeaderMenu(); };
+// Dismiss on an outside tap and on Escape, the way the other overlays behave.
+document.addEventListener('click', function(e) {
+  if (!headerMenuActive()) return;
+  var panel = document.getElementById('headerControls');
+  var btn = document.getElementById('headerMenuBtn');
+  if (!panel || !panel.classList.contains('open')) return;
+  if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
+  closeHeaderMenu();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeHeaderMenu();
+});
+// Controls appear and disappear with role and with async config (push, the
+// tournament switcher), so pages call updateHeaderMenu() when they change.
+// This covers the ordinary case where nothing changes after load.
+document.addEventListener('DOMContentLoaded', updateHeaderMenu);
+
 // ── Theme ──────────────────────────────────────────────────────────────
 // Saved preference in localStorage wins over OS; persists across pages.
 // localStorage may throw in Safari private/restricted mode — calls wrapped.

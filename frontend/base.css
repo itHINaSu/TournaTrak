@@ -519,7 +519,13 @@ body.print-palette .flight-col--champ {
      page instead of reflowing it — opening the menu must not move the bracket
      underneath, or the tap that opens it lands on something else on close. */
   .site-header { position: sticky; }
-  .header-controls {
+  /* EVERY rule here is scoped to .has-menu. The panel look — absolute, boxed,
+     shadowed — is only correct for something a hamburger opens and closes.
+     Unscoped, it applied to any .header-controls under 1280px, so a page with
+     no hamburger (admin, lineup, score) rendered a floating panel with no way
+     to shut it: a menu stuck permanently open over the content. A page below
+     the two-control threshold gets a plain inline row instead. */
+  .site-header.has-menu .header-controls {
     position: absolute;
     top: 100%;
     right: 0.6em;
@@ -536,15 +542,14 @@ body.print-palette .flight-col--champ {
     border-radius: var(--radius-sm);
     box-shadow: 0 0.5em 1.5em rgba(0, 0, 0, 0.35);
   }
-  /* Collapsed ONLY when the hamburger is actually there to reopen them.
-     Without the .has-menu guard, a public visitor on a phone — two buttons, so
-     below the threshold that shows the hamburger — got no hamburger AND no
-     controls, which put "Notify me" out of reach entirely. */
+  /* Collapsed only when the hamburger is actually there to reopen them —
+     otherwise a visitor gets no hamburger AND no controls, which once put
+     "Notify me" out of reach entirely. */
   .site-header.has-menu .header-controls:not(.open) { display: none; }
   /* Full-width rows read as a menu rather than a row of chips, and give a
      comfortable touch target without a separate coarse-pointer rule. */
-  .header-controls > * { width: 100%; justify-content: center; min-height: 2.75rem; }
-  .header-controls .admin-public-btn { text-align: center; }
+  .site-header.has-menu .header-controls > * { width: 100%; justify-content: center; min-height: 2.75rem; }
+  .site-header.has-menu .header-controls .admin-public-btn { text-align: center; }
 }
 /* The hamburger never appears on desktop; the controls sit inline as before. */
 @media (min-width: 1280px) {

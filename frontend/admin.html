@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.70">
-<link rel="stylesheet" href="/admin.css?v=3.70">
-<link rel="stylesheet" href="/lineup.css?v=3.70">
-<link rel="stylesheet" href="/builder.css?v=3.70">
-<link rel="stylesheet" href="/score.css?v=3.70">
-<script src="/app-h.js?v=3.70"></script>
+<link rel="stylesheet" href="/base.css?v=3.71">
+<link rel="stylesheet" href="/admin.css?v=3.71">
+<link rel="stylesheet" href="/lineup.css?v=3.71">
+<link rel="stylesheet" href="/builder.css?v=3.71">
+<link rel="stylesheet" href="/score.css?v=3.71">
+<script src="/app-h.js?v=3.71"></script>
 </head>
 <body>
 
@@ -120,7 +120,17 @@
   <div class="header-name-block">
     <h1 id="adminSiteName">Tournament Admin</h1>
   </div>
-  <div class="header-controls">
+  <!-- Below the desktop breakpoint the controls collapse behind this, exactly
+       as on the public bracket. Without it the stylesheet still gave
+       .header-controls the dropdown-panel treatment, so the menu sat open on
+       top of the page with no way to shut it. -->
+  <button class="header-menu-btn" id="headerMenuBtn" data-action="toggleHeaderMenu"
+          aria-label="Menu" aria-expanded="false" aria-controls="headerControls" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
+    </svg>
+  </button>
+  <div class="header-controls" id="headerControls">
     <select class="styled admin-tournament-switcher" id="tournamentSwitcher" data-action-change="switchTournament" hidden title="Active tournament"></select>
     <a href="/" class="admin-public-btn" id="viewPublicLink">← Bracket</a>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
@@ -880,14 +890,14 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.70"></script>
-<script src="/tt-common.js?v=3.70"></script>
-<script src="/bracket-data.js?v=3.70"></script>
-<script src="/admin.js?v=3.70"></script>
-<script src="/lineup.js?v=3.70"></script>
-<script src="/score.js?v=3.70"></script>
-<script src="/builder-form.js?v=3.70"></script>
-<script src="/builder.js?v=3.70"></script>
-<script src="/sw-register.js?v=3.70" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.71"></script>
+<script src="/tt-common.js?v=3.71"></script>
+<script src="/bracket-data.js?v=3.71"></script>
+<script src="/admin.js?v=3.71"></script>
+<script src="/lineup.js?v=3.71"></script>
+<script src="/score.js?v=3.71"></script>
+<script src="/builder-form.js?v=3.71"></script>
+<script src="/builder.js?v=3.71"></script>
+<script src="/sw-register.js?v=3.71" data-sw="/admin-sw.js"></script>
 </body>
 </html>

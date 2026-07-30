@@ -6557,7 +6557,7 @@ Object.assign(TT_ACTIONS, {
   // synchronous — which is what lets it reach the phone's save sheet.
   onShareFormatChange: function() { prepareDownloadFiles(); },
   setSchedFlight:    function(arg) { setSchedFlight(arg); },
-  toggleHeaderMenu:  function() { toggleHeaderMenu(); },
+  // toggleHeaderMenu is registered in tt-common.js, with the menu itself.
   openNotifyPanel:   function() { closeHeaderMenu(); openNotifyPanel(); },
   closeNotifyPanel:  function() { closeNotifyPanel(); },
   notifyScopeChange: function() { renderNotifyTeams(); notifyDirty(); },
@@ -6566,62 +6566,10 @@ Object.assign(TT_ACTIONS, {
   notifyTurnOff:     function() { notifyTurnOff(); },
 });
 
-// ── Mobile header menu ────────────────────────────────────────────────
-// The hamburger only EXISTS on mobile (CSS hides it at ≥1280px), so the button
-// being visible is the condition — no second breakpoint constant in JS to drift
-// out of step with the stylesheet.
-function headerMenuActive() {
-  var btn = document.getElementById('headerMenuBtn');
-  return !!btn && !btn.hidden && btn.offsetParent !== null;
-}
-function closeHeaderMenu() {
-  var panel = document.getElementById('headerControls');
-  var btn = document.getElementById('headerMenuBtn');
-  if (panel) panel.classList.remove('open');
-  if (btn) btn.setAttribute('aria-expanded', 'false');
-}
-function toggleHeaderMenu() {
-  var panel = document.getElementById('headerControls');
-  var btn = document.getElementById('headerMenuBtn');
-  if (!panel || !btn) return;
-  var open = !panel.classList.contains('open');
-  panel.classList.toggle('open', open);
-  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-// Show the hamburger once there are at least TWO controls to put behind it.
-// Guests get it as well as staff — the menu is where sign-in, notifications,
-// theme and share are heading, so a guest seeing two loose chips while an admin
-// sees a menu would only be temporary inconsistency. A single control (the
-// theme toggle alone, on an instance with push unconfigured) still sits inline:
-// hiding one button behind a menu is worse than showing it.
-function updateHeaderMenu() {
-  var btn = document.getElementById('headerMenuBtn');
-  var panel = document.getElementById('headerControls');
-  if (!btn || !panel) return;
-  var shown = 0;
-  for (var i = 0; i < panel.children.length; i++) {
-    if (!panel.children[i].hidden) shown++;
-  }
-  btn.hidden = shown < 2;
-  // The stylesheet collapses .header-controls only under .has-menu, so the two
-  // decisions cannot disagree and strand the buttons behind a hamburger that
-  // is not being shown.
-  var hdr = document.getElementById('siteHeader');
-  if (hdr) hdr.classList.toggle('has-menu', !btn.hidden);
-  if (btn.hidden) closeHeaderMenu();
-}
-// Dismiss on an outside tap and on Escape, the way the other overlays behave.
-document.addEventListener('click', function(e) {
-  if (!headerMenuActive()) return;
-  var panel = document.getElementById('headerControls');
-  var btn = document.getElementById('headerMenuBtn');
-  if (!panel || !panel.classList.contains('open')) return;
-  if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
-  closeHeaderMenu();
-});
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') closeHeaderMenu();
-});
+// The mobile header menu lives in tt-common.js — every page carries the same
+// header, and admin/lineup/score were inheriting the collapsed panel's styling
+// with no hamburger to reopen it, leaving the menu permanently open on top of
+// the page. See updateHeaderMenu there.
 
 // ══════════════════════════════════════════════════════════
 // SPECTATOR NOTIFICATIONS
