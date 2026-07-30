@@ -120,6 +120,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **FEATURES.md**: added the Project-winners/watermark section, sharpened Share/Download/Print, lineup required fields, schedule-drift, hamburger scope |
 | `a1224e8` | **Mobile taps never reached the card** — `.mbc-scroll-cap` swallows every one; re-resolved via `elementsFromPoint`. This is what actually made projecting work on a phone |
 | `6dc3f39` | **Refresh in the PWA** — a header Refresh button and pull-to-refresh; the SW update check rides behind the data fetch |
 | `f4bb8c3` | **Project winners did nothing on mobile** — `onProjectTap` matched desktop card classes only; mobile vertical scroll now survives a re-render |

@@ -14,8 +14,8 @@ multi-tournament as future work, and it leads with the Bucket Challenge, which
 is being retired). **Where the two disagree about what the product does, this
 file wins.**
 
-**The one rule that matters:** everything in §1–§9 below is built and running.
-§10 is honest about what is *not*. Do not promote anything from §10, and do not
+**The one rule that matters:** everything in §1–§10 below is built and running.
+§11 is honest about what is *not*. Do not promote anything from §11, and do not
 extrapolate — if a capability isn't described here, assume it doesn't exist and
 ask rather than writing around it.
 
@@ -102,20 +102,72 @@ free-text banner ("Field 3 running 40 minutes behind"), and both show on the
 public page. This is the difference between a schedule people trust and one
 they stop believing by 11am.
 
-**Share, Download, Print.** Any bracket view can be turned into an image and
-shared to a group chat, saved to the phone's own photo/file picker, or printed
-in a white, minimal-ink layout for a posting board at the venue. Multiple
-brackets (Open/A/B, A/B) can be exported combined or separately.
+**Share, Download, Print — for everyone, not just organisers.** Any bracket
+view becomes a real image: **Share** hands it to the phone's own share sheet
+(the picture, not just a link) and falls back to copy-link / Facebook / X /
+SMS / email on desktop; **Download** offers **PNG, JPEG or PDF**; **Print**
+uses a white, minimal-ink layout for a posting board at the venue. On a phone,
+Download opens the built-in save sheet — Save Image, Save to Files — because a
+phone has no Downloads folder to open. Multiple brackets (Open/A/B) export
+combined or separately, and "all brackets" as a PDF is one document with a page
+each.
 
 ---
 
-## 4. Running it — the organiser's side
+## 4. Project winners — the what-if, without the misinformation
+
+The feature to lead with if you want one nobody else has thought through.
+
+**Anyone can play the bracket forward.** Tap a team to call them the winner and
+the tree fills in as though it happened — their name replaces "Winner of Game
+12" three rounds up, the standings move, the whole path resolves. No account,
+no login; it is on the public bracket for every visitor.
+
+**Team Path has a guided version.** A "What if?" stepper walks one team's
+remaining games in the order they are played, asking one answerable question at
+a time, and shows where a loss drops them rather than only where a win leads.
+
+**Every card the picks touch says so.** Affected cards carry a diagonal hatch
+and the words **"Potential Outcome"** — on screen, in a saved image, and on a
+printout. That is the part that matters, and it is not the obvious design:
+
+> The card nobody misreads is the one they just tapped. The misleading card is
+> the one three rounds later, where a slot that read "Winner of Game 12" now
+> reads a real team name. So the mark follows the *consequences* of a pick, not
+> the pick itself — and a card still showing only placeholders stays clean, so
+> the marking never becomes wallpaper people stop seeing.
+
+A projected champion loses the gold trophy styling and is labelled too. The
+watermark is drawn into the exported PNG, JPEG and PDF, so a screenshot, a
+download and a printout all carry it.
+
+**The picks are private and temporary.** They live on that one device, are
+never saved and never sent to the server, and a refresh clears them. Nobody
+else sees another visitor's hypotheticals. Standings honour them the same way:
+a pick moves the win–loss record but leaves run differential untouched, because
+a pick carries no score.
+
+**Organisers can switch it off** per tournament if even a marked what-if would
+cause arguments at their event. It is on by default.
+
+Marketing angle: *"Let fans play out 'what if we win out?' — without letting a
+screenshot lie about it."* The honest framing is the selling point: people
+work out the bracket on a napkin regardless, and the version hosted here is the
+only one that can be labelled.
+
+---
+
+## 5. Running it — the organiser's side
 
 - **Post results** and clear mistakes; **start, update, and end live scoring**
   per game.
 - **Scorekeeper mode** — a stripped-down field-side screen for the person with
   the scorebook, reachable on its own so they never see the rest of the admin
-  panel.
+  panel, and available as a tab inside the admin panel for staff who want both.
+- **Running late, at a glance.** Each game shows how far ahead of or behind
+  schedule it is (−15, +40), and posting a delay is a one-tap chip — captioned
+  so nobody has to work out whether "−30" means early or late — with a custom
+  amount for the odd case.
 - **Edit anything about a game** — label, time, field, team-name overrides —
   with per-game save, and drag cards around the bracket in an edit mode that
   shows a full slot grid.
@@ -134,7 +186,7 @@ brackets (Open/A/B, A/B) can be exported combined or separately.
 
 ---
 
-## 5. Lineup links — the feature nobody else gets right
+## 6. Lineup links — the feature nobody else gets right
 
 The person who knows the batting order changes between games and is never the
 person with the account. So a lineup link **is a link, not a login**: the
@@ -146,6 +198,11 @@ else** — it cannot post results, change settings, see the user list, or read
 another team's lineup. It can be re-shared without breaking the copies already
 circulating, re-issued if it leaks, or revoked entirely.
 
+Organisers can decide what a lineup must contain — player number, name,
+position, any combination, or nothing at all. Nothing is required by default,
+and a row only counts once something is typed into it, so a team batting nine
+into an eleven-row sheet can still submit.
+
 Coach accounts still exist for people who want a username and password. Both
 kinds of access land on the same page.
 
@@ -154,7 +211,7 @@ Nobody makes an account."*
 
 ---
 
-## 6. Roles — delegate without handing over the keys
+## 7. Roles — delegate without handing over the keys
 
 Five levels, each scoped to the tournaments you assign:
 
@@ -176,7 +233,7 @@ own tournament. They can't see anyone else's."*
 
 ---
 
-## 7. Many tournaments, one install
+## 8. Many tournaments, one install
 
 - Each tournament gets a **clean public URL** and its own name, subtitle, date
   and time formats, and default landing tab.
@@ -191,18 +248,19 @@ own tournament. They can't see anyone else's."*
 
 ---
 
-## 8. Works like an app, without being one
+## 9. Works like an app, without being one
 
 - **Installable (PWA)** — add to home screen, opens full-screen, no app store.
 - **Offline resilience** — the public bracket is precached, so the app opens and
   shows the last known state on the worst field Wi-Fi, then catches up.
 - **Light and dark themes**, with a toggle.
-- On mobile the admin controls collapse into a **hamburger menu** rather than
-  crowding a phone-width header.
+- On mobile every page's header controls collapse into the same **hamburger
+  menu** rather than crowding a phone-width header, so the public bracket, the
+  admin panel and the scorekeeper screen all behave alike.
 
 ---
 
-## 9. Self-hosted, with the boring parts done
+## 10. Self-hosted, with the boring parts done
 
 Keep this **off the public marketing page** per the existing brief's tone note —
 but have it ready for the "is this going to be a problem for my IT person?"
@@ -223,7 +281,7 @@ conversation:
 
 ---
 
-## 10. Do not advertise these
+## 11. Do not advertise these
 
 Everything here is either unfinished, deliberately deferred, or being replaced.
 Leaving it off the site is not modesty — putting it on is a promise the product
@@ -231,7 +289,7 @@ can't currently keep.
 
 | Thing | Status | If asked |
 |---|---|---|
-| **Public push notifications** ("notify me when my team plays") | Built but **tabled as buggy**; shipped only as a preview. | Don't put it on the site. If it must appear at all, mark it clearly as a preview and don't build a section around it. |
+| **Push notifications** — both the public "notify me when my team plays" and the staff alert when a team submits a lineup | Built but **tabled as buggy**; shipped only as a preview. | Don't put it on the site. If it must appear at all, mark it clearly as a preview and don't build a section around it. The lineup-submission alert rides the same push plumbing, so it is tabled with it — describe lineup links without promising a notification. |
 | **Account-level notification preferences** | Specified only. Not built. | Nothing to say. |
 | **Bucket Challenge / pick-'em leaderboard** | **Being retired**, replaced by the general Standings tab. | The old brief's §3 and screenshot #6 both feature it. **Drop both.** Use Standings instead. |
 | **Guest self-registration / fan accounts** | Designed, not built, and blocked on other work. | Don't imply fans can create accounts. Today the fan experience is deliberately account-free — which is a selling point, so lean on that instead. |
@@ -246,7 +304,7 @@ no real player names or live tournament data in screenshots without permission.
 
 ---
 
-## 11. Suggested screenshot list, revised
+## 12. Suggested screenshot list, revised
 
 Replaces the table in the brief's §5. Same idea — leave labelled placeholders
 until real images exist.
@@ -262,13 +320,15 @@ until real images exist.
 | 7 | Standings with tiebreakers shown | "Standings that explain themselves." |
 | 8 | Lineup page opened from a team link | "Send the link to the team chat. No accounts." |
 | 9 | Light vs dark side by side | "Looks right at 9am and at 9pm." |
+| 10 | A bracket with picks made — hatched cards reading "Potential Outcome" | "Play it forward. Nobody mistakes it for the real thing." |
+| 11 | The Share dialog: Print / Download / Share with the format menu open | "Post it to the group chat. Print it for the fence." |
 
 *(Note: the brief's original #6, the Buckets leaderboard, is intentionally gone
-— see §10.)*
+— see §11.)*
 
 ---
 
-## 12. FAQ corrections
+## 13. FAQ corrections
 
 Use the brief's §6 answers, with these three changed:
 
@@ -284,8 +344,15 @@ Use the brief's §6 answers, with these three changed:
 - **Add: "Can I run more than one tournament?"** — *"Yes. One install hosts as
   many as you like, each with its own link, colours, and logo, and each with its
   own director who can't see the others."*
+- **Add: "If fans can pick winners, can they mess up my bracket?"** — *"No. A
+  visitor's picks live on their own device, are never saved, and are never seen
+  by anyone else — a refresh clears them. Your posted results are the only thing
+  anyone else sees. And every card a pick affects is watermarked 'Potential
+  Outcome', on screen and in any image they save or print, so a screenshot can't
+  be passed off as a result. You can also turn the whole thing off for your
+  tournament."*
 
 ---
 
 *Maintainers: this file is the sales-site-facing mirror of what ships. When a
-§10 item gets built, move it up and say so in `docs/HANDOFF.md`.*
+§11 item gets built, move it up and say so in `docs/HANDOFF.md`.*
