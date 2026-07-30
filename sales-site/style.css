@@ -792,7 +792,7 @@ section { padding: 5rem 0; }
   .footer-inner { justify-content: center; text-align: center; }
 }
 
-/* ── v3/v4 additions: hero note, self-host CTA row, footer links ── */
+/* ── v3/v4 additions: hero note, CTA row, footer links ── */
 .hero-note {
   margin-top: 1.25rem;
   font-size: 0.9rem;

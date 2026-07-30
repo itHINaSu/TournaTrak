@@ -78,6 +78,16 @@ Group these into sections/cards on the site. Each has a benefit-first framing.
 - **Role-based access** — separate logins for full admins, score-keepers,
   coaches/teams, and challenge-leaderboard editors, so you can delegate without
   handing over the keys. Secure password login with rate-limiting.
+- **Run many tournaments at once** — each event gets its own clean URL
+  (`/t/your-event`); tournament directors create and run their own events and
+  switch between them from one admin.
+- **Push notifications** — admins and scorekeepers can opt in to be notified
+  the instant a coach submits a lineup, no need to keep checking back.
+
+### Share and follow
+- **Share, download, or print the bracket** — any visitor, not just staff, can
+  save the bracket as an image or PDF, or push it straight to their phone's
+  native share sheet.
 
 ### Customizable to your event
 - Set your **tournament name, subtitle, and labels** from the settings panel.
@@ -93,7 +103,7 @@ Group these into sections/cards on the site. Each has a benefit-first framing.
 - **No app store, no download friction** — it's just a link.
 - **Resilient on flaky tournament-field Wi-Fi/cell** — designed to keep working
   and serve fresh data when the connection is spotty.
-- **Self-hosted and data-light** — no heavy backend, runs cheaply.
+- **Lightweight** — no heavy backend, runs cheaply.
 
 ---
 
@@ -134,6 +144,14 @@ new chat should leave labeled placeholder slots until real images are provided.
 | 6 | Buckets / challenge leaderboard | "Keep fans engaged with a pick-'em leaderboard." |
 | 7 | Admin live-scoring controls | "Run it all from one simple panel." |
 | 8 | Light vs dark theme side-by-side | "Looks great day or night." |
+| 9 | Share/Download/Print dialog on the bracket | "Save it, print it, or send it — one tap." |
+| 10 | Admin tournament switcher (multiple events) | "Run every one of your events from one place." |
+| 11 | Notification opt-in / bell for a lineup submission | "Know the moment a lineup lands." |
+
+**Not yet captured as of 2026-07-30** — rows 9–11 need fresh screenshots once a
+demo tournament has these features exercised (Share/Download/Print, the
+multi-tournament switcher, and push notifications all shipped after the first
+screenshot pass).
 
 > Note for the builder: use responsive, framed device mockups (phone frame for
 > mobile shots, browser frame for desktop). Keep image alt text descriptive.
@@ -195,8 +213,13 @@ Collect an email + event name/date + sport + approximate team count.
   data without permission — use sample/demo data or anonymized screenshots.
 - **Do not** invent pricing, customer testimonials, logos, or statistics. Leave
   clearly-marked placeholders for the owner to fill in.
-- Multi-tournament hosting and clean per-page URLs are **planned future work**,
-  not current capabilities — don't advertise them as available today.
+- Multi-tournament hosting and clean per-page URLs (`/t/your-event`) **are now
+  shipped** — tournament directors create and run their own events. Safe to
+  advertise as a current capability.
+- **Do not describe TournaTrak as free, open source, or self-hosted.** The
+  commercial model is a hosted/managed product with pricing to be determined
+  by the owner directly — keep CTAs pointed at a demo or direct contact, not a
+  public code repository.
 
 ---
 

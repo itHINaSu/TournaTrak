@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TournaTrak — Free, self-hosted live tournament brackets</title>
-  <meta name="description" content="Open-source tournament software: live brackets, real-time scores, schedules, lineups, and multi-tournament hosting. Self-host in minutes with Docker. One link, any device — no app, no per-team fees.">
+  <title>TournaTrak — Live tournament brackets, scores, and lineups</title>
+  <meta name="description" content="Tournament software built for organizers: live brackets, real-time scores, schedules, coach lineups, and multi-tournament hosting. One link, any device — no app to install.">
 
   <!-- Open Graph / social preview -->
-  <meta property="og:title" content="TournaTrak — Free, self-hosted live tournament brackets">
-  <meta property="og:description" content="Live brackets, real-time scores, schedules, and lineups for your tournament. Open-source and self-hosted — deploy in minutes with one command.">
+  <meta property="og:title" content="TournaTrak — Live tournament brackets, scores, and lineups">
+  <meta property="og:description" content="Live brackets, real-time scores, schedules, and lineups for your tournament. One link, any device.">
   <meta property="og:type" content="website">
 
   <link rel="icon" type="image/svg+xml" href="icons/tournatrak.svg">
@@ -17,17 +17,13 @@
   <link rel="stylesheet" href="style.css">
 
   <!-- ════════════════════════════════════════════════════════════════════
-       BEFORE PUBLISHING: replace these three placeholder links everywhere.
+       BEFORE PUBLISHING: replace these placeholder links everywhere.
        Each occurrence in this file is tagged with the matching CONFIG marker
        so you can find/replace in one pass:
 
-         CONFIG:GITHUB  → your public repo URL   (search: GITHUB_URL_HERE)
          CONFIG:DEMO    → a hosted demo, or delete the demo CTAs if none
                           (search: DEMO_URL_HERE)
          CONFIG:EMAIL   → your contact address   (search: YOUR@EMAIL.COM)
-
-       If you have no hosted demo yet, the "Self-host it" GitHub CTA stands
-       on its own — the demo buttons are optional.
        ════════════════════════════════════════════════════════════════════ -->
 </head>
 <body>
@@ -41,12 +37,12 @@
       </a>
       <div class="nav-links">
         <a href="#features">Features</a>
-        <a href="#how-it-works">Self-host</a>
+        <a href="#how-it-works">How it works</a>
         <a href="#gallery">Screenshots</a>
         <a href="#faq">FAQ</a>
       </div>
-      <!-- CONFIG:GITHUB -->
-      <a href="GITHUB_URL_HERE" class="btn btn-gold btn-sm">View on GitHub</a>
+      <!-- CONFIG:DEMO -->
+      <a href="DEMO_URL_HERE" class="btn btn-gold btn-sm">See a live demo</a>
     </div>
   </nav>
 
@@ -55,8 +51,8 @@
     <div class="hero-bg" aria-hidden="true"></div>
     <div class="container hero-inner">
       <div class="hero-text">
-        <div class="hero-badge" aria-label="Open source">
-          <span class="live-dot" aria-hidden="true">●</span> Free &amp; open source
+        <div class="hero-badge" aria-label="Live scoring">
+          <span class="live-dot" aria-hidden="true">●</span> Live scores, right on the bracket
         </div>
         <h1>
           Run your tournament from your phone.<br>
@@ -64,17 +60,16 @@
         </h1>
         <p class="hero-sub">
           Live brackets, real-time scores, schedules, and coach lineups — for
-          softball, baseball, and any bracket sport. Self-hosted and open
-          source: one command to deploy, one link to share. No app store, no
-          sign-ups, no per-team fees.
+          softball, baseball, and any bracket sport. One link to share, no
+          app store, no sign-ups for fans.
         </p>
         <div class="hero-actions">
-          <!-- CONFIG:GITHUB -->
-          <a href="GITHUB_URL_HERE" class="btn btn-gold btn-lg">Self-host it — free</a>
+          <!-- CONFIG:DEMO -->
+          <a href="DEMO_URL_HERE" class="btn btn-gold btn-lg">See a live demo</a>
           <a href="#features" class="btn btn-ghost btn-lg">Explore features</a>
         </div>
         <p class="hero-note">
-          <code>git clone</code> &rarr; <code>docker compose up</code> &rarr; live in minutes.
+          One link for the whole tournament — bracket, schedule, scores, and lineups.
         </p>
       </div>
 
@@ -196,10 +191,10 @@
           <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V5a2 2 0 012-2h12a2 2 0 012 2v2"/><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M8 12h8M8 16h5"/></svg></div>
           <h3>Run many tournaments at once</h3>
           <p>
-            One deployment hosts as many events as you want, each at its own
-            clean URL (<code>/t/your-event</code>). Switch between them from a
-            single admin, with a super-admin over the top and per-tournament
-            organizers, scorekeepers, and coaches underneath.
+            Host as many events as you want, each at its own clean URL
+            (<code>/t/your-event</code>). Tournament directors create and run
+            their own events and switch between them from one admin, with
+            scorekeepers and coaches granted exactly the access their event needs.
           </p>
         </div>
 
@@ -237,12 +232,31 @@
 
         <div class="feature-card reveal">
           <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
-          <h3>Yours, and secure by default</h3>
+          <h3>Secure by default</h3>
           <p>
-            Self-hosted on your own box — your data never leaves it. Role-based
-            logins, bcrypt passwords, rate-limited login, and a strict
-            content-security policy out of the box. Works like an installable
-            app and holds up on spotty tournament-field Wi-Fi.
+            Role-based logins, bcrypt passwords, rate-limited login, and a
+            strict content-security policy out of the box. Works like an
+            installable app and holds up on spotty tournament-field Wi-Fi.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13"/><path d="M7 8l5-5 5 5"/><path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg></div>
+          <h3>Share, download, or print the bracket</h3>
+          <p>
+            Every visitor — not just staff — can save the bracket as an image
+            or PDF, or hand it straight to their phone's own share sheet. One
+            tap, no screenshotting a cramped mobile screen.
+          </p>
+        </div>
+
+        <div class="feature-card reveal">
+          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg></div>
+          <h3>Know the moment a lineup lands</h3>
+          <p>
+            Admins and scorekeepers can opt in to a push notification the
+            instant a coach submits their lineup — no refreshing the admin
+            panel between games to check.
           </p>
         </div>
 
@@ -250,25 +264,24 @@
     </div>
   </section>
 
-  <!-- ── How it Works (self-host) ── -->
-  <section class="how-it-works" id="how-it-works" aria-label="How to self-host">
+  <!-- ── How it Works ── -->
+  <section class="how-it-works" id="how-it-works" aria-label="How it works">
     <div class="container">
-      <h2 class="section-title">Self-host in minutes</h2>
+      <h2 class="section-title">Up and running before the first pitch</h2>
       <p class="section-sub">
-        No build steps, no cloud account, no secrets to generate by hand.
-        Clone it, bring it up, and it configures itself on first boot.
+        No app to install, no accounts for fans to create.
       </p>
       <div class="steps-grid">
         <div class="step reveal">
           <div class="step-number" aria-hidden="true">1</div>
-          <h3>Clone &amp; compose up</h3>
-          <p><code>git clone</code> the repo and run <code>docker compose up -d</code>. Postgres, the API, and the web server all start together.</p>
+          <h3>Build your bracket</h3>
+          <p>Paste your team list into the Bracket Builder and generate a full single- or double-elimination schedule, or hand-place a custom format. Set your times and fields.</p>
         </div>
         <div class="step-connector" aria-hidden="true"></div>
         <div class="step reveal">
           <div class="step-number" aria-hidden="true">2</div>
-          <h3>Log in &amp; build your bracket</h3>
-          <p>First boot prints a one-time admin password. Log in, paste your teams into the Bracket Builder, and set your times and fields.</p>
+          <h3>Bring in your team</h3>
+          <p>Add scorekeepers and coaches with exactly the access they need — a coach can get a private link or their own login, no account required for fans.</p>
         </div>
         <div class="step-connector" aria-hidden="true"></div>
         <div class="step reveal">
@@ -278,10 +291,10 @@
         </div>
       </div>
       <div class="how-cta">
-        <!-- CONFIG:GITHUB -->
-        <a href="GITHUB_URL_HERE" class="btn btn-gold btn-lg">Get it on GitHub</a>
-        <!-- CONFIG:DEMO — delete this button if you don't have a hosted demo -->
-        <a href="DEMO_URL_HERE" class="btn btn-ghost btn-lg">See a live demo</a>
+        <!-- CONFIG:DEMO -->
+        <a href="DEMO_URL_HERE" class="btn btn-gold btn-lg">See a live demo</a>
+        <!-- CONFIG:EMAIL -->
+        <a href="mailto:YOUR@EMAIL.COM" class="btn btn-ghost btn-lg">Get in touch</a>
       </div>
     </div>
   </section>
@@ -299,7 +312,7 @@
         <div class="use-case-card reveal">
           <div class="use-case-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H3.5a2.5 2.5 0 010-5H6"/><path d="M18 9h2.5a2.5 2.5 0 000-5H18"/><path d="M12 17a5 5 0 01-5-5V4h10v8a5 5 0 01-5 5z"/><path d="M12 17v4M9 21h6"/></svg></div>
           <h3>Rec Leagues &amp; Clubs</h3>
-          <p>Weekend brackets where everyone wants to know "who's up next and on which field." Run several divisions from one deployment.</p>
+          <p>Weekend brackets where everyone wants to know "who's up next and on which field." Run several divisions side by side.</p>
         </div>
         <div class="use-case-card reveal">
           <div class="use-case-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4.5 13H12L11 22L19.5 11H12L13 2z"/></svg></div>
@@ -309,24 +322,22 @@
         <div class="use-case-card reveal">
           <div class="use-case-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L2 8l10 5 10-5-10-5z"/><path d="M6 10.5v5a6 6 0 0012 0v-5"/><path d="M22 8v4"/></svg></div>
           <h3>Schools &amp; Fundraisers</h3>
-          <p>Run a clean, professional bracket for free — no per-team pricing, no expensive software, no spreadsheet nobody can read.</p>
+          <p>Run a clean, professional bracket — no expensive software, no spreadsheet nobody can read.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ── Market differentiation / open-source ── -->
+  <!-- ── Market differentiation ── -->
   <section class="problem" id="why" aria-label="Why TournaTrak">
     <div class="container">
       <div class="solution-card" style="max-width:720px;margin:0 auto;text-align:center;">
-        <h2>Purpose-built for tournament directors — and truly yours.</h2>
+        <h2>Purpose-built for tournament directors.</h2>
         <p style="margin-top:0.75rem;">
           Most bracket tools are glorified spreadsheets, ad-stuffed apps, or
-          overpowered registration platforms that charge per team and hold your
-          data. TournaTrak is open source and self-hosted: a live bracket,
+          overpowered registration platforms. TournaTrak is a live bracket,
           inline schedule, shareable Team Paths, a field-side scorekeeper, and
-          per-sport coach lineups in one app you run and own. No fees, no
-          lock-in, no ads.
+          per-sport coach lineups in one focused app — no ads, no clutter.
         </p>
       </div>
     </div>
@@ -406,6 +417,16 @@
         <figure class="gallery-shot reveal">
           <div class="gallery-shot-img">
             <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-schedule-dark.png">
+              <img src="screenshots/desktop-schedule-light.png" alt="By-round schedule view on desktop" loading="lazy">
+            </picture>
+          </div>
+          <figcaption>Schedule on the big screen — every field, every round</figcaption>
+        </figure>
+
+        <figure class="gallery-shot reveal">
+          <div class="gallery-shot-img">
+            <picture>
               <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-buckets-dark.png">
               <img src="screenshots/mobile-buckets-light.png" alt="Challenge leaderboard showing team standings" loading="lazy">
             </picture>
@@ -426,11 +447,31 @@
         <figure class="gallery-shot reveal">
           <div class="gallery-shot-img">
             <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-lineup-dark.png">
+              <img src="screenshots/desktop-lineup-light.png" alt="Coach lineup entry tool on desktop" loading="lazy">
+            </picture>
+          </div>
+          <figcaption>Lineups adapt to your sport — softball, volleyball, basketball, or custom</figcaption>
+        </figure>
+
+        <figure class="gallery-shot reveal">
+          <div class="gallery-shot-img">
+            <picture>
               <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-admin-dark.png">
               <img src="screenshots/desktop-admin-light.png" alt="Full admin panel on desktop showing results and settings" loading="lazy">
             </picture>
           </div>
           <figcaption>Full admin panel — results, schedule, settings, users</figcaption>
+        </figure>
+
+        <figure class="gallery-shot reveal">
+          <div class="gallery-shot-img">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-buckets-dark.png">
+              <img src="screenshots/desktop-buckets-light.png" alt="Challenge leaderboard on desktop" loading="lazy">
+            </picture>
+          </div>
+          <figcaption>Buckets — an optional fan pick-'em leaderboard</figcaption>
         </figure>
 
       </div>
@@ -444,24 +485,20 @@
       <div class="faq-list">
 
         <details class="faq-item reveal">
-          <summary>Is it really free?</summary>
+          <summary>What does it cost?</summary>
           <p>
-            Yes — TournaTrak is open source and self-hosted. There's no per-team
-            or per-player pricing and no subscription. You run it on your own
-            server (a cheap VPS or even a spare PC), and your tournament data
-            stays with you.
+            Pricing depends on your event size and needs — get in touch for a
+            quote. There's no per-player pricing; you're not charged per fan
+            who opens the link.
           </p>
         </details>
 
         <details class="faq-item reveal">
-          <summary>How hard is it to set up?</summary>
+          <summary>How hard is it to get set up?</summary>
           <p>
-            If you can run one command, you can host it.
-            <code>git clone</code> the repository and
-            <code>docker compose up</code> — the database, API, and web server
-            start together, secrets are generated automatically on first boot,
-            and a one-time admin password is printed for you. No manual config
-            files to edit.
+            Fast. Paste your team list into the Bracket Builder and it
+            generates your full schedule — byes, seeding, and all — in
+            seconds. Reach out and we'll help you get your first event live.
           </p>
         </details>
 
@@ -489,10 +526,10 @@
         <details class="faq-item reveal">
           <summary>Can I run more than one tournament?</summary>
           <p>
-            Yes. A single deployment hosts as many tournaments as you like, each
-            at its own URL (<code>/t/your-event</code>), each with its own
-            bracket, schedule, users, colors, and logo. A super-admin manages
-            them all; per-tournament organizers only see theirs.
+            Yes. Host as many tournaments as you like, each at its own URL
+            (<code>/t/your-event</code>), each with its own bracket, schedule,
+            users, colors, and logo. Tournament directors manage their own
+            events; a global admin can oversee all of them.
           </p>
         </details>
 
@@ -517,6 +554,15 @@
         </details>
 
         <details class="faq-item reveal">
+          <summary>Can fans save or share the bracket?</summary>
+          <p>
+            Yes. Anyone can save the bracket as an image or PDF, or share it
+            straight through their phone's own share sheet — no account
+            needed.
+          </p>
+        </details>
+
+        <details class="faq-item reveal">
           <summary>Will it work at the field with bad signal?</summary>
           <p>
             It's built for spotty tournament-field Wi-Fi and cell. The public
@@ -535,13 +581,12 @@
       <div class="contact-inner">
         <h2>Ready to run your next tournament?</h2>
         <p>
-          TournaTrak is free and open source. Grab it on GitHub and host it
-          yourself, or get in touch if you'd like a hand setting it up for an
-          upcoming event.
+          See TournaTrak running on a real bracket, or get in touch and we'll
+          help you get your next event live.
         </p>
         <div class="hero-actions" style="justify-content:center;">
-          <!-- CONFIG:GITHUB -->
-          <a href="GITHUB_URL_HERE" class="btn btn-gold btn-lg">Get it on GitHub</a>
+          <!-- CONFIG:DEMO -->
+          <a href="DEMO_URL_HERE" class="btn btn-gold btn-lg">See a live demo</a>
           <!-- CONFIG:EMAIL -->
           <a href="mailto:YOUR@EMAIL.COM" class="btn btn-outline btn-lg">Get in touch</a>
         </div>
@@ -557,12 +602,12 @@
         <span>TournaTrak</span>
       </div>
       <div class="footer-links">
-        <!-- CONFIG:GITHUB -->
-        <a href="GITHUB_URL_HERE">GitHub</a>
         <a href="#features">Features</a>
         <a href="#faq">FAQ</a>
+        <!-- CONFIG:EMAIL -->
+        <a href="mailto:YOUR@EMAIL.COM">Contact</a>
       </div>
-      <p class="footer-copy">&copy; 2026 TournaTrak — free &amp; open source.</p>
+      <p class="footer-copy">&copy; 2026 TournaTrak.</p>
     </div>
   </footer>
 
