@@ -183,18 +183,31 @@ mobile/PWA only).
   the threshold in the same function.
 - Threshold is 2+ controls. Guests get the menu too.
 
+**Guest self-registration is DESIGNED, not built** — `docs/GUEST_ACCOUNTS.md`
+(owner asked for the design now because sign-in is heading into the header and
+the decisions are cheaper before that lands). Read it before building anything
+account-shaped for spectators. The three things worth knowing without opening
+it: **this instance cannot send email** (no SMTP anywhere, and coach magic links
+are copied by the TD precisely so it never needs to), which rules out the
+conventional register-and-verify design unless a mail dependency is taken on; a
+guest must have **no `user_roles` row at all**, so `effectiveRole` returns null
+and every `requireRole` refuses them with no new code; and
+`push_subscriptions.user_id` is already nullable, so adopting a device's
+anonymous subscription is one UPDATE, never a delete-and-recreate.
+
 **PLANNED for that menu (owner, 2026-07-30) — build into it, not around it:**
 light/dark, notifications, **sign-in for coaches and admins without navigating
 to another URL**, possibly Project winners for guests, and Save image likely
 becoming a Share button offered to guests as well as staff. So the guest menu
 is going to be populated, and the header is the right home for auth entry.
 
-**Emoji are out (owner: "a touch tacky"), and they were BROKEN anyway.** The
-display fonts carry no glyph for ⚡ 🔔 ☀ 🌙 and there is no emoji fallback in
-the stack, so they rendered as empty tofu boxes on the owner's phone — the
-theme toggle was a blank square. Removed from Notify me and the Live/Score
-buttons; the theme toggle is inline SVG now, like every other icon in the app.
-Do not reintroduce emoji in UI chrome — use inline SVG.
+**Emoji are out of UI chrome (owner: "a touch tacky").** Removed from Notify me
+and the Live/Score buttons. The theme toggle also became inline SVG — note the
+reason recorded here first was WRONG: I read tofu boxes in the owner's
+screenshot as a missing-glyph problem, and they were an artefact of Chrome's
+device-emulation view. The ☀/🌙 rendered fine on the real device. The SVG stands
+on consistency alone (every other icon in the app is inline SVG) and the owner
+can have the emoji back for the asking — it was never broken.
 
 **FIXED 2026-07-30** (confirmed on the owner's box: restarting nginx cleared
 it, which proves the upstream was stale). `nginx.conf` now uses Docker's
