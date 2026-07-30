@@ -1584,13 +1584,18 @@ async function loadTournamentContext() {
   try {
     var r = await fetch('/api/session');
     var data = await r.json();
-    _adminTournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
-    _isSuperadmin = !!data.superadmin;
+    // One place decides which tournament is active and drops a stale saved
+    // slug, shared with checkSession, so the two cannot drift apart.
+    seedTournamentContext(data);
   } catch (e) { _adminTournaments = []; _isSuperadmin = false; }
 
-  // Drop a saved slug the user no longer has access to.
-  var saved = getAdminSlug();
-  if (saved && !_adminTournaments.some(function(t) { return t.slug === saved; })) setAdminSlug(null);
+  // Grants may have changed since sign-in (a new tournament was just created,
+  // or a grant was revoked), so re-derive the panel's privilege level.
+  var scoped = activeTournamentRole();
+  if (scoped && scoped !== currentRole) {
+    currentRole = scoped;
+    applyRoleRestrictions(currentRole);
+  }
 
   var navT = document.getElementById('navTournaments');
   if (navT) navT.hidden = !(_isSuperadmin);
@@ -1632,6 +1637,14 @@ function updateViewPublicLink() {
 function switchTournament(slug) {
   setAdminSlug(slug || null);
   updateViewPublicLink();
+  // Grants can differ per tournament — a TD may be admin on one event and only
+  // a scorekeeper on another — so the panel's privilege level has to follow the
+  // switch, not stay on whatever the previous tournament allowed.
+  var scoped = activeTournamentRole();
+  if (scoped && scoped !== currentRole) {
+    currentRole = scoped;
+    applyRoleRestrictions(currentRole);
+  }
   if (currentRole === 'admin') loadUsers();
   fetchAll();
   showToast('Switched tournament');
@@ -1860,16 +1873,50 @@ async function saveUsername() {
   showToast('Username changed to ' + username);
 }
 
+// The role to run the panel with: the caller's grant on the tournament they
+// are actually working in.
+//
+// /api/session is deliberately answered on the GLOBAL mount, so its top-level
+// `role` is the caller's grant on the LIVE tournament. A Tournament Director
+// who runs other events has no grant there, so that field is null, and the
+// panel used to come up with the un-gated subset of features visible — which
+// reads exactly like "my admin account only has scorekeeper permissions".
+// session.tournaments carries the per-tournament role, so use that.
+function activeTournamentRole() {
+  if (_isSuperadmin) return 'admin';
+  var slug = getAdminSlug();
+  var t = _adminTournaments.filter(function(x) { return x.slug === slug; })[0];
+  return t ? t.role : null;
+}
+
+// Pick the tournament to open, from the grants in a /api/session response.
+// Mirrors renderTournamentSwitcher's choice so the role we apply and the
+// tournament the switcher lands on can never disagree.
+function seedTournamentContext(data) {
+  _adminTournaments = Array.isArray(data.tournaments) ? data.tournaments : [];
+  _isSuperadmin = !!data.superadmin;
+  var saved = getAdminSlug();
+  if (saved && !_adminTournaments.some(function(t) { return t.slug === saved; })) setAdminSlug(null);
+  if (!getAdminSlug() && _adminTournaments.length) {
+    var live = _adminTournaments.filter(function(t) { return t.isLive; })[0] || _adminTournaments[0];
+    setAdminSlug(live.slug);
+  }
+}
+
 async function checkSession() {
   try {
     var r    = await fetch('/api/session');
     var data = await r.json();
     if (data.authenticated) {
       if (data.role === 'team') { showCoachBlock(data.username); return; }
-      currentRole = data.role || null;
+      // Resolve the tournament BEFORE applying role restrictions, so the panel
+      // never renders once at the wrong privilege level and then corrects.
+      seedTournamentContext(data);
+      currentRole = activeTournamentRole() || data.role || null;
       currentTeamName = data.teamName || null;
       if (data.mustChangePassword) showChangePassword();
-      else showAdmin(data.username, data.role, data.teamName);
+      // currentRole, not data.role — see activeTournamentRole().
+      else showAdmin(data.username, currentRole, data.teamName);
     } else if (data.setupRequired) {
       showSetup();
     } else {

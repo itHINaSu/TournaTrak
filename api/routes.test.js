@@ -1031,6 +1031,79 @@ describe('cross-tournament coach grants', () => {
     // it does not take a TD's coaches away from them.
     assert.equal((await td.post('/api/users/coach-fenced/teams', { teamName: 'Beta' })).status, 200);
   });
+
+  // A Tournament Director runs their own events, so they create them — but
+  // must not be able to take over the tournament served at /.
+  rtest('a TD can create a tournament, becomes its admin, and cannot make it live', async () => {
+    const a  = await loginAdmin();
+    const td = await tournamentAdmin(a, 'td-creates');
+
+    const made = await td.post('/api/tournaments', { slug: 'td-cup', name: 'TD Cup' });
+    assert.equal(made.status, 200, JSON.stringify(made.json));
+
+    // They are admin on it without anyone granting it to them.
+    const who = await td.get('/api/session');
+    const mine = who.json.tournaments.find(t => t.slug === 'td-cup');
+    assert.ok(mine, 'the new tournament is theirs');
+    assert.equal(mine.role, 'admin', 'and they run it');
+    assert.ok(!mine.isLive, 'a new tournament is never the live one');
+    assert.equal((await td.get('/api/t/td-cup/users')).status, 200, 'can administer it');
+
+    // Making something live stays a global-admin action.
+    assert.equal((await td.post('/api/t/td-cup/tournaments/td-cup/live', {})).status, 403);
+    assert.equal((await td.post('/api/tournaments/td-cup/live', {})).status, 403);
+    // ...and the live tournament is still whatever it was.
+    const list = (await a.get('/api/tournaments')).json;
+    assert.ok(!list.find(t => t.slug === 'td-cup').isLive, 'still not live');
+
+    // Fencing holds on the new tournament too: another TD cannot touch it.
+    const other = await tournamentAdmin(a, 'td-outsider');
+    assert.equal((await other.get('/api/t/td-cup/users')).status, 403);
+  });
+
+  // Removing the coaching side of an account. This was unreachable: the route
+  // refused any user whose role was not 'team', so staff who picked up a team
+  // (via a lineup link, say) could never hand it back.
+  rtest('a coach role can be removed, and staff keep their staff role', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+
+    // Staff who also coach: the teams go, the staff role stays.
+    const sk = await a.post('/api/users', { username: 'sk-coaches', role: 'results' });
+    assert.equal(sk.status, 200, JSON.stringify(sk.json));
+    assert.equal((await a.post('/api/users/sk-coaches/teams', { teamName: 'Alpha' })).status, 200,
+      'staff can be given a team to coach');
+    assert.equal((await a.post('/api/users/sk-coaches/teams', { teamName: 'Beta' })).status, 200);
+
+    // Dropping the LAST team used to be refused for everyone.
+    assert.equal((await a.del('/api/users/sk-coaches/teams/Alpha')).status, 200);
+    const one = await a.del('/api/users/sk-coaches/teams/Beta');
+    assert.equal(one.status, 200, 'staff may drop their last team: ' + JSON.stringify(one.json));
+
+    // The bulk action, and it leaves the staff role alone.
+    assert.equal((await a.post('/api/users/sk-coaches/teams', { teamName: 'Alpha' })).status, 200);
+    const off = await a.del('/api/users/sk-coaches/coach');
+    assert.equal(off.status, 200, JSON.stringify(off.json));
+    assert.equal(off.json.roleRevoked, false, 'the staff role is not touched');
+    assert.equal(off.json.accountDeleted, false);
+    const still = (await a.get('/api/users')).json.find(u => u.username === 'sk-coaches');
+    assert.ok(still, 'the account survives');
+    assert.equal(still.role, 'results', 'and is still a scorekeeper');
+
+    // A PURE coach has nothing left without the coach role, so removing it
+    // removes their access — and the orphaned account with it.
+    await a.post('/api/users', { username: 'coach-only', role: 'team', teamName: 'Gamma' });
+    const gone = await a.del('/api/users/coach-only/coach');
+    assert.equal(gone.status, 200, JSON.stringify(gone.json));
+    assert.equal(gone.json.roleRevoked, true);
+    assert.equal(gone.json.accountDeleted, true, 'no grants left anywhere');
+    assert.ok(!(await a.get('/api/users')).json.find(u => u.username === 'coach-only'));
+
+    // Not a coach here at all, and never your own access.
+    await a.post('/api/users', { username: 'sk-plain', role: 'results' });
+    assert.equal((await a.del('/api/users/sk-plain/coach')).status, 400);
+    assert.equal((await a.del('/api/users/admin/coach')).status, 400);
+  });
 });
 
 // ── Push notifications ────────────────────────────────────────────────

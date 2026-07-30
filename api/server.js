@@ -717,7 +717,14 @@ api.post('/users/:username/teams', requireAdmin, ah(async (req, res) => {
   }
   const user = await store.findUser(username);
   if (!user || !userActionAllowed(req, user)) return res.status(404).json({ error: 'User not found' });
-  if (store.effectiveRole(user, req.tid) !== 'team') return res.status(400).json({ error: 'Only team users have teams' });
+  // Anyone with a role in this tournament may also coach a team. Staff often
+  // do — a TD whose own kid is on a team should not need a second account, and
+  // the team-link claim already grants exactly this. The old check refused
+  // every non-'team' user, which is what made coaching-on-top-of-staff
+  // reachable by that one path and no other.
+  if (!store.effectiveRole(user, req.tid)) {
+    return res.status(400).json({ error: 'User has no role in this tournament' });
+  }
   const name = teamName.trim();
   const teams = store.teamsFor(user, req.tid);
   if (teams.includes(name)) return res.status(409).json({ error: 'Team already assigned' });
@@ -729,11 +736,48 @@ api.delete('/users/:username/teams/:teamName', requireAdmin, ah(async (req, res)
   const { username, teamName } = req.params;
   const user = await store.findUser(username);
   if (!user || !userActionAllowed(req, user)) return res.status(404).json({ error: 'User not found' });
-  if (store.effectiveRole(user, req.tid) !== 'team') return res.status(400).json({ error: 'Only team users have teams' });
-  const teams = store.teamsFor(user, req.tid).filter(t => t !== teamName);
-  if (teams.length === 0) return res.status(400).json({ error: 'Cannot remove the only team' });
-  await store.setUserTeams(username, req.tid, teams);
+  const role  = store.effectiveRole(user, req.tid);
+  const teams = store.teamsFor(user, req.tid);
+  if (!teams.length) return res.status(400).json({ error: 'User has no teams in this tournament' });
+  const left = teams.filter(t => t !== teamName);
+  if (left.length === teams.length) return res.status(404).json({ error: 'Team not assigned' });
+  // A PURE coach with no teams left has an account that can reach nothing, so
+  // that case still routes through removing the user. Staff who also coach are
+  // different: dropping their last team just ends the coaching, and the staff
+  // role is untouched. Blocking it for everyone was the reason a TD who took a
+  // team link could never hand the team back.
+  if (!left.length && role === 'team') {
+    return res.status(400).json({ error: 'Cannot remove the only team — remove the user instead' });
+  }
+  await store.setUserTeams(username, req.tid, left);
   res.json({ ok: true });
+}));
+
+// Remove the coaching side of an account in THIS tournament: every team goes,
+// and for someone whose only role here was coach the role grant goes with it
+// (an account left with no role and no teams could sign in and reach nothing).
+// Staff keep their staff role and simply stop being a coach.
+api.delete('/users/:username/coach', requireAdmin, ah(async (req, res) => {
+  const { username } = req.params;
+  const user = await store.findUser(username);
+  if (!user || !userActionAllowed(req, user)) return res.status(404).json({ error: 'User not found' });
+  const role  = store.effectiveRole(user, req.tid);
+  const teams = store.teamsFor(user, req.tid);
+  if (role !== 'team' && !teams.length) {
+    return res.status(400).json({ error: 'User is not a coach in this tournament' });
+  }
+  if (role === 'team') {
+    if (username === req.user.username) {
+      return res.status(400).json({ error: 'Cannot remove your own access' });
+    }
+    // revokeRole returns how many grants the account has LEFT anywhere; none
+    // means the account is orphaned, same cleanup DELETE /users does.
+    const remaining = await store.revokeRole(username, req.tid);
+    if (remaining === 0) await store.deleteUser(username);
+    return res.json({ ok: true, roleRevoked: true, accountDeleted: remaining === 0 });
+  }
+  await store.setUserTeams(username, req.tid, []);
+  res.json({ ok: true, roleRevoked: false, accountDeleted: false });
 }));
 
 // ── Cross-tournament grants (superadmin) ──────────────────────────────
@@ -891,7 +935,14 @@ api.post('/tournaments/:slug/live', requireSuperadmin, ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
-api.post('/tournaments', requireSuperadmin, ah(async (req, res) => {
+// Creating a tournament is a Tournament Director capability, not a global-admin
+// one: a TD running their own events should not have to ask for each new one.
+// Two limits keep that safe, and both are structural rather than checks that
+// could be forgotten. createTournament never writes is_default, so a new
+// tournament CANNOT come up live; and making one live is
+// POST /tournaments/:slug/live, which stays superadmin-only. So a TD can add
+// events and run them, but cannot take over the tournament served at /.
+api.post('/tournaments', requireAdmin, ah(async (req, res) => {
   const { slug, name, isPublic } = req.body || {};
   if (typeof slug !== 'string' || !SLUG_RE.test(slug)) {
     return res.status(400).json({ error: 'Slug must be 1–63 lowercase letters, digits, or hyphens (starting with a letter or digit)' });
@@ -903,6 +954,13 @@ api.post('/tournaments', requireSuperadmin, ah(async (req, res) => {
     return res.status(409).json({ error: 'Slug already exists' });
   }
   await store.createTournament({ slug, name: name.trim(), isPublic: isPublic !== false });
+  // The creator has to end up able to run it. A superadmin already passes every
+  // check everywhere and needs no row; anyone else gets an admin grant on the
+  // tournament they just made, or they would create an event they cannot open.
+  const created = await store.tournamentBySlug(slug);
+  if (created && req.user.role !== 'superadmin') {
+    await store.grantRole(req.user.username, created.id, 'admin');
+  }
   res.json({ ok: true, slug });
 }));
 
