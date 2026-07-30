@@ -6520,13 +6520,21 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   var isPwa    = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
   var adminBtn       = document.getElementById('adminPortalBtn');
   var lineupBtn      = document.getElementById('lineupPortalBtn');
+  var signInBtn      = document.getElementById('signInBtn');
   var editBtn        = document.getElementById('bucketEditBtn');
   var bracketEditBtn = document.getElementById('bracketEditBtn');
-  // Signed-out visitors in an installed PWA also get the Admin button —
-  // an admin who tapped "view public bracket" from the admin PWA's login
-  // screen (or whose session expired) needs a way back to sign in; browser
-  // visitors can just navigate to /admin.
-  if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results' || (!_sessionRole && isPwa)));
+  // Signed out: ONE "Sign in", never a panel link. This replaced an inference
+  // that could not work — the page cannot tell which installed app launched
+  // it (both are just display-mode: standalone), so "Admin" was shown to every
+  // signed-out visitor in standalone mode purely so a staff member with an
+  // expired session had a route back. That leaked the admin link into the
+  // public install, where it was wrong for everyone who saw it.
+  //
+  // Signed in: the panel links, by role, and no Sign in. Signing in is what
+  // decides which panel you are offered, rather than the visitor guessing
+  // first and being told afterwards that they picked the wrong door.
+  if (signInBtn)      signInBtn.hidden = !(!_sessionRole);
+  if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
   if (lineupBtn)      lineupBtn.hidden = !((_sessionRole === 'team'));
   if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
   if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));

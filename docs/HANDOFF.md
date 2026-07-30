@@ -120,6 +120,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **One "Sign in" replaces the PWA guesswork** — signed-out visitors get a login route in any context; coaches signing in at /admin are routed instead of dead-ended |
 | (this) | **Dark band above the mobile nav** — the carousel was sized from the VISUAL viewport; header menu reordered per owner |
 | (this) | **First password set can also claim a username** — the placeholder name an admin typed was never shown to the person using it |
 | (this) | **Coach links now carry the tournament's icon and a link preview** (`/lineup` proxied + branded); **installed-app name is settable** (`pwaName`/`pwaShortName`) |
@@ -2546,6 +2547,31 @@ px-to-vh conversions want the visual one. Don't "fix" them to match.
 
 This cannot be reproduced in headless Chromium, where the two measurements are
 identical — which is also why the change is a no-op on desktop.
+
+## One "Sign in", and why the PWA inference is gone (2026-07-30)
+The public header used to show **Admin** to any signed-out visitor in
+standalone mode. That was not a permission decision, it was a workaround: an
+installed app has no address bar, so a staff member whose session expired had
+no route to a login screen.
+
+**It could never have worked properly.** The page cannot tell which installed
+app launched it. Both clips are just `display-mode: standalone` /
+`navigator.standalone`; nothing carries the manifest or start_url through. So
+the hatch leaked the admin link into the PUBLIC install, where it was wrong
+for everyone who saw it. (On iOS the two installs ARE genuinely distinct —
+Add to Home Screen bakes the current URL and takes that page's
+`apple-touch-icon`, which is why index.html and admin.html produce different
+icons — but that distinction exists only at install time, never at runtime.)
+
+Now: signed out → one **Sign in**; signed in → the panel links by role, and no
+Sign in. `isPwa` survives only for the PWA-home-preference redirect.
+
+Two things had to come with it. The sign-in page leads with **"You don't need
+an account to follow the tournament"** — it is reachable from the public
+header now, so the largest group who will ever see it are spectators who
+should turn around, and that has to be said BEFORE the fields. And a coach
+signing in there is no longer dead-ended with "you do not have access to this
+page": `showCoachBlock` now redirects to the coach side.
 
 ## Header menu order (owner, 2026-07-30)
 Share, Project winners, Notifications, theme, Refresh, then Coach Panel and

@@ -10,19 +10,19 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.77">
-<link rel="stylesheet" href="/admin.css?v=3.77">
-<link rel="stylesheet" href="/lineup.css?v=3.77">
-<link rel="stylesheet" href="/builder.css?v=3.77">
-<link rel="stylesheet" href="/score.css?v=3.77">
-<script src="/app-h.js?v=3.77"></script>
+<link rel="stylesheet" href="/base.css?v=3.78">
+<link rel="stylesheet" href="/admin.css?v=3.78">
+<link rel="stylesheet" href="/lineup.css?v=3.78">
+<link rel="stylesheet" href="/builder.css?v=3.78">
+<link rel="stylesheet" href="/score.css?v=3.78">
+<script src="/app-h.js?v=3.78"></script>
 </head>
 <body>
 
 <!-- Login overlay — visible until session check passes -->
 <div class="login-overlay" id="loginOverlay">
   <div class="login-box">
-    <div class="login-title">Admin Login</div>
+    <div class="login-title">Sign In</div>
     <!-- Coach-blocked state -->
     <div id="coachBlockMsg" hidden>
       <div class="login-desc" id="coachBlockText"></div>
@@ -30,6 +30,19 @@
     </div>
     <!-- Normal login form -->
     <form id="loginForm">
+      <!-- This page is now reachable from a plain "Sign in" in the public
+           header, so the first thing a spectator who taps it must learn is
+           that it is not for them. Said before the fields, not after: someone
+           hunting for a password stops reading once they see inputs. -->
+      <div class="login-desc login-desc--who">
+        <strong>You don't need an account to follow the tournament.</strong>
+        The bracket, schedule and scores are open to everyone — just close this
+        and keep browsing.
+        <br><br>
+        Accounts are for <strong>coaches and tournament staff</strong>. If you
+        think you should have one, ask the tournament organiser — they can't be
+        issued from here.
+      </div>
       <div class="sched-field">
         <label>Username</label>
         <input type="text" id="loginUser" autocomplete="off" placeholder="Username">
@@ -41,9 +54,9 @@
       <div class="login-error" id="loginError" hidden></div>
       <button type="submit" id="loginBtn" class="sched-save-btn login-btn">Sign In</button>
     </form>
-    <!-- Escape hatch for the admin PWA: reach the public bracket without
-         signing in (the public page keeps an Admin button back to here). -->
-    <a class="login-public-link" href="/">← View public bracket without signing in</a>
+    <!-- The way back for anyone who arrived here by mistake — and the only way
+         back at all inside an installed app, which has no address bar. -->
+    <a class="login-public-link" href="/">← Back to the bracket</a>
   </div>
 </div>
 
@@ -935,15 +948,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.77"></script>
-<script src="/theme-css.js?v=3.77"></script>
-<script src="/tt-common.js?v=3.77"></script>
-<script src="/bracket-data.js?v=3.77"></script>
-<script src="/admin.js?v=3.77"></script>
-<script src="/lineup.js?v=3.77"></script>
-<script src="/score.js?v=3.77"></script>
-<script src="/builder-form.js?v=3.77"></script>
-<script src="/builder.js?v=3.77"></script>
-<script src="/sw-register.js?v=3.77" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.78"></script>
+<script src="/theme-css.js?v=3.78"></script>
+<script src="/tt-common.js?v=3.78"></script>
+<script src="/bracket-data.js?v=3.78"></script>
+<script src="/admin.js?v=3.78"></script>
+<script src="/lineup.js?v=3.78"></script>
+<script src="/score.js?v=3.78"></script>
+<script src="/builder-form.js?v=3.78"></script>
+<script src="/builder.js?v=3.78"></script>
+<script src="/sw-register.js?v=3.78" data-sw="/admin-sw.js"></script>
 </body>
 </html>

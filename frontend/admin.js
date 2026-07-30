@@ -1722,6 +1722,11 @@ async function doSetup(e) {
   btn.disabled = false;
 }
 
+// A coach who signs in here is not lost — they are just at the wrong door.
+// This used to be a dead end: "you do not have access to this page", with
+// nothing to do about it and no address bar in an installed app. There is one
+// Sign in entry for everyone now, so landing a coach on the coach side is the
+// entire job of this branch.
 function showCoachBlock(username) {
   document.getElementById('loginOverlay').hidden = false;
   document.getElementById('setupOverlay').hidden = true;
@@ -1732,8 +1737,14 @@ function showCoachBlock(username) {
   var blockText = document.getElementById('coachBlockText');
   var loginForm = document.getElementById('loginForm');
   if (loginForm) loginForm.hidden = true;
-  if (blockText) blockText.textContent = 'You are signed in as ' + (username || 'coach') + ' and do not have access to this page.';
+  if (blockText) {
+    blockText.textContent = 'Signed in as ' + (username || 'coach')
+      + ' — taking you to the coach panel…';
+  }
   if (blockMsg)  blockMsg.hidden = false;
+  // Brief pause so the message is readable rather than a flash of a screen
+  // they never asked for.
+  setTimeout(function() { window.location.replace('/lineup'); }, 900);
 }
 
 function showChangePassword() {

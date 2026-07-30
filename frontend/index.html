@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.77">
-<link rel="stylesheet" href="/bracket.css?v=3.77">
-<script src="/app-h.js?v=3.77"></script>
+<link rel="stylesheet" href="/base.css?v=3.78">
+<link rel="stylesheet" href="/bracket.css?v=3.78">
+<script src="/app-h.js?v=3.78"></script>
 </head>
 <body>
 
@@ -53,6 +53,13 @@
     <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
     <a href="/lineup" class="admin-public-btn" id="lineupPortalBtn" hidden>Coach Panel →</a>
     <a href="/admin" class="admin-public-btn" id="adminPortalBtn" hidden>Admin Panel →</a>
+    <!-- Shown ONLY when signed out, and it replaces the guesswork that used to
+         live here: the page cannot tell which installed app launched it, so it
+         used to show "Admin" to any signed-out visitor in standalone mode just
+         so a staff member with an expired session had a way back. One Sign in
+         serves everyone, in a browser or either installed app, and the login
+         page itself explains that spectators need no account. -->
+    <a href="/admin" class="admin-public-btn" id="signInBtn" hidden>Sign in</a>
   </div>
 </header>
 
@@ -338,11 +345,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.77"></script>
-<script src="/theme-css.js?v=3.77"></script>
-<script src="/tt-common.js?v=3.77"></script>
-<script src="/bracket-data.js?v=3.77"></script>
-<script src="/bracket.js?v=3.77"></script>
-<script src="/sw-register.js?v=3.77" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.78"></script>
+<script src="/theme-css.js?v=3.78"></script>
+<script src="/tt-common.js?v=3.78"></script>
+<script src="/bracket-data.js?v=3.78"></script>
+<script src="/bracket.js?v=3.78"></script>
+<script src="/sw-register.js?v=3.78" data-sw="/sw.js"></script>
 </body>
 </html>
