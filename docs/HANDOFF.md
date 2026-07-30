@@ -2,8 +2,10 @@
 
 A primer for starting a fresh chat with full project context. Delete or update
 freely; this is a working note, not documentation. See also `ROADMAP.md`
-(v3/v4 plan), `SALES_SITE_BRIEF.md` (marketing-site brief), and `README.md`
-(refreshed 2026-07 for the Postgres port — keep it current).
+(v3/v4 plan), `FEATURES.md` (what ships, written for the sales-site agent —
+authoritative over the older `../sales-site/SALES_SITE_BRIEF.md`, which is
+still the guide for tone and page structure), and `README.md` (refreshed
+2026-07 for the Postgres port — keep it current).
 
 ## What it is
 Tournament bracket web app (softball/baseball origin, multi-format). The
@@ -111,6 +113,8 @@ side.
 
 | commit | what |
 |--------|------|
+| *(this)* | **`docs/FEATURES.md`** — authoritative, current feature list for whoever builds the sales site, with an explicit "do not advertise" table (push notifications, Buckets, guest accounts, cross-tournament teams). `sales-site/SALES_SITE_BRIEF.md` now carries a banner saying its §3/§5/§6/§9 are stale and this file wins. **Keep FEATURES.md current when a §10 item ships.** |
+| `f50108d` | Two dead Cancel buttons in the lineup overlays — shared `dismissOverlay(id, el, e)`; the old handlers guarded `e.target !== overlay`, right for a backdrop click, fatal for a button inside the box |
 | `886b242` | **Share / Download / Print**, open to every visitor — "Save image" becomes a three-action dialog; PNG/JPEG/PDF; sharing moves off Team Path onto the bracket |
 | `8161faf` | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
 | `3a82e4f` | **nginx re-resolves the api upstream** — the real fix for the reboot 502 (variable `proxy_pass` + Docker DNS), tested against a real nginx |
