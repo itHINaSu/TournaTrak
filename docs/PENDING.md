@@ -36,6 +36,7 @@ Last updated 2026-07-30.
 | M1 | **Mobile double-elim round combining** | Parked since 2026-07-28; owner: "I'll have to look again, this needs addressed soon." Needs the desired behaviour confirmed before building — see the TODO section at the foot of `HANDOFF.md`. |
 | S1 | **Demo stack served from the sales site at `/demo`** | Fold `compose.demo.yml` into the sales-site compose. ⚠️ The demo uses a NAMED volume (`demo-pgdata`) **on purpose** — it is a sandbox reset from `demo-seed/`, so `down -v` wiping it is a feature. Preserve that, and keep it isolated from the real instance's `./pgdata`. |
 | S2 | **Sales site placeholders** | Real demo URL (see S1) and contact email in `sales-site/index.html`. |
+| S3 | **Sales site is built from a stale feature list** | `sales-site/index.html` still reflects the old brief: double-elim only, Buckets leaderboard, no Bracket Builder, no multi-tournament. `docs/FEATURES.md` (2026-07-30) is the current list and marks what must NOT be advertised. Rebuilding the page against it is unstarted. |
 | D1 | **ROADMAP.md entries** | Owner asked for the above to be reflected in `ROADMAP.md` with appropriate notes. |
 
 ---

@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.71">
-<link rel="stylesheet" href="/bracket.css?v=3.71">
-<script src="/app-h.js?v=3.71"></script>
+<link rel="stylesheet" href="/base.css?v=3.73">
+<link rel="stylesheet" href="/bracket.css?v=3.73">
+<script src="/app-h.js?v=3.73"></script>
 </head>
 <body>
 
@@ -154,17 +154,16 @@
       <div class="share-actions">
         <button class="admin-clear-btn" data-action="closeShareImage">Cancel</button>
         <button class="flight-pill share-act" data-action="printShareImage" title="Send this bracket to a printer">Print</button>
-        <!-- Download carries its own format picker rather than making the
-             format a fourth radio row: the format only matters at the moment
-             you save a file, and it is meaningless to Share and Print. -->
-        <span class="share-dl-group">
-          <button class="flight-pill share-act share-act--dl" data-action="downloadShareImage">Download</button>
-          <select class="styled share-fmt" id="shareFormat" title="File format"
-                  data-action-change="onShareFormatChange">
-            <option value="png">PNG</option>
-            <option value="jpeg">JPEG</option>
-            <option value="pdf">PDF</option>
-          </select>
+        <!-- The format is a consequence of tapping Download, not a setting to
+             choose beforehand — so it lives in the menu the button opens,
+             matching how Share behaves one button along. -->
+        <span class="team-share-wrap">
+          <button class="flight-pill share-act" data-action="downloadShareImage">Download</button>
+          <div class="share-menu share-menu--up" id="downloadMenu" hidden>
+            <button class="share-menu-item" data-action="downloadAs" data-arg="png">PNG image</button>
+            <button class="share-menu-item" data-action="downloadAs" data-arg="jpeg">JPEG image</button>
+            <button class="share-menu-item" data-action="downloadAs" data-arg="pdf">PDF document</button>
+          </div>
         </span>
         <!-- Hands off to the device share sheet where there is one, and falls
              back to the link menu below everywhere else. Every target is a
@@ -333,10 +332,10 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.71"></script>
-<script src="/tt-common.js?v=3.71"></script>
-<script src="/bracket-data.js?v=3.71"></script>
-<script src="/bracket.js?v=3.71"></script>
-<script src="/sw-register.js?v=3.71" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.73"></script>
+<script src="/tt-common.js?v=3.73"></script>
+<script src="/bracket-data.js?v=3.73"></script>
+<script src="/bracket.js?v=3.73"></script>
+<script src="/sw-register.js?v=3.73" data-sw="/sw.js"></script>
 </body>
 </html>

@@ -3070,7 +3070,9 @@ function refreshShareImage() {
         hint.textContent = opts.scope === 'all-separate'
           ? shots.length + ' images \u00b7 showing ' + shareFlightName(shots[0].flight)
             + ' \u00b7 ' + preview.width + ' \u00d7 ' + preview.height
-          : preview.width + ' \u00d7 ' + preview.height + ' PNG';
+          // No format named here any more \u2014 it is chosen when you tap
+          // Download, so a caption claiming one would contradict the menu.
+          : preview.width + ' \u00d7 ' + preview.height;
       }
     } catch (e) {
       if (hint) hint.textContent = 'Could not build the image.';
@@ -3190,11 +3192,6 @@ function buildPdf(pages) {
   return new Blob([out], { type: 'application/pdf' });
 }
 
-function shareFormat() {
-  var sel = document.getElementById('shareFormat');
-  return (sel && sel.value) || 'png';
-}
-
 // The current bracket as File objects in `fmt`. PNG/JPEG give one file per
 // canvas; PDF gives ONE file with a page per bracket, because a director
 // printing "all brackets" wants a single thing to hand over.
@@ -3221,27 +3218,45 @@ function filesForFormat(fmt) {
   }));
 }
 
-// Files built EAGERLY, two sets: PNG for Share (an image is what you post) and
-// the selected format for Download. Both exist before the button is tapped
-// because navigator.share has to be reached from the user's gesture and Safari
-// does not forgive an await in between.
-var _shareFiles = null;      // always PNG
-var _dlFiles = null;         // current format
-var _dlFmt = null;
+// ALL THREE formats, built eagerly when the preview renders:
+// { png: [File], jpeg: [File], pdf: [File] }.
+//
+// Eager because the save path ends at navigator.share, which must be reached
+// from the user's gesture — Safari does not forgive an await in between. With
+// the format now chosen from a menu the button opens, the tap that picks a
+// format is that gesture, so the file has to exist before the menu is even
+// shown. The JPEG is encoded once and its bytes are reused for the PDF, so
+// three formats cost two encodes.
+var _shareFiles = null;
+var _prepToken = 0;
 
 function prepareShareFiles() {
   _shareFiles = null;
-  filesForFormat('png').then(function(f) { _shareFiles = f; }).catch(function() {});
-  prepareDownloadFiles();
-}
-
-function prepareDownloadFiles() {
-  var fmt = shareFormat();
-  _dlFiles = null;
-  _dlFmt = fmt;
-  filesForFormat(fmt).then(function(f) {
-    if (_dlFmt === fmt) _dlFiles = f;       // a later format change wins
-  }).catch(function() {});
+  var items = shareCanvases();
+  if (!items.length || typeof File === 'undefined') return;
+  var token = ++_prepToken;
+  Promise.all(items.map(function(it) {
+    return Promise.all([
+      canvasBlob(it.canvas, 'image/png'),
+      canvasBlob(it.canvas, 'image/jpeg', 0.92).then(function(b) {
+        return b.arrayBuffer().then(function(buf) {
+          return { blob: b, bytes: new Uint8Array(buf) };
+        });
+      }),
+    ]).then(function(r) {
+      return { name: it.name, w: it.canvas.width, h: it.canvas.height, png: r[0], jpeg: r[1] };
+    });
+  })).then(function(rows) {
+    if (token !== _prepToken) return;      // a newer render started; drop this
+    var pdf = buildPdf(rows.map(function(r) {
+      return { width: r.w, height: r.h, jpeg: r.jpeg.bytes };
+    }));
+    _shareFiles = {
+      png:  rows.map(function(r) { return new File([r.png],      r.name + '.png', { type: 'image/png' }); }),
+      jpeg: rows.map(function(r) { return new File([r.jpeg.blob], r.name + '.jpg', { type: 'image/jpeg' }); }),
+      pdf:  [new File([pdf], rows[0].name + '.pdf', { type: 'application/pdf' })],
+    };
+  }).catch(function() { if (token === _prepToken) _shareFiles = null; });
 }
 
 // A phone has no visible Downloads folder, and in an INSTALLED PWA an
@@ -3257,13 +3272,29 @@ function useNativeSave(files) {
     && navigator.canShare({ files: files });
 }
 
+// Download opens the format menu. The format is a consequence of choosing to
+// save, not a setting to set first — and a picker parked beside the button
+// asked people to answer a question they had not been asked yet.
 function downloadShareImage() {
   if (!_shareShots.length) return;
-  var fmt = shareFormat();
-  var hint = document.getElementById('shareHint');
+  var menu = document.getElementById('downloadMenu');
+  if (!menu) return;
+  if (!menu.hidden) { menu.hidden = true; return; }
+  closeShareMenu();                        // only one menu open at a time
+  menu.hidden = false;
+}
 
-  if (_dlFiles && _dlFmt === fmt && useNativeSave(_dlFiles)) {
-    navigator.share({ files: _dlFiles, title: bracketShareText() })
+function closeDownloadMenu() {
+  var menu = document.getElementById('downloadMenu');
+  if (menu) menu.hidden = true;
+}
+
+function downloadAs(fmt) {
+  closeDownloadMenu();
+  var hint = document.getElementById('shareHint');
+  var files = _shareFiles && _shareFiles[fmt];
+  if (files && useNativeSave(files)) {
+    navigator.share({ files: files, title: bracketShareText() })
       .then(function() { closeShareImage(); })
       .catch(function(err) {
         // A cancelled sheet is a decision, not a failure — do not then push a
@@ -3278,9 +3309,10 @@ function downloadShareImage() {
 
 // Desktop path, and the fallback anywhere the share sheet refuses.
 function saveFilesDirect(fmt, hint) {
-  if (_dlFiles && _dlFmt === fmt) {
+  var files = _shareFiles && _shareFiles[fmt];
+  if (files) {
     // Browsers throttle rapid programmatic downloads, so space them out.
-    _dlFiles.forEach(function(f, i) {
+    files.forEach(function(f, i) {
       setTimeout(function() { saveBlob(f, f.name); }, i * 350);
     });
     closeShareImage();
@@ -3288,9 +3320,9 @@ function saveFilesDirect(fmt, hint) {
   }
   // Not built yet (a tap inside the first moment after the render): build now.
   if (hint) hint.textContent = 'Preparing…';
-  filesForFormat(fmt).then(function(files) {
-    if (!files) { if (hint) hint.textContent = 'Nothing to save yet.'; return; }
-    files.forEach(function(f, i) {
+  filesForFormat(fmt).then(function(built) {
+    if (!built) { if (hint) hint.textContent = 'Nothing to save yet.'; return; }
+    built.forEach(function(f, i) {
       setTimeout(function() { saveBlob(f, f.name); }, i * 350);
     });
     closeShareImage();
@@ -3314,13 +3346,15 @@ function shareUrlOnly(url, text) {
 function shareShareImage() {
   var menu = document.getElementById('bracketShareMenu');
   if (menu && !menu.hidden) { closeShareMenu(); return; }
+  closeDownloadMenu();                     // only one menu open at a time
   var url = bracketShareUrl(), text = bracketShareText();
   // Phones, tablets and installed PWAs have a share sheet that already knows
   // every app the user actually messages people in — hand it the IMAGE, which
-  // is the thing worth sending. Desktop Chrome and Firefox share no files and
-  // have no sheet, so they fall back to the link menu.
-  if (_shareFiles && navigator.canShare && navigator.canShare({ files: _shareFiles })) {
-    navigator.share({ files: _shareFiles, title: text, text: text }).catch(function(err) {
+  // is the thing worth sending. PNG: an image is what you post. Desktop Chrome
+  // and Firefox share no files and have no sheet, so they get the link menu.
+  var png = _shareFiles && _shareFiles.png;
+  if (png && navigator.canShare && navigator.canShare({ files: png })) {
+    navigator.share({ files: png, title: text, text: text }).catch(function(err) {
       if (err && err.name === 'AbortError') return;
       shareUrlOnly(url, text);
     });
@@ -5450,13 +5484,24 @@ function openShareMenu() {
   menu.hidden = false;
 }
 
-// Any tap outside closes the link menu. The Share button itself is excluded —
-// its own handler toggles.
+// Any tap outside closes whichever dialog menu is open. Two now share the
+// action row (Download's formats, Share's link targets), so a tap inside one
+// wrap must close the OTHER rather than being treated as "inside a menu" and
+// leaving both up. Each button's own handler toggles itself.
 document.addEventListener('click', function(e) {
-  var menu = document.getElementById('bracketShareMenu');
-  if (!menu || menu.hidden) return;
-  if (e.target.closest && e.target.closest('.team-share-wrap')) return;
+  var wrap = e.target.closest ? e.target.closest('.team-share-wrap') : null;
+  ['bracketShareMenu', 'downloadMenu'].forEach(function(id) {
+    var menu = document.getElementById(id);
+    if (!menu || menu.hidden) return;
+    if (wrap && wrap.contains(menu)) return;   // the tap belongs to this one
+    menu.hidden = true;
+  });
+});
+// Escape closes them too, matching the header menu and the other overlays.
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
   closeShareMenu();
+  closeDownloadMenu();
 });
 
 function populateTeamSelect(){
@@ -6762,13 +6807,11 @@ Object.assign(TT_ACTIONS, {
   closeShareImage:   function() { closeShareImage(); },
   refreshShareImage: function() { refreshShareImage(); },
   downloadShareImage:function() { downloadShareImage(); },
+  downloadAs:      function(arg) { downloadAs(arg); },
   shareShareImage: function() { shareShareImage(); },
   printShareImage: function() { printShareImage(); },
-  // Rebuild the download file for the newly chosen format, so the button stays
-  // synchronous — which is what lets it reach the phone's save sheet.
-  onShareFormatChange: function() { prepareDownloadFiles(); },
   setSchedFlight:    function(arg) { setSchedFlight(arg); },
-  toggleHeaderMenu:  function() { toggleHeaderMenu(); },
+  // toggleHeaderMenu is registered in tt-common.js, with the menu itself.
   openNotifyPanel:   function() { closeHeaderMenu(); openNotifyPanel(); },
   closeNotifyPanel:  function() { closeNotifyPanel(); },
   notifyScopeChange: function() { renderNotifyTeams(); notifyDirty(); },
@@ -6777,62 +6820,10 @@ Object.assign(TT_ACTIONS, {
   notifyTurnOff:     function() { notifyTurnOff(); },
 });
 
-// ── Mobile header menu ────────────────────────────────────────────────
-// The hamburger only EXISTS on mobile (CSS hides it at ≥1280px), so the button
-// being visible is the condition — no second breakpoint constant in JS to drift
-// out of step with the stylesheet.
-function headerMenuActive() {
-  var btn = document.getElementById('headerMenuBtn');
-  return !!btn && !btn.hidden && btn.offsetParent !== null;
-}
-function closeHeaderMenu() {
-  var panel = document.getElementById('headerControls');
-  var btn = document.getElementById('headerMenuBtn');
-  if (panel) panel.classList.remove('open');
-  if (btn) btn.setAttribute('aria-expanded', 'false');
-}
-function toggleHeaderMenu() {
-  var panel = document.getElementById('headerControls');
-  var btn = document.getElementById('headerMenuBtn');
-  if (!panel || !btn) return;
-  var open = !panel.classList.contains('open');
-  panel.classList.toggle('open', open);
-  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-}
-// Show the hamburger once there are at least TWO controls to put behind it.
-// Guests get it as well as staff — the menu is where sign-in, notifications,
-// theme and share are heading, so a guest seeing two loose chips while an admin
-// sees a menu would only be temporary inconsistency. A single control (the
-// theme toggle alone, on an instance with push unconfigured) still sits inline:
-// hiding one button behind a menu is worse than showing it.
-function updateHeaderMenu() {
-  var btn = document.getElementById('headerMenuBtn');
-  var panel = document.getElementById('headerControls');
-  if (!btn || !panel) return;
-  var shown = 0;
-  for (var i = 0; i < panel.children.length; i++) {
-    if (!panel.children[i].hidden) shown++;
-  }
-  btn.hidden = shown < 2;
-  // The stylesheet collapses .header-controls only under .has-menu, so the two
-  // decisions cannot disagree and strand the buttons behind a hamburger that
-  // is not being shown.
-  var hdr = document.getElementById('siteHeader');
-  if (hdr) hdr.classList.toggle('has-menu', !btn.hidden);
-  if (btn.hidden) closeHeaderMenu();
-}
-// Dismiss on an outside tap and on Escape, the way the other overlays behave.
-document.addEventListener('click', function(e) {
-  if (!headerMenuActive()) return;
-  var panel = document.getElementById('headerControls');
-  var btn = document.getElementById('headerMenuBtn');
-  if (!panel || !panel.classList.contains('open')) return;
-  if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
-  closeHeaderMenu();
-});
-document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') closeHeaderMenu();
-});
+// The mobile header menu lives in tt-common.js — every page carries the same
+// header, and admin/lineup/score were inheriting the collapsed panel's styling
+// with no hamburger to reopen it, leaving the menu permanently open on top of
+// the page. See updateHeaderMenu there.
 
 // ══════════════════════════════════════════════════════════
 // SPECTATOR NOTIFICATIONS

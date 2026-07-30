@@ -2,8 +2,10 @@
 
 A primer for starting a fresh chat with full project context. Delete or update
 freely; this is a working note, not documentation. See also `ROADMAP.md`
-(v3/v4 plan), `SALES_SITE_BRIEF.md` (marketing-site brief), and `README.md`
-(refreshed 2026-07 for the Postgres port — keep it current).
+(v3/v4 plan), `FEATURES.md` (what ships, written for the sales-site agent —
+authoritative over the older `../sales-site/SALES_SITE_BRIEF.md`, which is
+still the guide for tone and page structure), and `README.md` (refreshed
+2026-07 for the Postgres port — keep it current).
 
 ## What it is
 Tournament bracket web app (softball/baseball origin, multi-format). The
@@ -60,30 +62,37 @@ decision, superseding the 2026-07-04 note that pointed at
 `claude/handoff-continuation-9elo3q` — that branch is merged and dead).
 `main` is where work LANDS. Do not open PRs unless asked.
 
-### Build on a local branch, land on main (owner directive, 2026-07-30)
-**Do the work on your own `claude/<topic>` branch, then merge to `main` and
-push once it is tested.** Do not build directly in a shared checkout on `main`.
+### Build on `logon`, land on main (owner directive, 2026-07-30)
+**One private working branch, `logon`, in its own worktree at
+`/home/user/tt-logon`. Build there; merge to `main` and push when it is
+tested.** Not a branch per task — the SAME branch every session. Do not build
+directly in the shared checkout on `main`.
 
 Why: sessions run concurrently in the SAME working directory, and that
 directory was reset out from under a session five times in one day. On the
-fifth, a finished and passing feature that had not been committed yet was
-lost outright and had to be rebuilt from scratch. **A branch alone does not
-save you — the reset hits the FILES, not the branch pointer.**
+fifth, a finished and passing feature that had not been committed yet was lost
+outright and had to be rebuilt from scratch. **A branch alone does not save
+you — the reset hits the FILES, not the branch pointer.** The worktree is what
+gives your branch its own directory on disk.
 
-Concretely:
-- `git worktree add -b claude/<topic> /home/user/<topic> origin/main` — the
-  worktree gives your branch its own directory, which is the part that
-  actually survives another session's `git reset --hard`. Same `.git`, so
-  merging back is trivial and no remote round-trip is involved.
+Setup, once per session (idempotent — check `git worktree list` first):
+```
+git fetch origin main
+git worktree add -b logon /home/user/tt-logon origin/main   # first time only
+cd /home/user/tt-logon && git rebase origin/main            # if it already existed
+```
 - **Commit early and often.** Anything uncommitted is one reset away from
   gone. The commit is the only durable artifact; the working tree is not.
-- Test on the branch, merge to `main`, push, then `git worktree remove <dir>`
-  and delete the branch.
-- If the shared checkout has drifted (`git rev-list --count HEAD..origin/main`
-  comes back large), it was reset backwards. `git merge --ff-only origin/main`
-  is safe when the tree is clean and HEAD is an ancestor — check both first.
-- Run your dev server against YOUR worktree (`FRONTEND_DIR=`, and a separate
-  `PGDATABASE`/port), or you will be testing the other session's files.
+- Landing: `git fetch origin main`, `git rebase origin/main`, re-run the
+  suites, then push. `main` moves under you — it moved twice during a single
+  landing on 2026-07-30 — so re-check after every push.
+- **`git push … | tail` reports TAIL's exit status, not the push's.** A
+  rejected push read as success that way. Use `if git push …; then` and
+  confirm with `git log origin/main`.
+- Keep `logon` after landing; rebase it onto `main` next time rather than
+  deleting and recreating it.
+- Run your dev server against YOUR worktree (`FRONTEND_DIR=`, plus a separate
+  `PGDATABASE` and port), or you are testing the other session's files.
 
 - `main` — everything. Postgres storage, multi-tournament, all formats.
 - `claude/handoff-continuation-9elo3q`, `claude/tournatrak-eval-buildout-sa3mvv`,
@@ -114,6 +123,10 @@ side.
 | `a1224e8` | **Mobile taps never reached the card** — `.mbc-scroll-cap` swallows every one; re-resolved via `elementsFromPoint`. This is what actually made projecting work on a phone |
 | `6dc3f39` | **Refresh in the PWA** — a header Refresh button and pull-to-refresh; the SW update check rides behind the data fetch |
 | `f4bb8c3` | **Project winners did nothing on mobile** — `onProjectTap` matched desktop card classes only; mobile vertical scroll now survives a re-render |
+| `4013354` | **`docs/FEATURES.md`** — authoritative, current feature list for whoever builds the sales site, with an explicit "do not advertise" table (push notifications, Buckets, guest accounts, cross-tournament teams). `sales-site/SALES_SITE_BRIEF.md` now carries a banner saying its §3/§5/§6/§9 are stale and this file wins. **Keep FEATURES.md current when a §10 item ships.** |
+| `8310a42` | **Download opens a format menu** instead of parking a picker beside it; **the hamburger was em-sized** so it shrank in the PWA |
+| `0eec7ea` | **The mobile header menu was stuck open on admin/lineup/score** — hamburger logic moved to tt-common.js, panel CSS scoped to `.has-menu` |
+| `f50108d` | Two dead Cancel buttons in the lineup overlays — shared `dismissOverlay(id, el, e)`; the old handlers guarded `e.target !== overlay`, right for a backdrop click, fatal for a button inside the box |
 | `886b242` | **Share / Download / Print**, open to every visitor — "Save image" becomes a three-action dialog; PNG/JPEG/PDF; sharing moves off Team Path onto the bracket |
 | `8161faf` | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
 | `3a82e4f` | **nginx re-resolves the api upstream** — the real fix for the reboot 502 (variable `proxy_pass` + Docker DNS), tested against a real nginx |
@@ -2414,6 +2427,54 @@ control. Now the artifact they share is the one we drew.
   cancels the print dialog in Safari.
 - Narrow screens get their own action-row rule: the row wrapped one button at
   a time and stranded Share, the primary action, alone in the corner.
+
+## Header controls must be sized in REM, not EM (2026-07-30)
+The hamburger looked right in Chrome DevTools and was **tiny in the installed
+PWA** — shorter than the tournament name beside it. Cause: a `<button>` does
+not inherit `font-size`. The UA stylesheet gives it its own (13.3px in Chrome,
+different in iOS Safari), so `width/height: 3.3em` resolved against a number
+that changes per browser, while the header text next to it is sized in `rem`
+off the root. The two drifted apart, and DevTools emulation kept Chrome's
+default so the bug was invisible there.
+
+**Any control whose box is sized without an explicit `font-size` must use
+`rem`** (or set `font-size` first). The same applies to `em` borders —
+`0.07em` on that button had the same problem, so it is `1px` now. The other
+header buttons were already safe because they set an explicit `font-size`.
+
+The regression test is the useful part: set the button's `font-size` to 9px
+and 22px and assert its measured height does not move. An em-sized control
+fails that instantly.
+
+Sizing note: the hamburger is the TALLEST thing in the header, so the header's
+height tracks it 1:1 — growing the button alone chases its own tail and the
+ratio never improves (44px in a 0.8em-padded header is still only 63% of it).
+The mobile header padding was trimmed to 0.45rem instead, which holds the
+header at the height it already had while the control inside grows to ~73%.
+
+## The mobile header menu is SHARED (2026-07-30)
+`headerMenuActive` / `closeHeaderMenu` / `toggleHeaderMenu` / `updateHeaderMenu`
+live in **tt-common.js**, not bracket.js. Every page carries the same header,
+and the `@media (max-width: 1279px)` block gives `.header-controls` the
+dropdown-panel look — absolute, boxed, shadowed. With the logic in bracket.js
+only the public page had a hamburger, so admin, lineup and score rendered that
+panel with nothing to close it: **a menu stuck permanently open on top of the
+page**, covering the first card. That was the owner's report.
+
+Two halves to the fix, and both are needed:
+- every page gets the hamburger markup (`#headerMenuBtn`) plus
+  `id="headerControls"` and `id="siteHeader"` — `.has-menu` is set on the
+  header, so a page without that id silently never collapses;
+- **every panel rule in that media query is scoped to `.has-menu`.** Unscoped,
+  a page below the two-control threshold got the floating-box styling with no
+  hamburger. Now: 2+ controls → hamburger and collapsible panel; 0–1 → a plain
+  inline row.
+
+Controls appear asynchronously (role, push config, the tournament switcher), so
+pages call `updateHeaderMenu()` whenever they show or hide one —
+`renderTournamentSwitcher` in admin.js, `setupCoachAccountBtn` in lineup.js,
+`initNotifyButton`/`syncProjectBtn` in bracket.js. tt-common calls it once on
+`DOMContentLoaded` for the static case.
 
 ## Small UI decisions worth not re-litigating (2026-07-29)
 Each of these was a specific owner request; the reasoning is here so a future

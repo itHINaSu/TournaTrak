@@ -6,10 +6,10 @@
 <title>Team Lineup</title>
 <link rel="icon" href="/icons/trophy-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.71">
-<link rel="stylesheet" href="/admin.css?v=3.71">
-<link rel="stylesheet" href="/lineup.css?v=3.71">
-<script src="/app-h.js?v=3.71"></script>
+<link rel="stylesheet" href="/base.css?v=3.73">
+<link rel="stylesheet" href="/admin.css?v=3.73">
+<link rel="stylesheet" href="/lineup.css?v=3.73">
+<script src="/app-h.js?v=3.73"></script>
 </head>
 <body>
 
@@ -17,7 +17,17 @@
   <div class="header-name-block">
     <h1 id="siteName">Team Lineup</h1>
   </div>
-  <div class="header-controls">
+  <!-- Below the desktop breakpoint the controls collapse behind this, exactly
+       as on the public bracket. Without it the stylesheet still gave
+       .header-controls the dropdown-panel treatment, so the menu sat open on
+       top of the page with no way to shut it. -->
+  <button class="header-menu-btn" id="headerMenuBtn" data-action="toggleHeaderMenu"
+          aria-label="Menu" aria-expanded="false" aria-controls="headerControls" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
+    </svg>
+  </button>
+  <div class="header-controls" id="headerControls">
     <button class="admin-public-btn" id="coachAccountBtn" hidden data-action="openCoachPw">Password</button>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
   </div>
@@ -144,9 +154,9 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.71"></script>
-<script src="/tt-common.js?v=3.71"></script>
-<script src="/bracket-data.js?v=3.71"></script>
-<script src="/lineup.js?v=3.71"></script>
+<script src="/settings-defaults.js?v=3.73"></script>
+<script src="/tt-common.js?v=3.73"></script>
+<script src="/bracket-data.js?v=3.73"></script>
+<script src="/lineup.js?v=3.73"></script>
 </body>
 </html>

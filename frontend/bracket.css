@@ -2768,36 +2768,19 @@ body.print-palette .bc-proj-chip {
    pills. These are actions in a toolbar, not a segmented control — each one
    sizes to its own label. */
 .share-act { flex: 0 0 auto; min-height: 2.5rem; padding-left: 1.1em; padding-right: 1.1em; }
-/* Download and its format picker read as one control. */
-.share-dl-group { display: inline-flex; align-items: stretch; }
-.share-act--dl { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-/* select.styled is the big page-level picker (3.2em tall, flex:1); this one is
-   a suffix on a toolbar button and has to match the button, not the page. */
-.share-fmt.styled {
-  flex: 0 0 auto;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  border-left: 0;
-  padding: 0 0.6em;
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  min-height: 2.5rem;
-}
 .share-dl { background: var(--blue); border-color: var(--blue); color: #fff; }
-/* The dialog's action row is at its BOTTOM, so its menu opens upward — the
+/* The dialog's action row is at its BOTTOM, so its menus open upward — the
    downward one would land off the box. */
 .share-menu--up { top: auto; bottom: calc(100% + 0.4em); }
 @media (pointer: coarse) {
-  .share-act, .share-fmt.styled { min-height: 44px; }
+  .share-act { min-height: 44px; }
 }
 /* Narrow screens: the three actions share one row and Cancel drops to its own
    line under them. Left as-is they wrapped one at a time, stranding Share —
    the primary action — alone at the bottom right looking like an afterthought. */
 @media (max-width: 34rem) {
   .share-actions { gap: 0.5em; }
-  .share-act, .share-dl-group, .share-actions .team-share-wrap { flex: 1 1 0; }
-  .share-act--dl { flex: 1 1 auto; }
+  .share-act, .share-actions .team-share-wrap { flex: 1 1 0; }
   .share-actions .team-share-wrap .share-act { width: 100%; }
   .share-actions .admin-clear-btn { order: 9; flex: 1 1 100%; margin-right: 0; }
 }
