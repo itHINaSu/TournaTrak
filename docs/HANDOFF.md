@@ -2408,6 +2408,23 @@ these need to be configurable or abstracted. **Do not change in v2.**
 Static HTML/CSS/JS marketing site — separate nginx:alpine container, port 8081.
 See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `index.html`.
 
+**2026-07-30: de-branded from free/OSS/self-host.** The page had been built
+around "self-host it free on GitHub," which contradicts the brief's own
+guardrails (no self-host/Docker talk on the public page, no invented
+pricing). All GitHub/Docker/git-clone/free/open-source copy is gone; CTAs now
+point at `DEMO_URL_HERE` and `mailto:YOUR@EMAIL.COM` (still placeholders —
+same TODO as above). `SALES_SITE_BRIEF.md` §9 updated to say so explicitly:
+don't describe it as free, open source, or self-hosted; multi-tournament
+hosting is no longer "planned future work" since it shipped. Feature cards
+and FAQ were also caught up to what's actually built: per-tournament TD
+self-service, Share/Download/Print, and push-on-lineup-submission each got a
+card. Gallery gained desktop schedule/lineup/buckets shots that existed in
+`screenshots/` but weren't wired into the page.
+Still no screenshots exist for Share/Download/Print, the multi-tournament
+switcher, or the notification bell/panel — those features shipped after the
+last screenshot pass. Brief §5 flags this; capturing them needs the app
+running with a demo tournament.
+
 ## Current state
 `main` at the top of the 2026-07-30 list in "Outstanding work" holds everything
 below. Nothing is unmerged;
