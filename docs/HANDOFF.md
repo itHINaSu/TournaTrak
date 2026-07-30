@@ -120,6 +120,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **Admin had no Add Subs / Delete Sub / Reorder / Import** — admin.html was missing the whole lineup tools block that lineup.js looks up by id |
 | (this) | **FEATURES.md**: added the Project-winners/watermark section, sharpened Share/Download/Print, lineup required fields, schedule-drift, hamburger scope |
 | `a1224e8` | **Mobile taps never reached the card** — `.mbc-scroll-cap` swallows every one; re-resolved via `elementsFromPoint`. This is what actually made projecting work on a phone |
 | `6dc3f39` | **Refresh in the PWA** — a header Refresh button and pull-to-refresh; the SW update check rides behind the data fetch |
@@ -1942,6 +1943,20 @@ before the next one starts.
   standing rule in "Branch rule" above still holds: develop on the named
   branch and never push elsewhere without being told to, per session.
 
+## Markup-only changes need an API RESTART, not just a rebuild (2026-07-30)
+The API renders `index.html` per tournament and keeps it in an **in-memory
+map** (`_indexHtmlCache`), invalidated when that tournament's settings are
+written, when the live tournament changes, or on demo restore — **never when
+the file on disk changes**. So a pure-markup change ships, the container has
+the new file, and the old HTML keeps being served until the process restarts.
+
+This cost the owner a round trip on the Share dialog: the format `<select>`
+was gone from `main` and from disk, and still on screen. `docker compose
+restart` fixed it. If markup looks stale after a deploy, restart the API
+before looking for a caching bug in the browser. (`Cache-Control: no-cache`
+is already set on the index routes, so the browser is not usually the
+culprit.)
+
 ## Conventions / gotchas
 - `upcoming` cards use dashed border only — do NOT add `opacity`.
 - Theme toggle: admin.js claims it via `window.__ttThemeManaged = true`.
@@ -2452,6 +2467,30 @@ height tracks it 1:1 — growing the button alone chases its own tail and the
 ratio never improves (44px in a 0.8em-padded header is still only 63% of it).
 The mobile header padding was trimmed to 0.45rem instead, which holds the
 header at the height it already had while the control inside grows to ~73%.
+
+## lineup.js has TWO hosts — keep their markup in step (2026-07-30)
+`lineup.js` drives both `lineup.html` (the coach's standalone page) and the
+Lineups tab inside `admin.html`. It finds its controls with
+`document.getElementById`, and every lookup is null-guarded — which is what
+makes a missing element **silent**. `admin.html` was missing Add Subs, Delete
+Sub, Reorder, Import and the import overlay outright, so staff editing a
+lineup from the admin panel simply did not have those features and nothing
+logged an error. Owner report: "Admin users don't have access to add subs to a
+lineup."
+
+When you touch lineup markup, diff the two hosts by id:
+```
+grep -o "getElementById('lineup[A-Za-z]*')" frontend/lineup.js | sort -u \
+  | sed "s/getElementById('//;s/')//" | while read id; do
+      a=$(grep -c "id=\"$id\"" frontend/admin.html)
+      l=$(grep -c "id=\"$id\"" frontend/lineup.html)
+      [ "$a" -lt "$l" ] && echo "$id: admin=$a lineup=$l"
+    done
+```
+Three ids are standalone-only **by design** and should stay that way:
+`lineupNav` (admin has its own tab bar), and `lineupInvalidTitle` /
+`lineupInvalidBody` (the coach sign-in gate, unreachable when you are already
+signed in as staff). Everything else should exist in both.
 
 ## The mobile header menu is SHARED (2026-07-30)
 `headerMenuActive` / `closeHeaderMenu` / `toggleHeaderMenu` / `updateHeaderMenu`

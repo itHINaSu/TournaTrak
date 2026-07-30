@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.73">
-<link rel="stylesheet" href="/admin.css?v=3.73">
-<link rel="stylesheet" href="/lineup.css?v=3.73">
-<link rel="stylesheet" href="/builder.css?v=3.73">
-<link rel="stylesheet" href="/score.css?v=3.73">
-<script src="/app-h.js?v=3.73"></script>
+<link rel="stylesheet" href="/base.css?v=3.74">
+<link rel="stylesheet" href="/admin.css?v=3.74">
+<link rel="stylesheet" href="/lineup.css?v=3.74">
+<link rel="stylesheet" href="/builder.css?v=3.74">
+<link rel="stylesheet" href="/score.css?v=3.74">
+<script src="/app-h.js?v=3.74"></script>
 </head>
 <body>
 
@@ -324,7 +324,30 @@
       <div id="lineupNoGame" hidden class="lineup-no-game">
         No upcoming games scheduled for your team.
       </div>
+      <!-- Import overlay, tools and sub buttons must match lineup.html: the
+           SAME lineup.js drives both hosts and finds these by id. When they
+           were missing here, updateSubButtons() and the tools row simply got
+           null back and did nothing, so staff editing a lineup from the admin
+           panel had no Add Subs, no Delete Sub, no Reorder and no Import —
+           while a coach on the standalone page had all four. -->
+      <div id="lineupImportOverlay" class="lineup-modal-overlay" hidden data-action="closeImport">
+        <div class="lineup-modal">
+          <div class="lineup-modal-title">Import Lineup</div>
+          <div class="lineup-modal-body">
+            <div class="lineup-modal-label">Copy lineup from:</div>
+            <select id="lineupImportSel" class="lineup-modal-sel"></select>
+          </div>
+          <div class="lineup-modal-footer">
+            <button class="lineup-tool-btn" data-action="confirmImport">Import</button>
+            <button class="lineup-tool-btn lineup-tool-btn--cancel" data-action="closeImport">Cancel</button>
+          </div>
+        </div>
+      </div>
       <div class="lineup-form-wrap">
+        <div class="lineup-tools" id="lineupTools" hidden>
+          <button class="lineup-tool-btn lineup-tool-btn--import" id="lineupImportBtn" data-action="openImport">Import Lineup</button>
+          <button class="lineup-tool-btn lineup-tool-btn--right lineup-tool-btn--reorder" id="lineupReorderBtn" data-action="toggleReorder">Reorder</button>
+        </div>
         <table class="lineup-table">
           <thead>
             <tr id="lineupHead">
@@ -338,6 +361,8 @@
         </table>
         <div class="lineup-actions">
           <button class="lineup-submit-btn" id="lineupSubmitBtn" data-action="submitLineup">Save Lineup</button>
+          <button class="lineup-sub-add-btn" id="lineupAddSubBtn" data-action="addSubRow" hidden>Add Subs</button>
+          <button class="lineup-sub-del-btn" id="lineupDelSubBtn" data-action="deleteSubRow" hidden>Delete Sub</button>
           <span class="lineup-status" id="lineupStatus"></span>
         </div>
       </div>
@@ -890,14 +915,14 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.73"></script>
-<script src="/tt-common.js?v=3.73"></script>
-<script src="/bracket-data.js?v=3.73"></script>
-<script src="/admin.js?v=3.73"></script>
-<script src="/lineup.js?v=3.73"></script>
-<script src="/score.js?v=3.73"></script>
-<script src="/builder-form.js?v=3.73"></script>
-<script src="/builder.js?v=3.73"></script>
-<script src="/sw-register.js?v=3.73" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.74"></script>
+<script src="/tt-common.js?v=3.74"></script>
+<script src="/bracket-data.js?v=3.74"></script>
+<script src="/admin.js?v=3.74"></script>
+<script src="/lineup.js?v=3.74"></script>
+<script src="/score.js?v=3.74"></script>
+<script src="/builder-form.js?v=3.74"></script>
+<script src="/builder.js?v=3.74"></script>
+<script src="/sw-register.js?v=3.74" data-sw="/admin-sw.js"></script>
 </body>
 </html>
