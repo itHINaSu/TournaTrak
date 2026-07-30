@@ -183,6 +183,46 @@ mid-task, add it there in the SAME commit as the work you did ship** — that is
 precisely the case it was created for. HANDOFF stays the narrative of what
 happened and why; PENDING is the short scannable status.
 
+**Account-level notifications — SPEC, NOT BUILT (owner, 2026-07-30).** The
+model the owner wants, recorded before anyone builds half of it:
+
+- **Guests** keep what ships today: device-level settings on the public
+  `#view-notify` page, stored against the browser's push endpoint.
+- **Authenticated users do NOT get the guest settings at all.** Their
+  preferences belong to the ACCOUNT and live in Admin → Settings → Account →
+  Notifications, beside the lineup toggle that is already there. A device does
+  not carry its own preference set; it only has to be **approved** — i.e. hold a
+  push subscription tied to that account.
+- **A prompt on first login from a new device**, offering to enable
+  notifications on it. Once approved, that device receives whatever the account
+  already asked for.
+
+What exists to build on: `users.notify_lineups` (a single account boolean, with
+its UI already at admin.html's "Notifications" section) and `push_subscriptions`
+(one row per browser). So the account side exists in miniature — it needs
+widening to the game kinds (live / final / schedule) and followed teams.
+
+Three traps, each of which this codebase has already hit once:
+
+1. **Preferences currently live ON the subscription row** (`notify_live`,
+   `notify_final`, `notify_schedule`, `all_events`, plus
+   `push_subscription_teams`). That is right for an anonymous device and WRONG
+   for an account: for a signed-in user those columns must become a delivery
+   endpoint only, with the preferences read from the account. Do not leave both
+   authoritative — decide which one the sender consults, and make the other
+   incapable of disagreeing.
+2. **One browser is one row** (`endpoint` is UNIQUE) and both the staff and
+   spectator features write it. A staff member who subscribed as a guest first
+   already caused a real bug (`9dfdfe5`). Adopting a device for an account is
+   an UPDATE of `user_id`, never a delete-and-recreate, and signing out must
+   detach rather than unsubscribe.
+3. **"New device" has to be defined precisely** or the prompt nags forever. The
+   test is: does a `push_subscriptions` row exist for THIS browser's endpoint
+   with THIS `user_id`? Not "have we seen this session before" — sessions
+   regenerate on every sign-in (`startSession`), so anything session-shaped
+   will fire every time. And a declined prompt has to be remembered per device,
+   or it reappears on the next login.
+
 **Notification settings are a PAGE (`#view-notify`), not a modal** — owner's
 call, on the grounds that the existing Admin → Account notifications section is
 the right long-term shape. It is a `.view-panel` like Bracket/Schedule, reached

@@ -44,6 +44,7 @@ Last updated 2026-07-30.
 
 | # | Item | State |
 |---|---|---|
+| N2 | **Account-level notifications for authenticated users** (owner, 2026-07-30) | **SPEC ONLY — no code written.** Signed-in staff should not use the guest device-level settings at all. Their preferences belong to the ACCOUNT, in Admin → Settings → Account → Notifications, and a device only has to be *approved* (subscribed) — with a **popup prompt on first login from a new device**. See `HANDOFF.md` "Account-level notifications" for the model, what already exists, and the three traps. |
 | N1 | **Notification settings are now a PAGE** (owner's call — the existing Admin → Account section is the better long-term shape). No longer a modal, so the whole `position: fixed` failure class that made it unreachable on a phone is gone rather than patched. Verified at 390×844, 360×640 and 1400×900: page opens, 23-team picker renders, actions reachable, device-only note shown, Back returns to the tab you came from. **Still wants confirmation on the owner's actual device** before this moves to Done. |
 
 ---
