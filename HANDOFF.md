@@ -84,6 +84,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | DB wait 30s → 120s (`TT_DB_WAIT_SECONDS`) — hardening, NOT the cause of the 502; see the nginx upstream note |
 | `9dfdfe5` | **Staff and spectator push share one browser row** — the device toggle lied, and staff-off deleted the spectator's subscription |
 | `ff86c8a` | **Every auth error message was invisible** — `.login-error` had `display: none` |
 | `db9f0f4` | Spectator notification UI: bell + panel on the bracket, push handlers in the PUBLIC `sw.js`, `.admin-clear-btn` moved to `base.css` |
@@ -142,6 +143,51 @@ sends are untouched. Two things worth not undoing:
   `getSubscription()` returns null. Without that a cleared-site-data browser
   leaves a live row delivering pushes while the panel says off. Found because a
   Playwright stub reset per page load — the artifact was real behaviour.
+
+**502 after a HOST REBOOT with a HEALTHY api — nginx caches the upstream IP.**
+`nginx.conf` declares `upstream api { server api:3000; }`. nginx resolves that
+name **once at startup** and caches the address for the life of the process; it
+never re-resolves. A reboot rebuilds the compose network and containers can come
+back on different IPs, so nginx keeps proxying to an address nothing is
+listening on — permanently, until nginx itself is restarted. (This is why the
+owner had got into the habit of restarting nginx "fairly frequently".)
+
+How to recognise it, because it looks alarming and almost nothing is actually
+broken:
+- **`/admin` loads but sign-in fails, and `/` 502s.** `/admin` is a STATIC file
+  nginx serves itself; `/` is server-rendered by the API (per-tournament
+  title/OG tags) and `/api/*` is proxied. Static works, anything touching the
+  API does not.
+- `docker compose logs api` shows `Store ready` + `API listening on :3000`. A
+  `pg pool error: terminating connection due to administrator command` line
+  above it is just Postgres going down during the reboot, and the API
+  recovering — not the fault.
+- `pgdata` owned by `70:70` is CORRECT (the postgres user inside the alpine
+  image). Fresh mtimes on `pgdata` AND `backups` prove Postgres is up and
+  accepting connections, since the backup service reaches it with `pg_dump`.
+- So: nginx healthy, Postgres healthy, api healthy, and still 502. The upstream
+  is the only thing left.
+
+Immediate fix: `docker compose restart nginx`. Permanent fix: give nginx
+Docker's embedded DNS and a variable in `proxy_pass`, so it re-resolves instead
+of caching for ever —
+`resolver 127.0.0.11 valid=10s;` plus `set $api_up http://api:3000;` /
+`proxy_pass $api_up;` at each of the eight proxy_pass sites. NOT YET APPLIED:
+there is no nginx binary in the dev container to test against, and eight
+proxy_pass sites plus regex locations is exactly the kind of change that should
+not be trial-and-errored on a live box. Confirm the diagnosis with the restart
+first.
+
+**A separate, speculative hardening — NOT the cause of the above.** The API's
+wait for Postgres was 30s, sized for `docker compose up` where the healthcheck
+means Postgres is already accepting connections. Compose does NOT evaluate
+`depends_on` when the Docker DAEMON restarts containers after a host reboot, so
+in principle the API can lose that race on a cold machine. It did not happen
+here — the logs show the API came up fine. The window is now 120s and
+configurable (`TT_DB_WAIT_SECONDS`, floor 5). Config errors (28P01 bad
+password, 3D000 missing database) still fail IMMEDIATELY and must keep doing
+so: a longer window must never turn a typo into a two-minute hang. Verified —
+3D000 exits in 1s, an unreachable port honours the configured window exactly.
 
 **A class rule that sets `display` beats removing the `hidden` attribute.**
 `.login-error` carried `display: none`, so `errEl.hidden = false` could never

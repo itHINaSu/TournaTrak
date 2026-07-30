@@ -568,11 +568,22 @@ function _isTransientDbError(err) {
   return RETRY_CODES.includes(err.code);
 }
 
+// How long to wait for a starting database, in seconds.
+//
+// 30 was sized for `docker compose up`, where depends_on/service_healthy means
+// Postgres is ALREADY accepting connections before the API is started. It is
+// too short for a HOST REBOOT: Docker restarts containers by their restart
+// policy and does NOT evaluate depends_on conditions, so the API can win the
+// race against a Postgres that is still replaying WAL on a cold machine. The
+// symptom is a 502 from nginx with a perfectly healthy database.
+const DB_WAIT_SECONDS = Math.max(5, parseInt(process.env.TT_DB_WAIT_SECONDS, 10) || 120);
+
 async function _waitForDb() {
   // The postgres container may still be starting when the API boots.
   for (let attempt = 1; ; attempt++) {
     try {
       await pool.query('SELECT 1');
+      if (attempt > 1) console.log(`Database ready after ${attempt - 1}s.`);
       return;
     } catch (err) {
       if (!_isTransientDbError(err)) {
@@ -585,8 +596,15 @@ async function _waitForDb() {
           : '';
         throw new Error('Database connection failed (not retrying — check DATABASE_URL / PG* env vars): ' + err.message + hint);
       }
-      if (attempt >= 30) throw new Error('Database unreachable after 30s: ' + err.message);
-      if (attempt === 1) console.log('Waiting for database…');
+      if (attempt >= DB_WAIT_SECONDS) {
+        throw new Error('Database unreachable after ' + DB_WAIT_SECONDS + 's: ' + err.message
+          + ' (raise TT_DB_WAIT_SECONDS if this machine is simply slow to start Postgres)');
+      }
+      // Say so periodically, not once: a container that logged a single line
+      // and then sat silent for two minutes reads like a hang.
+      if (attempt === 1 || attempt % 15 === 0) {
+        console.log(`Waiting for database… ${attempt}s (giving up at ${DB_WAIT_SECONDS}s)`);
+      }
       await new Promise(r => setTimeout(r, 1000));
     }
   }
