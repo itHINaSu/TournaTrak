@@ -18,6 +18,22 @@ const DATA_DIR     = process.env.DATA_DIR     || '/data';
 // read-only /frontend volume mount (same file the pages load).
 // Fails loudly at startup if the mount is missing.
 const { SETTINGS_DEFAULTS, lineupRowIssues, lineupIssueMessage } = require(FRONTEND_DIR + '/settings-defaults.js');
+// Same dual-environment trick, for branding: the browser loads this file as a
+// global and we require() it, so /theme.css below is rendered from the exact
+// derivation the page would have applied — and a branded tournament is branded
+// in its FIRST paint instead of repainting once its JS runs.
+const { ttThemeCss } = require(FRONTEND_DIR + '/theme-css.js');
+// The CSS lengths behind the LOGO_SCALES step names below — mirrors
+// TT_LOGO_SCALES in tt-common.js (the browser's copy). Kept here rather than
+// in theme-css.js because the browser reads the scales directly for its own
+// live updates; this passes them in for the server render.
+const LOGO_SCALE_CSS = {
+  sm: { h: '2.4em', maxw: '6em',   hSm: '2em',   maxwSm: '4.5em' },
+  md: { h: '3.4em', maxw: '8.5em', hSm: '2.8em', maxwSm: '6.5em' },
+  lg: { h: '4.4em', maxw: '11em',  hSm: '3.4em', maxwSm: '8em'   },
+  xl: { h: '5.6em', maxw: '14em',  hSm: '4em',   maxwSm: '9.5em' },
+};
+const LOGO_SCALE_CSS_DEFAULT = 'md';
 
 // Roles grantable per tournament. 'superadmin' is a global account role
 // (users.role) and is never granted per tournament.
@@ -183,6 +199,34 @@ async function buildIndexHtml(tid, origin) {
     ogImage ? `  <meta name="twitter:card" content="summary">` : '',
   ].filter(Boolean).join('\n');
   html = html.replace('</head>', `${meta}\n</head>`);
+
+  // ── Render the visible header, not just the tab title ────────────────
+  // Without this the page paints the stock "Tournament Bracket" wordmark, no
+  // logo and the default palette, then swaps to the tournament's branding the
+  // moment /api/settings and /api/theme-colors land — a visible flash, and a
+  // layout jump as the logo and subtitle appear. Everything below is already
+  // in memory here, so the served HTML can just be correct.
+  const scoped = tid === store.tid ? '' : await store.tournamentById(tid)
+    .then(t => (t ? '/t/' + encodeURIComponent(t.slug) : ''));
+  html = html.replace(/(<h1 id="siteName"[^>]*>)[^<]*(<\/h1>)/,
+    `$1${ogTitle}$2`);
+  // The subtitle keeps its zero-width space + hidden visibility when empty:
+  // that is what stops the header changing height once the JS runs.
+  html = html.replace(/(<div id="siteSubtitle"[^>]*>)[^<]*(<\/div>)/,
+    desc ? `$1${desc}$2` : '$1&#8203;$2');
+  if (!desc) {
+    html = html.replace('<div id="siteSubtitle" class="site-subtitle"',
+      '<div id="siteSubtitle" class="site-subtitle u-invisible"');
+  }
+  // Only un-hide the logo when there IS one — an empty <img> would reserve
+  // space for a broken image on every unbranded tournament.
+  if (tcAny && /^data:image\/(png|jpeg|webp);base64,/.test(tcAny.logo || '')) {
+    html = html.replace(/<img id="siteLogo" class="site-logo" alt="" hidden/,
+      `<img id="siteLogo" class="site-logo" alt="" src="${scoped}/logo.png"`);
+  }
+  // Branding stylesheet, last in <head> so it outranks base.css.
+  html = html.replace('</head>',
+    `  <link rel="stylesheet" href="${scoped}/theme.css">\n</head>`);
   return html;
 }
 
@@ -2240,6 +2284,35 @@ async function sendTabIcon(tid, res) {
 }
 app.get('/tab-icon.png', ah(async (req, res) => sendTabIcon(store.tid, res)));
 app.get('/t/:slug/tab-icon.png', resolveSlug, ah(async (req, res) => sendTabIcon(req.tid, res)));
+
+// Header logo as a real image rather than a data URI inlined into the HTML.
+// Inlining would put the whole base64 payload in front of first paint on every
+// page load; a URL lets the browser fetch it in parallel, and the served HTML
+// already reserves the space via --logo-h, so nothing jumps.
+async function sendLogo(tid, res) {
+  const tc = await store.get(tid, 'theme_colors') || {};
+  res.setHeader('Cache-Control', 'no-cache');
+  const m = /^data:image\/(png|jpeg|webp);base64,(.+)$/.exec(tc.logo || '');
+  if (!m) return res.status(404).end();
+  res.setHeader('Content-Type', 'image/' + m[1]);
+  res.send(Buffer.from(m[2], 'base64'));
+}
+app.get('/logo.png', ah(async (req, res) => sendLogo(store.tid, res)));
+app.get('/t/:slug/logo.png', resolveSlug, ah(async (req, res) => sendLogo(req.tid, res)));
+
+// Per-tournament branding as a stylesheet. This exists because the CSP is
+// `style-src 'self'` with no 'unsafe-inline' — an injected <style> block or a
+// style="" attribute would simply be dropped, so a linked sheet is the only
+// way to have the right palette before any JS runs. Linked AFTER base.css so
+// its equal-specificity :root / body.light rules win on order.
+async function sendThemeCss(tid, res) {
+  const tc = await store.get(tid, 'theme_colors') || {};
+  res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.send(ttThemeCss(tc, LOGO_SCALE_CSS, LOGO_SCALE_CSS_DEFAULT));
+}
+app.get('/theme.css', ah(async (req, res) => sendThemeCss(store.tid, res)));
+app.get('/t/:slug/theme.css', resolveSlug, ah(async (req, res) => sendThemeCss(req.tid, res)));
 
 app.get('/manifest.json', ah(async (req, res) => {
   const manifest = JSON.parse(fs.readFileSync(FRONTEND_DIR + '/manifest.json', 'utf8'));

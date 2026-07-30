@@ -120,6 +120,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **The public header is server-rendered** — name, subtitle, logo and palette now correct in the FIRST paint; colour maths deduplicated into theme-css.js |
 | (this) | **Admin had no Add Subs / Delete Sub / Reorder / Import** — admin.html was missing the whole lineup tools block that lineup.js looks up by id |
 | (this) | **FEATURES.md**: added the Project-winners/watermark section, sharpened Share/Download/Print, lineup required fields, schedule-drift, hamburger scope |
 | `a1224e8` | **Mobile taps never reached the card** — `.mbc-scroll-cap` swallows every one; re-resolved via `elementsFromPoint`. This is what actually made projecting work on a phone |
@@ -2491,6 +2492,38 @@ Three ids are standalone-only **by design** and should stay that way:
 `lineupNav` (admin has its own tab bar), and `lineupInvalidTitle` /
 `lineupInvalidBody` (the coach sign-in gate, unreachable when you are already
 signed in as staff). Everything else should exist in both.
+
+## The header is SERVER-RENDERED (2026-07-30)
+Navigating admin -> public flashed the stock header — "Tournament Bracket", no
+logo, default gold — before the tournament's own branding appeared, with a
+layout jump as the logo and subtitle arrived. The title and OG tags were
+already injected per tournament in `buildIndexHtml`; the visible header was
+not, so it waited on `/api/settings` and `/api/theme-colors`.
+
+`buildIndexHtml` now also writes the `<h1>`, the subtitle, the logo `src`, and
+a `<link>` to a generated stylesheet. Three things make this work:
+
+- **The colours HAVE to come from a linked stylesheet.** The CSP is
+  `style-src 'self'` with no `'unsafe-inline'`, so an injected `<style>` block
+  or a `style=""` attribute is dropped on the floor. `/theme.css` (and
+  `/t/:slug/theme.css`) is the only CSP-safe way to have the right palette
+  before any JS runs. It must be linked AFTER base.css — the rules are plain
+  `:root` / `body.light` of equal specificity, so order is what decides.
+- **The logo is a URL, not an inlined data URI.** `/logo.png` follows the
+  existing `/pwa-icon.png` pattern. Inlining would put the whole base64
+  payload ahead of first paint on every load.
+- **The derivation is shared.** `frontend/theme-css.js` is dual-environment
+  like settings-defaults.js — the browser loads it as a global, the server
+  `require()`s it. bracket.js and admin.js each had their OWN copy of the
+  hex/HSL light-mode maths; three copies meant the page could legitimately
+  repaint the moment its JS ran. One copy now.
+
+`applyThemeColors` records the logo the server rendered and does not replace it
+with its own identical data URI (same bytes, but the swap re-decodes and can
+blink). A genuinely changed logo no longer matches, so live updates still work.
+
+Cache invalidation was already correct: `/settings` and `/theme-colors` both
+call `invalidateIndexCache(tid)`.
 
 ## The mobile header menu is SHARED (2026-07-30)
 `headerMenuActive` / `closeHeaderMenu` / `toggleHeaderMenu` / `updateHeaderMenu`

@@ -63,23 +63,17 @@ function seedChip(name) {
   return n ? '<span class="tt-seed">(' + n + ')</span>' : '';
 }
 
-function _hexToHsl(hex) {
-  var r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
-  var max=Math.max(r,g,b), min=Math.min(r,g,b), l=(max+min)/2, s=0, h=0;
-  if (max!==min) { var d=max-min; s=d/(l>0.5?2-max-min:max+min); if(max===r)h=((g-b)/d+(g<b?6:0))/6; else if(max===g)h=((b-r)/d+2)/6; else h=((r-g)/d+4)/6; }
-  return [h*360, s*100, l*100];
-}
-function _hslToHex(h,s,l) {
-  h/=360; s/=100; l/=100;
-  var r,g,b; if(s===0){r=g=b=l;}else{var q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q; function hue(t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;} r=hue(h+1/3);g=hue(h);b=hue(h-1/3);}
-  return '#'+[r,g,b].map(function(x){return Math.round(x*255).toString(16).padStart(2,'0');}).join('');
-}
-function _lightModeColor(hex) {
-  var hsl = _hexToHsl(hex);
-  // Dark mode colors are bright (high L). For light mode, reduce lightness by ~40% for contrast on white.
-  var l = Math.max(10, hsl[2] - 40);
-  return _hslToHex(hsl[0], hsl[1], l);
-}
+// The hex/HSL helpers and the light-mode derivation moved to theme-css.js,
+// which the SERVER also uses to render /theme.css. Two copies would mean the
+// page could repaint the moment its JS ran.
+
+// The logo the SERVER already rendered into <img src="/logo.png"> for the
+// first paint. Recorded on the first apply so the identical image is not
+// immediately replaced by its own data URI — same bytes, but the swap
+// re-decodes and can blink. A later change (an admin edits the logo while this
+// page is open) no longer matches, so it still updates live.
+var _serverLogo = null;
+var _sawFirstTheme = false;
 
 function applyThemeColors() {
   var root = document.documentElement;
@@ -88,8 +82,12 @@ function applyThemeColors() {
   // the server only stores validated png/jpeg/webp data URIs.
   var logoEl = document.getElementById('siteLogo');
   if (logoEl) {
+    if (!_sawFirstTheme) {
+      _sawFirstTheme = true;
+      if (logoEl.getAttribute('src')) _serverLogo = tc.logo || null;
+    }
     if (tc.logo && /^data:image\/(png|jpeg|webp);base64,/.test(tc.logo)) {
-      logoEl.src = tc.logo;
+      if (tc.logo !== _serverLogo) logoEl.src = tc.logo;
       logoEl.hidden = false;
     } else {
       logoEl.removeAttribute('src');
@@ -105,7 +103,7 @@ function applyThemeColors() {
       else root.style.removeProperty(prop);
     });
     if (tc[key]) {
-      var lc = _lightModeColor(tc[key]);
+      var lc = ttLightModeColor(tc[key]);
       darkMap[key].forEach(function(prop) { lightRules.push('  ' + prop + ':' + lc + ';'); });
     }
   });
