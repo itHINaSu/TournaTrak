@@ -338,10 +338,23 @@ async function openImport() {
   }
 }
 
-function closeImport(e) {
-  if (e && e.target !== document.getElementById('lineupImportOverlay')) return;
-  document.getElementById('lineupImportOverlay').hidden = true;
+// Dismiss an overlay that carries data-action on BOTH the backdrop and a
+// Cancel button inside it.
+//
+// The old guard was `if (e.target !== overlay) return`, meant to stop a click
+// inside the box from closing it. That is right for the backdrop and fatal for
+// the button: the button IS inside the box, so the test never passed and
+// Cancel/"Not now" did nothing at all. Decide from the element the action fired
+// on instead — the overlay only closes on a click that really landed on the
+// backdrop, a button always closes.
+function dismissOverlay(id, el, e) {
+  var ov = document.getElementById(id);
+  if (!ov) return;
+  if (el === ov && e && e.target !== ov) return;
+  ov.hidden = true;
 }
+
+function closeImport(arg, el, e) { dismissOverlay('lineupImportOverlay', el, e); }
 
 function hasCurrentData() {
   var cfg = lineupConfig();
@@ -927,10 +940,7 @@ function maybeOfferPassword(session) {
   openCoachPw();
 }
 
-function closeCoachPw(e) {
-  if (e && e.target !== document.getElementById('coachPwOverlay')) return;
-  document.getElementById('coachPwOverlay').hidden = true;
-}
+function closeCoachPw(arg, el, e) { dismissOverlay('coachPwOverlay', el, e); }
 
 async function saveCoachPw() {
   var p1    = document.getElementById('coachPwNew1').value;
@@ -978,13 +988,13 @@ if (!document.getElementById('adminWrap')) lineupInit();
 // ── Delegated actions (see tt-common.js) ──────────────────────────────
 Object.assign(TT_ACTIONS, {
   openImport:    function() { openImport(); },
-  closeImport:   function(arg, el, e) { closeImport(e); },
+  closeImport:   function(arg, el, e) { closeImport(arg, el, e); },
   confirmImport: function() { confirmImport(); },
   toggleReorder: function() { toggleReorder(); },
   submitLineup:  function() { submitLineup(); },
   addSubRow:     function() { addSubRow(); },
   deleteSubRow:  function() { deleteSubRow(); },
   openCoachPw:   function() { openCoachPw(); },
-  closeCoachPw:  function(arg, el, e) { closeCoachPw(e); },
+  closeCoachPw:  function(arg, el, e) { closeCoachPw(arg, el, e); },
   saveCoachPw:   function() { saveCoachPw(); },
 });

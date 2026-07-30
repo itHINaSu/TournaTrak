@@ -210,6 +210,30 @@ mid-task, add it there in the SAME commit as the work you did ship** — that is
 precisely the case it was created for. HANDOFF stays the narrative of what
 happened and why; PENDING is the short scannable status.
 
+**A shared close-action made two Cancel buttons dead (2026-07-30).** The
+coach "Set a password" prompt's **Not now** button did nothing, and so did the
+lineup Import overlay's Cancel — same shape, same cause.
+
+Both overlays carry `data-action` in TWO places: on the overlay itself (so a
+backdrop click dismisses) and on a Cancel button inside the box. The handler
+guarded with `if (e.target !== overlay) return`, which is correct for the
+backdrop and fatal for the button — the button IS inside the box, so the test
+never passed. **Decide from the ELEMENT the action fired on (`el`), not from
+`e.target`:** if `el` is the overlay it was a backdrop click and `e.target` must
+also be the overlay; if `el` is a button, always close. `dismissOverlay(id, el,
+e)` in lineup.js now does that for both.
+
+Worth recognising generally: the delegated dispatcher passes `(arg, el, e)`, and
+`el` is `e.target.closest('[data-action]')` — so on a nested element the two are
+DIFFERENT, and any handler that assumes they are the same will misbehave for
+exactly the nested case.
+
+*Dev-harness note:* the scratch proxy forwarded everything under `/lineup` to
+the API, so `lineup.js` 404'd and the page's functions were undefined —
+nginx uses `location = /lineup`, an EXACT match. Also: killing one proxy PID is
+not enough when a stale one is still bound; the symptoms are identical to the
+code being wrong.
+
 **Staff can coach without a second account (2026-07-30).** The owner was
 running an admin login AND a coach login for the same person, to manage their
 own team's subs. Two things were true and neither was obvious:
