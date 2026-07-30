@@ -1,9 +1,12 @@
 # Roles and permissions — current state, and the proposed shape
 
-Status: **the "current" section is what ships today. The "proposed" section is a
-recommendation awaiting the owner's yes/no.** Written 2026-07-30 in answer to
-two questions: a TD wanting a deputy who can edit the schedule and bracket, and
-what happens to `buckets`.
+Status: **ACCEPTED by the owner 2026-07-30.** The "current" section is what
+ships today; §3 is the agreed shape and §4 is the build order. Written in answer
+to two questions: a TD wanting a deputy who can edit the schedule and bracket,
+and what happens to `buckets`.
+
+Not built yet. Nothing in §3 exists in code — treat this as the spec to build
+to, and update it here if reality forces a change.
 
 ---
 
@@ -117,7 +120,7 @@ at the general standings feature when Bucket Challenge is replaced.
 | Tournament Director | Scorekeeper, Standings Keeper, Coach — **on their own tournaments only** — plus the `can_edit_schedule` flag |
 | everyone else | nothing |
 
-The middle row is the owner's outstanding decision (recommended yes). A TD who
+The middle row is **decided: yes** (owner, 2026-07-30). A TD who
 cannot add their own scorekeeper on the morning of an event has to phone the
 Global Admin, which is the failure this whole role model exists to avoid. The
 limit that matters is that a TD **cannot grant `admin`** — TD access spreads

@@ -183,8 +183,8 @@ mobile/PWA only).
   the threshold in the same function.
 - Threshold is 2+ controls. Guests get the menu too.
 
-**Role model: `docs/ROLES.md`** — answers the TD-deputy and buckets questions,
-awaiting the owner's yes/no. Recommendation in one line: **one capability flag
+**Role model: `docs/ROLES.md` — ACCEPTED by the owner 2026-07-30, not yet
+built.** It is the spec to build to; §4 is the order. Recommendation in one line: **one capability flag
 (`can_edit_schedule` on a `user_roles` grant) for the TD's deputy, and rename
 `buckets` to "Standings Keeper" for the concession-counter case rather than
 adding roles.** Guards enumerate roles (`requireRole('admin','results')`), so a
