@@ -3126,58 +3126,113 @@ function buildPdf(pages) {
   return new Blob([out], { type: 'application/pdf' });
 }
 
-function downloadShareImage() {
-  if (!_shareShots.length) return;
+function shareFormat() {
   var sel = document.getElementById('shareFormat');
-  var fmt = (sel && sel.value) || 'png';
-  var items = shareCanvases();
-  var hint = document.getElementById('shareHint');
+  return (sel && sel.value) || 'png';
+}
 
+// The current bracket as File objects in `fmt`. PNG/JPEG give one file per
+// canvas; PDF gives ONE file with a page per bracket, because a director
+// printing "all brackets" wants a single thing to hand over.
+function filesForFormat(fmt) {
+  var items = shareCanvases();
+  if (!items.length || typeof File === 'undefined') return Promise.resolve(null);
   if (fmt === 'pdf') {
-    if (hint) hint.textContent = 'Building PDF…';
-    // ONE PDF with a page per bracket, rather than one PDF per bracket — a
-    // director printing "all brackets" wants a single thing to hand over.
-    Promise.all(items.map(function(it) {
+    return Promise.all(items.map(function(it) {
       return canvasBlob(it.canvas, 'image/jpeg', 0.92)
         .then(function(b) { return b.arrayBuffer(); })
         .then(function(buf) {
           return { width: it.canvas.width, height: it.canvas.height, jpeg: new Uint8Array(buf) };
         });
     })).then(function(pages) {
-      saveBlob(buildPdf(pages), items[0].name + '.pdf');
-      closeShareImage();
-    }).catch(function() {
-      if (hint) hint.textContent = 'Could not build the PDF.';
+      return [new File([buildPdf(pages)], items[0].name + '.pdf', { type: 'application/pdf' })];
     });
-    return;
   }
-
   var mime = fmt === 'jpeg' ? 'image/jpeg' : 'image/png';
-  var ext = fmt === 'jpeg' ? 'jpg' : 'png';
-  // Browsers throttle rapid programmatic downloads, so space them out.
-  items.forEach(function(it, i) {
-    setTimeout(function() {
-      canvasBlob(it.canvas, mime, 0.92).then(function(b) { saveBlob(b, it.name + '.' + ext); });
-    }, i * 350);
-  });
-  closeShareImage();
+  var ext  = fmt === 'jpeg' ? 'jpg' : 'png';
+  return Promise.all(items.map(function(it) {
+    return canvasBlob(it.canvas, mime, 0.92).then(function(b) {
+      return new File([b], it.name + '.' + ext, { type: mime });
+    });
+  }));
 }
 
-// Files for the device share sheet, built EAGERLY when the preview renders.
-// navigator.share has to be reached from the user's gesture and Safari does
-// not forgive an await in between — so by the time Share is tapped the files
-// have to already exist.
-var _shareFiles = null;
+// Files built EAGERLY, two sets: PNG for Share (an image is what you post) and
+// the selected format for Download. Both exist before the button is tapped
+// because navigator.share has to be reached from the user's gesture and Safari
+// does not forgive an await in between.
+var _shareFiles = null;      // always PNG
+var _dlFiles = null;         // current format
+var _dlFmt = null;
 
 function prepareShareFiles() {
   _shareFiles = null;
-  if (!_shareShots.length || typeof File === 'undefined') return;
-  var items = shareCanvases();
-  Promise.all(items.map(function(it) {
-    return canvasBlob(it.canvas, 'image/png').then(function(b) {
-      return new File([b], it.name + '.png', { type: 'image/png' });
+  filesForFormat('png').then(function(f) { _shareFiles = f; }).catch(function() {});
+  prepareDownloadFiles();
+}
+
+function prepareDownloadFiles() {
+  var fmt = shareFormat();
+  _dlFiles = null;
+  _dlFmt = fmt;
+  filesForFormat(fmt).then(function(f) {
+    if (_dlFmt === fmt) _dlFiles = f;       // a later format change wins
+  }).catch(function() {});
+}
+
+// A phone has no visible Downloads folder, and in an INSTALLED PWA an
+// <a download> frequently does nothing at all — which is what the owner hit.
+// The share sheet is the phone's own save UI ("Save Image", "Save to Files"),
+// so that is what Download should open there. Gated on a coarse pointer rather
+// than on canShare alone: desktop Chrome can share files too, and a share
+// sheet is not what "Download" means on a laptop.
+function useNativeSave(files) {
+  return !!files
+    && window.matchMedia('(pointer: coarse)').matches
+    && !!navigator.canShare
+    && navigator.canShare({ files: files });
+}
+
+function downloadShareImage() {
+  if (!_shareShots.length) return;
+  var fmt = shareFormat();
+  var hint = document.getElementById('shareHint');
+
+  if (_dlFiles && _dlFmt === fmt && useNativeSave(_dlFiles)) {
+    navigator.share({ files: _dlFiles, title: bracketShareText() })
+      .then(function() { closeShareImage(); })
+      .catch(function(err) {
+        // A cancelled sheet is a decision, not a failure — do not then push a
+        // file at someone who just backed out.
+        if (err && err.name === 'AbortError') return;
+        saveFilesDirect(fmt, hint);
+      });
+    return;
+  }
+  saveFilesDirect(fmt, hint);
+}
+
+// Desktop path, and the fallback anywhere the share sheet refuses.
+function saveFilesDirect(fmt, hint) {
+  if (_dlFiles && _dlFmt === fmt) {
+    // Browsers throttle rapid programmatic downloads, so space them out.
+    _dlFiles.forEach(function(f, i) {
+      setTimeout(function() { saveBlob(f, f.name); }, i * 350);
     });
-  })).then(function(files) { _shareFiles = files; }).catch(function() { _shareFiles = null; });
+    closeShareImage();
+    return;
+  }
+  // Not built yet (a tap inside the first moment after the render): build now.
+  if (hint) hint.textContent = 'Preparing…';
+  filesForFormat(fmt).then(function(files) {
+    if (!files) { if (hint) hint.textContent = 'Nothing to save yet.'; return; }
+    files.forEach(function(f, i) {
+      setTimeout(function() { saveBlob(f, f.name); }, i * 350);
+    });
+    closeShareImage();
+  }).catch(function() {
+    if (hint) hint.textContent = 'Could not build the file.';
+  });
 }
 
 function shareUrlOnly(url, text) {
@@ -6498,6 +6553,9 @@ Object.assign(TT_ACTIONS, {
   downloadShareImage:function() { downloadShareImage(); },
   shareShareImage: function() { shareShareImage(); },
   printShareImage: function() { printShareImage(); },
+  // Rebuild the download file for the newly chosen format, so the button stays
+  // synchronous — which is what lets it reach the phone's save sheet.
+  onShareFormatChange: function() { prepareDownloadFiles(); },
   setSchedFlight:    function(arg) { setSchedFlight(arg); },
   toggleHeaderMenu:  function() { toggleHeaderMenu(); },
   openNotifyPanel:   function() { closeHeaderMenu(); openNotifyPanel(); },

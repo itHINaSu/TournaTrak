@@ -2791,6 +2791,16 @@ body.print-palette .bc-proj-chip {
 @media (pointer: coarse) {
   .share-act, .share-fmt.styled { min-height: 44px; }
 }
+/* Narrow screens: the three actions share one row and Cancel drops to its own
+   line under them. Left as-is they wrapped one at a time, stranding Share —
+   the primary action — alone at the bottom right looking like an afterthought. */
+@media (max-width: 34rem) {
+  .share-actions { gap: 0.5em; }
+  .share-act, .share-dl-group, .share-actions .team-share-wrap { flex: 1 1 0; }
+  .share-act--dl { flex: 1 1 auto; }
+  .share-actions .team-share-wrap .share-act { width: 100%; }
+  .share-actions .admin-clear-btn { order: 9; flex: 1 1 100%; margin-right: 0; }
+}
 .share-hint {
   font-family: 'Barlow', sans-serif;
   font-size: var(--text-xs);

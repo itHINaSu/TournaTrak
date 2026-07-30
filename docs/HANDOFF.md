@@ -58,7 +58,33 @@ What "current" means, concretely:
 **`main` is the leading/integration branch as of 2026-07-15** (owner
 decision, superseding the 2026-07-04 note that pointed at
 `claude/handoff-continuation-9elo3q` — that branch is merged and dead).
-Work on `main`, commit, push. Do not open PRs unless asked.
+`main` is where work LANDS. Do not open PRs unless asked.
+
+### Build on a local branch, land on main (owner directive, 2026-07-30)
+**Do the work on your own `claude/<topic>` branch, then merge to `main` and
+push once it is tested.** Do not build directly in a shared checkout on `main`.
+
+Why: sessions run concurrently in the SAME working directory, and that
+directory was reset out from under a session five times in one day. On the
+fifth, a finished and passing feature that had not been committed yet was
+lost outright and had to be rebuilt from scratch. **A branch alone does not
+save you — the reset hits the FILES, not the branch pointer.**
+
+Concretely:
+- `git worktree add -b claude/<topic> /home/user/<topic> origin/main` — the
+  worktree gives your branch its own directory, which is the part that
+  actually survives another session's `git reset --hard`. Same `.git`, so
+  merging back is trivial and no remote round-trip is involved.
+- **Commit early and often.** Anything uncommitted is one reset away from
+  gone. The commit is the only durable artifact; the working tree is not.
+- Test on the branch, merge to `main`, push, then `git worktree remove <dir>`
+  and delete the branch.
+- If the shared checkout has drifted (`git rev-list --count HEAD..origin/main`
+  comes back large), it was reset backwards. `git merge --ff-only origin/main`
+  is safe when the tree is clean and HEAD is an ancestor — check both first.
+- Run your dev server against YOUR worktree (`FRONTEND_DIR=`, and a separate
+  `PGDATABASE`/port), or you will be testing the other session's files.
+
 - `main` — everything. Postgres storage, multi-tournament, all formats.
 - `claude/handoff-continuation-9elo3q`, `claude/tournatrak-eval-buildout-sa3mvv`,
   `claude/bracket-generation-missing-lines-tbbhro` — MERGED into main, do not
@@ -85,7 +111,8 @@ side.
 
 | commit | what |
 |--------|------|
-| (this) | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
+| (this) | **Share / Download / Print**, open to every visitor — "Save image" becomes a three-action dialog; PNG/JPEG/PDF; sharing moves off Team Path onto the bracket |
+| `8161faf` | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
 | `3a82e4f` | **nginx re-resolves the api upstream** — the real fix for the reboot 502 (variable `proxy_pass` + Docker DNS), tested against a real nginx |
 | `f9f8c66` | DB wait 30s → 120s (`TT_DB_WAIT_SECONDS`) — hardening, NOT the cause of the 502 |
 | `9dfdfe5` | **Staff and spectator push share one browser row** — the device toggle lied, and staff-off deleted the spectator's subscription |
