@@ -132,11 +132,20 @@ function escHtml(s) {
 // demo-mode restore (invalidateIndexCache() with no argument).
 const _indexHtmlCache = new Map();   // tid -> html string
 
+// Also clears the lineup shell, which is built from the same settings and
+// theme colours. Two caches, one invalidation point — a second entry point
+// would eventually be forgotten by one of the callers.
 function invalidateIndexCache(tid) {
-  if (tid === undefined) return _indexHtmlCache.clear();
+  if (tid === undefined) {
+    _indexHtmlCache.clear();
+    _lineupHtmlCache.clear();
+    return;
+  }
   // Keys are `tid|origin` — drop every origin variant for this tournament.
-  for (const key of _indexHtmlCache.keys()) {
-    if (key === tid || String(key).startsWith(tid + '|')) _indexHtmlCache.delete(key);
+  for (const cache of [_indexHtmlCache, _lineupHtmlCache]) {
+    for (const key of cache.keys()) {
+      if (key === tid || String(key).startsWith(tid + '|')) cache.delete(key);
+    }
   }
 }
 
@@ -2244,13 +2253,77 @@ app.get(['/t/:slug', ...TAB_PATHS.map(t => `/t/:slug/${t}`)], ah(async (req, res
   }
 }));
 
-app.get(['/lineup', '/lineup.html'], (req, res) => {
+// ── Lineup page, branded ──────────────────────────────────────────────
+// A coach link is the most-shared URL this product has: the magic link
+// redirects here and the coach pastes THIS into the team's group chat. Served
+// as a flat file it carried the stock trophy and no preview at all — the least
+// branded page we serve was the one most likely to be seen by strangers.
+// Cached per tid like the bracket shell, and invalidated by the same hooks.
+const _lineupHtmlCache = new Map();
+
+async function buildLineupHtml(tid, origin) {
+  const s     = Object.assign({}, SETTINGS_DEFAULTS, await store.get(tid, 'settings'));
+  const tname = escHtml(s.tournamentName || SETTINGS_DEFAULTS.tournamentName);
+  const tc    = await store.get(tid, 'theme_colors') || {};
+  const t     = tid === store.tid ? null : await store.tournamentById(tid);
+  const scoped = t ? '/t/' + encodeURIComponent(t.slug) : '';
+  let html = fs.readFileSync(FRONTEND_DIR + '/lineup.html', 'utf8');
+
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>Lineup · ${tname}</title>`);
+  if (tc.favicon) {
+    html = html.replace(/<link rel="icon" href="[^"]*"[^>]*>/,
+      `<link rel="icon" href="${scoped}/tab-icon.png" type="image/png">`);
+  }
+  // Home-screen icon when a coach adds the lineup page itself.
+  if (tc.icon && tid === store.tid) {
+    html = html.replace('</head>',
+      '  <link rel="apple-touch-icon" href="/pwa-icon.png">\n</head>');
+  }
+  const ogImage = origin
+    ? origin + (tc.icon && tid === store.tid ? '/pwa-icon.png' : '/icons/trophy-512.png')
+    : '';
+  const desc = 'Set your team’s batting lineup for ' + tname + '.';
+  const meta = [
+    `  <meta property="og:title" content="Lineup · ${tname}">`,
+    `  <meta property="og:type" content="website">`,
+    `  <meta property="og:description" content="${escHtml(desc)}">`,
+    `  <meta name="description" content="${escHtml(desc)}">`,
+    ogImage ? `  <meta property="og:image" content="${escHtml(ogImage)}">` : '',
+    ogImage ? `  <meta name="twitter:card" content="summary">` : '',
+  ].filter(Boolean).join('\n');
+  html = html.replace('</head>', `${meta}\n</head>`);
+  // Same branding stylesheet the bracket uses, so a coach opening the link
+  // sees the tournament's colours immediately rather than the stock palette.
+  html = html.replace('</head>',
+    `  <link rel="stylesheet" href="${scoped}/theme.css">\n</head>`);
+  return html;
+}
+
+app.get(['/lineup', '/lineup.html'], ah(async (req, res) => {
+  // The magic link redirects to /lineup?t=<slug> for a non-live tournament;
+  // an unknown or absent slug falls back to the live one rather than 404ing,
+  // because this page also has to render its own "link invalid" state.
+  let tid = store.tid;
+  const slug = typeof req.query.t === 'string' ? req.query.t : '';
+  if (slug) {
+    const t = await store.tournamentBySlug(slug);
+    if (t) tid = t.id;
+  }
+  const proto  = req.get('x-forwarded-proto') || req.protocol || 'http';
+  const origin = proto + '://' + req.get('host');
+  const key = tid + '|' + origin;
   try {
-    res.sendFile(FRONTEND_DIR + '/lineup.html');
+    if (!_lineupHtmlCache.has(key)) {
+      _lineupHtmlCache.set(key, await buildLineupHtml(tid, origin));
+    }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(_lineupHtmlCache.get(key));
   } catch (err) {
+    console.error('Error serving lineup:', err);
     res.status(500).send('Server error');
   }
-});
+}));
 
 // ── PWA branding (default tournament) ─────────────────────────────────
 // The public PWA installs against start_url '/', i.e. the default
@@ -2320,11 +2393,15 @@ app.get('/manifest.json', ah(async (req, res) => {
     store.get(store.tid, 'theme_colors'),
     store.get(store.tid, 'settings'),
   ]);
-  const name = (s && s.tournamentName || '').trim();
-  if (name) {
-    manifest.name = name.slice(0, 45);
-    manifest.short_name = name.slice(0, 12);
-  }
+  // pwaName / pwaShortName win when set; otherwise fall back to the tournament
+  // name, truncated as before. The override exists because that truncation is
+  // blunt: short_name is the label under the home-screen icon and gets 12
+  // characters, so "Summer Classic 2026" installed as "Summer Class". A TD can
+  // now just say "Summer '26".
+  const name  = ((s && s.pwaName) || (s && s.tournamentName) || '').trim();
+  const short = ((s && s.pwaShortName) || name).trim();
+  if (name)  manifest.name = name.slice(0, 45);
+  if (short) manifest.short_name = short.slice(0, 12);
   if (tc && tc.icon) {
     // Declare the icon's REAL pixel size so browsers' declared-vs-actual
     // checks pass. No 'maskable': Android's mask would zoom-crop a tile

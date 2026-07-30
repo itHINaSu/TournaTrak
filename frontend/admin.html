@@ -405,6 +405,17 @@
                 <label>Admin Panel Name <span class="field-label-hint">(this page's header)</span></label>
                 <input type="text" id="set-adminName" placeholder="Tournament Admin">
               </div>
+              <div class="settings-field-pair">
+                <div class="settings-field">
+                  <label>Installed app name <span class="field-label-hint">(optional)</span></label>
+                  <input type="text" id="set-pwaName" maxlength="45" placeholder="Defaults to the tournament name">
+                </div>
+                <div class="settings-field">
+                  <label>Home-screen label <span class="field-label-hint">(12 characters)</span></label>
+                  <input type="text" id="set-pwaShortName" maxlength="12" placeholder="e.g. Summer '26">
+                </div>
+              </div>
+              <div class="field-hint">What the app is called once someone adds it to their home screen. Leave both blank to use the tournament name — but the label under the icon is cut to 12 characters, so a long name is worth shortening by hand. Existing installs pick this up on their own refresh cycle.</div>
               <div class="settings-subsection-hdr" class="u-mt-09">Navigation Defaults</div>
               <div class="settings-field">
                 <label>Fourth tab</label>

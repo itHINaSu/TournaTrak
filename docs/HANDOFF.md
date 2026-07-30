@@ -120,6 +120,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **Coach links now carry the tournament's icon and a link preview** (`/lineup` proxied + branded); **installed-app name is settable** (`pwaName`/`pwaShortName`) |
 | (this) | **The public header is server-rendered** — name, subtitle, logo and palette now correct in the FIRST paint; colour maths deduplicated into theme-css.js |
 | (this) | **Admin had no Add Subs / Delete Sub / Reorder / Import** — admin.html was missing the whole lineup tools block that lineup.js looks up by id |
 | (this) | **FEATURES.md**: added the Project-winners/watermark section, sharpened Share/Download/Print, lineup required fields, schedule-drift, hamburger scope |
@@ -2492,6 +2493,35 @@ Three ids are standalone-only **by design** and should stay that way:
 `lineupNav` (admin has its own tab bar), and `lineupInvalidTitle` /
 `lineupInvalidBody` (the coach sign-in gate, unreachable when you are already
 signed in as staff). Everything else should exist in both.
+
+## Shared links: what is branded, and what nginx serves from disk (2026-07-30)
+A coach link is the most-shared URL this product has — the magic link
+redirects to `/lineup` and the coach pastes THAT into the team's group chat.
+It was served flat off disk by nginx, so it carried the stock trophy and **no
+OG tags at all**: the least-branded page we serve was the one strangers were
+most likely to see.
+
+`/lineup` is now PROXIED to the API (nginx `location = /lineup`) and gets the
+same treatment as the bracket shell: tournament title, description, og:image
+pointing at `/pwa-icon.png`, the scoped tab icon, and `/theme.css`. Cached per
+tid in `_lineupHtmlCache`, cleared by the same `invalidateIndexCache(tid)` —
+one invalidation point on purpose, because a second would be forgotten.
+
+**Still served from disk by nginx, and therefore unbranded:** `/admin`,
+`/score`, `/builder`. Branding them means another proxy block each. Deliberate
+for the icons — the admin PWA uses `/icons/admin-*.png` so it is
+distinguishable from the public app on a home screen, and pointing it at the
+tournament icon would break that. If someone wants OG previews on those, add
+the meta tags WITHOUT touching `rel="icon"`.
+
+Changing what nginx proxies is a deploy-config change: it needs a container
+recreate, not just an API restart.
+
+## Installed-app name is settable (2026-07-30)
+`pwaName` / `pwaShortName`. Blank keeps the old behaviour (derive from
+`tournamentName`). The reason it exists: `short_name` is the label under the
+home-screen icon and gets 12 characters, so "Summer Classic 2026" installed as
+"Summer Class". Existing installs update on their own PWA refresh cycle.
 
 ## The header is SERVER-RENDERED (2026-07-30)
 Navigating admin -> public flashed the stock header — "Tournament Bracket", no

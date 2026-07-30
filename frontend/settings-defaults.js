@@ -45,6 +45,12 @@ const SETTINGS_DEFAULTS = {
   // lineupRequiredFrom() and no longer offered in the admin UI. Removing it
   // would silently switch the requirement off for anyone who had it on.
   lineupRequireNumbers: 'false',
+  // Installed-app name. Blank = derive from tournamentName, which is what
+  // this always did — but short_name gets 12 characters and that truncation is
+  // blunt ("Summer Classic 2026" -> "Summer Class"), so a TD can override the
+  // home-screen label without renaming the tournament.
+  pwaName:              '',
+  pwaShortName:         '',
   defaultTab:           'bracket',
   defaultTabScope:      'both',
   defaultScheduleGroup: 'day',
