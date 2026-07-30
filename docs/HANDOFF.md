@@ -181,7 +181,24 @@ mid-task, add it there in the SAME commit as the work you did ship** — that is
 precisely the case it was created for. HANDOFF stays the narrative of what
 happened and why; PENDING is the short scannable status.
 
-**Mobile notifications are STILL BROKEN as of 2026-07-30** — two plausible
+**Notification settings are a PAGE (`#view-notify`), not a modal** — owner's
+call, on the grounds that the existing Admin → Account notifications section is
+the right long-term shape. It is a `.view-panel` like Bracket/Schedule, reached
+from the header menu rather than the tab bar (a destination, not a peer), with
+Back returning to whichever tab you came from. This retires the whole
+`position: fixed` failure class instead of patching it.
+- **On mobile the active view panel is `flex: 1; overflow: hidden`** — right for
+  the bracket carousel, fatal for a settings page, which would be clipped with
+  no way to reach the bottom. `#view-notify.view-panel.active` overrides it with
+  `overflow-y: auto`. That is the SAME mistake shape as the modal it replaced,
+  which is why it is spelled out in the stylesheet.
+- Cost me a debugging detour: **the API caches index.html**, so the new markup
+  did not appear until the dev API was restarted and `getElementById` returned
+  null. Already in the traps list; hit it anyway. Restart the API after editing
+  index.html.
+
+*(historical, superseded by the page above)* **Mobile notifications were broken
+as of 2026-07-30** — two plausible
 causes fixed, neither confirmed, and the symptom is not reproducible in the dev
 harness at any width. Do not assume it is solved. The next step is a description
 of what actually happens on the device, not a third guess.

@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.66">
-<link rel="stylesheet" href="/bracket.css?v=3.66">
-<script src="/app-h.js?v=3.66"></script>
+<link rel="stylesheet" href="/base.css?v=3.67">
+<link rel="stylesheet" href="/bracket.css?v=3.67">
+<script src="/app-h.js?v=3.67"></script>
 </head>
 <body>
 
@@ -255,24 +255,20 @@
   <div class="team-panel" id="standingsOut"></div>
 </div>
 
-<!-- Notification settings live as a direct child of <body>, NOT inside
-     #view-bracket. A position:fixed element is only truly viewport-fixed when no
-     ancestor establishes a containing block — a transform, filter, contain or
-     will-change on any parent silently re-anchors it, and on mobile the active
-     view panel is a flex child with overflow:hidden. Rather than audit that
-     chain every time the bracket layout changes, the panel has no chain. -->
-<!-- A SETTINGS SURFACE, not a yes/no dialog: the team
-       picker can run to 30+ rows, so the body scrolls while the title and the
-       actions stay put. It used to be a plain .share-box, which caps at 88vh
-       with no overflow — on a phone a 20-team list pushed "Turn on" off the
-       bottom with no way to reach it, which read as the panel doing nothing.
-       #notifyUnsupported explains WHY when the browser cannot subscribe (no
-       HTTPS, permission denied, iOS outside an installed PWA) rather than
-       showing a switch that silently fails. -->
-  <div class="share-overlay" id="notifyOverlay" hidden>
-    <div class="share-box notify-box" id="notifyBox">
+<!-- Notification settings as a PAGE, not a modal.
+     Two reasons. It is a settings surface — the owner's point that the existing
+     Admin -> Account notifications section is the right long-term shape — and a
+     page has none of the position:fixed failure modes that made the modal
+     unreachable on a phone (a transform/overflow/contain anywhere up the
+     ancestor chain silently re-anchors a fixed element). Reached from the header
+     menu, not the tab bar: it is a destination, not a peer of Bracket. -->
+<div class="view-panel" id="view-notify">
+  <div class="notify-page">
+    <div class="notify-page-hdr">
+      <button class="admin-clear-btn" data-action="closeNotifyPanel">&larr; Back</button>
       <div class="share-title">Notification settings</div>
-      <div class="notify-body">
+    </div>
+<div class="notify-page-body">
         <div class="share-hint" id="notifyUnsupported" hidden></div>
         <div id="notifyForm">
           <div class="notify-section-hdr">Tell me about</div>
@@ -299,21 +295,20 @@
           </div>
         </div>
       </div>
-      <div class="share-actions">
-        <button class="admin-clear-btn" data-action="closeNotifyPanel">Close</button>
-        <button class="admin-clear-btn" id="notifyOffBtn" hidden data-action="notifyTurnOff">Turn off</button>
-        <button class="flight-pill share-dl" id="notifySaveBtn" data-action="notifySave">Turn on</button>
-      </div>
-      <div class="share-hint" id="notifyHint"></div>
+    <div class="notify-page-actions">
+      <button class="admin-clear-btn" id="notifyOffBtn" hidden data-action="notifyTurnOff">Turn off notifications</button>
+      <button class="flight-pill share-dl" id="notifySaveBtn" data-action="notifySave">Turn on notifications</button>
     </div>
+    <div class="share-hint" id="notifyHint"></div>
   </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.66"></script>
-<script src="/tt-common.js?v=3.66"></script>
-<script src="/bracket-data.js?v=3.66"></script>
-<script src="/bracket.js?v=3.66"></script>
-<script src="/sw-register.js?v=3.66" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.67"></script>
+<script src="/tt-common.js?v=3.67"></script>
+<script src="/bracket-data.js?v=3.67"></script>
+<script src="/bracket.js?v=3.67"></script>
+<script src="/sw-register.js?v=3.67" data-sw="/sw.js"></script>
 </body>
 </html>

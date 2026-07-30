@@ -6257,9 +6257,14 @@ async function initNotifyButton() {
   btn.hidden = false;
 }
 
+// Which tab to return to when leaving the settings page. The page is not a
+// tab, so nothing in the tab bar is active while it is open — remember where
+// the visitor came from rather than dumping them on Bracket.
+var _notifyReturnTab = null;
+
 function openNotifyPanel() {
-  var ov = document.getElementById('notifyOverlay');
-  if (!ov) return;
+  var panel = document.getElementById('view-notify');
+  if (!panel) return;
   var p = notifyPrefs();
   document.getElementById('notifyLive').checked     = !!p.live;
   document.getElementById('notifyFinal').checked    = !!p.final;
@@ -6279,11 +6284,26 @@ function openNotifyPanel() {
   document.getElementById('notifyOffBtn').hidden = !(p.on);
   document.getElementById('notifyHint').textContent = p.on
     ? 'Notifications are on for this device.' : '';
-  ov.hidden = false;
+
+  var cur = document.querySelector('.view-tab.active');
+  _notifyReturnTab = cur ? cur.dataset.view : null;
+  document.querySelectorAll('.view-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.view-panel').forEach(function(x) { x.classList.remove('active'); });
+  panel.classList.add('active');
+  window.scrollTo(0, 0);
 }
+
+// Back to wherever they were. Clicking a tab also leaves the page, since the
+// tab handler clears every panel's .active — no extra wiring needed for that.
 function closeNotifyPanel() {
-  var ov = document.getElementById('notifyOverlay');
-  if (ov) ov.hidden = true;
+  var panel = document.getElementById('view-notify');
+  if (panel) panel.classList.remove('active');
+  var want = _notifyReturnTab || 'bracket';
+  var tab = document.querySelector('.view-tab[data-view="' + want + '"]');
+  var dest = document.getElementById('view-' + want);
+  if (tab) tab.classList.add('active');
+  if (dest) dest.classList.add('active');
+  _notifyReturnTab = null;
 }
 function notifyDirty() {
   var h = document.getElementById('notifyHint');

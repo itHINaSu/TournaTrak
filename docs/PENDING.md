@@ -44,7 +44,7 @@ Last updated 2026-07-30.
 
 | # | Item | State |
 |---|---|---|
-| N1 | **Mobile notifications — STILL BROKEN, owner confirmed 2026-07-30** | Two fixes shipped and neither is confirmed to be the mobile cause: (a) `.share-box` capped at 88vh with no `overflow-y`, so a 20-team picker put "Turn on" off-screen; (b) the panel now lives as a direct child of `<body>` instead of inside `#view-bracket`, so no ancestor can break `position: fixed`. **Not reproducible in the dev harness** — the panel opens correctly there at every width tried. NEXT STEP IS INFORMATION, not another guess: what exactly happens on the device — does the overlay appear at all, does the hamburger close, is anything in the console? The desktop "Notifications were not allowed" is explained: the owner was in a private window, where browsers refuse push outright. |
+| N1 | **Notification settings are now a PAGE** (owner's call — the existing Admin → Account section is the better long-term shape). No longer a modal, so the whole `position: fixed` failure class that made it unreachable on a phone is gone rather than patched. Verified at 390×844, 360×640 and 1400×900: page opens, 23-team picker renders, actions reachable, device-only note shown, Back returns to the tab you came from. **Still wants confirmation on the owner's actual device** before this moves to Done. |
 
 ---
 

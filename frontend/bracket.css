@@ -2744,13 +2744,19 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
    not. Without this the box hits .share-box's 88vh cap and simply overflows —
    a 20-team picker put "Turn on" past the bottom of a phone screen with no way
    to scroll to it, so the panel looked like it had done nothing. */
-.notify-box { width: min(92vw, 34em); }
-.notify-body {
-  flex: 1 1 auto;
-  min-height: 0;          /* the part that actually lets a flex child scroll */
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+/* The settings PAGE. Ordinary document flow — it scrolls with the page like
+   any other view, which is why none of the fixed-position traps that made the
+   modal unreachable on a phone can apply here. */
+.notify-page { max-width: 34em; margin: 0 auto; padding: 1em 1em 2.5em; }
+.notify-page-hdr { display: flex; align-items: center; gap: 0.8em; margin-bottom: 0.4em; }
+.notify-page-hdr .share-title { margin: 0; }
+.notify-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6em;
+  margin-top: 1.2em;
 }
+.notify-page-actions > * { flex: 1 1 12em; }
 .notify-section-hdr {
   font-family: 'Oswald', sans-serif;
   font-size: 0.68rem;
@@ -2759,7 +2765,7 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
   color: var(--text-mute);
   margin: 0.9em 0 0.3em;
 }
-.notify-body > #notifyForm > .notify-section-hdr:first-child { margin-top: 0; }
+.notify-page-body > #notifyForm > .notify-section-hdr:first-child { margin-top: 0; }
 .notify-note {
   margin-top: 1em;
   padding: 0.7em 0.8em;
@@ -2771,5 +2777,10 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
   border-radius: var(--radius-xs);
 }
 .notify-note strong { color: var(--text); }
-/* The actions must never scroll away — they are the reason the panel is open. */
-.notify-box .share-actions { flex: 0 0 auto; }
+
+/* On mobile the active view panel is a fixed-height flex child with
+   overflow:hidden — right for the bracket carousel, wrong for a settings page,
+   which would simply be clipped with no way to reach the bottom. This is the
+   same class of mistake as the modal it replaced, so it is spelled out: the
+   notification page scrolls itself. */
+#view-notify.view-panel.active { overflow-y: auto; -webkit-overflow-scrolling: touch; }
