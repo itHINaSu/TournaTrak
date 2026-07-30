@@ -111,7 +111,8 @@ side.
 
 | commit | what |
 |--------|------|
-| `(this)` | **Project winners did nothing on mobile** — `onProjectTap` matched desktop card classes only; mobile vertical scroll now survives a re-render |
+| `(this)` | **Refresh in the PWA** — a header Refresh button and pull-to-refresh; the SW update check rides behind the data fetch |
+| `f4bb8c3` | **Project winners did nothing on mobile** — `onProjectTap` matched desktop card classes only; mobile vertical scroll now survives a re-render |
 | `886b242` | **Share / Download / Print**, open to every visitor — "Save image" becomes a three-action dialog; PNG/JPEG/PDF; sharing moves off Team Path onto the bracket |
 | `8161faf` | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
 | `3a82e4f` | **nginx re-resolves the api upstream** — the real fix for the reboot 502 (variable `proxy_pass` + Docker DNS), tested against a real nginx |
@@ -128,6 +129,47 @@ side.
 | `45bcf02` | Schedule analyzer: flag any game timed at or before the game that feeds it |
 
 ### 2026-07-30 in detail
+
+**Refresh in the PWA — a button and a gesture (owner request).** An installed
+PWA has no browser chrome, so there was no reload control at all and the only
+way to force a fetch was backgrounding the app (the `visibilitychange`
+handler). Two entry points now run one action, `refreshNow()`:
+- `#refreshBtn` in `#headerControls`, visible to every visitor, so it collapses
+  into the hamburger on a phone like the rest. `TT_ACTIONS.refreshNow` closes
+  the menu first — otherwise the panel covers the bracket the viewer just asked
+  to see.
+- **Pull-to-refresh**, drawn by us. Native PTR does not exist here: the app's
+  scrollers set `overscroll-behavior` to contain/none on purpose (it stops the
+  carousel bouncing the page) and iOS standalone has never offered it.
+
+**Owner's constraint was explicit — data is primary, no responsiveness hit —
+and it shaped two decisions worth not undoing:**
+1. **The service-worker check runs AFTER the data, fire-and-forget**
+   (`checkForAppUpdate`, called from `refreshNow`'s `finally`). It is never
+   awaited. No message plumbing was needed because `sw.js` already calls
+   `skipWaiting()` on install and `clients.claim()` on activate, so a newer
+   build installs and takes over by itself; the new assets are precached and
+   the next launch is the new version. **Nothing reloads under the viewer** —
+   an auto-reload mid-tournament is worse than being one launch behind.
+2. **Every touch listener is `{passive:true}`**, including the PTR ones. A
+   non-passive `touchmove` on the document makes the browser wait on JS before
+   it may scroll ANY frame, which is exactly the cost that was ruled out. It
+   works without `preventDefault` because a pull only starts when the scroller
+   is already at `scrollTop === 0` — there is nothing left to scroll — and
+   `overscroll-behavior` already suppresses the native bounce.
+
+Other things the gesture has to get right, all of them in `bracket.js`:
+- **It must lose to the carousel's horizontal swipe**, so it decides its axis
+  the same way the carousel does (larger delta wins, 6px to decide) and gives
+  up entirely on an upward pull.
+- **`ptrScroller(el)` walks up for the nearest ancestor that actually
+  scrolls.** The public page has several — the fixed `.mbc-scroll-cap`
+  carousel overlay, each `.view-panel`, the document — so assuming one would
+  arm the pull mid-page.
+- **Disabled while `_bracketEditMode` is on**: dragging a card from the top of
+  a column is not a pull.
+- The indicator is a direct child of `<body>`, for the containing-block reason
+  recorded under the notifications panel below.
 
 **Project winners was inert on mobile — one handler, three wrong selectors.**
 Owner: "works great on desktop, doesn't work at all on mobile." `onProjectTap`

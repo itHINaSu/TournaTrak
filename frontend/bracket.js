@@ -6531,8 +6531,147 @@ document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible') fetchAll();
 });
 
+// ── Manual refresh (header button + pull-to-refresh) ──────────────────
+//
+// An installed PWA has no browser chrome, so there is no reload button and no
+// way to force a fetch other than backgrounding the app (which fires the
+// visibilitychange handler above). Both entry points here run the SAME action:
+// data first, app version second.
+var _refreshing = false;
+
+// Fire-and-forget, deliberately never awaited and never on the critical path.
+// sw.js calls skipWaiting() on install and clients.claim() on activate, so a
+// newer build installs and takes over by itself — there is no waiting worker
+// to message, and nothing reloads under the viewer mid-tournament. The new
+// assets land in the cache and the next launch is the new version.
+function checkForAppUpdate() {
+  if (!('serviceWorker' in navigator) || !navigator.serviceWorker.getRegistration) return;
+  try {
+    navigator.serviceWorker.getRegistration().then(function(reg) {
+      if (reg && reg.update) reg.update().catch(function() {});
+    }).catch(function() {});
+  } catch (e) { /* a browser that refuses SW access is not a refresh failure */ }
+}
+
+async function refreshNow(btn) {
+  if (_refreshing) return;
+  _refreshing = true;
+  if (btn) { btn.classList.add('is-refreshing'); btn.disabled = true; }
+  try {
+    // fetchAll() owns the offline banner on both paths, so a failed refresh
+    // already tells the viewer what happened — and keeps the last-good data
+    // on screen rather than blanking the page.
+    await fetchAll();
+  } finally {
+    _refreshing = false;
+    if (btn) { btn.classList.remove('is-refreshing'); btn.disabled = false; }
+    // Only now, with the data already painted.
+    checkForAppUpdate();
+  }
+}
+
+// ── Pull-to-refresh ───────────────────────────────────────────────────
+//
+// Every listener here is {passive:true}. A non-passive touchmove on the
+// document would make the browser wait on JS before it could scroll ANY
+// frame, which is the one thing this must not cost. It works without
+// preventDefault because the pull only ever starts when the scroller is
+// already at its top — there is nothing for the browser to scroll — and the
+// app's overscroll-behavior already suppresses the native bounce.
+var PTR_TRIGGER_PX = 70;    // pull past this and release to refresh
+var PTR_MAX_PX     = 95;    // indicator stops travelling here
+var PTR_RESIST     = 0.5;   // finger travel → indicator travel
+var _ptr = null;
+
+// The nearest ancestor that actually scrolls. The public page has several
+// (the fixed carousel overlay .mbc-scroll-cap, each .view-panel, the document
+// itself), so the gesture has to ask rather than assume.
+function ptrScroller(el) {
+  for (var n = el; n && n !== document.body; n = n.parentElement) {
+    var oy = window.getComputedStyle(n).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) return n;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
+function ptrEl() { return document.getElementById('ptrIndicator'); }
+
+function ptrDraw(dist, armed) {
+  var el = ptrEl();
+  if (!el) return;
+  el.classList.remove('ptr-settle');
+  el.style.transform = 'translateY(' + (dist - 34) + 'px)';
+  el.style.opacity = Math.min(1, dist / PTR_TRIGGER_PX);
+  el.classList.toggle('ptr-armed', !!armed);
+}
+
+function ptrReset(spinFirst) {
+  var el = ptrEl();
+  if (!el) return;
+  el.classList.add('ptr-settle');
+  if (!spinFirst) el.classList.remove('ptr-spin', 'ptr-armed');
+  el.style.transform = 'translateY(-3em)';
+  el.style.opacity = '0';
+  if (spinFirst) {
+    // Let the settle transition finish before dropping the spin class, or the
+    // icon visibly stops dead while still on screen.
+    setTimeout(function() { el.classList.remove('ptr-spin', 'ptr-armed'); }, 240);
+  }
+}
+
+document.addEventListener('touchstart', function(e) {
+  _ptr = null;
+  if (_refreshing || _bracketEditMode) return;   // a card drag is not a pull
+  if (e.touches.length !== 1) return;
+  var t = e.touches[0];
+  var sc = ptrScroller(e.target);
+  if (!sc || sc.scrollTop > 0) return;           // only from the very top
+  _ptr = { y: t.clientY, x: t.clientX, sc: sc, decided: false, active: false };
+}, { passive: true });
+
+document.addEventListener('touchmove', function(e) {
+  if (!_ptr || !e.touches.length) return;
+  var t  = e.touches[0];
+  var dy = t.clientY - _ptr.y;
+  var dx = t.clientX - _ptr.x;
+  if (!_ptr.decided) {
+    if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return;
+    // Lose to the carousel's horizontal swipe on the same terms it decides:
+    // whichever axis moved further wins, and an upward pull is just a scroll.
+    _ptr.decided = true;
+    _ptr.active  = dy > 0 && Math.abs(dy) > Math.abs(dx);
+    if (!_ptr.active) { _ptr = null; return; }
+  }
+  // The scroller can have moved under the finger (a fast flick that started at
+  // the top and got there before the axis was decided) — give up if so.
+  if (_ptr.sc.scrollTop > 0 || dy <= 0) { ptrReset(false); _ptr = null; return; }
+  var dist = Math.min(dy * PTR_RESIST, PTR_MAX_PX);
+  _ptr.armed = dist >= PTR_TRIGGER_PX;
+  ptrDraw(dist, _ptr.armed);
+}, { passive: true });
+
+function ptrEnd() {
+  if (!_ptr) return;
+  var armed = _ptr.armed;
+  _ptr = null;
+  if (!armed) { ptrReset(false); return; }
+  var el = ptrEl();
+  if (el) { el.classList.add('ptr-spin'); el.classList.remove('ptr-settle'); }
+  refreshNow(null).then(function() { ptrReset(true); }, function() { ptrReset(true); });
+}
+document.addEventListener('touchend', ptrEnd, { passive: true });
+document.addEventListener('touchcancel', function() {
+  if (_ptr) { _ptr = null; ptrReset(false); }
+}, { passive: true });
+
 // ── Delegated actions (see tt-common.js) ──────────────────────────────
 Object.assign(TT_ACTIONS, {
+  refreshNow: function(arg, el) {
+    // Tapped from inside the hamburger on a phone — close it, or the panel
+    // sits over the bracket the viewer just asked to see refreshed.
+    closeHeaderMenu();
+    refreshNow(el);
+  },
   toggleProject: function() {
     // Same rule as the button's visibility, re-checked here: hidden is a UI
     // state, not a permission, and the setting can change under a page that
