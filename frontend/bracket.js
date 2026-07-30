@@ -1976,12 +1976,33 @@ var PROJ_TEAM_SEL = '.bc-team, .mbc-game-team, .mbc-champ-team';
 var PROJ_CARD_SEL = '.bc, .mbc-card';
 var PROJ_NAME_SEL = '.bc-name, .mbc-team-name, .mbc-champ-name';
 
+// The mobile carousel's scroll surface (.mbc-scroll-cap) is a TRANSPARENT
+// position:fixed overlay covering the whole bracket area. It exists so that a
+// vertical touch anywhere gets native momentum, and it cannot be given
+// pointer-events:none — that is the one property that would stop it
+// scrolling. So on a phone every tap lands on the overlay (or its spacer) and
+// never on the card beneath, and closest() from e.target finds nothing no
+// matter which class names it looks for. Re-resolve through the paint stack at
+// the tap point instead.
+function projTargetFor(e) {
+  var t = e.target;
+  if (!t || !t.closest) return t;
+  if (!t.closest('.mbc-scroll-cap')) return t;
+  if (!document.elementsFromPoint) return t;
+  var stack = document.elementsFromPoint(e.clientX, e.clientY);
+  for (var i = 0; i < stack.length; i++) {
+    if (stack[i].closest && stack[i].closest(PROJ_TEAM_SEL)) return stack[i];
+  }
+  return t;
+}
+
 function onProjectTap(e){
   if (!_projectMode || _bracketEditMode) return;
   if (_touchDragged) return;                         // a swipe/scroll, not a pick
-  var teamEl = e.target.closest(PROJ_TEAM_SEL);
+  var tapEl = projTargetFor(e);
+  var teamEl = tapEl.closest(PROJ_TEAM_SEL);
   if (!teamEl) return;
-  var card = e.target.closest(PROJ_CARD_SEL);
+  var card = tapEl.closest(PROJ_CARD_SEL);
   var gid = card && card.getAttribute('data-gid');
   if (!gid || !GAMES[gid] || GAMES[gid].bye) return;
   if (results[gid] && results[gid].winner) return;   // real result — locked

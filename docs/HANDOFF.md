@@ -182,6 +182,22 @@ FIRST line. Not a partial failure — nothing happened at all, which is exactly
 what was reported. All three selectors now carry both shapes
 (`PROJ_TEAM_SEL`/`PROJ_CARD_SEL`/`PROJ_NAME_SEL`).
 
+**The selectors were only half of it — and the other half is a trap that will
+bite anything else made tappable on the mobile bracket.** `.mbc-scroll-cap` is
+a TRANSPARENT `position: fixed` overlay covering the whole carousel. It exists
+so a vertical touch anywhere gets native iOS momentum, and it **cannot be given
+`pointer-events: none`** — that is precisely the property that would stop it
+scrolling. So on a phone *every* tap lands on the overlay (or its spacer) and
+never on the card beneath, and `e.target.closest(...)` finds nothing no matter
+which class names it looks for. Playwright says so out loud if you let it:
+`locator.tap()` fails with "`<div>` from `<div class="mbc-scroll-cap">…</div>`
+subtree intercepts pointer events". `projTargetFor(e)` re-resolves through
+`document.elementsFromPoint(e.clientX, e.clientY)` when the tap started on the
+overlay, and picks the first element in the paint stack that sits in a team
+row. **Test mobile taps with `page.touchscreen.tap(x, y)`, not
+`locator.tap()`** — the latter refuses on the actionability check, which reads
+as a broken test rather than the real bug it is faithfully reporting.
+
 Worth knowing: **the mobile renderer already drew picks.** `mobileRoundCardHTML`
 and `champCardHTML` both compute `cardIsProjected(gid)` and emit `mbc--proj`
 plus the PICK chip, and `bracket.css` has a mobile-specific rule for that chip
@@ -1688,6 +1704,17 @@ not a backup: this one had been wrong since it was written, and the first
 person to find out was the person who needed it.
 
 ## Session notes / traps worth inheriting (2026-07-30)
+- **`PGUSER=root` needs the role to EXIST.** The documented incantation
+  (`PGUSER=root PGHOST=/var/run/postgresql`) reported all 73 route tests as
+  `SKIP no usable Postgres (role "root" does not exist)` — and still exited 0,
+  which is exactly the false green the Tests section warns about. A fresh
+  container's cluster has no `root` role at all:
+  `su postgres -c "psql -tAc \"CREATE ROLE root SUPERUSER LOGIN CREATEDB\""`
+  then a matching database. After that: 113 pass, **0 skipped**.
+- **`api/node_modules` is not in the container** on a fresh clone — `npm ci` in
+  `api/` first, or the route tests skip with `server did not start`.
+- **Playwright's browser is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`**,
+  not the `chromium` symlink dir next to it, which has no binary inside.
 - **The working tree rolled back a THIRD time** (the 2026-07-29 entry covers the
   first two). It happened mid-scan, and the first pass of that scan silently ran
   against the stale tree and reported everything clean. If a check comes back
