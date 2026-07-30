@@ -6355,9 +6355,15 @@ async function notifySave() {
       // left the owner with a panel full of choices and no idea why it failed
       // — and the browser only ever asks ONCE, so a dismissed prompt looks
       // identical to a refusal until you go into site settings.
+      // Three distinct causes that all surface as "not granted", and the user
+      // can only act on the right one if we name it. Private/incognito windows
+      // refuse outright with no prompt at all — pointing someone at site
+      // settings there sends them looking for a switch that is not present.
       hint.textContent = Notification.permission === 'denied'
-        ? 'Your browser is blocking notifications for this site. Allow them in the '
-          + 'site settings (the icon beside the address bar), then press Turn on again.'
+        ? 'Notifications are blocked for this site. If you are in a private or '
+          + 'incognito window, they cannot be enabled there at all — open the page in '
+          + 'a normal window. Otherwise allow them in site settings (the icon beside '
+          + 'the address bar) and press Turn on again.'
         : 'The permission prompt was dismissed. Press Turn on to ask again — some '
           + 'browsers only offer it once, and then it has to be enabled in site settings.';
       // Keep their choices on the device so nothing has to be re-picked when

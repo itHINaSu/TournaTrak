@@ -44,7 +44,7 @@ Last updated 2026-07-30.
 
 | # | Item | State |
 |---|---|---|
-| N1 | **Notification settings as a settings surface, not a modal** | Owner could not save on desktop ("Notifications were not allowed") and tapping Notify me on mobile appeared to do nothing. Root cause found for the second: `.share-box` has `max-height: 88vh` with **no `overflow-y`**, so a 20-team picker overflows and the Turn on / Close buttons become unreachable. Being reworked into a scrolling settings panel, with an explicit note that settings are stored **per device**. |
+| N1 | **Mobile notifications — STILL BROKEN, owner confirmed 2026-07-30** | Two fixes shipped and neither is confirmed to be the mobile cause: (a) `.share-box` capped at 88vh with no `overflow-y`, so a 20-team picker put "Turn on" off-screen; (b) the panel now lives as a direct child of `<body>` instead of inside `#view-bracket`, so no ancestor can break `position: fixed`. **Not reproducible in the dev harness** — the panel opens correctly there at every width tried. NEXT STEP IS INFORMATION, not another guess: what exactly happens on the device — does the overlay appear at all, does the hamburger close, is anything in the console? The desktop "Notifications were not allowed" is explained: the owner was in a private window, where browsers refuse push outright. |
 
 ---
 

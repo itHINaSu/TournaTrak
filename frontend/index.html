@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.65">
-<link rel="stylesheet" href="/bracket.css?v=3.65">
-<script src="/app-h.js?v=3.65"></script>
+<link rel="stylesheet" href="/base.css?v=3.66">
+<link rel="stylesheet" href="/bracket.css?v=3.66">
+<script src="/app-h.js?v=3.66"></script>
 </head>
 <body>
 
@@ -149,52 +149,6 @@
        on the server. #notifyUnsupported explains WHY when the browser cannot do
        it (no HTTPS, iOS outside an installed PWA, permission denied) rather
        than showing a switch that silently does nothing. -->
-  <!-- Notification settings. A SETTINGS SURFACE, not a yes/no dialog: the team
-       picker can run to 30+ rows, so the body scrolls while the title and the
-       actions stay put. It used to be a plain .share-box, which caps at 88vh
-       with no overflow — on a phone a 20-team list pushed "Turn on" off the
-       bottom with no way to reach it, which read as the panel doing nothing.
-       #notifyUnsupported explains WHY when the browser cannot subscribe (no
-       HTTPS, permission denied, iOS outside an installed PWA) rather than
-       showing a switch that silently fails. -->
-  <div class="share-overlay" id="notifyOverlay" hidden>
-    <div class="share-box notify-box" id="notifyBox">
-      <div class="share-title">Notification settings</div>
-      <div class="notify-body">
-        <div class="share-hint" id="notifyUnsupported" hidden></div>
-        <div id="notifyForm">
-          <div class="notify-section-hdr">Tell me about</div>
-          <div class="share-opts">
-            <label class="share-opt"><input type="checkbox" id="notifyLive" data-action-change="notifyDirty"> A game starting <span class="share-opt-note">(kick-off only, not every score)</span></label>
-            <label class="share-opt"><input type="checkbox" id="notifyFinal" data-action-change="notifyDirty"> Final scores</label>
-            <label class="share-opt"><input type="checkbox" id="notifySchedule" checked data-action-change="notifyDirty"> Schedule changes and delays</label>
-          </div>
-          <div class="notify-section-hdr">Which teams</div>
-          <div class="share-opts notify-teams-row">
-            <label class="share-opt"><input type="radio" name="notifyScope" value="all" checked data-action-change="notifyScopeChange"> Every team</label>
-            <label class="share-opt"><input type="radio" name="notifyScope" value="pick" data-action-change="notifyScopeChange"> Only teams I pick</label>
-          </div>
-          <div class="notify-teams" id="notifyTeams" hidden></div>
-          <div class="share-opts" id="notifyAllEventsRow" hidden>
-            <label class="share-opt"><input type="checkbox" id="notifyAllEvents" data-action-change="notifyDirty"> Follow these teams at other tournaments too</label>
-          </div>
-          <!-- Said plainly because it is true and surprising: these settings
-               live on this device, not in an account. -->
-          <div class="notify-note">
-            These settings are saved <strong>on this device only</strong>. They will not
-            follow you to another phone or computer, and clearing your browser data
-            for this site will remove them. There is no account to sign in to.
-          </div>
-        </div>
-      </div>
-      <div class="share-actions">
-        <button class="admin-clear-btn" data-action="closeNotifyPanel">Close</button>
-        <button class="admin-clear-btn" id="notifyOffBtn" hidden data-action="notifyTurnOff">Turn off</button>
-        <button class="flight-pill share-dl" id="notifySaveBtn" data-action="notifySave">Turn on</button>
-      </div>
-      <div class="share-hint" id="notifyHint"></div>
-    </div>
-  </div>
   <!-- Bracket Edit: drag a card onto a row to place it by hand. The card
        keeps its slot — only its POSITION is stored — which is what makes
        editing useful on the losers side, whose automatic layout ignores slot
@@ -301,12 +255,65 @@
   <div class="team-panel" id="standingsOut"></div>
 </div>
 
+<!-- Notification settings live as a direct child of <body>, NOT inside
+     #view-bracket. A position:fixed element is only truly viewport-fixed when no
+     ancestor establishes a containing block — a transform, filter, contain or
+     will-change on any parent silently re-anchors it, and on mobile the active
+     view panel is a flex child with overflow:hidden. Rather than audit that
+     chain every time the bracket layout changes, the panel has no chain. -->
+<!-- A SETTINGS SURFACE, not a yes/no dialog: the team
+       picker can run to 30+ rows, so the body scrolls while the title and the
+       actions stay put. It used to be a plain .share-box, which caps at 88vh
+       with no overflow — on a phone a 20-team list pushed "Turn on" off the
+       bottom with no way to reach it, which read as the panel doing nothing.
+       #notifyUnsupported explains WHY when the browser cannot subscribe (no
+       HTTPS, permission denied, iOS outside an installed PWA) rather than
+       showing a switch that silently fails. -->
+  <div class="share-overlay" id="notifyOverlay" hidden>
+    <div class="share-box notify-box" id="notifyBox">
+      <div class="share-title">Notification settings</div>
+      <div class="notify-body">
+        <div class="share-hint" id="notifyUnsupported" hidden></div>
+        <div id="notifyForm">
+          <div class="notify-section-hdr">Tell me about</div>
+          <div class="share-opts">
+            <label class="share-opt"><input type="checkbox" id="notifyLive" data-action-change="notifyDirty"> A game starting <span class="share-opt-note">(kick-off only, not every score)</span></label>
+            <label class="share-opt"><input type="checkbox" id="notifyFinal" data-action-change="notifyDirty"> Final scores</label>
+            <label class="share-opt"><input type="checkbox" id="notifySchedule" checked data-action-change="notifyDirty"> Schedule changes and delays</label>
+          </div>
+          <div class="notify-section-hdr">Which teams</div>
+          <div class="share-opts notify-teams-row">
+            <label class="share-opt"><input type="radio" name="notifyScope" value="all" checked data-action-change="notifyScopeChange"> Every team</label>
+            <label class="share-opt"><input type="radio" name="notifyScope" value="pick" data-action-change="notifyScopeChange"> Only teams I pick</label>
+          </div>
+          <div class="notify-teams" id="notifyTeams" hidden></div>
+          <div class="share-opts" id="notifyAllEventsRow" hidden>
+            <label class="share-opt"><input type="checkbox" id="notifyAllEvents" data-action-change="notifyDirty"> Follow these teams at other tournaments too</label>
+          </div>
+          <!-- Said plainly because it is true and surprising: these settings
+               live on this device, not in an account. -->
+          <div class="notify-note">
+            These settings are saved <strong>on this device only</strong>. They will not
+            follow you to another phone or computer, and clearing your browser data
+            for this site will remove them. There is no account to sign in to.
+          </div>
+        </div>
+      </div>
+      <div class="share-actions">
+        <button class="admin-clear-btn" data-action="closeNotifyPanel">Close</button>
+        <button class="admin-clear-btn" id="notifyOffBtn" hidden data-action="notifyTurnOff">Turn off</button>
+        <button class="flight-pill share-dl" id="notifySaveBtn" data-action="notifySave">Turn on</button>
+      </div>
+      <div class="share-hint" id="notifyHint"></div>
+    </div>
+  </div>
+
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.65"></script>
-<script src="/tt-common.js?v=3.65"></script>
-<script src="/bracket-data.js?v=3.65"></script>
-<script src="/bracket.js?v=3.65"></script>
-<script src="/sw-register.js?v=3.65" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.66"></script>
+<script src="/tt-common.js?v=3.66"></script>
+<script src="/bracket-data.js?v=3.66"></script>
+<script src="/bracket.js?v=3.66"></script>
+<script src="/sw-register.js?v=3.66" data-sw="/sw.js"></script>
 </body>
 </html>

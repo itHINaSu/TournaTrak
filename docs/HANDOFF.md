@@ -181,6 +181,23 @@ mid-task, add it there in the SAME commit as the work you did ship** — that is
 precisely the case it was created for. HANDOFF stays the narrative of what
 happened and why; PENDING is the short scannable status.
 
+**Mobile notifications are STILL BROKEN as of 2026-07-30** — two plausible
+causes fixed, neither confirmed, and the symptom is not reproducible in the dev
+harness at any width. Do not assume it is solved. The next step is a description
+of what actually happens on the device, not a third guess.
+- Fix 1: `.share-box` capped at 88vh with no `overflow-y`.
+- Fix 2: the panel is now a direct child of `<body>`. A `position: fixed`
+  element is only viewport-fixed when NO ancestor establishes a containing
+  block — a transform, filter, `contain` or `will-change` anywhere up the chain
+  silently re-anchors it, and on mobile the active view panel is a flex child
+  with `overflow: hidden`. The panel now has no chain to audit. **The Save-image
+  overlay is still inside `#view-bracket` and has the same exposure** — move it
+  the same way if it ever misbehaves.
+- The desktop "Notifications were not allowed" was NOT a bug: the owner was in a
+  private window, where browsers refuse push outright and offer no site-settings
+  switch. The message now names that case, since pointing someone at site
+  settings there sends them hunting for a control that does not exist.
+
 **Notification settings are a settings SURFACE, not a dialog.** The owner could
 not save on desktop and tapping Notify me on mobile appeared to do nothing. The
 second had a findable cause: `.share-box` caps at `max-height: 88vh` with **no
