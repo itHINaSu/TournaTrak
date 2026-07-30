@@ -111,7 +111,8 @@ side.
 
 | commit | what |
 |--------|------|
-| `(this)` | **Refresh in the PWA** — a header Refresh button and pull-to-refresh; the SW update check rides behind the data fetch |
+| `a1224e8` | **Mobile taps never reached the card** — `.mbc-scroll-cap` swallows every one; re-resolved via `elementsFromPoint`. This is what actually made projecting work on a phone |
+| `6dc3f39` | **Refresh in the PWA** — a header Refresh button and pull-to-refresh; the SW update check rides behind the data fetch |
 | `f4bb8c3` | **Project winners did nothing on mobile** — `onProjectTap` matched desktop card classes only; mobile vertical scroll now survives a re-render |
 | `886b242` | **Share / Download / Print**, open to every visitor — "Save image" becomes a three-action dialog; PNG/JPEG/PDF; sharing moves off Team Path onto the bracket |
 | `8161faf` | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
