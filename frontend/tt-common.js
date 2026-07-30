@@ -133,19 +133,11 @@ document.addEventListener('focusin', function(e) {
     // the accessible name. A text label reading "Light"/"Dark" was ambiguous
     // (current state vs switch-to target).
     if (btn) {
-      // Inline SVG, not ☀/🌙. The display fonts carry no glyph for those and
-      // there is no emoji fallback in the stack, so both rendered as an empty
-      // tofu box — a blank square button in the header on the owner's phone.
-      // Every other icon in the app is inline SVG for the same reason.
-      btn.innerHTML = light
-        ? '<svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-          + ' stroke-width="2" stroke-linecap="round" aria-hidden="true">'
-          + '<circle cx="12" cy="12" r="4.2"/>'
-          + '<path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2'
-          + 'M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/></svg>'
-        : '<svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
-          + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-          + '<path d="M20 13.5A8.2 8.2 0 1 1 10.5 4a6.6 6.6 0 0 0 9.5 9.5z"/></svg>';
+      // ☀/🌙 by owner preference. These render fine on real devices — an
+      // earlier session replaced them with SVG after mistaking Chrome's
+      // device-emulation view (which shows tofu boxes) for a missing glyph on
+      // the phone itself. They were never broken; don't "fix" them again.
+      btn.textContent = light ? '☀' : '🌙';
       btn.setAttribute('aria-label', light ? 'Switch to dark theme' : 'Switch to light theme');
       btn.title = light ? 'Switch to dark theme' : 'Switch to light theme';
     }

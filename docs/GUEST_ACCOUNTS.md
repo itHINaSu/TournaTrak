@@ -116,6 +116,34 @@ to cover a guest rather than writing a new one, so the two can never drift.
 
 ---
 
+### 3.1 Guests belong to TEAMS (owner decision, 2026-07-30)
+
+The relationship that matters is **guest → team**, not guest → tournament.
+
+A parent registers once and says "I follow the Thunder". Every tournament the
+Thunder enter, that person's notification preferences come with them. They never
+sign up again, and **no TD ever administers a guest** — which is the point:
+a TD running a weekend event should not inherit a user-management job.
+
+Consequences, and they are not small:
+
+- **This feature DEPENDS on the cross-tournament team database** (`HANDOFF.md`,
+  "Team database"). Following a team across events is meaningless while a team
+  is a per-tournament name string — "Thunder" in two events are unrelated
+  values. `guest_teams.team_name` below is therefore a placeholder: it becomes
+  `team_id` referencing the canonical team, and **guest accounts should not
+  ship before that migration**, or every account is built on a foundation that
+  is about to move.
+- Preferences become **per team**, with a per-tournament override only if it
+  proves necessary. Resist adding the override until someone asks.
+- A guest may follow several teams (siblings on different teams is the obvious
+  case), so it is many-to-many.
+- **Joining a team is not membership of anything.** It grants no access to that
+  team's lineups, roster, or anything else — it is a subscription preference
+  wearing a friendlier word. Coaches have a real relationship to a team via
+  `user_teams`; guests must not be confused with them, and must not appear in
+  any coach-facing list.
+
 ## 4. Schema sketch
 
 ```sql
@@ -235,6 +263,18 @@ moderation surface whatsoever.
 - **A guest account grants nothing.** Re-stating from §3 because it is the
   security property that matters: no `user_roles` row, so every `requireRole`
   refuses. The test for this belongs beside the team-link one.
+- **Account-creation flooding is the named risk** (owner, 2026-07-30). With no
+  email verification in model A there is nothing proving a human, so assume bad
+  faith: per-IP rate limiting is the floor, not the ceiling. Worth considering
+  before launch — a registration that requires knowing something only a real
+  attendee would (a per-tournament join code the TD can show on a sign), a
+  proof-of-work or CAPTCHA, or simply keeping registration off until a
+  tournament is live. **The cheapest real defence is that registration is off
+  by default and the instance owner turns it on**, which is already §7's
+  recommendation.
+- **A flood must be survivable, not just unlikely.** Global Admins need to see
+  registration volume and delete in bulk — see §5's activity tracking, which is
+  the same machinery.
 - **No usernames that look like staff.** Reserve `admin`, `root`, and the
   configured superadmin name — not because it grants anything, but because a
   guest calling themselves `admin` in a future public standings or comment
@@ -257,6 +297,11 @@ This is the part that is easy to skip and expensive to retrofit.
 - **Self-service deletion is mandatory**, not a nice-to-have —
   `DELETE /api/guest/account`, cascading `guest_prefs`, `guest_teams`, and
   nulling `push_subscriptions.user_id` (not deleting the row: rule 2 in §6).
+- **Only Global Admins may list or delete guest accounts.** Tournament
+  Directors must not see them at all. Guests are instance-level people; a TD's
+  authority is scoped to their events, and a list of members of the public is
+  not part of it. This is a `requireSuperadmin` route, not `requireAdmin` —
+  getting that wrong hands every TD a directory of spectators.
 - **Collect nothing else.** No real name required, no email in model A, and
   `created_ip` only if abuse triage genuinely needs it — it is the one field
   here that is a liability rather than an asset, and it should have a retention
@@ -280,17 +325,34 @@ Naming these prevents the feature from quietly growing while it is being built:
 
 ---
 
-## 10. Decisions the owner still has to make
+## 10. Decisions — MADE (owner, 2026-07-30)
 
-1. Is the value in §1 worth an account system at all, when anonymous
-   notifications already work per-device?
-2. Model **A** (username + password, no recovery), **B** (passkeys), or
-   **A + B**? A mail dependency (**C**) is a bigger commitment than the feature.
-3. Is registration off by default per instance, per tournament, or both?
-4. On a second device: account preferences win, device preferences win, or ask?
-5. Retention — do dormant guest accounts expire, and after how long? (Doing
-   nothing is a valid answer; deciding it later, after real accounts exist, is
-   much harder.)
+Recorded as answers, not options. Do not re-litigate these; if one turns out to
+be wrong, change it here and say why.
+
+1. **Not now, but design for it.** Player accounts are plausible as the app
+   grows; the design exists so the shape is known when it happens. The owner
+   already has a way to handle email when it is needed, so §2's mail constraint
+   is a *timing* problem, not a permanent one.
+2. **Model A now (username + password); passkeys are wanted.** The owner
+   specifically likes passkeys with mobile biometrics, so B is the intended
+   destination, not a maybe — which is why `guest_credentials` exists as its own
+   table from the start. Email arrives later for **account recovery and
+   verification**.
+   ⚠️ **The owner's own concern, and it is the right one: account-creation
+   flooding with no way to verify a new user.** Small today, but the design
+   must not assume good faith. See §7.
+3. **Registration is to a TEAM, not a tournament.** This is the significant one
+   and it changes the model — see §3.1. A guest follows a team, and their
+   preferences travel to every tournament that team enters. A TD must never
+   have to think about guests signing up for their event.
+4. **Account preferences win** on a second device, and the default state is
+   **no account at all** — anonymous per-device notifications stay the norm.
+5. **Track activity; global admins prune.** Guest accounts record when they
+   were last active, and a **Global Admin** can review and remove stale ones.
+   **Tournament Directors must NOT have access to guest accounts** — guests are
+   instance-level people, not tournament staff, and a TD has no business
+   listing them.
 
 ---
 

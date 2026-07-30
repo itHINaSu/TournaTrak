@@ -183,6 +183,21 @@ mobile/PWA only).
   the threshold in the same function.
 - Threshold is 2+ controls. Guests get the menu too.
 
+**Role model: `docs/ROLES.md`** — answers the TD-deputy and buckets questions,
+awaiting the owner's yes/no. Recommendation in one line: **one capability flag
+(`can_edit_schedule` on a `user_roles` grant) for the TD's deputy, and rename
+`buckets` to "Standings Keeper" for the concession-counter case rather than
+adding roles.** Guards enumerate roles (`requireRole('admin','results')`), so a
+new tier means auditing every call site and one miss is a silent privilege bug;
+a flag adds exactly one guard. **Do not delete the stored value `buckets`** when
+Bucket Challenge is sunset — existing grants would fail the role check and lock
+those people out. Rename the label, repoint what it guards.
+
+Also settled there: a TD may grant Scorekeeper/Standings/Coach on their OWN
+tournaments, but **never `admin`** — TD access spreads only through a Global
+Admin. `POST /users` already enforces that half; the UI and the flag are what is
+missing.
+
 **Guest self-registration is DESIGNED, not built** — `docs/GUEST_ACCOUNTS.md`
 (owner asked for the design now because sign-in is heading into the header and
 the decisions are cheaper before that lands). Read it before building anything
@@ -194,6 +209,10 @@ guest must have **no `user_roles` row at all**, so `effectiveRole` returns null
 and every `requireRole` refuses them with no new code; and
 `push_subscriptions.user_id` is already nullable, so adopting a device's
 anonymous subscription is one UPDATE, never a delete-and-recreate.
+**Owner decided 2026-07-30: guests register to a TEAM, not a tournament**, so
+preferences follow the team into every event and no TD ever administers a guest
+— which means guest accounts **must not ship before the cross-tournament team
+database**, or every account is built on a foundation that is about to move.
 
 **PLANNED for that menu (owner, 2026-07-30) — build into it, not around it:**
 light/dark, notifications, **sign-in for coaches and admins without navigating
