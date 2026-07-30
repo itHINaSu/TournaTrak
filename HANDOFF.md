@@ -84,7 +84,8 @@ side.
 
 | commit | what |
 |--------|------|
-| (this) | DB wait 30s → 120s (`TT_DB_WAIT_SECONDS`) — hardening, NOT the cause of the 502; see the nginx upstream note |
+| (this) | **nginx re-resolves the api upstream** — the real fix for the reboot 502 (variable `proxy_pass` + Docker DNS), tested against a real nginx |
+| `f9f8c66` | DB wait 30s → 120s (`TT_DB_WAIT_SECONDS`) — hardening, NOT the cause of the 502 |
 | `9dfdfe5` | **Staff and spectator push share one browser row** — the device toggle lied, and staff-off deleted the spectator's subscription |
 | `ff86c8a` | **Every auth error message was invisible** — `.login-error` had `display: none` |
 | `db9f0f4` | Spectator notification UI: bell + panel on the bracket, push handlers in the PUBLIC `sw.js`, `.admin-clear-btn` moved to `base.css` |
@@ -168,15 +169,36 @@ broken:
 - So: nginx healthy, Postgres healthy, api healthy, and still 502. The upstream
   is the only thing left.
 
-Immediate fix: `docker compose restart nginx`. Permanent fix: give nginx
-Docker's embedded DNS and a variable in `proxy_pass`, so it re-resolves instead
-of caching for ever —
-`resolver 127.0.0.11 valid=10s;` plus `set $api_up http://api:3000;` /
-`proxy_pass $api_up;` at each of the eight proxy_pass sites. NOT YET APPLIED:
-there is no nginx binary in the dev container to test against, and eight
-proxy_pass sites plus regex locations is exactly the kind of change that should
-not be trial-and-errored on a live box. Confirm the diagnosis with the restart
-first.
+**FIXED 2026-07-30** (confirmed on the owner's box: restarting nginx cleared
+it, which proves the upstream was stale). `nginx.conf` now uses Docker's
+embedded DNS and addresses the API through a VARIABLE, which is what forces
+nginx to re-resolve per request instead of caching for the life of the worker:
+
+    resolver 127.0.0.11 valid=10s ipv6=off;
+    map "" $api_up { default "http://api:3000"; }
+    ...
+    proxy_pass $api_up;      # at all eight proxying locations
+
+`ipv6=off` matters — Docker's resolver can return AAAA records that are not
+routable on the compose network, which becomes intermittent 502s that look like
+a different bug entirely.
+
+**The variable form was tested before it was applied**, because `proxy_pass`
+with a variable changes how the request URI is passed, and this app puts team
+names in paths. Installed nginx in the dev container, ran the static and
+variable forms side by side against an echo server, and compared: identical for
+a plain path, `%20` (a space in a team name), **`%2F`** (the case that would
+have silently broken routing), a query string, and a regex location. Then
+validated the REAL config with `nginx -t` and drove every proxied route through
+it — `/api/*`, `/`, `/bracket`, `/t/:slug/teampath` — all arriving with the URI
+byte-identical. There IS an nginx in this container now (`apt-get install
+nginx-light`); the handoff used to say there wasn't, so use it rather than
+reasoning about nginx behaviour from memory.
+
+**Still restart nginx after the api container is RECREATED** on a deploy older
+than this change, and remember the general rule: `docker compose restart nginx`
+is what picks up an edited `nginx.conf` at all, since the file is bind-mounted
+and Compose does not recreate a container because a mounted file changed.
 
 **A separate, speculative hardening — NOT the cause of the above.** The API's
 wait for Postgres was 30s, sized for `docker compose up` where the healthcheck
@@ -1375,7 +1397,10 @@ the app; all of them will happen again to the next session.
   as the owner runs it. What works: a local Postgres (`service postgresql
   start`, then `su postgres -c "psql -tAc \"ALTER ROLE postgres PASSWORD
   'x'\""` for a password the tests can use), the API on a spare port, and a
-  ~20-line static-file proxy standing in for nginx. The proxy MUST forward
+  ~20-line static-file proxy standing in for nginx. **nginx itself IS
+  installable** (`apt-get install -y nginx-light`) — use it to test nginx.conf
+  changes rather than reasoning about them; it caught nothing this time but the
+  URI-passing question could only be settled by running it. The proxy MUST forward
   `/api`, `/lineup`, `/t/…` and `/` to the API and serve everything else from
   `frontend/` — `/admin` and `/score` are static files, `/` and `/t/:slug` are
   server-rendered, and getting that split wrong produces confusing 404s.
