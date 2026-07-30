@@ -169,6 +169,33 @@ broken:
 - So: nginx healthy, Postgres healthy, api healthy, and still 502. The upstream
   is the only thing left.
 
+**Mobile header menu (2026-07-30).** Below 1280px the public header's controls
+collapse behind a hamburger; desktop keeps them inline, which the owner
+confirmed is what they want (there is room there, and the hamburger is
+mobile/PWA only).
+- The panel is `position: absolute` under the sticky header ON PURPOSE. Opening
+  it must not reflow the page, or the bracket moves under the finger that
+  opened it and the closing tap lands on a game card.
+- `.header-controls` is collapsed only under `.site-header.has-menu`, a class
+  JS sets when the hamburger is actually shown. Without that guard the two
+  decisions disagreed and a guest on a phone got NO hamburger and NO controls —
+  "Notify me" was unreachable. If you change the threshold, keep the class and
+  the threshold in the same function.
+- Threshold is 2+ controls. Guests get the menu too.
+
+**PLANNED for that menu (owner, 2026-07-30) — build into it, not around it:**
+light/dark, notifications, **sign-in for coaches and admins without navigating
+to another URL**, possibly Project winners for guests, and Save image likely
+becoming a Share button offered to guests as well as staff. So the guest menu
+is going to be populated, and the header is the right home for auth entry.
+
+**Emoji are out (owner: "a touch tacky"), and they were BROKEN anyway.** The
+display fonts carry no glyph for ⚡ 🔔 ☀ 🌙 and there is no emoji fallback in
+the stack, so they rendered as empty tofu boxes on the owner's phone — the
+theme toggle was a blank square. Removed from Notify me and the Live/Score
+buttons; the theme toggle is inline SVG now, like every other icon in the app.
+Do not reintroduce emoji in UI chrome — use inline SVG.
+
 **FIXED 2026-07-30** (confirmed on the owner's box: restarting nginx cleared
 it, which proves the upstream was stale). `nginx.conf` now uses Docker's
 embedded DNS and addresses the API through a VARIABLE, which is what forces

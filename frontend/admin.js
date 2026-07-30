@@ -520,7 +520,7 @@ function renderAdmin() {
         + '<input type="text" inputmode="numeric" pattern="[0-9]*" class="admin-score-inp" id="sc2-' + sid + '" value="' + esc(String(s2)) + '" placeholder="Score" data-selectall></div>'
         + '<div class="admin-res-footer">'
         + '<button class="admin-clear-btn" data-action="endLive" data-arg="' + esc(sid) + '">Clear</button>'
-        + '<button class="admin-edit-btn" data-action="goToLiveTab" data-arg="' + esc(sid) + '">Score ⚡</button>'
+        + '<button class="admin-edit-btn" data-action="goToLiveTab" data-arg="' + esc(sid) + '">Score</button>'
         + '<button class="admin-save-btn" data-action="saveResult" data-arg="' + esc(sid) + '">Final</button>'
         + '</div></div>';
     }

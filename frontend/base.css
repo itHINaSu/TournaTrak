@@ -477,3 +477,69 @@ body.print-palette .champ-center--desktop,
 body.print-palette .flight-col--champ {
   border-color: var(--border) !important;
 }
+
+/* ── Mobile header menu ────────────────────────────────────────────────
+   An admin on a phone can have Project winners / Save image / Edit / Notify me
+   / Lineup / Admin / theme all at once, which wrapped into two extra rows and
+   pushed the bracket down the screen. Below the desktop breakpoint they
+   collapse behind a hamburger.
+
+   The breakpoint is 1280px to match the public bracket's mobile/desktop split
+   (see the breakpoint contract in HANDOFF) — not an arbitrary phone width, so
+   the menu appears exactly where the carousel layout takes over. */
+@media (max-width: 1279px) {
+  .header-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6em;
+    height: 2.6em;
+    flex-shrink: 0;
+    margin-left: auto;
+    padding: 0;
+    background: none;
+    border: 0.07em solid var(--border);
+    border-radius: var(--radius-xs);
+    color: var(--text-dim);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  .header-menu-btn svg { width: 1.25em; height: 1.25em; }
+  .header-menu-btn[aria-expanded="true"] { color: var(--text); border-color: var(--text-dim); }
+
+  /* The panel. position:absolute against the sticky header so it overlays the
+     page instead of reflowing it — opening the menu must not move the bracket
+     underneath, or the tap that opens it lands on something else on close. */
+  .site-header { position: sticky; }
+  .header-controls {
+    position: absolute;
+    top: 100%;
+    right: 0.6em;
+    z-index: 120;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.4em;
+    min-width: 12em;
+    max-width: min(18em, calc(100vw - 1.2em));
+    margin: 0.35em 0 0;
+    padding: 0.6em;
+    background: var(--surface);
+    border: 0.07em solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 0.5em 1.5em rgba(0, 0, 0, 0.35);
+  }
+  /* Collapsed ONLY when the hamburger is actually there to reopen them.
+     Without the .has-menu guard, a public visitor on a phone — two buttons, so
+     below the threshold that shows the hamburger — got no hamburger AND no
+     controls, which put "Notify me" out of reach entirely. */
+  .site-header.has-menu .header-controls:not(.open) { display: none; }
+  /* Full-width rows read as a menu rather than a row of chips, and give a
+     comfortable touch target without a separate coarse-pointer rule. */
+  .header-controls > * { width: 100%; justify-content: center; min-height: 2.75rem; }
+  .header-controls .admin-public-btn { text-align: center; }
+}
+/* The hamburger never appears on desktop; the controls sit inline as before. */
+@media (min-width: 1280px) {
+  .header-menu-btn { display: none; }
+}
+.theme-icon { width: 1.15em; height: 1.15em; display: block; }

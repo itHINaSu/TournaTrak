@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.61">
-<link rel="stylesheet" href="/bracket.css?v=3.61">
-<script src="/app-h.js?v=3.61"></script>
+<link rel="stylesheet" href="/base.css?v=3.62">
+<link rel="stylesheet" href="/bracket.css?v=3.62">
+<script src="/app-h.js?v=3.62"></script>
 </head>
 <body>
 
@@ -24,12 +24,22 @@
     <h1 id="siteName" data-action="goHome" title="Back to the main view">Tournament Bracket</h1>
     <div id="siteSubtitle" class="site-subtitle" data-action="goHome" title="Back to the main view"></div>
   </div>
-  <div class="header-controls">
+  <!-- Below the desktop breakpoint the controls collapse behind this. An admin
+       signed in on a phone can have six of them, which took two rows off the
+       top of the bracket. Shown by CSS only on mobile; the panel holds
+       whatever buttons that visitor's role actually leaves visible. -->
+  <button class="header-menu-btn" id="headerMenuBtn" data-action="toggleHeaderMenu"
+          aria-label="Menu" aria-expanded="false" aria-controls="headerControls" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
+    </svg>
+  </button>
+  <div class="header-controls" id="headerControls">
     <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
     <button class="admin-public-btn" id="shareImageBtn" hidden data-action="openShareImage" title="Save the bracket as an image">Save image</button>
     <button class="admin-public-btn" id="bracketEditBtn" hidden data-action="toggleBracketEdit">Edit</button>
     <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
-    <button class="admin-public-btn" id="notifyBtn" hidden data-action="openNotifyPanel" title="Get notified about games">🔔 Notify me</button>
+    <button class="admin-public-btn" id="notifyBtn" hidden data-action="openNotifyPanel" title="Get notified about games">Notify me</button>
     <a href="/lineup" class="admin-public-btn" id="lineupPortalBtn" hidden>Lineup →</a>
     <a href="/admin" class="admin-public-btn" id="adminPortalBtn" hidden>Admin →</a>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
@@ -274,10 +284,10 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.61"></script>
-<script src="/tt-common.js?v=3.61"></script>
-<script src="/bracket-data.js?v=3.61"></script>
-<script src="/bracket.js?v=3.61"></script>
-<script src="/sw-register.js?v=3.61" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.62"></script>
+<script src="/tt-common.js?v=3.62"></script>
+<script src="/bracket-data.js?v=3.62"></script>
+<script src="/bracket.js?v=3.62"></script>
+<script src="/sw-register.js?v=3.62" data-sw="/sw.js"></script>
 </body>
 </html>

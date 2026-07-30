@@ -656,7 +656,10 @@ async function fetchAll(){
   // Needs the teams to exist (the picker lists what is in the bracket) and the
   // server's push config, so it runs after the first full load. Never awaited:
   // a page that cannot reach /push/public-config just has no bell.
-  initNotifyButton();
+  // Which header buttons exist depends on role and on whether push is
+  // configured, so the hamburger is decided after both are known.
+  initNotifyButton().then(updateHeaderMenu, updateHeaderMenu);
+  updateHeaderMenu();
 }
 var resizeTimer;
 window.addEventListener('resize',function(){
@@ -6124,12 +6127,70 @@ Object.assign(TT_ACTIONS, {
   refreshShareImage: function() { refreshShareImage(); },
   downloadShareImage:function() { downloadShareImage(); },
   setSchedFlight:    function(arg) { setSchedFlight(arg); },
-  openNotifyPanel:   function() { openNotifyPanel(); },
+  toggleHeaderMenu:  function() { toggleHeaderMenu(); },
+  openNotifyPanel:   function() { closeHeaderMenu(); openNotifyPanel(); },
   closeNotifyPanel:  function() { closeNotifyPanel(); },
   notifyScopeChange: function() { renderNotifyTeams(); notifyDirty(); },
   notifyDirty:       function() { notifyDirty(); },
   notifySave:        function() { notifySave(); },
   notifyTurnOff:     function() { notifyTurnOff(); },
+});
+
+// ── Mobile header menu ────────────────────────────────────────────────
+// The hamburger only EXISTS on mobile (CSS hides it at ≥1280px), so the button
+// being visible is the condition — no second breakpoint constant in JS to drift
+// out of step with the stylesheet.
+function headerMenuActive() {
+  var btn = document.getElementById('headerMenuBtn');
+  return !!btn && !btn.hidden && btn.offsetParent !== null;
+}
+function closeHeaderMenu() {
+  var panel = document.getElementById('headerControls');
+  var btn = document.getElementById('headerMenuBtn');
+  if (panel) panel.classList.remove('open');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+function toggleHeaderMenu() {
+  var panel = document.getElementById('headerControls');
+  var btn = document.getElementById('headerMenuBtn');
+  if (!panel || !btn) return;
+  var open = !panel.classList.contains('open');
+  panel.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+// Show the hamburger once there are at least TWO controls to put behind it.
+// Guests get it as well as staff — the menu is where sign-in, notifications,
+// theme and share are heading, so a guest seeing two loose chips while an admin
+// sees a menu would only be temporary inconsistency. A single control (the
+// theme toggle alone, on an instance with push unconfigured) still sits inline:
+// hiding one button behind a menu is worse than showing it.
+function updateHeaderMenu() {
+  var btn = document.getElementById('headerMenuBtn');
+  var panel = document.getElementById('headerControls');
+  if (!btn || !panel) return;
+  var shown = 0;
+  for (var i = 0; i < panel.children.length; i++) {
+    if (!panel.children[i].hidden) shown++;
+  }
+  btn.hidden = shown < 2;
+  // The stylesheet collapses .header-controls only under .has-menu, so the two
+  // decisions cannot disagree and strand the buttons behind a hamburger that
+  // is not being shown.
+  var hdr = document.getElementById('siteHeader');
+  if (hdr) hdr.classList.toggle('has-menu', !btn.hidden);
+  if (btn.hidden) closeHeaderMenu();
+}
+// Dismiss on an outside tap and on Escape, the way the other overlays behave.
+document.addEventListener('click', function(e) {
+  if (!headerMenuActive()) return;
+  var panel = document.getElementById('headerControls');
+  var btn = document.getElementById('headerMenuBtn');
+  if (!panel || !panel.classList.contains('open')) return;
+  if (panel.contains(e.target) || (btn && btn.contains(e.target))) return;
+  closeHeaderMenu();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeHeaderMenu();
 });
 
 // ══════════════════════════════════════════════════════════
@@ -6192,7 +6253,7 @@ async function initNotifyButton() {
   } catch (e) { return; }
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   var p = notifyPrefs();
-  btn.textContent = p.on ? '🔔 Notifying' : '🔔 Notify me';
+  btn.textContent = p.on ? 'Notifying' : 'Notify me';
   btn.hidden = false;
 }
 
@@ -6320,7 +6381,7 @@ async function notifySave() {
     // sending while this panel says notifications are off.
     saveNotifyPrefs(Object.assign({ on: true, endpoint: json.endpoint }, form));
     var btn = document.getElementById('notifyBtn');
-    if (btn) btn.textContent = '🔔 Notifying';
+    if (btn) btn.textContent = 'Notifying';
     hint.textContent = 'Notifications are on for this device.';
     document.getElementById('notifyOffBtn').hidden = false;
     showToast('Notifications on');
@@ -6352,7 +6413,7 @@ async function notifyTurnOff() {
     if (sub) await sub.unsubscribe().catch(function() {});
     saveNotifyPrefs({ on: false, live: false, final: false, schedule: true, allEvents: false, teams: [] });
     var btn = document.getElementById('notifyBtn');
-    if (btn) btn.textContent = '🔔 Notify me';
+    if (btn) btn.textContent = 'Notify me';
     document.getElementById('notifyOffBtn').hidden = true;
     hint.textContent = 'Notifications are off.';
     showToast('Notifications off');
