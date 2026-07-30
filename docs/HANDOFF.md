@@ -2475,9 +2475,10 @@ ratio never improves (44px in a 0.8em-padded header is still only 63% of it).
 The mobile header padding was trimmed to 0.45rem instead, which holds the
 header at the height it already had while the control inside grows to ~73%.
 
-## lineup.js has TWO hosts — keep their markup in step (2026-07-30)
-`lineup.js` drives both `lineup.html` (the coach's standalone page) and the
-Lineups tab inside `admin.html`. It finds its controls with
+## lineup.js has THREE hosts — keep their markup in step (2026-07-30)
+`lineup.js` drives `lineup.html` (the coach's standalone page), the Lineups tab
+inside `admin.html`, and — since the coach panel landed — the Lineups tab
+inside `coach.html`. It finds its controls with
 `document.getElementById`, and every lookup is null-guarded — which is what
 makes a missing element **silent**. `admin.html` was missing Add Subs, Delete
 Sub, Reorder, Import and the import overlay outright, so staff editing a
@@ -2490,14 +2491,58 @@ When you touch lineup markup, diff the two hosts by id:
 grep -o "getElementById('lineup[A-Za-z]*')" frontend/lineup.js | sort -u \
   | sed "s/getElementById('//;s/')//" | while read id; do
       a=$(grep -c "id=\"$id\"" frontend/admin.html)
+      c=$(grep -c "id=\"$id\"" frontend/coach.html)
       l=$(grep -c "id=\"$id\"" frontend/lineup.html)
       [ "$a" -lt "$l" ] && echo "$id: admin=$a lineup=$l"
+      [ "$c" -lt "$l" ] && echo "$id: coach=$c lineup=$l"
     done
 ```
 Three ids are standalone-only **by design** and should stay that way:
 `lineupNav` (admin has its own tab bar), and `lineupInvalidTitle` /
 `lineupInvalidBody` (the coach sign-in gate, unreachable when you are already
 signed in as staff). Everything else should exist in both.
+
+## The coach panel (`/coach`) — 2026-07-30
+
+Coaches used to have exactly one screen: `lineup.html`, reached through a magic
+link. `/coach` is their panel — four tabs behind the same access gate `/admin`
+uses. `frontend/coach.html` + `frontend/coach.js`, nginx serves it from disk
+(`location = /coach` → `try_files /coach.html`), and the test proxy maps it too.
+
+Load-bearing details, in the order they will bite you:
+
+- **`id="adminWrap"` is deliberate, not a copy-paste artefact.** `lineup.js`
+  self-initialises with `if (!document.getElementById('adminWrap')) lineupInit();`
+  Reusing the id is what stops it racing the session check; `coach.js` calls
+  `lineupInit()` itself when the Lineups tab is first opened, exactly as
+  `admin.js` does. Rename that id and the Lineups tab initialises twice.
+- **It loads `admin.css`.** The owner asked for a panel "near identical to the
+  admin panel from a UI perspective", so it uses that stylesheet rather than a
+  second description of it — `.admin-tab-bar`, `.admin-tab-panel`, the settings
+  sections and the lineup table all come from there. Restyling `.admin-tab*`
+  restyles both panels. That is the point.
+- **Roster and Team are stubs.** They say what is coming. Do not read them as
+  broken features.
+- **Staff are let in.** A TD checking what a coach sees is reasonable; role
+  `team`, `admin` and `results` all reach the panel.
+- **No service worker is registered here on purpose.** `/admin-sw.js` deletes
+  every cache on activate, so registering it from this page would wipe the
+  public app's offline copy for any coach who uses both. The manifest and
+  icons still point at the API (`/manifest.json`, `/tab-icon.png`,
+  `/pwa-icon.png`) so a home-screen add gets the tournament's own artwork —
+  that was the "shared coach links arrive as a stock trophy" bug.
+
+`applyStickyOffsets` moved out of `admin.js` into `tt-common.js` as
+**`ttApplyPanelOffsets()`**, because it was private to admin.js and the coach
+panel threw the moment it tried to show itself. `admin.js` keeps a one-line
+delegate under the old name. It now measures the LAYOUT viewport (see that
+section) rather than `window.innerHeight`. Any panel with a fixed header over a
+sticky `.admin-tab-bar` should call it.
+
+Not built yet, in the order the owner asked for them: the roster (an unordered
+squad list that lineups pull player names/numbers from), coach-editable team
+display + short names, and coach-managed notification preferences. Adding other
+coaches uses real accounts via the self-chosen-username flow below.
 
 ## Shared links: what is branded, and what nginx serves from disk (2026-07-30)
 A coach link is the most-shared URL this product has — the magic link
@@ -2655,6 +2700,15 @@ Both first-time forms prefill the field with the current name rather than
 leaving it blank: the point is to SHOW people the name they were given before
 asking whether to keep it. Covered by four route tests.
 
+
+`POST /change-username` used to 403 every `team` user, on the reasoning that a
+coach's username was an admin-issued handle that only ever appeared inside a
+magic link. That is no longer true and the block is gone: the coach panel's
+Account tab posts there, and refusing it left a coach able to name themselves
+exactly once — at the moment they are least likely to be thinking about it.
+Renaming is safe because teams hang off the user id and lineups off the team
+name, so neither is keyed by the username.
+
 ## The header is SERVER-RENDERED (2026-07-30)
 Navigating admin -> public flashed the stock header — "Tournament Bracket", no
 logo, default gold — before the tournament's own branding appeared, with a
@@ -2774,7 +2828,19 @@ below. Nothing is unmerged;
    Note the fourth role `buckets` has no name in the new scheme — ask.
    Careful: renaming the Results TAB is a different job from renaming the ROLE
    (`TAB_PATHS`, `TT_TAB_PATHS`, both nginx regexes, the `tt_tab` cookie).
-3. ⬜ **Cross-tournament team database.** DESIGN DECIDED by the owner
+3. ⬜ **Team roster** (owner, 2026-07-30, next after the panel shell): "I need
+   to get to a team roster quickly (like a lineup but in no particular order).
+   Lineup would pull from roster when entering players." The Roster tab in
+   `/coach` is the stub waiting for it. Note it is a *squad list*, not a
+   batting order — no order column, no game selector — and its payoff is
+   autofill in the Lineups tab.
+4. ⬜ **Coach-editable team names.** Display name + short name, in the coach
+   panel's Team tab. Owner decision: coaches CAN set them by default, the TD
+   can override (setting: `coachTeamNames`). The hidden team `id` already
+   exists to make this safe — read "Teams have a hidden id" first.
+5. ⬜ **Coach notification preferences** in the coach panel's Account tab. The
+   toggle is present and disabled.
+6. ⬜ **Cross-tournament team database.** DESIGN DECIDED by the owner
    2026-07-30, not started. See "Team database (decided, not built)" below.
 
 ### Team database (decided, not built) — 2026-07-30
@@ -2806,9 +2872,9 @@ time. No `.env` change is needed for push — `compose.yml` loads the whole
 itself on first boot.
 
 SW cache version lives in `frontend/sw.js` (at the time of writing
-`tournatrak-v3.61`) — **read it there, don't trust this number**, and keep
-the `?v=` stamps in step with it on ALL FIVE HTML files, not just the admin
-pages. Phase 0 evaluation is in `EVALUATION.md`.
+`tournatrak-v3.81`) — **read it there, don't trust this number**, and keep
+the `?v=` stamps in step with it on ALL SIX HTML files (`index`, `admin`,
+`coach`, `lineup`, `score`, `builder`), not just the admin pages. Phase 0 evaluation is in `EVALUATION.md`.
 
 ## Tests
 ```
@@ -2834,6 +2900,40 @@ could not work out a user name: start the cluster and run with
   Needs PG* env vars pointing at a cluster to actually run.
 - `standings.test.js` — the documented tiebreak order.
 - `schedule-health.test.js` — the pre-publish checks behind the health notice.
+
+### Rebuilding the browser harness from nothing (2026-07-30)
+The session container is ephemeral and `/tmp` goes with it — twice now a
+session has come back to find Postgres stopped, `node_modules` gone and every
+Playwright spec deleted. It rebuilds in about five minutes; the order matters
+and each step has one non-obvious trap:
+
+```
+# 1. Postgres. Config lives in /etc, NOT in the data dir, and pg_ctl refuses
+#    to run as root. A stale postmaster.pid survives a container restart.
+rm -f /var/lib/postgresql/16/main/postmaster.pid /var/run/postgresql/.s.PGSQL.5432*
+su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D /var/lib/postgresql/16/main \
+  -l /tmp/pg.log -o '-c config_file=/etc/postgresql/16/main/postgresql.conf' start"
+# 2. Deps. The API tests report "server did not start" — meaning a missing
+#    module, not a database problem — until this runs.
+cd api && npm install
+# 3. Playwright. The browsers are ALREADY at /opt/pw-browsers; never run
+#    `playwright install`.
+mkdir -p /tmp/tthb && cd /tmp/tthb && npm init -y \
+  && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i playwright
+```
+Then a `proxy.js` standing in for nginx (static frontend, but PROXY `/`, the
+tab paths, `/t/`, `/manifest.json`, `/theme.css`, `/logo.png`, `/tab-icon.png`
+and `/pwa-icon.png` to the API — those are server-rendered, and serving them
+off disk tests a page the deployment never sends), plus a seeded API.
+
+Seeding traps, all of which cost time: `POST /schedule` takes the schedule
+**as the body**, keyed by slot id (`R1.L.1`, not `{schedule:[…]}`), times must
+be `YYYY-MM-DDTHH:MM`, and passwords are 8 characters minimum. **The API caches
+users in memory**, so editing `users` in SQL does nothing until you restart it.
+Long-running servers must be started with the Bash tool's background mode — a
+plain `&`, `nohup` or even `setsid` is killed when the tool call returns, and
+the give-away is a log that says "API listening" next to a `curl` that gets
+connection refused.
 
 `routes.test.js` now also covers, in rough order of how easy each is to break
 by accident: cross-tournament coach grants (a tournament admin must get 403

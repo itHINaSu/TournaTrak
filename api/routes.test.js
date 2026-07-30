@@ -350,6 +350,35 @@ describe('first password set can also claim a username', () => {
     assert.equal(r.status, 200, 'a coach must be able to name themselves');
     assert.equal((await u.get('/api/session')).json.username, 'coach_lopez');
   });
+
+  rtest('a coach can still rename later, from the coach panel', async () => {
+    // /change-username used to 403 every team user, which left a coach able
+    // to name themselves exactly once — at the moment they are least likely
+    // to be thinking about it. The coach panel's Account tab posts here.
+    const a = await loginAdmin();
+    const mk = await a.post('/api/users',
+      { username: 'team_renamer', role: 'team', teamName: 'Bravo' });
+    assert.equal(mk.status, 200);
+    const u = agent();
+    assert.equal((await u.req('GET', '/api/team-access/' + mk.json.accessToken,
+      undefined, { manual: true })).status, 302);
+    assert.equal((await u.post('/api/change-password', { password: 'firstpass123' })).status, 200);
+
+    const r = await u.post('/api/change-username', { username: 'coach_reyes' });
+    assert.equal(r.status, 200, 'a coach must be able to rename later');
+    assert.equal((await u.get('/api/session')).json.username, 'coach_reyes');
+    assert.equal((await u.get('/api/session')).json.teamName, 'Bravo',
+      'renaming must not disturb the team the account coaches');
+
+    const now = agent();
+    assert.equal((await now.post('/api/login',
+      { username: 'coach_reyes', password: 'firstpass123' })).status, 200,
+      'the new name signs in with the unchanged password');
+
+    // Same guards as everyone else.
+    assert.equal((await u.post('/api/change-username', { username: 'no spaces' })).status, 400);
+    assert.equal((await u.post('/api/change-username', { username: 'admin' })).status, 409);
+  });
 });
 
 describe('schedule contract', () => {
