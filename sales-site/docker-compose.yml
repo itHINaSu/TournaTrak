@@ -1,6 +1,21 @@
 # No PUID/PGID override here: this is a static nginx site with no writable
 # bind mounts (content is baked into the image at build time), so there are no
 # host files whose ownership needs to match — and nginx needs root to bind :80.
+#
+# The demo stack (../compose.demo.yml: its own nginx/api/postgres) is pulled
+# in via `include` so `docker compose up` here brings both up together, on
+# the shared default network — this file's nginx reverse-proxies /demo/ to
+# the demo's nginx by its service name (`nginx`; see nginx.conf). Compose
+# resolves the included file's own relative paths (./api, ./frontend, etc.)
+# against ITS location (repo root), not this directory, so nothing there
+# needs to change.
+#
+# Do not also run `docker compose -f ../compose.demo.yml -p tournatrak-demo
+# up` at the same time as this file — both publish host port 3024 for the
+# demo nginx, and the second one up will fail to bind it.
+include:
+  - path: ../compose.demo.yml
+
 services:
   tournatrak-sales:
     build: .

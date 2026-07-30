@@ -16,15 +16,9 @@
   <link rel="apple-touch-icon" href="icons/trophy-180.png">
   <link rel="stylesheet" href="style.css">
 
-  <!-- ════════════════════════════════════════════════════════════════════
-       BEFORE PUBLISHING: replace these placeholder links everywhere.
-       Each occurrence in this file is tagged with the matching CONFIG marker
-       so you can find/replace in one pass:
-
-         CONFIG:DEMO    → a hosted demo, or delete the demo CTAs if none
-                          (search: DEMO_URL_HERE)
-         CONFIG:EMAIL   → your contact address   (search: YOUR@EMAIL.COM)
-       ════════════════════════════════════════════════════════════════════ -->
+  <!-- Demo CTAs point at /demo/ — served by the demo stack (compose.demo.yml),
+       reverse-proxied by this site's own nginx. See nginx.conf and
+       docker-compose.yml. Contact CTAs go to sales@tournatrak.com. -->
 </head>
 <body>
 
@@ -41,8 +35,7 @@
         <a href="#gallery">Screenshots</a>
         <a href="#faq">FAQ</a>
       </div>
-      <!-- CONFIG:DEMO -->
-      <a href="DEMO_URL_HERE" class="btn btn-gold btn-sm">See a live demo</a>
+      <a href="/demo/" class="btn btn-gold btn-sm">See a live demo</a>
     </div>
   </nav>
 
@@ -64,8 +57,7 @@
           app store, no sign-ups for fans.
         </p>
         <div class="hero-actions">
-          <!-- CONFIG:DEMO -->
-          <a href="DEMO_URL_HERE" class="btn btn-gold btn-lg">See a live demo</a>
+          <a href="/demo/" class="btn btn-gold btn-lg">See a live demo</a>
           <a href="#features" class="btn btn-ghost btn-lg">Explore features</a>
         </div>
         <p class="hero-note">
@@ -291,10 +283,8 @@
         </div>
       </div>
       <div class="how-cta">
-        <!-- CONFIG:DEMO -->
-        <a href="DEMO_URL_HERE" class="btn btn-gold btn-lg">See a live demo</a>
-        <!-- CONFIG:EMAIL -->
-        <a href="mailto:YOUR@EMAIL.COM" class="btn btn-ghost btn-lg">Get in touch</a>
+        <a href="/demo/" class="btn btn-gold btn-lg">See a live demo</a>
+        <a href="mailto:sales@tournatrak.com" class="btn btn-ghost btn-lg">Get in touch</a>
       </div>
     </div>
   </section>
@@ -349,8 +339,7 @@
       <h2 class="section-title">See it in action</h2>
       <p class="section-sub">
         Real screenshots from a running tournament.
-        <!-- CONFIG:DEMO — delete this link if you don't have a hosted demo -->
-        <a href="DEMO_URL_HERE" class="link-gold">Try the live demo →</a>
+        <a href="/demo/" class="link-gold">Try the live demo →</a>
       </p>
       <div class="gallery-grid">
 
@@ -585,10 +574,8 @@
           help you get your next event live.
         </p>
         <div class="hero-actions" style="justify-content:center;">
-          <!-- CONFIG:DEMO -->
-          <a href="DEMO_URL_HERE" class="btn btn-gold btn-lg">See a live demo</a>
-          <!-- CONFIG:EMAIL -->
-          <a href="mailto:YOUR@EMAIL.COM" class="btn btn-outline btn-lg">Get in touch</a>
+          <a href="/demo/" class="btn btn-gold btn-lg">See a live demo</a>
+          <a href="mailto:sales@tournatrak.com" class="btn btn-outline btn-lg">Get in touch</a>
         </div>
       </div>
     </div>
@@ -604,8 +591,7 @@
       <div class="footer-links">
         <a href="#features">Features</a>
         <a href="#faq">FAQ</a>
-        <!-- CONFIG:EMAIL -->
-        <a href="mailto:YOUR@EMAIL.COM">Contact</a>
+        <a href="mailto:sales@tournatrak.com">Contact</a>
       </div>
       <p class="footer-copy">&copy; 2026 TournaTrak.</p>
     </div>

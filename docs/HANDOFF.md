@@ -2406,24 +2406,67 @@ these need to be configurable or abstracted. **Do not change in v2.**
 
 ## Sales site (`sales-site/`)
 Static HTML/CSS/JS marketing site — separate nginx:alpine container, port 8081.
-See `sales-site/SALES_SITE_BRIEF.md`. TODOs: demo URL and contact email in `index.html`.
+See `sales-site/SALES_SITE_BRIEF.md`.
 
 **2026-07-30: de-branded from free/OSS/self-host.** The page had been built
 around "self-host it free on GitHub," which contradicts the brief's own
 guardrails (no self-host/Docker talk on the public page, no invented
-pricing). All GitHub/Docker/git-clone/free/open-source copy is gone; CTAs now
-point at `DEMO_URL_HERE` and `mailto:YOUR@EMAIL.COM` (still placeholders —
-same TODO as above). `SALES_SITE_BRIEF.md` §9 updated to say so explicitly:
-don't describe it as free, open source, or self-hosted; multi-tournament
-hosting is no longer "planned future work" since it shipped. Feature cards
-and FAQ were also caught up to what's actually built: per-tournament TD
-self-service, Share/Download/Print, and push-on-lineup-submission each got a
-card. Gallery gained desktop schedule/lineup/buckets shots that existed in
-`screenshots/` but weren't wired into the page.
+pricing). All GitHub/Docker/git-clone/free/open-source copy is gone.
+`SALES_SITE_BRIEF.md` §9 updated to say so explicitly: don't describe it as
+free, open source, or self-hosted; multi-tournament hosting is no longer
+"planned future work" since it shipped. Feature cards and FAQ were also
+caught up to what's actually built: per-tournament TD self-service,
+Share/Download/Print, and push-on-lineup-submission each got a card. Gallery
+gained desktop schedule/lineup/buckets shots that existed in `screenshots/`
+but weren't wired into the page.
 Still no screenshots exist for Share/Download/Print, the multi-tournament
 switcher, or the notification bell/panel — those features shipped after the
 last screenshot pass. Brief §5 flags this; capturing them needs the app
 running with a demo tournament.
+
+**2026-07-30: contact email set, demo wired up at `/demo/`.** Contact CTAs
+are `mailto:sales@tournatrak.com` — no longer a placeholder. The demo CTAs
+point at `/demo/`, served by `../compose.demo.yml` (nginx+api+postgres),
+pulled into `sales-site/docker-compose.yml` via top-level `include:` so
+`docker compose up` in `sales-site/` brings both up on the shared network.
+Don't also run `docker compose -f compose.demo.yml -p tournatrak-demo up`
+at the same time — both publish host port 3024 for the demo's nginx and the
+second `up` fails to bind it.
+
+The demo app assumes it's served at its own domain root (hardcoded
+`/api/...`, `/admin`, `/style.css`, service worker + manifest paths — none of
+it is subpath-aware), so `sales-site/nginx.conf`'s `/demo/` location strips
+the prefix before proxying (`rewrite ^/demo(/.*)$ $1 break;`) and puts it
+back into the response with `sub_filter` (HTML attrs, the `apiBase()`
+literal, hardcoded client-side navigations, manifest.json/admin-manifest.json,
+CSS `url()`) plus `proxy_redirect / /demo/;` for server-side redirect
+`Location` headers, which `sub_filter` can't touch since it's body-only.
+Also needed `location ^~ /demo/` — without `^~`, the existing
+`location ~* \.(css|js)$` cache-header regex wins over the plain `/demo/`
+prefix match regardless of length, and every JS/CSS asset under `/demo/`
+404s against this site's own static root instead of reaching the proxy.
+The upstream is addressed through a `map`+variable (mirroring
+`nginx/nginx.conf`'s `$api_up` pattern) so the demo nginx container's IP is
+re-resolved per request instead of cached for the worker's life — the same
+reboot-502 bug documented there would otherwise apply here too.
+
+This was verified by pointing the same `sub_filter`/`rewrite` config (via a
+locally-installed nginx, no Docker) at the real `frontend/` files served
+statically, and diffing every HTML/JS/CSS file's rewritten output against
+the source for stray un-prefixed `href=`/`src=`/`'/api'`/etc. — NOT verified
+against the real running demo app end-to-end (this sandbox's Docker daemon
+can reach the internet but its egress policy blocks
+`production.cloudfront.docker.com`, so `nginx:alpine`/`postgres:16-alpine`
+can't be pulled here). First real deploy should click through: login
+(demo/demo), bracket/schedule/team-path/buckets tabs, the admin panel and
+Bracket Builder, and the lineup magic-link flow, watching the browser
+console/network tab for any request that escaped to `/` instead of
+`/demo/`. Known, accepted gap: `frontend/sw.js`'s precache list and a couple
+of push-notification fallback URLs are hardcoded paths inside that file
+itself (not proxied text `sub_filter` touches), so offline/precache fidelity
+under `/demo/` isn't guaranteed — acceptable since the demo resets every 30
+minutes anyway and the bar is "works while online," not full PWA offline
+support.
 
 ## Current state
 `main` at the top of the 2026-07-30 list in "Outstanding work" holds everything
