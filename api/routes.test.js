@@ -1196,4 +1196,113 @@ describe('push notifications', () => {
     // And the lineup really landed.
     assert.equal((await a.get('/api/lineups/game/R1.L.1/Alpha')).json.rows[0].name, 'Jordan');
   });
+
+  // ── Public (spectator) subscriptions ────────────────────────────────
+  // These have no account at all, which is the whole point: a parent should not
+  // sign up for anything to be told their kid's game moved.
+  const PUB = (n) => ({
+    endpoint: 'https://push.example.com/pub/' + n,
+    keys: { p256dh: 'BFakeP256dhKeyForTests0000000000000000000000', auth: 'FakeAuthSecret00' },
+  });
+
+  rtest('anyone can subscribe and unsubscribe without an account', async () => {
+    const c = agent();                                  // never signs in
+    const cfg = await c.get('/api/push/public-config');
+    assert.equal(cfg.status, 200);
+    assert.equal(typeof cfg.json.enabled, 'boolean');
+
+    const sub = await c.post('/api/push/public-subscribe',
+      Object.assign({ live: true, final: true, schedule: true, teams: ['Alpha'] }, PUB('anon1')));
+    assert.equal(sub.status, 200, JSON.stringify(sub.json));
+    assert.equal(sub.json.subscribed, true);
+    assert.equal(sub.json.teams, 1);
+
+    // Re-saving replaces rather than duplicating — endpoint identifies the
+    // BROWSER, so a second save is the same device changing its mind.
+    const again = await c.post('/api/push/public-subscribe',
+      Object.assign({ final: true, teams: ['Alpha', 'Beta'] }, PUB('anon1')));
+    assert.equal(again.json.teams, 2);
+
+    assert.equal((await c.post('/api/push/public-unsubscribe', { endpoint: PUB('anon1').endpoint })).status, 200);
+  });
+
+  rtest('asking for nothing removes the subscription instead of storing a dead row', async () => {
+    const c = agent();
+    await c.post('/api/push/public-subscribe', Object.assign({ live: true }, PUB('anon2')));
+    const off = await c.post('/api/push/public-subscribe',
+      Object.assign({ live: false, final: false, schedule: false }, PUB('anon2')));
+    assert.equal(off.status, 200);
+    assert.equal(off.json.subscribed, false, 'a row that can never fire is not kept');
+  });
+
+  rtest('a malformed subscription is refused', async () => {
+    const c = agent();
+    for (const body of [
+      {}, { endpoint: 'http://insecure.example.com/x', keys: PUB('x').keys },
+      { endpoint: PUB('y').endpoint },
+      { endpoint: PUB('y').endpoint, keys: { p256dh: 'ok' } },
+    ]) {
+      assert.equal((await c.post('/api/push/public-subscribe',
+        Object.assign({ live: true }, body))).status, 400, JSON.stringify(body));
+    }
+  });
+
+  // A public subscription must not be a way to reach anything else, and must
+  // not disturb the staff subscription surface.
+  rtest('a public subscription grants nothing and is not an account', async () => {
+    const c = agent();
+    await c.post('/api/push/public-subscribe', Object.assign({ final: true }, PUB('anon3')));
+    assert.equal((await c.get('/api/session')).json.authenticated, false, 'still anonymous');
+    for (const [m, u, b] of [
+      ['GET',  '/api/push/config', undefined],
+      ['POST', '/api/push/test', undefined],
+      ['GET',  '/api/users', undefined],
+      ['POST', '/api/settings', { tournamentName: 'Hacked' }],
+    ]) {
+      assert.equal((await c.req(m, u, b)).status, 401, m + ' ' + u + ' must still refuse');
+    }
+  });
+
+  // The senders all run AFTER the response and are never awaited, so a fault in
+  // one would show up as a 500 on an ordinary scorekeeper action. Drive each
+  // trigger with a real subscription in place.
+  rtest('the write paths that notify spectators all still succeed', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const c = agent();
+    await c.post('/api/push/public-subscribe',
+      Object.assign({ live: true, final: true, schedule: true }, PUB('anon4')));
+
+    // Game goes live, then the score updates (which must NOT re-notify).
+    assert.equal((await a.post('/api/live', { game: 'R1.L.1', period: 'T1', t1score: 0, t2score: 0 })).status, 200);
+    assert.equal((await a.post('/api/live', { game: 'R1.L.1', period: 'B3', t1score: 2, t2score: 1 })).status, 200);
+
+    // Final.
+    assert.equal((await a.post('/api/results',
+      { game: 'R1.L.1', winner: 'Alpha', loser: 'Beta', t1score: 7, t2score: 3 })).status, 200);
+    assert.equal((await a.get('/api/results')).json['R1.L.1'].winner, 'Alpha');
+
+    // A game time moving.
+    const moved = JSON.parse(JSON.stringify(MINI));
+    moved['R1.L.2'].time = '2026-08-01T13:30';
+    assert.equal((await a.post('/api/schedule', moved)).status, 200);
+    assert.equal((await a.get('/api/schedule')).json['R1.L.2'].time, '2026-08-01T13:30');
+
+    // The delay/weather notice, which goes to everyone subscribed. The read-back
+    // also guards the bug this uncovered: banner was stored and never served,
+    // so the public notice strip could never appear.
+    assert.equal((await a.post('/api/offsets',
+      { entries: [], banner: 'Lightning hold — 30 min' })).status, 200);
+    assert.equal((await a.get('/api/offsets')).json.banner, 'Lightning hold — 30 min',
+      'the notice must be readable, or nobody ever sees it');
+
+    // And saving delay ENTRIES afterwards must not wipe it (admin.js resends
+    // its local copy, which was always blank while the GET withheld it).
+    assert.equal((await a.post('/api/offsets',
+      { entries: [{ minutes: 30, fields: [], days: [] }], banner: 'Lightning hold — 30 min' })).status, 200);
+    assert.equal((await a.get('/api/offsets')).json.banner, 'Lightning hold — 30 min');
+    await a.post('/api/offsets', { entries: [], banner: '' });
+
+    await c.post('/api/push/public-unsubscribe', { endpoint: PUB('anon4').endpoint });
+  });
 });

@@ -645,6 +645,82 @@ async function pushSubscriptionsFor(usernames) {
   return r.rows;
 }
 
+// ── Public (spectator) push subscriptions ─────────────────────────────
+// No account behind these, so the preferences live on the row. Note the upsert
+// deliberately does NOT write user_id: one browser can only hold one row
+// (endpoint is UNIQUE), so a staff member subscribing on the public page must
+// not have their account quietly detached from their own device — the row ends
+// up serving both, which is the behaviour you want anyway.
+async function savePublicPushSubscription(sub, tid, prefs, teams) {
+  let id;
+  await _withTransaction(async client => {
+    const r = await client.query(
+      `INSERT INTO push_subscriptions
+         (user_id, tournament_id, endpoint, p256dh, auth, notify_live, notify_final, notify_schedule, all_events)
+       VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (endpoint) DO UPDATE SET
+         tournament_id = EXCLUDED.tournament_id,
+         p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
+         notify_live = EXCLUDED.notify_live, notify_final = EXCLUDED.notify_final,
+         notify_schedule = EXCLUDED.notify_schedule, all_events = EXCLUDED.all_events
+       RETURNING id`,
+      [tid, sub.endpoint, sub.p256dh, sub.auth,
+       !!prefs.live, !!prefs.final, !!prefs.schedule, !!prefs.allEvents]);
+    id = r.rows[0].id;
+    await client.query('DELETE FROM push_subscription_teams WHERE subscription_id = $1', [id]);
+    for (const name of teams || []) {
+      await client.query(
+        `INSERT INTO push_subscription_teams (subscription_id, team_name) VALUES ($1, $2)
+         ON CONFLICT DO NOTHING`, [id, name]);
+    }
+  });
+  return id;
+}
+
+// Column per notification kind. A fixed map, never interpolated from a request.
+const PUSH_KIND_COL = {
+  live: 'notify_live', final: 'notify_final', schedule: 'notify_schedule',
+};
+
+// Public subscriptions that asked for `kind` and care about one of `teams`.
+//
+// Two ways to match, and the difference is the "follow this team everywhere"
+// opt-in. On the subscription's OWN tournament, following no teams means every
+// team — so a spectator can follow a whole event without re-saving each time a
+// team joins the bracket. On any OTHER tournament, only an explicit team match
+// counts: all_events is for following a team between events, not for opting
+// into every game in the instance.
+async function publicPushTargets(tid, kind, teams) {
+  const col = PUSH_KIND_COL[kind];
+  if (!col) throw new Error('unknown push kind: ' + kind);
+  const names = (teams || []).filter(t => typeof t === 'string' && t);
+  const r = await pool.query(
+    `SELECT p.endpoint, p.p256dh, p.auth
+       FROM push_subscriptions p
+      WHERE p.user_id IS NULL
+        AND p.${col} IS TRUE
+        AND (
+          (p.tournament_id = $1 AND (
+             NOT EXISTS (SELECT 1 FROM push_subscription_teams t WHERE t.subscription_id = p.id)
+             OR EXISTS (SELECT 1 FROM push_subscription_teams t
+                         WHERE t.subscription_id = p.id AND t.team_name = ANY($2))))
+          OR (p.all_events IS TRUE AND p.tournament_id <> $1
+              AND EXISTS (SELECT 1 FROM push_subscription_teams t
+                           WHERE t.subscription_id = p.id AND t.team_name = ANY($2)))
+        )`, [tid, names]);
+  return r.rows;
+}
+
+// Everyone subscribed to this tournament, whatever they ticked. Used ONLY for
+// the delay/weather notice: that one is the tournament telling people the day
+// has changed, so opting into notifications at all is opting into it.
+async function publicPushAll(tid) {
+  const r = await pool.query(
+    `SELECT endpoint, p256dh, auth FROM push_subscriptions
+      WHERE user_id IS NULL AND tournament_id = $1`, [tid]);
+  return r.rows;
+}
+
 async function pushSubscriptionCount(username) {
   const r = await pool.query(
     `SELECT COUNT(*)::int AS n FROM push_subscriptions p
@@ -657,6 +733,7 @@ module.exports = {
   allUsers, findUser, effectiveRole, teamsFor,
   getMeta, setMeta,
   addPushSubscription, deletePushSubscription, pushSubscriptionsFor, pushSubscriptionCount,
+  savePublicPushSubscription, publicPushTargets, publicPushAll,
   createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
   grantRole, revokeRole,
   hashToken, hashTokenIfRaw,

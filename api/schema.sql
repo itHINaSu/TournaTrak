@@ -149,6 +149,34 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 );
 CREATE INDEX IF NOT EXISTS push_subscriptions_user_idx ON push_subscriptions (user_id);
 
+-- Public (spectator) subscriptions share this table. They have NO account, so
+-- user_id becomes nullable and what they asked for lives on the row instead of
+-- on a users column. A staff row keeps user_id set and ignores these flags; a
+-- public row has user_id NULL and tournament_id set to the event it was made
+-- on. Re-applying these is a no-op, which is the contract for this whole file.
+ALTER TABLE push_subscriptions ALTER COLUMN user_id DROP NOT NULL;
+ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS tournament_id INTEGER
+  REFERENCES tournaments(id) ON DELETE CASCADE;
+-- Live = a game KICKING OFF, not every score change: a tap-by-tap feed would
+-- be unusable and would get notifications switched off entirely.
+ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS notify_live     BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS notify_final    BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS notify_schedule BOOLEAN NOT NULL DEFAULT TRUE;
+-- Follow the chosen teams into the instance's OTHER tournaments too. Matched by
+-- team NAME for now; it becomes a real team id once teams are unified across
+-- tournaments, and the column does not have to change for that.
+ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS all_events      BOOLEAN NOT NULL DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS push_subscriptions_tid_idx ON push_subscriptions (tournament_id);
+
+-- Which teams a public subscription follows. NO rows for a subscription means
+-- "every team" — an explicit choice, so that following the whole event does not
+-- need re-saving each time a team is added to the bracket.
+CREATE TABLE IF NOT EXISTS push_subscription_teams (
+  subscription_id INTEGER NOT NULL REFERENCES push_subscriptions(id) ON DELETE CASCADE,
+  team_name       TEXT    NOT NULL,
+  PRIMARY KEY (subscription_id, team_name)
+);
+
 -- Express sessions (replaces the JSON FileSessionStore).
 CREATE TABLE IF NOT EXISTS sessions (
   sid     TEXT        PRIMARY KEY,

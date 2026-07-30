@@ -1027,7 +1027,16 @@ api.get('/schedule', ah(async (req, res) => {
 api.get('/offsets', ah(async (req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=15');
   const data = await store.get(req.tid, 'offsets') || {};
-  res.json({ entries: Array.isArray(data.entries) ? data.entries : [] });
+  // banner is the delay/weather notice. It was stored by POST /offsets and
+  // never sent back, so the public .delay-notice strip could never appear and
+  // the admin's Delays box came up empty every reload — and because admin.js
+  // resends its local copy when saving delay ENTRIES, saving an entry then
+  // wiped the notice. A TD typing "Lightning hold" got no notice, no error,
+  // and an empty box next time they looked.
+  res.json({
+    entries: Array.isArray(data.entries) ? data.entries : [],
+    banner: typeof data.banner === 'string' ? data.banner : '',
+  });
 }));
 
 api.get('/settings', ah(async (req, res) => {
@@ -1055,6 +1064,18 @@ api.post('/results', requireResults, ah(async (req, res) => {
   // Clear live state for this game now that a final result exists
   await store.deleteSlot(req.tid, 'live', game);
   res.json({ ok: true });
+
+  // Final score, to spectators following either team. After the response, and
+  // the winner/loser are right here — no resolution needed.
+  const score = (entry.t1score !== undefined && entry.t2score !== undefined)
+    ? ' ' + Math.max(entry.t1score, entry.t2score) + '–' + Math.min(entry.t1score, entry.t2score) : '';
+  slotTeams(req.tid, game).then(async ({ label }) => {
+    notifyPublic(req.tid, 'final', [entry.winner, entry.loser], {
+      title: 'Final' + (label ? ' · ' + label : ''),
+      body: entry.winner + ' def. ' + entry.loser + score,
+      url: await publicPathFor(req.tid),
+    });
+  }).catch(() => {});
 }));
 
 // Express decodes the param automatically; slot IDs contain only [A-Z0-9.]
@@ -1089,9 +1110,24 @@ api.post('/live', requireResults, ah(async (req, res) => {
   // must not read-modify-write the whole live domain over each other.
   // updatedAt is stamped fresh here (never trusts a client-supplied value)
   // so the public bracket/schedule can show "updated Xm ago" next to the score.
+  // Was this game already live? A spectator wants to know a game has STARTED,
+  // not to get a buzz on every score change — a tap-by-tap feed is how someone
+  // turns notifications off for good. So the push fires on the transition only.
+  const wasLive = !!(await store.get(req.tid, 'live'))[game];
   await store.putSlot(req.tid, 'live', game,
     { period: period || '', t1score: t1score ?? '', t2score: t2score ?? '', updatedAt: new Date().toISOString() });
   res.json({ ok: true });
+
+  if (!wasLive) {
+    slotTeams(req.tid, game).then(async ({ teams, label }) => {
+      if (!teams.length) return;
+      notifyPublic(req.tid, 'live', teams, {
+        title: 'Now playing' + (label ? ' · ' + label : ''),
+        body: teams.join(' vs ') + (period ? ' — ' + period : ''),
+        url: await publicPathFor(req.tid),
+      });
+    }).catch(() => {});
+  }
 }));
 
 api.delete('/live/:slot', requireResults, ah(async (req, res) => {
@@ -1111,8 +1147,19 @@ api.post('/offsets', requireResults, ah(async (req, res) => {
   for (const e of entries) {
     if (typeof e.minutes !== 'number') return res.status(400).json({ error: 'each entry needs a numeric minutes field' });
   }
-  await store.put(req.tid, 'offsets', { entries, banner: typeof banner === 'string' ? banner.slice(0, 300) : '' });
+  const prev = await store.get(req.tid, 'offsets');
+  const text = typeof banner === 'string' ? banner.slice(0, 300) : '';
+  await store.put(req.tid, 'offsets', { entries, banner: text });
   res.json({ ok: true });
+
+  // The weather/delay notice reaches EVERYONE subscribed, whatever they ticked.
+  // Only on a CHANGE, so re-saving the delay list does not re-send a notice
+  // that has been standing all morning.
+  if (text && text !== (prev && prev.banner)) {
+    publicPathFor(req.tid).then(url => notifyPublicAll(req.tid, {
+      title: 'Tournament notice', body: text, url,
+    })).catch(() => {});
+  }
 }));
 
 // ── One-step undo for destructive writes ──────────────────────────────
@@ -1381,9 +1428,42 @@ api.post('/schedule', requireAdmin, ah(async (req, res) => {
   // Whole-schedule replace — this is the Save-all path, so a bad
   // find/replace lands here. Snapshot first (see the undo routes above).
   await snapshotForUndo(req.tid, 'schedule save');
+  const before = await store.get(req.tid, 'schedule');
   await store.put(req.tid, 'schedule', req.body);
   res.json({ ok: true });
+
+  // Only games whose DATE OR TIME moved, and only for the teams in them. A
+  // Save-all writes the whole document, so comparing against what was there is
+  // the difference between "your game moved" and a push for all 61 games every
+  // time a TD fixes a typo. Games with no start time yet cannot have moved.
+  const moved = Object.keys(req.body).filter(sid => {
+    const a = before[sid], b = req.body[sid];
+    return a && b && b.time && a.time !== b.time;
+  });
+  if (moved.length && moved.length <= 12) {
+    publicPathFor(req.tid).then(async url => {
+      for (const sid of moved) {
+        const { teams, label } = await slotTeams(req.tid, sid);
+        if (!teams.length) continue;
+        notifyPublic(req.tid, 'schedule', teams, {
+          title: 'Schedule change' + (label ? ' · ' + label : ''),
+          body: teams.join(' vs ') + ' now starts ' + fmtWhen(req.body[sid].time),
+          url,
+        });
+      }
+    }).catch(() => {});
+  }
 }));
+
+// "Sat 2:30 PM" for a notification body. Deliberately terse — a push is read on
+// a lock screen, and the tournament's own date-format settings are a display
+// concern for the page, not for this.
+function fmtWhen(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso || '');
+  return d.toLocaleString('en-US',
+    { weekday: 'short', hour: 'numeric', minute: '2-digit' });
+}
 
 api.post('/schedule/swap', requireAdmin, ah(async (req, res) => {
   const { slotA, slotB } = req.body || {};
@@ -2297,6 +2377,13 @@ async function sendPush(usernames, payload) {
   let subs;
   try { subs = await store.pushSubscriptionsFor(usernames); }
   catch (err) { console.error('push lookup failed:', err.message); return; }
+  await deliverPush(subs, payload);
+}
+
+// The delivery loop itself, shared by the staff and public senders — one place
+// that knows how to prune a dead endpoint, rather than two that must remember.
+async function deliverPush(subs, payload) {
+  if (!PUSH_READY || !subs || !subs.length) return;
   const body = JSON.stringify(payload);
   await Promise.all(subs.map(async row => {
     try {
@@ -2356,6 +2443,100 @@ api.post('/push/prefs', requirePushUser, ah(async (req, res) => {
   await store.updateUser(req.user.username, { notifyLineups });
   res.json({ ok: true, notifyLineups });
 }));
+
+// ── Public (spectator) push ───────────────────────────────────────────
+// No account: a subscription is a browser saying what it wants to hear about.
+// Deliberately no GET for reading preferences back — the endpoint is the only
+// thing identifying a subscriber, so a public read keyed on it would let anyone
+// holding a leaked endpoint see which teams that person follows. The page keeps
+// its own copy and re-POSTs the whole set.
+function validPushSub(body) {
+  const { endpoint, keys } = body || {};
+  if (typeof endpoint !== 'string' || !/^https:\/\//.test(endpoint) || endpoint.length > 1000) return null;
+  if (!keys || typeof keys.p256dh !== 'string' || typeof keys.auth !== 'string'
+      || keys.p256dh.length > 200 || keys.auth.length > 100) return null;
+  return { endpoint, p256dh: keys.p256dh, auth: keys.auth };
+}
+
+api.get('/push/public-config', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({ enabled: PUSH_READY, publicKey: PUSH_READY ? PUSH_VAPID_PUBLIC : null });
+});
+
+api.post('/push/public-subscribe', ah(async (req, res) => {
+  const sub = validPushSub(req.body);
+  if (!sub) return res.status(400).json({ error: 'invalid subscription' });
+  const b = req.body || {};
+  // A subscription that asked for nothing is an unsubscribe, not a row that
+  // exists to never fire.
+  if (!b.live && !b.final && !b.schedule) {
+    await store.deletePushSubscription(sub.endpoint);
+    return res.json({ ok: true, subscribed: false });
+  }
+  const teams = Array.isArray(b.teams)
+    ? b.teams.filter(t => typeof t === 'string' && t.trim()).slice(0, 200).map(t => t.trim())
+    : [];
+  await store.savePublicPushSubscription(sub, req.tid, {
+    live: !!b.live, final: !!b.final, schedule: !!b.schedule, allEvents: !!b.allEvents,
+  }, teams);
+  res.json({ ok: true, subscribed: true, teams: teams.length });
+}));
+
+api.post('/push/public-unsubscribe', ah(async (req, res) => {
+  const { endpoint } = req.body || {};
+  if (typeof endpoint !== 'string') return res.status(400).json({ error: 'endpoint required' });
+  await store.deletePushSubscription(endpoint);
+  res.json({ ok: true });
+}));
+
+// Public page for a tournament, for the notification's click target.
+async function publicPathFor(tid) {
+  if (tid === store.tid) return '/';
+  const t = await store.tournamentById(tid);
+  return t ? '/t/' + encodeURIComponent(t.slug) : '/';
+}
+
+// The two team names playing in a slot, plus the game's label.
+//
+// A game's sides are either literal names or a feed from another game, so one
+// level of resolution through stored results is enough: a game cannot be live
+// or final until the games feeding it have been played. Anything unresolved is
+// simply left out, which just means a spectator following that team is not
+// notified about a game whose teams nobody knows yet.
+async function slotTeams(tid, slot) {
+  const [sched, results] = await Promise.all([
+    store.get(tid, 'schedule'), store.get(tid, 'results'),
+  ]);
+  const g = sched[slot];
+  if (!g) return { teams: [], label: slot };
+  const side = (name, type, src) => {
+    if (name) return name;
+    if (!src || !results[src]) return null;
+    return type === 'loser' ? results[src].loser : results[src].winner;
+  };
+  const teams = [side(g.t1name, g.t1type, g.t1slot), side(g.t2name, g.t2type, g.t2slot)]
+    .filter(Boolean);
+  return { teams, label: g.label || slot };
+}
+
+// Fire-and-forget notification to spectators. Never awaited by a route: a push
+// service having a bad day must not slow down or fail a scorekeeper's save.
+function notifyPublic(tid, kind, teams, payload) {
+  if (!PUSH_READY) return;
+  store.publicPushTargets(tid, kind, teams)
+    .then(rows => deliverPush(rows, payload))
+    .catch(err => console.error('public push (' + kind + ') failed:', err && err.message));
+}
+
+// The delay/weather notice goes to EVERYONE subscribed to the tournament,
+// whatever they ticked — it is the event telling people the day has changed,
+// and it is the one message a spectator cannot reasonably not want.
+function notifyPublicAll(tid, payload) {
+  if (!PUSH_READY) return;
+  store.publicPushAll(tid)
+    .then(rows => deliverPush(rows, payload))
+    .catch(err => console.error('public push (notice) failed:', err && err.message));
+}
 
 // A one-off to prove the plumbing works end to end from the Settings page.
 api.post('/push/test', requirePushUser, ah(async (req, res) => {
