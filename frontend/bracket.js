@@ -45,6 +45,13 @@ var scheduleMode = null; // null = uninitialised; set from settings on first ren
 // raw index/pixel offset, since that's stable across re-renders even if
 // column composition or viewport width changes.
 var _mbcActiveRound = null;
+// Vertical position within that column, preserved across re-renders for the
+// same reason. Projecting a winner re-renders the whole carousel on every
+// pick, and a tall column (ISSA round 2 is 14 cards, ~2500px) would otherwise
+// throw the viewer back to the top each time they tapped one near the bottom.
+// Restored through captureEl.scrollTop so the browser clamps it against the
+// new column's height for free.
+var _mbcScrollTop = 0;
 // esc() comes from tt-common.js
 
 // SETTINGS_DEFAULTS comes from settings-defaults.js; getSetting from tt-common.js
@@ -1934,15 +1941,51 @@ function updateProjectBar(){
   if (bar) bar.hidden = !(_projectMode || n);
 }
 
+// A pick is a TAP, never the end of a swipe. The mobile carousel drives
+// scrollLeft from a passive touchmove (see renderMobileColumns), so it never
+// calls preventDefault and a horizontal flick still ends in a click on
+// whichever card sat under the finger. Without this gate, swiping between
+// rounds while projecting would silently record picks nobody made. Desktop is
+// unaffected: no touch events fire, so the flag stays false for the life of
+// the page.
+var _touchDragged = false, _touchStartX = 0, _touchStartY = 0;
+var TAP_SLOP_PX = 10;   // the carousel decides its axis at 5px; leave a tap room to be imprecise
+document.addEventListener('touchstart', function(e) {
+  // Pinch/zoom is never a tap.
+  if (e.touches.length !== 1) { _touchDragged = true; return; }
+  _touchStartX = e.touches[0].clientX;
+  _touchStartY = e.touches[0].clientY;
+  _touchDragged = false;
+}, { passive: true });
+document.addEventListener('touchmove', function(e) {
+  if (_touchDragged || !e.touches.length) return;
+  var t = e.touches[0];
+  if (Math.abs(t.clientX - _touchStartX) > TAP_SLOP_PX ||
+      Math.abs(t.clientY - _touchStartY) > TAP_SLOP_PX) _touchDragged = true;
+}, { passive: true });
+
+// Card class names differ between the desktop tree and the mobile carousel,
+// and this handler is delegated on #bracketRoot, which renders both. Desktop
+// cards are .bc / .bc-team / .bc-name; the mobile carousel wraps every card in
+// .mbc-card[data-gid] holding either a round card (.mbc-game-team /
+// .mbc-team-name) or a championship card (.mbc-champ-team / .mbc-champ-name).
+// Matching only the desktop names is what made projecting a no-op on a phone —
+// the first closest() returned null and the handler bailed before doing
+// anything, even though the mobile renderer already draws picks (mbc--proj).
+var PROJ_TEAM_SEL = '.bc-team, .mbc-game-team, .mbc-champ-team';
+var PROJ_CARD_SEL = '.bc, .mbc-card';
+var PROJ_NAME_SEL = '.bc-name, .mbc-team-name, .mbc-champ-name';
+
 function onProjectTap(e){
   if (!_projectMode || _bracketEditMode) return;
-  var teamEl = e.target.closest('.bc-team');
+  if (_touchDragged) return;                         // a swipe/scroll, not a pick
+  var teamEl = e.target.closest(PROJ_TEAM_SEL);
   if (!teamEl) return;
-  var card = e.target.closest('.bc');
+  var card = e.target.closest(PROJ_CARD_SEL);
   var gid = card && card.getAttribute('data-gid');
   if (!gid || !GAMES[gid] || GAMES[gid].bye) return;
   if (results[gid] && results[gid].winner) return;   // real result — locked
-  var nameEl = teamEl.querySelector('.bc-name');
+  var nameEl = teamEl.querySelector(PROJ_NAME_SEL);
   var name = nameEl && nameEl.textContent;
   var merged = mergedResults();
   var g = GAMES[gid];
@@ -4544,6 +4587,7 @@ function renderMobileColumns(root, cols) {
 
   captureEl.addEventListener('scroll', function() {
     sharedScrollTop = this.scrollTop;
+    _mbcScrollTop = sharedScrollTop;
     syncAllColumns();
   }, { passive: true });
 
@@ -4807,6 +4851,13 @@ function renderMobileColumns(root, cols) {
   // listener re-settles activeIdx/_mbcActiveRound from this same value, so
   // this is a no-op rather than a second jump when there's nothing to restore.
   if (activeIdx > 0) outer.scrollLeft = colStarts[activeIdx];
+  // Same for the vertical position. Written to the SCROLLER, not to
+  // sharedScrollTop: setSpacerForCol only writes captureEl.scrollTop when it
+  // has to clamp, so assigning the mirror directly would leave the columns
+  // translated to a position the scroll element does not actually hold. This
+  // way the passive scroll listener above is what settles both, and an
+  // over-long restore is clamped by the spacer height.
+  if (_mbcScrollTop > 0) captureEl.scrollTop = _mbcScrollTop;
 
   // Jump hook for cross-view navigation (e.g. team path card tap).
   // Snaps the carousel to the game's round column, then sets the shared

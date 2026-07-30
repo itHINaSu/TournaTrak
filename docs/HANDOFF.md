@@ -111,6 +111,7 @@ side.
 
 | commit | what |
 |--------|------|
+| `(this)` | **Project winners did nothing on mobile** — `onProjectTap` matched desktop card classes only; mobile vertical scroll now survives a re-render |
 | `886b242` | **Share / Download / Print**, open to every visitor — "Save image" becomes a three-action dialog; PNG/JPEG/PDF; sharing moves off Team Path onto the bracket |
 | `8161faf` | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
 | `3a82e4f` | **nginx re-resolves the api upstream** — the real fix for the reboot 502 (variable `proxy_pass` + Docker DNS), tested against a real nginx |
@@ -127,6 +128,42 @@ side.
 | `45bcf02` | Schedule analyzer: flag any game timed at or before the game that feeds it |
 
 ### 2026-07-30 in detail
+
+**Project winners was inert on mobile — one handler, three wrong selectors.**
+Owner: "works great on desktop, doesn't work at all on mobile." `onProjectTap`
+is delegated on `#bracketRoot`, which renders BOTH layouts, but it was written
+against the desktop card only: `.bc-team` → `.bc` → `.bc-name`. The mobile
+carousel wraps every card in `.mbc-card[data-gid]` holding either
+`.mbc-game-team`/`.mbc-team-name` or `.mbc-champ-team`/`.mbc-champ-name`, so
+`e.target.closest('.bc-team')` returned null and the handler bailed on its
+FIRST line. Not a partial failure — nothing happened at all, which is exactly
+what was reported. All three selectors now carry both shapes
+(`PROJ_TEAM_SEL`/`PROJ_CARD_SEL`/`PROJ_NAME_SEL`).
+
+Worth knowing: **the mobile renderer already drew picks.** `mobileRoundCardHTML`
+and `champCardHTML` both compute `cardIsProjected(gid)` and emit `mbc--proj`
+plus the PICK chip, and `bracket.css` has a mobile-specific rule for that chip
+inside `.mbc-game-team`. Somebody built the display half and the input was
+never wired to it — so the fix is only the handler.
+
+Two things that had to come with it, or the feature still would not have felt
+like it worked:
+- **A swipe must not count as a pick.** The carousel drives `scrollLeft` from a
+  `{passive:true}` touchmove, so it never calls `preventDefault` and a
+  horizontal flick still emits a click on whatever card was under the finger.
+  A document-level `_touchDragged` flag (10px slop, set on any touchmove past
+  it, and unconditionally for multi-touch) gates the handler. Desktop never
+  fires touch events, so the flag stays false and nothing changes there.
+- **Vertical scroll now survives a re-render** (`_mbcScrollTop`, beside
+  `_mbcActiveRound`). Every pick calls `renderBracket()`, which rebuilds the
+  carousel; the column was already restored but `sharedScrollTop` is
+  render-local and started at 0, so a pick low in a tall column (ISSA round 2
+  is 14 cards, ~2500px) threw the viewer to the top. It is restored by writing
+  `captureEl.scrollTop`, NOT the mirror variable — `setSpacerForCol` only
+  writes the scroller when it has to clamp, so setting `sharedScrollTop`
+  directly would translate the columns to a position the scroll element does
+  not hold. Letting the passive scroll listener settle both also gets clamping
+  against the new column's height for free.
 
 **Roles.** A per-tournament `admin` grant already IS a Tournament Director:
 full admin on assigned tournaments, none elsewhere, assignable to many. No new
