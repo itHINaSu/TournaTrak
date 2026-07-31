@@ -674,6 +674,17 @@ input[type="time"]:focus {
   align-items: center;
   padding-top: 0.25em;
 }
+/* Lineup link panel(s), same markup Settings > Teams uses per team row
+   (owner, 2026-08-02: "Add the team links ... to the coaches section") —
+   .team-ed-linkpanel's own styling is unchanged, this only frames it here. */
+.coach-team-link { margin-top: 0.2em; }
+.coach-team-link-hdr {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-mute);
+  margin-bottom: 0.2em;
+}
 /* ── Coach multi-team tags ── */
 .coach-team-tag {
   display: inline-flex;

@@ -3862,12 +3862,19 @@ function populateCoachTeamSelect() {
       }).join('');
 }
 
+var _coachesCache = [];  // last-loaded coach list, so a link action can re-render without a refetch
+
 async function loadCoaches() {
   try {
-    var r = await apiFetch('/api/users');
+    // Team lineup links (Settings > Teams) alongside the users fetch — a TD
+    // opening Coaches first shouldn't have to visit Teams to see them (owner,
+    // 2026-08-02: "Add the team links ... to the coaches section").
+    var results = await Promise.all([apiFetch('/api/users'), loadTeamLinks()]);
+    var r = results[0];
     if (!r || !r.ok) return;
     var users = await r.json().catch(function(){ return []; });
-    renderCoachesList(users.filter(function(u) { return u.role === 'team'; }));
+    _coachesCache = users.filter(function(u) { return u.role === 'team'; });
+    renderCoachesList(_coachesCache);
     populateCoachTeamSelect();
   } catch(e) {}
 }
@@ -3887,6 +3894,17 @@ function renderCoachesList(coaches) {
         + (canRemove ? '<button class="coach-team-remove" data-action="removeCoachTeam" data-arg="' + esc(u.username) + '" data-arg2="' + esc(t) + '" title="Remove team">✕</button>' : '')
         + '</span>';
     }).join('');
+    // Same lineup-link panel Settings > Teams shows per team row — a TD
+    // editing a coach shouldn't have to switch panels to grab it (owner,
+    // 2026-08-02: "Add the team links ... to the coaches section"). One per
+    // team the coach actually has; teamLinkPanel reads _teamLinks, which
+    // loadCoaches() now fetches alongside the user list.
+    var linkPanels = teams.map(function(t) {
+      return '<div class="coach-team-link">'
+        + '<div class="coach-team-link-hdr">' + esc(t) + ' lineup link</div>'
+        + teamLinkPanel(t)
+        + '</div>';
+    }).join('');
     return '<div class="coach-card">'
       + '<span class="coach-card-name">' + esc(u.username) + '</span>'
       + '<div class="coach-teams-wrap">'
@@ -3898,6 +3916,7 @@ function renderCoachesList(coaches) {
       +   '<button class="admin-save-btn" data-action="addCoachTeam" data-arg="' + esc(u.username) + '">Add</button>'
       +   '<button class="admin-clear-btn" data-action="hideAddCoachTeam" data-arg="' + esc(u.username) + '">Cancel</button>'
       + '</div>'
+      + linkPanels
       + '<div class="coach-actions">'
       // Access tokens are stored hashed, so the link can only be copied at
       // creation or via Regenerate (which copies the fresh link).
@@ -3911,6 +3930,12 @@ function renderCoachesList(coaches) {
       + '</div>';
   }).join('');
   restoreOpenCoachGrants();
+  el.querySelectorAll('[data-tl-act]').forEach(function(b) {
+    b.addEventListener('click', function() { teamLinkAction(b.dataset.tlAct, b.dataset.team); });
+  });
+  el.querySelectorAll('.team-ed-linkurl').forEach(function(inp) {
+    inp.addEventListener('focus', function() { inp.select(); });
+  });
 }
 
 // ── Coach teams across tournaments (superadmin) ───────────────────────
@@ -4668,6 +4693,7 @@ async function teamLinkAction(act, team) {
     delete _teamLinks[team];
     _teamLinkOpen = team;
     renderTeamsEditor();
+    refreshCoachLinkPanels();
     showToast('Link revoked');
     return;
   }
@@ -4685,8 +4711,18 @@ async function teamLinkAction(act, team) {
   _teamLinks[team] = { token: data.token, createdAt: data.createdAt };
   _teamLinkOpen = team;
   renderTeamsEditor();
+  refreshCoachLinkPanels();
   copyText(teamLinkUrl(data.token));
   showToast(act === 'regenerate' ? 'New link copied' : 'Link created and copied');
+}
+
+// Both Settings > Teams and Settings > Coaches can show a team's lineup
+// link panel now — a create/revoke/regenerate on one has to be reflected on
+// the other without a refetch (owner, 2026-08-02). Re-renders from the
+// cached coach list rather than reloading; renderCoachesList no-ops if the
+// Coaches panel isn't the one currently on screen.
+function refreshCoachLinkPanels() {
+  if (document.getElementById('coachesList')) renderCoachesList(_coachesCache);
 }
 
 function teamsMove(idx, dir) {

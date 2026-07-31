@@ -3285,6 +3285,33 @@ pass here (owner, 2026-08-02: "light testing only, I am very tight on
 usage") since the code is a direct copy of an already-verified pattern;
 syntax-checked and the full API suite (140 tests) still passes.
 
+## Settings > Coaches now shows the team lineup link too (owner, 2026-08-02)
+Owner: *"Add the team links (that are copied from the team tabs) to the
+coaches section in Settings > coaches."* "The team tabs" is Settings >
+Teams' per-row link panel (`teamLinkPanel()` in admin.js — create/copy/
+regenerate/revoke a token-based lineup link, no coach account needed). A TD
+editing a coach card had no way to grab that same link without switching
+panels.
+
+Reused `teamLinkPanel(team)` verbatim (one call per team the coach has,
+labeled with the team name) rather than building a second implementation —
+it already reads from `_teamLinks`, which `loadCoaches()` now also
+populates (`Promise.all` alongside the `/api/users` fetch, via the existing
+`loadTeamLinks()`) so Coaches works whether or not Teams was opened first
+this session. The panel's buttons (`[data-tl-act]`) needed their own
+`querySelectorAll` wiring scoped to `#coachesList` — the existing wiring
+was scoped to the Teams editor's own container and never delegated
+globally. `teamLinkAction()` (create/revoke/regenerate) now calls a new
+`refreshCoachLinkPanels()` alongside its existing `renderTeamsEditor()`, so
+a change made from either panel shows up on the other without a refetch —
+backed by a small `_coachesCache` (the last-loaded coach list) so the
+refresh doesn't need to hit `/api/users` again.
+
+Skipped a live Playwright pass here too (owner, 2026-08-02: "light testing
+only, I am very tight on usage") — reviewed the wiring against the existing,
+already-shipped Teams-editor version of the same panel; syntax-checked and
+the full API suite (140 tests, unaffected — this is UI-only) still passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an
