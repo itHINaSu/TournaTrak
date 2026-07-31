@@ -3507,6 +3507,64 @@ still shown) keeps a small, expected width difference — Roster genuinely
 has one more functional column there than Lineup does. Full API suite
 (140 tests) still passes.
 
+## Lineup picker: jersey # left of the name, position on the right (owner, 2026-08-02)
+Owner: *"MOVE the jersey number just to the left of the player and then
+using the same font style as the jersey number put the players roster
+position on the far right hand side."* The picker item's three parts
+(jersey, name, position) needed to stop using `justify-content:
+space-between` (only correct for exactly 2 children) — `.lineup-picker-name`
+now gets `flex: 1` (with `min-width:0`/ellipsis truncation, since it's the
+one part that can genuinely run long) so it fills whatever room is left
+between the jersey # on the left and the position on the right, both
+sharing the same `.lineup-picker-num` class — literally the same style,
+not a lookalike. Verified against the demo: item structure came back
+`[{"#2"} {"Devon Marsh"} {"2nd"}]` in that DOM order, screenshot confirms
+the visual layout. Clear Lineup was also reported missing in the coach
+panel — verified present, visible, and wired correctly in both coach.html
+and lineup.html against the demo (screenshot attached to the session); if
+it's not showing up live, that's almost certainly a stale cached page (the
+API caches rendered HTML in-process and needs a restart to pick up markup
+changes) rather than a code issue.
+
+## Bracket cards: short name only wins when the full one actually overflows (owner, 2026-08-02)
+Owner, after confirming via a follow-up question that this was specifically
+about the bracket GAME CARD (not Schedule/Team Path/Standings, which never
+used the short name): *"if a team enters an optional short name that short
+name gets used regardless of whether or not it's called for"* — i.e. even
+on a card wide enough for the full name, no truncation actually needed.
+
+`teamLabelShort()` always preferred the short name when set, per its
+original design comment ("cards are fixed-width boxes where a long name is
+ellipsised into uselessness") — true for SOME cards, but not a good enough
+reason to always drop the coach's actual chosen name. Replaced with: cards
+render `teamLabel()` (the full name) by default, carrying the short name (if
+any) in a `data-short` attribute (`shortNameAttr()`); a new
+`fitTeamCardNames()` runs once after every `renderBracket()` and swaps a
+card's text to its `data-short` value ONLY where `scrollWidth > clientWidth`
+— i.e., only where the full name is actually being clipped. `teamLabelShort()`
+itself is now dead code (removed) — its two callers (`.bc-name` and the
+mobile `.mbc-champ-name`/`.mbc-team-name`) were its only uses.
+
+Tracing WHY overflow wasn't triggering on a plainly-too-long test name
+uncovered a real, pre-existing bug: `.bc-team` (and `.mbc-champ-team`) are
+flex items with no `min-width: 0` — a flex item's min-width defaults to its
+CONTENT's natural size, not 0, so a long unbreakable name pushed the whole
+CARD wider instead of ever reaching `.bc-name`'s own `overflow: hidden`.
+(`.mbc-game-team` already had `min-width: 0` — only the other two were
+missing it.) Without this, `fitTeamCardNames()` would have had nothing to
+detect, ever, on desktop. Added `min-width: 0` to both.
+
+Verified against the demo: set a shortName on a normal-length team name
+("Riverbend Rays" / "RIV") — bracket card showed the FULL name, not "RIV".
+Then set a genuinely long name — a synthetic isolated test (forcing the
+card to 60px to separate this from the bracket's own responsive column-
+width algorithm) confirmed `fitTeamCardNames()` correctly swaps to "RIV"
+once `scrollWidth > clientWidth`. On an actual mobile viewport (390px),
+`.mbc-team-name` for that same long-named team naturally overflowed at its
+real column width and correctly showed "RIV". Full-page screenshots
+(desktop and mobile) show no visual regression elsewhere. Full API suite
+(140 tests) still passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an

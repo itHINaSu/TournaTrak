@@ -231,7 +231,6 @@
 .lineup-picker-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 0.6em;
   padding: 0.6em 0.7em;
   border: 0.07em solid var(--border);
@@ -245,6 +244,11 @@
 }
 .lineup-picker-item:hover { border-color: var(--blue-lt); }
 .lineup-picker-item--current { border-color: var(--gold); }
+/* Name flexes to fill whatever's left between the two — jersey # on the
+   left, roster position on the far right in the SAME style (owner,
+   2026-08-02: "put the players roster position on the far right hand
+   side... using the same font style as the jersey number"). */
+.lineup-picker-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lineup-picker-num { color: var(--text-mute); font-size: var(--text-sm); flex-shrink: 0; }
 .lineup-picker-item--add { color: var(--win-color); border-color: var(--win-color); justify-content: center; }
 .lineup-picker-empty { color: var(--text-mute); font-size: var(--text-sm); padding: 0.5em 0; }

@@ -335,10 +335,14 @@ function openLineupPlayerPicker(rowIdx) {
       '<div class="lineup-picker-list">' +
         (candidates.length ? candidates.map(function(p) {
           var js = (p.jerseys || []).map(function(n) { return '#' + n; }).join(' / ');
+          // Jersey # to the LEFT of the name, roster position on the far
+          // right in the SAME style as the jersey # (owner, 2026-08-02) —
+          // .lineup-picker-num is shared by both, not duplicated styling.
           return '<button type="button" class="lineup-picker-item'
             + (p.id === currentPid ? ' lineup-picker-item--current' : '') + '" data-pid="' + esc(p.id) + '">'
-            + '<span class="lineup-picker-name">' + esc(p.name || '') + '</span>'
             + (js ? '<span class="lineup-picker-num">' + esc(js) + '</span>' : '')
+            + '<span class="lineup-picker-name">' + esc(p.name || '') + '</span>'
+            + (p.position ? '<span class="lineup-picker-num">' + esc(p.position) + '</span>' : '')
             + '</button>';
         }).join('') : '<div class="lineup-picker-empty">No roster players left to place.</div>') +
         '<button type="button" class="lineup-picker-item lineup-picker-item--add" data-pid="">+ Add Player</button>' +

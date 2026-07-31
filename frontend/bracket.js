@@ -63,10 +63,11 @@ var _mbcScrollTop = 0;
 // team links are all keyed by it, which is exactly why it must never change.
 // What people SEE is a separate, editable thing hanging off the team's id.
 //
-// Two forms, because a bracket card and a schedule row have very different
-// amounts of room: teamLabel() is the full display name, teamLabelShort()
-// prefers the short one and is used on cards, which are fixed-width boxes
-// where a long name is ellipsised into uselessness.
+// teamLabel() is the full display name, used everywhere. Bracket cards are
+// fixed-width boxes where a long name can genuinely run out of room — but
+// the short name (shortNameAttr/fitTeamCardNames below) only replaces it
+// there once the full one is actually measured to overflow, not just
+// because a short name happens to be set (owner, 2026-08-02).
 var _teamLabels = {};       // canonical name -> { display, short }
 // canonical name -> { logoUrl, primaryColor, secondaryColor } — Team Path and
 // Standings (owner, 2026-08-02: "team path, and standings would be the
@@ -121,9 +122,31 @@ function teamAttr(t) {
   return (t && t.actual && t.name) ? ' data-team="' + esc(t.name) + '"' : '';
 }
 
-function teamLabelShort(name) {
+// A card shows the FULL name first; the short one only takes over if the
+// full one actually doesn't fit (fitTeamCardNames, measured post-render),
+// not just because a short name happens to be set (owner, 2026-08-02:
+// "if a team enters an optional short name, that short name gets used
+// regardless of whether or not it's called for" — a short team name
+// shouldn't lose to an unnecessary abbreviation on a card wide enough for
+// it anyway). Returns a ready-to-splice ` data-short="..."` attribute, or
+// '' when there's nothing to fall back to.
+function shortNameAttr(name) {
   var l = _teamLabels[name];
-  return (l && (l.short || l.display)) || name;
+  var s = l && l.short;
+  return s ? ' data-short="' + esc(s) + '"' : '';
+}
+
+// Swaps a card's name to its short form ONLY where the full one is
+// actually being clipped (scrollWidth > clientWidth) — reading scrollWidth
+// forces the one reflow this needs, right after the cards it's checking
+// were inserted. Safe to call from either the live page or the offscreen
+// share/print render frame: each is its own `document`, so this only ever
+// touches whichever one is calling it.
+function fitTeamCardNames(root) {
+  (root || document).querySelectorAll('.bc-name[data-short], .mbc-champ-name[data-short], .mbc-team-name[data-short]')
+    .forEach(function(el) {
+      if (el.scrollWidth > el.clientWidth + 1) el.textContent = el.dataset.short;
+    });
 }
 
 function seedChip(name) {
@@ -1376,10 +1399,10 @@ function cardHTML(gid, asChamp){
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
         : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'+offHTML))
     +'</div>'
-    +'<div class="bc-team '+c1+'"'+teamAttr(t1)+'>'+seedChip(t1.name)+'<span class="bc-name">'+esc(teamLabelShort(t1.name))+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
+    +'<div class="bc-team '+c1+'"'+teamAttr(t1)+'>'+seedChip(t1.name)+'<span class="bc-name"'+shortNameAttr(t1.name)+'>'+esc(teamLabel(t1.name))+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
     +(g.bye
       ? '<div class="bc-team bye"><span class="bc-bye-label">— BYE —</span>'+projChip+'</div>'
-      : '<div class="bc-team '+c2+'"'+teamAttr(t2)+'>'+seedChip(t2.name)+'<span class="bc-name">'+esc(teamLabelShort(t2.name))+'</span>'+projChip+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
+      : '<div class="bc-team '+c2+'"'+teamAttr(t2)+'>'+seedChip(t2.name)+'<span class="bc-name"'+shortNameAttr(t2.name)+'>'+esc(teamLabel(t2.name))+'</span>'+projChip+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2168,6 +2191,7 @@ function renderBracket(){
   results = mergedResults();
   _projTaint = projectionTaint(results);
   try { renderBracketInner(); } finally { results = _real; _projTaint = {}; }
+  fitTeamCardNames();
 }
 
 // The flight pills belong WITH the bracket. Rendered as a sibling above
@@ -3987,12 +4011,12 @@ function champCardHTML(gid, title) {
     + '<div class="mbc-champ-sep"></div>'
     + '<div class="mbc-champ-teams">'
     +   '<div class="mbc-champ-team ' + c1 + '"' + teamAttr(t1) + '>'
-    +     '<span class="mbc-champ-name">' + esc(teamLabelShort(t1.name)) + '</span>'
+    +     '<span class="mbc-champ-name"' + shortNameAttr(t1.name) + '>' + esc(teamLabel(t1.name)) + '</span>'
     +     (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     +   '</div>'
     +   '<div class="mbc-champ-vs">vs</div>'
     +   '<div class="mbc-champ-team ' + c2 + '"' + teamAttr(t2) + '>'
-    +     '<span class="mbc-champ-name">' + esc(teamLabelShort(t2.name)) + '</span>'
+    +     '<span class="mbc-champ-name"' + shortNameAttr(t2.name) + '>' + esc(teamLabel(t2.name)) + '</span>'
     +     (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     +   '</div>'
     + '</div>'
@@ -4045,11 +4069,11 @@ function mobileRoundCardHTML(gid) {
             + '</span>')
     + '</div>'
     + '<div class="mbc-game-team ' + c1 + '"' + teamAttr(t1) + '>'
-    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(teamLabelShort(t1.name)) + '</span>'
+    +   seedChip(t1.name) + '<span class="mbc-team-name"' + shortNameAttr(t1.name) + '>' + esc(teamLabel(t1.name)) + '</span>'
     +   (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     + '</div>'
     + '<div class="mbc-game-team ' + c2 + '"' + teamAttr(t2) + '>'
-    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(teamLabelShort(t2.name)) + '</span>'
+    +   seedChip(t2.name) + '<span class="mbc-team-name"' + shortNameAttr(t2.name) + '>' + esc(teamLabel(t2.name)) + '</span>'
     +   projChip
     +   (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     + '</div>'
