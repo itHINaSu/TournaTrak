@@ -680,7 +680,11 @@ body.print-palette .flight-col--champ {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: 'Oswald', sans-serif;
-  font-size: 1.15rem;
+  /* Scaled up now that the banner itself is a fixed, more compact height
+     (owner, 2026-08-02: "liked the bigger team-brand-banner... increase
+     team name font size to an appropriate scale within the div") — 1.15rem
+     read small next to a 3.25rem-tall logo in a 3.85rem box. */
+  font-size: 1.6rem;
   font-weight: 700;
   letter-spacing: 0.03em;
 }
