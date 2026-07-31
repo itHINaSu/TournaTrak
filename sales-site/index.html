@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TournaTrak — Live tournament brackets, scores, and lineups</title>
-  <meta name="description" content="Tournament software built for organizers: live brackets, real-time scores, schedules, coach lineups, and multi-tournament hosting. One link, any device — no app to install.">
+  <title>TournaTrak — Run tournament day without the group chat chaos</title>
+  <meta name="description" content="No more posting a photo of the bracket to Facebook hours later, no more crowding one taped-up sheet to find your field. Live brackets, schedules, delay notices, and coach lineups — all on one link.">
 
   <!-- Open Graph / social preview -->
-  <meta property="og:title" content="TournaTrak — Live tournament brackets, scores, and lineups">
-  <meta property="og:description" content="Live brackets, real-time scores, schedules, and lineups for your tournament. One link, any device.">
+  <meta property="og:title" content="TournaTrak — Run tournament day without the group chat chaos">
+  <meta property="og:description" content="Live brackets, schedules, delay notices, and coach lineups — all on one link, updating in real time.">
   <meta property="og:type" content="website">
 
   <link rel="icon" type="image/svg+xml" href="icons/tournatrak.svg">
@@ -32,7 +32,6 @@
       <div class="nav-links">
         <a href="#features">Features</a>
         <a href="#how-it-works">How it works</a>
-        <a href="#gallery">Screenshots</a>
         <a href="#install">Install</a>
         <a href="#faq">FAQ</a>
       </div>
@@ -46,16 +45,18 @@
     <div class="container hero-inner">
       <div class="hero-text">
         <div class="hero-badge" aria-label="Live scoring">
-          <span class="live-dot" aria-hidden="true">●</span> Live scores, right on the bracket
+          <span class="live-dot" aria-hidden="true">●</span> One link replaces the group chat
         </div>
         <h1>
           Run your tournament from your phone.<br>
           <span class="gold">Everyone follows along from theirs.</span>
         </h1>
         <p class="hero-sub">
-          Live brackets, real-time scores, schedules, and coach lineups — for
-          softball, baseball, and any bracket sport. One link to share, no
-          app store, no sign-ups for fans.
+          No more posting a photo of the bracket to Facebook after the fact.
+          No more crowding one taped-up sheet to see your next field. One
+          link keeps teams and families in sync all day — bracket,
+          schedule, delays, and lineups — for softball, baseball, and any
+          bracket sport.
         </p>
         <div class="hero-actions">
           <a href="/demo/" class="btn btn-gold btn-lg">See a live demo</a>
@@ -116,9 +117,9 @@
         <div class="chat-stack">
           <div class="chat-bubble left">"What field are we on next?"</div>
           <div class="chat-bubble right">"Did we win??"</div>
-          <div class="chat-bubble left">"What time is the next game"</div>
-          <div class="chat-bubble right">"Is the bracket posted somewhere?"</div>
-          <div class="chat-bubble left">"Can someone update the scores???"</div>
+          <div class="chat-bubble left">"Anyone have a pic of the bracket?"</div>
+          <div class="chat-bubble right">"Are we still on with this rain?"</div>
+          <div class="chat-bubble left">"Who has the lineup sheet??"</div>
         </div>
         <p class="chat-caption">The group chat, 20 minutes after game 1 ends.</p>
       </div>
@@ -128,8 +129,9 @@
       <div class="solution-card">
         <h2>One link.</h2>
         <p>
-          Everyone has the bracket, the schedule, and the live score —
-          before they even think to ask.
+          Everyone has the bracket, the schedule, the live score, and any
+          delay — before they even think to ask. Coaches submit lineups
+          through a link, not a sheet someone has to physically track down.
         </p>
       </div>
     </div>
@@ -138,52 +140,174 @@
   <!-- ── Features ── -->
   <section class="features" id="features" aria-label="Features">
     <div class="container">
-      <h2 class="section-title">Everything your tournament needs. Nothing it doesn't.</h2>
-      <div class="features-grid">
+      <h2 class="section-title">Everything your tournament needs.</h2>
+      <p class="section-sub">
+        The bracket is the easy part — every tool does that. The hard part is
+        keeping everyone in sync when a game runs long, a field changes, or
+        the lineup sheet needs to reach the dugout. That's what this is
+        actually built for.
+      </p>
+      <div class="showcase">
+
+        <div class="showcase-row reveal">
+          <div class="showcase-media zoomable" data-action="openLightbox" role="button" tabindex="0" aria-label="View full screenshot">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-bracket-dark.png">
+              <img src="screenshots/mobile-bracket-light.png" alt="Mobile bracket view showing live tournament games" loading="lazy">
+            </picture>
+          </div>
+          <div class="showcase-text">
+            <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="5" height="4" rx="1"/><rect x="2" y="15" width="5" height="4" rx="1"/><rect x="9.5" y="10" width="5" height="4" rx="1"/><rect x="17" y="10" width="5" height="4" rx="1"/><path d="M7 7h1.5v10h-1.5M8.5 12h1M14.5 12h2.5"/></svg></div>
+            <h3>Live, real-time bracket</h3>
+            <p>
+              The bracket updates as results come in. A game in progress shows a
+              <span class="live-dot" aria-label="live">●</span> <strong>LIVE</strong>
+              badge with the score and inning right on its card — fans watch it
+              change without refreshing. Tuned layouts for desktop and a
+              swipe-through mobile view.
+            </p>
+          </div>
+        </div>
+
+        <div class="showcase-row reveal">
+          <div class="showcase-media zoomable" data-action="openLightbox" role="button" tabindex="0" aria-label="View full screenshot">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-lineup-dark.png">
+              <img src="screenshots/mobile-lineup-light.png" alt="Coach lineup entry tool on mobile" loading="lazy">
+            </picture>
+          </div>
+          <div class="showcase-text">
+            <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg></div>
+            <h3>Lineups: a link, not a login</h3>
+            <p>
+              No more tracking down a coach for the paper lineup sheet between
+              games. Send one team one link — no account, drop it in the team
+              chat — and whoever's free fills it in. Columns adapt to your
+              sport, and it locks automatically once the result is in.
+            </p>
+          </div>
+        </div>
+
+        <div class="showcase-row reveal">
+          <div class="showcase-media zoomable" data-action="openLightbox" role="button" tabindex="0" aria-label="View full screenshot">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-teampath-dark.png">
+              <img src="screenshots/mobile-teampath-light.png" alt="Team Path feature on mobile showing a team's complete tournament journey" loading="lazy">
+            </picture>
+          </div>
+          <div class="showcase-text">
+            <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+            <h3>Four ways to follow</h3>
+            <p>
+              <strong>Bracket</strong>, <strong>Schedule</strong>,
+              <strong>Team Path</strong>, and <strong>Standings</strong>.
+              Team Path lets fans jump straight to their team's road through the
+              bracket — win path and loss path — shareable by its own link.
+            </p>
+          </div>
+        </div>
+
+        <div class="showcase-row reveal">
+          <div class="showcase-media zoomable" data-action="openLightbox" role="button" tabindex="0" aria-label="View full screenshot">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-score-dark.png">
+              <img src="screenshots/mobile-score-light.png" alt="Field-side scorekeeper mode with large tap targets" loading="lazy">
+            </picture>
+          </div>
+          <div class="showcase-text">
+            <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/><path d="M9 12h.01M15 12h.01"/></svg></div>
+            <h3>Field-side scorekeeper mode</h3>
+            <p>
+              A stripped-down, big-button page for scorekeepers: filter to your
+              field, tap the score up or down, and it pushes live to every
+              watching phone within seconds. Hit <strong>Final</strong> and the
+              result posts itself. Built for one thumb and a chain-link fence.
+            </p>
+          </div>
+        </div>
+
+        <div class="showcase-row reveal">
+          <div class="showcase-media zoomable" data-action="openLightbox" role="button" tabindex="0" aria-label="View full screenshot">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-admin-dark.png">
+              <img src="screenshots/mobile-admin-light.png" alt="Admin panel on mobile showing results and settings" loading="lazy">
+            </picture>
+          </div>
+          <div class="showcase-text">
+            <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+            <h3>Simple admin panel</h3>
+            <p>
+              Enter results, edit any game's time or field, and flip a game to
+              live — all from your phone. Per-game save so you don't lose your
+              place, plus an undo for the mis-clicks that happen during a live
+              event.
+            </p>
+          </div>
+        </div>
+
+        <div class="showcase-row reveal">
+          <div class="showcase-media zoomable" data-action="openLightbox" role="button" tabindex="0" aria-label="View full screenshot">
+            <picture>
+              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-builder-dark.png">
+              <img src="screenshots/desktop-builder-light.png" alt="Bracket Builder generating a schedule from a team list" loading="lazy">
+            </picture>
+          </div>
+          <div class="showcase-text">
+            <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 8l7-5 7 5"/><rect x="3" y="8" width="6" height="4" rx="1"/><rect x="15" y="8" width="6" height="4" rx="1"/><rect x="9" y="16" width="6" height="4" rx="1"/></svg></div>
+            <h3>Bracket Builder — nine formats</h3>
+            <p>
+              Every tool can generate a bracket, so this one does it well and
+              gets out of the way: paste a team list and pick single or double
+              elimination, a 3-game-guarantee format, pool play into playoffs,
+              tiered flights, round robin, or Swiss — with byes, seeding, and a
+              day/field schedule handled for you.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      <p class="gallery-note">
+        Screenshots not pictured yet: Share/Download/Print, weather delay
+        notices, Play It Forward, the multi-tournament switcher, and
+        Standings —
+        <a href="/demo/" class="link-gold">see them in the live demo →</a>
+      </p>
+
+      <div class="features-grid features-grid--compact">
 
         <div class="feature-card reveal">
-          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="5" height="4" rx="1"/><rect x="2" y="15" width="5" height="4" rx="1"/><rect x="9.5" y="10" width="5" height="4" rx="1"/><rect x="17" y="10" width="5" height="4" rx="1"/><path d="M7 7h1.5v10h-1.5M8.5 12h1M14.5 12h2.5"/></svg></div>
-          <h3>Live, real-time bracket</h3>
+          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13"/><path d="M7 8l5-5 5 5"/><path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg></div>
+          <h3>Share it instantly — not hours later</h3>
           <p>
-            The bracket updates as results come in. A game in progress shows a
-            <span class="live-dot" aria-label="live">●</span> <strong>LIVE</strong>
-            badge with the score and inning right on its card — fans watch it
-            change without refreshing. Tuned layouts for desktop and a
-            swipe-through mobile view.
+            No more posting a phone photo of the bracket to Facebook after
+            the fact. Every visitor — not just staff — can save the current
+            bracket as an image or PDF, print it for the fence, or hand it
+            straight to their phone's own share sheet, the moment it changes.
           </p>
         </div>
 
         <div class="feature-card reveal">
-          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 8l7-5 7 5"/><rect x="3" y="8" width="6" height="4" rx="1"/><rect x="15" y="8" width="6" height="4" rx="1"/><rect x="9" y="16" width="6" height="4" rx="1"/></svg></div>
-          <h3>Bracket Builder — any size, any format</h3>
+          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v2a2 2 0 002 2h1l4 4V5l-4 4H5a2 2 0 00-2 2z"/><path d="M14.5 9a3 3 0 010 6"/><path d="M17.5 6.5a7 7 0 010 11"/></svg></div>
+          <h3>Weather delays, posted in one tap</h3>
           <p>
-            Paste a team list and generate a full schedule in seconds:
-            <strong>single-elimination (4&ndash;64 teams</strong>, automatic
-            byes) or <strong>double-elimination</strong> with an optional
-            "if necessary" final. Seed by rank or random, then lay games out
-            across days and fields.
+            Rain, a slipping schedule, a field change — post a delay banner
+            and it shows on the public page instantly, instead of spreading
+            by word of mouth around the parking lot. Every game also shows
+            how far ahead or behind schedule it's running.
           </p>
         </div>
 
         <div class="feature-card reveal">
-          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
-          <h3>Four ways to follow</h3>
+          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l8 8-8 8V4z"/><path d="M12 4l8 8-8 8V4z"/></svg></div>
+          <h3>Play it forward — honestly</h3>
           <p>
-            <strong>Bracket</strong>, <strong>Schedule</strong>,
-            <strong>Team Path</strong>, and a <strong>Challenge Leaderboard</strong>.
-            Team Path lets fans jump straight to their team's road through the
-            bracket — win path and loss path — shareable by its own link.
-          </p>
-        </div>
-
-        <div class="feature-card reveal">
-          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/><path d="M9 12h.01M15 12h.01"/></svg></div>
-          <h3>Field-side scorekeeper mode</h3>
-          <p>
-            A stripped-down, big-button page for scorekeepers: filter to your
-            field, tap the score up or down, and it pushes live to every
-            watching phone within seconds. Hit <strong>Final</strong> and the
-            result posts itself. Built for one thumb and a chain-link fence.
+            Any fan can tap a team to call them the winner and watch the
+            bracket fill in as though it happened. Every card that changes
+            because of a pick is watermarked "Potential Outcome" — on
+            screen, in a saved image, and on a printout — so nobody's guess
+            gets mistaken for a result. Picks are private to that device and
+            never saved.
           </p>
         </div>
 
@@ -195,27 +319,6 @@
             (<code>/t/your-event</code>). Tournament directors create and run
             their own events and switch between them from one admin, with
             scorekeepers and coaches granted exactly the access their event needs.
-          </p>
-        </div>
-
-        <div class="feature-card reveal">
-          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
-          <h3>Simple admin panel</h3>
-          <p>
-            Enter results, set game times and fields, post rain delays, and
-            flip a game to live — all from your phone. Per-game save so you
-            don't lose your place, and a delay banner when the whole day slips.
-          </p>
-        </div>
-
-        <div class="feature-card reveal">
-          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><path d="M9 12h6M9 16h4"/></svg></div>
-          <h3>Coach lineup tool — any sport</h3>
-          <p>
-            Coaches get a private link to submit their lineup before each game
-            and import the last one in a tap. Columns adapt to your sport —
-            softball/baseball, volleyball, basketball, or your own custom
-            fields. Locks automatically once the result is in.
           </p>
         </div>
 
@@ -240,16 +343,6 @@
           </p>
         </div>
 
-        <div class="feature-card reveal">
-          <div class="feature-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v13"/><path d="M7 8l5-5 5 5"/><path d="M4 15v4a2 2 0 002 2h12a2 2 0 002-2v-4"/></svg></div>
-          <h3>Share, download, or print the bracket</h3>
-          <p>
-            Every visitor — not just staff — can save the bracket as an image
-            or PDF, or hand it straight to their phone's own share sheet. One
-            tap, no screenshotting a cramped mobile screen.
-          </p>
-        </div>
-
       </div>
     </div>
   </section>
@@ -264,20 +357,20 @@
       <div class="steps-grid">
         <div class="step reveal">
           <div class="step-number" aria-hidden="true">1</div>
-          <h3>Build your bracket</h3>
-          <p>Paste your team list into the Bracket Builder and generate a full single- or double-elimination schedule, or hand-place a custom format. Set your times and fields.</p>
+          <h3>Paste your teams, get a schedule</h3>
+          <p>Pick a format, paste your team list, and set your times and fields — a few minutes of setup so the rest of the day runs itself.</p>
         </div>
         <div class="step-connector" aria-hidden="true"></div>
         <div class="step reveal">
           <div class="step-number" aria-hidden="true">2</div>
           <h3>Bring in your team</h3>
-          <p>Add scorekeepers and coaches with exactly the access they need — a coach can get a private link or their own login, no account required for fans.</p>
+          <p>Add scorekeepers and coaches with exactly the access they need — a coach can get a link or their own login, no account required for fans.</p>
         </div>
         <div class="step-connector" aria-hidden="true"></div>
         <div class="step reveal">
           <div class="step-number" aria-hidden="true">3</div>
           <h3>Share one link &amp; go live</h3>
-          <p>Send the tournament link to teams and fans. Enter scores from your phone — everyone watching sees it instantly.</p>
+          <p>Send the tournament link to teams and fans. Enter scores and post delays from your phone — everyone watching sees it instantly, and nobody's texting you to ask.</p>
         </div>
       </div>
       <div class="how-cta">
@@ -320,174 +413,17 @@
   <section class="problem" id="why" aria-label="Why TournaTrak">
     <div class="container">
       <div class="solution-card" style="max-width:720px;margin:0 auto;text-align:center;">
-        <h2>Purpose-built for tournament directors.</h2>
+        <h2>Built to end the tournament-day group chat.</h2>
         <p style="margin-top:0.75rem;">
-          Most bracket tools are glorified spreadsheets, ad-stuffed apps, or
-          overpowered registration platforms. TournaTrak is a live bracket,
-          inline schedule, shareable Team Paths, a field-side scorekeeper, and
-          per-sport coach lineups in one focused app — no ads, no clutter.
+          Generating a bracket is the easy part — every tool does it. What's
+          actually hard is keeping a hundred families in sync when a game
+          runs long, a field changes, or a lineup needs to reach the dugout
+          before first pitch. TournaTrak is built for that part: a live
+          bracket, real-time delay notices, shareable Team Paths, and lineup
+          links that reach a team without an account — no ads, no clutter,
+          no per-team fees.
         </p>
       </div>
-    </div>
-  </section>
-
-  <!-- ── Screenshot Gallery ── -->
-  <section class="gallery" id="gallery" aria-label="Screenshots">
-    <div class="container">
-      <h2 class="section-title">See it in action</h2>
-      <p class="section-sub">
-        Real screenshots from a running tournament.
-        <a href="/demo/" class="link-gold">Try the live demo →</a>
-      </p>
-      <p class="gallery-lead">On your phone first — everyone's actual view at the field.</p>
-      <div class="gallery-grid">
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img gallery-shot-img--mobile">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-bracket-dark.png">
-              <img src="screenshots/mobile-bracket-light.png" alt="Mobile bracket view showing live tournament games" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Mobile bracket — live scores on any phone</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img gallery-shot-img--mobile">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-score-dark.png">
-              <img src="screenshots/mobile-score-light.png" alt="Field-side scorekeeper mode with large tap targets" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Scorekeeper mode — big buttons, live updates</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img gallery-shot-img--mobile">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-schedule-dark.png">
-              <img src="screenshots/mobile-schedule-light.png" alt="By-round schedule view showing all games by time" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>By-round schedule — every game by time &amp; field</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img gallery-shot-img--mobile">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-teampath-dark.png">
-              <img src="screenshots/mobile-teampath-light.png" alt="Team Path feature on mobile showing a team's complete tournament journey" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Team Path — follow any team's full journey</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img gallery-shot-img--mobile">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-buckets-dark.png">
-              <img src="screenshots/mobile-buckets-light.png" alt="Challenge leaderboard showing team standings" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Challenge leaderboard</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img gallery-shot-img--mobile">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-lineup-dark.png">
-              <img src="screenshots/mobile-lineup-light.png" alt="Coach lineup entry tool on mobile" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Coach lineup tool — secure link per team</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img gallery-shot-img--mobile">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-admin-dark.png">
-              <img src="screenshots/mobile-admin-light.png" alt="Admin panel on mobile showing results and settings" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Run the whole event from your phone</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-bracket-dark.png">
-              <img src="screenshots/desktop-bracket-light.png" alt="Full 32-team tournament bracket on desktop" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Desktop full bracket — the whole event at a glance</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-builder-dark.png">
-              <img src="screenshots/desktop-builder-light.png" alt="Bracket Builder generating a schedule from a team list" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Bracket Builder — teams in, schedule out</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/teampath-landscape-dark.png">
-              <img src="screenshots/teampath-landscape-light.png" alt="Team Path feature showing a team's complete tournament journey on desktop" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Team Path on the big screen</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-schedule-dark.png">
-              <img src="screenshots/desktop-schedule-light.png" alt="By-round schedule view on desktop" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Schedule on the big screen — every field, every round</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-lineup-dark.png">
-              <img src="screenshots/desktop-lineup-light.png" alt="Coach lineup entry tool on desktop" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Lineups adapt to your sport — softball, volleyball, basketball, or custom</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-admin-dark.png">
-              <img src="screenshots/desktop-admin-light.png" alt="Full admin panel on desktop showing results and settings" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Full admin panel — results, schedule, settings, users</figcaption>
-        </figure>
-
-        <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
-            <picture>
-              <source media="(prefers-color-scheme: dark)" srcset="screenshots/desktop-buckets-dark.png">
-              <img src="screenshots/desktop-buckets-light.png" alt="Challenge leaderboard on desktop" loading="lazy">
-            </picture>
-          </div>
-          <figcaption>Buckets — an optional fan pick-'em leaderboard</figcaption>
-        </figure>
-
-      </div>
-      <p class="gallery-note">
-        Share/Download/Print and the multi-tournament switcher are shipped
-        features without a screenshot yet —
-        <a href="/demo/" class="link-gold">see them in the live demo →</a>
-      </p>
     </div>
   </section>
 
@@ -565,11 +501,13 @@
         <details class="faq-item reveal">
           <summary>What bracket formats and sports does it support?</summary>
           <p>
-            Single-elimination for 4&ndash;64 teams (with automatic byes) and
-            double-elimination with an optional "if necessary" final. Scoring
-            labels (Inning, Quarter, Half, Period, Set) and coach-lineup columns
-            are configurable per tournament, so it fits softball, baseball,
-            basketball, volleyball, soccer, hockey, and more.
+            Nine formats generated from a team list: single and double
+            elimination, a consolation bracket, a 3-game-guarantee format
+            with a B bracket, pool play into playoffs, tiered Open/A/B
+            flights, round robin (single or double), and Swiss. Scoring
+            labels (Inning, Quarter, Half, Period, Set) and coach-lineup
+            columns are configurable per tournament, so it fits softball,
+            baseball, basketball, volleyball, soccer, hockey, and more.
           </p>
         </details>
 
@@ -596,10 +534,45 @@
         <details class="faq-item reveal">
           <summary>Can a scorekeeper update scores without full admin access?</summary>
           <p>
-            Yes — there are separate roles for super-admins, tournament admins,
-            scorekeepers, coaches, and leaderboard editors, so you delegate
-            exactly the right level of access to each person. Scorekeepers get a
-            dedicated big-button page for entering scores from the field.
+            Yes — five roles, each scoped to the tournaments you assign:
+            Global Admin, Tournament Director, Scorekeeper, Standings Keeper,
+            and Coach. A scorekeeper can also be individually trusted with
+            schedule edits without being made a full director. Scorekeepers
+            get a dedicated big-button page for entering scores from the field.
+          </p>
+        </details>
+
+        <details class="faq-item reveal">
+          <summary>Do coaches need to make an account to submit a lineup?</summary>
+          <p>
+            No. Send one team one link — drop it in the group chat — and
+            whoever's free fills it in. It grants access to that team's
+            lineups in that tournament only; nothing else. Coaches who want a
+            username and password can still have one instead.
+          </p>
+        </details>
+
+        <details class="faq-item reveal">
+          <summary>What happens when a game runs late or gets rained out?</summary>
+          <p>
+            Post a delay — a one-tap chip or a custom amount — and it shows on
+            the public page immediately, plus a free-text banner for
+            anything that needs an explanation ("Field 3 running 40 minutes
+            behind"). Every game also shows how far ahead or behind schedule
+            it's running, so nobody's guessing.
+          </p>
+        </details>
+
+        <details class="faq-item reveal">
+          <summary>If fans can pick winners, can they mess up my bracket?</summary>
+          <p>
+            No. A visitor's picks live on their own device, are never saved,
+            and are never seen by anyone else — a refresh clears them. Your
+            posted results are the only thing anyone else sees, and every
+            card a pick affects is watermarked "Potential Outcome," on screen
+            and in any image saved or printed, so a screenshot can't be
+            passed off as a real result. You can turn the whole feature off
+            for your tournament if you'd rather not have it.
           </p>
         </details>
 
@@ -657,6 +630,12 @@
       <p class="footer-copy">&copy; 2026 TournaTrak.</p>
     </div>
   </footer>
+
+  <!-- ── Lightbox: click any screenshot to see it full-size ── -->
+  <div class="lightbox" id="lightbox" hidden>
+    <button class="lightbox-close" data-action="closeLightbox" aria-label="Close">✕</button>
+    <img id="lightboxImg" alt="">
+  </div>
 
   <script src="script.js"></script>
 </body>

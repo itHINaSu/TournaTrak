@@ -1,5 +1,32 @@
 # TournaTrak — Product & Marketing Brief
 
+> ## Owner's note (2026-07-31) — read this before writing any copy
+>
+> **The biggest selling point is communication between TDs and teams/fans —
+> not the Bracket Builder.** Lead with that, not with format count.
+>
+> What it actually replaces:
+> - No uploading a photo of a paper bracket to Facebook hours after the
+>   tournament day already ended.
+> - No teams crowding around the one physical bracket taped to a fence to
+>   find out who they play next or what field they're on.
+> - A built-in way to post weather/schedule delays instead of word of mouth.
+> - Coaches submit lineups digitally instead of a TD tracking down paper
+>   lineups between games.
+>
+> **Anyone can build a bracket generator — that's actually one of the
+> weakest spots of this app.** Don't sell the Bracket Builder as the
+> differentiator; it's table stakes, not the pitch. The pitch is that this
+> makes *running or playing in* a tournament a much less complicated
+> experience — the logistics and communication, not the schedule math.
+>
+> `docs/FEATURES.md` (below) is still the authoritative list of what's
+> built, but its §1 "lead with the Bracket Builder" framing and §2's format
+> table as the headline are exactly the emphasis this note overrides. Weight
+> copy toward §3 (the live tournament / delays) and §6 (lineup links) and
+> communication generally; the nine formats (§2) are a supporting fact, not
+> the hook.
+
 > ⚠️ **Read `docs/FEATURES.md` first.** This brief is still correct on
 > *positioning* — tone, page structure, screenshots, CTAs, branding — but it was
 > written against an older version of the product, and **§3 (features), §5
