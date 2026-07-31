@@ -3924,8 +3924,21 @@ and a background server that logs "API listening" while curl gets connection
 refused). All of that now lives in the script instead of in someone's memory.
 
 `docs/agent-demo/` is agent tooling, not product: nothing there is needed to
-build, deploy or run the site. The SHIPPED demo is `compose.demo.yml` +
-`demo-seed/` and needs Docker — different thing, don't conflate them.
+build, deploy or run the site. The SHIPPED demo is
+`sales-site/demo/compose.demo.yml` + `sales-site/demo/demo-seed/` and needs
+Docker — different thing, don't conflate them.
+
+**2026-07-31: `seed.js`'s "1 live" was a lie.** It posted to
+`POST /api/live/R1.R.2` — there is no such route. The real one is
+`POST /api/live` with `game` in the body (see `api/server.js`). The wrong
+call 404s, `seed.js` doesn't check that particular response's status, and
+the seed log cheerfully prints "seeded: ... 1 live" regardless. Found while
+building a sales-site screenshot that needed an actual live game: the
+public bracket rendered zero `.live-badge`/`.round-game-live` elements
+against a freshly-seeded instance. Fixed in `seed.js`; if you seeded before
+this fix and the bracket looks like every game finished, that's why —
+`POST /api/live` (game in body, not the path) against the running instance
+fixes it without a reseed.
 
 `routes.test.js` now also covers, in rough order of how easy each is to break
 by accident: cross-tournament coach grants (a tournament admin must get 403

@@ -132,7 +132,12 @@ async function ensureUser(a, username, role, teamName, password) {
     await a.post('/api/results', { game, winner, loser, t1score: t1, t2score: t2 });
   }
   // Left live so the "in progress" card state is on screen too.
-  await a.post('/api/live/R1.R.2', { period: 4, t1score: 3, t2score: 3 });
+  // NOTE: there is no POST /api/live/:slot — the route is POST /api/live
+  // with `game` in the body (see api/server.js). The slot-in-path form
+  // 404s silently here since this script doesn't check every response
+  // status, which is exactly how this shipped broken the first time:
+  // the seed log said "1 live" while /api/live stayed empty.
+  await a.post('/api/live', { game: 'R1.R.2', period: 4, t1score: 3, t2score: 3 });
 
   const accounts = [
     ['demo',        'admin',   null,       ADMIN],
