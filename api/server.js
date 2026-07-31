@@ -280,6 +280,14 @@ app.set('etag', false);
 // fully branded save 413s. (Each field is still capped individually below;
 // this only stops the combined body being rejected before validation runs.)
 app.use(['/api/theme-colors', '/api/t/:slug/theme-colors'], express.json({ limit: '2mb' }));
+// Teams carry a logo data URI each (LOGO_MAX_CHARS, 48kb) and POST /teams
+// saves every team in the tournament in one body — a dozen-plus branded
+// teams can clear the global 10kb cap easily, 413ing a save that never
+// touched an individually-oversized field (owner, 2026-08-02: "still
+// getting payload too large when uploading an image for a team logo").
+app.use(['/api/teams', '/api/t/:slug/teams',
+         '/api/team-profile/:teamName', '/api/t/:slug/team-profile/:teamName'],
+  express.json({ limit: '2mb' }));
 app.use(express.json({ limit: '10kb' }));
 
 // In-memory login rate limiter: max 10 failures per IP per 15 minutes.

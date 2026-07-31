@@ -3115,6 +3115,24 @@ live preview banner updates — confirming the shared tt-common.js modal works
 identically from both pages' markup copies. No console errors either run.
 Full API suite (140 tests) still passes.
 
+## Team logo save 413'd: the global 10kb body cap, not the 48kb logo cap (owner, 2026-08-02) — regression fix
+Owner, right after the crop UI landed: *"I'm still getting payload too large
+when uploading an image for a team logo."* The app-level logo cap
+(`LOGO_MAX_CHARS`, 48kb) was never the problem — Express's BODY parser is
+capped separately, and the global default is `10kb` (server.js, near the
+top: "10 kb is generous for every payload this app sends"). Only
+`/api/theme-colors` had ever been given a bigger override, because it was
+the one route anyone had needed a data URI on before. A single team logo
+already clears 10kb on its own, and `POST /api/teams` (Settings > Teams'
+bulk save) sends every team in the tournament in one body — a dozen-plus
+branded teams stacks logos into hundreds of KB. Added the same
+`express.json({limit:'2mb'})` override already used for theme-colors to
+`/api/teams`, `/api/t/:slug/teams`, `/api/team-profile/:teamName`, and
+`/api/t/:slug/team-profile/:teamName`. Verified against the demo API
+directly: a 40KB team-profile PUT and a ~320KB bulk `/api/teams` POST (8
+teams × 40KB logos) both now return 200 where they 413'd before. Full API
+suite (140 tests) still passes.
+
 ## "Brackets default left" was never meant to reach the live page (owner, 2026-08-02) — regression fix
 Owner, after the above landed: *"My bracket is left justified. That was
 supposed to be for share only... it is narrow in the normal view. The width
