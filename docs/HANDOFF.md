@@ -4,8 +4,16 @@ A primer for starting a fresh chat with full project context. Delete or update
 freely; this is a working note, not documentation. See also `ROADMAP.md`
 (v3/v4 plan), `FEATURES.md` (what ships, written for the sales-site agent —
 authoritative over the older `../sales-site/SALES_SITE_BRIEF.md`, which is
-still the guide for tone and page structure), and `README.md` (refreshed
-2026-07 for the Postgres port — keep it current).
+still the guide for tone and page structure), and the root `README.md`
+(refreshed 2026-07 for the Postgres port — keep it current).
+
+**Want the app running in front of you?** `bash docs/agent-demo/setup.sh`
+(with `run_in_background`) gives you a seeded tournament on :3398 in about 40
+seconds. See `docs/agent-demo/README.md`.
+
+`docs/` is agent-facing material ONLY, and holds nothing needed to build,
+deploy or run the site — operational config lives at the repo root. See
+`docs/README.md` for the split.
 
 ## What it is
 Tournament bracket web app (softball/baseball origin, multi-format). The
@@ -3046,39 +3054,28 @@ could not work out a user name: start the cluster and run with
 - `standings.test.js` — the documented tiebreak order.
 - `schedule-health.test.js` — the pre-publish checks behind the health notice.
 
-### Rebuilding the browser harness from nothing (2026-07-30)
-The session container is ephemeral and `/tmp` goes with it — twice now a
-session has come back to find Postgres stopped, `node_modules` gone and every
-Playwright spec deleted. It rebuilds in about five minutes; the order matters
-and each step has one non-obvious trap:
-
+### Building a demo / browser harness — USE THE SCRIPT (2026-07-31)
 ```
-# 1. Postgres. Config lives in /etc, NOT in the data dir, and pg_ctl refuses
-#    to run as root. A stale postmaster.pid survives a container restart.
-rm -f /var/lib/postgresql/16/main/postmaster.pid /var/run/postgresql/.s.PGSQL.5432*
-su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D /var/lib/postgresql/16/main \
-  -l /tmp/pg.log -o '-c config_file=/etc/postgresql/16/main/postgresql.conf' start"
-# 2. Deps. The API tests report "server did not start" — meaning a missing
-#    module, not a database problem — until this runs.
-cd api && npm install
-# 3. Playwright. The browsers are ALREADY at /opt/pw-browsers; never run
-#    `playwright install`.
-mkdir -p /tmp/tthb && cd /tmp/tthb && npm init -y \
-  && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i playwright
+bash docs/agent-demo/setup.sh        # run it with run_in_background
 ```
-Then a `proxy.js` standing in for nginx (static frontend, but PROXY `/`, the
-tab paths, `/t/`, `/manifest.json`, `/theme.css`, `/logo.png`, `/tab-icon.png`
-and `/pwa-icon.png` to the API — those are server-rendered, and serving them
-off disk tests a page the deployment never sends), plus a seeded API.
+Seeded tournament on :3398 in about 40 seconds — public bracket, admin panel,
+coach panel, three accounts, a played round and a live game. `--reset` drops
+the database first; `--prep` builds everything and prints the commands so you
+can run the servers yourself. **`docs/agent-demo/README.md` is the full
+account**, including the traps that made this worth scripting.
 
-Seeding traps, all of which cost time: `POST /schedule` takes the schedule
-**as the body**, keyed by slot id (`R1.L.1`, not `{schedule:[…]}`), times must
-be `YYYY-MM-DDTHH:MM`, and passwords are 8 characters minimum. **The API caches
-users in memory**, so editing `users` in SQL does nothing until you restart it.
-Long-running servers must be started with the Bash tool's background mode — a
-plain `&`, `nohup` or even `setsid` is killed when the tool call returns, and
-the give-away is a log that says "API listening" next to a `curl` that gets
-connection refused.
+Why it exists: the session container is ephemeral and `/tmp` goes with it —
+twice now a session has resumed to find Postgres stopped, `node_modules` gone
+and every Playwright spec deleted, and each rebuild rediscovered the same
+handful of failures (config in `/etc` not the data dir, `pg_ctl` refusing to
+run as root, a missing module reported as "server did not start", `su postgres`
+inheriting `PGUSER` and breaking peer auth, schedule POSTs keyed by slot id,
+and a background server that logs "API listening" while curl gets connection
+refused). All of that now lives in the script instead of in someone's memory.
+
+`docs/agent-demo/` is agent tooling, not product: nothing there is needed to
+build, deploy or run the site. The SHIPPED demo is `compose.demo.yml` +
+`demo-seed/` and needs Docker — different thing, don't conflate them.
 
 `routes.test.js` now also covers, in rough order of how easy each is to break
 by accident: cross-tournament coach grants (a tournament admin must get 403
