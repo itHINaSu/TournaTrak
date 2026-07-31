@@ -252,15 +252,18 @@
    accent bar looks like everywhere else this pattern shows up. Color itself
    comes from data-css (border-left-color), set per-row in bracket.js. */
 .std-row--branded { border-left-width: 0.35em; border-left-style: solid; border-top-left-radius: 0; border-bottom-left-radius: 0; }
-/* A fixed-width slot between the name and the record, logo centered inside
-   it — NOT sized to hug the name (owner, 2026-08-02: "Undo moving the team
+/* A dedicated slot between the name and the record, logo centered inside it
+   — NOT sized to hug the name (owner, 2026-08-02: "Undo moving the team
    logo in standings. The record should always be right justified. Find a
    reasonable width constraint to the left of the record and center logos
    within that space"). Only rendered when a row actually has a logo, so an
    unbranded row doesn't reserve blank space — .std-main stays flex:1 either
    way, so .std-figures lands at the same right-justified position
-   regardless. */
-.std-logo-slot { width: 4.5rem; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+   regardless. Right 3/8 of the row, same fraction as .team-brand-logo-slot
+   for consistency (owner, 2026-08-02: "center the logo in the right 3/8 of
+   the div instead of 1/3" — mobile may need its own number given how much
+   more of a narrow row the team name itself needs, not yet split out). */
+.std-logo-slot { flex: 0 0 37.5%; min-width: 0; display: flex; align-items: center; justify-content: center; }
 /* Height is the sizing dimension (owner, 2026-08-02: "logos shouldn't expand
    the height of a card... should expand/shrink based on the card height") —
    comfortably under the row's own text-driven height (.std-main's two-line

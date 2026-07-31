@@ -639,15 +639,17 @@ body.print-palette .flight-col--champ {
    wash just showed as a mismatched pale box around it (owner, 2026-08-02:
    "what is happening surrounding that logo?"). A plain, unframed image
    reads correctly either way. */
-/* A dedicated right-third zone, logo centered inside it, rather than the
+/* A dedicated right-side zone, logo centered inside it, rather than the
    logo packed immediately after a variable-length name (owner, 2026-08-02:
    "Team logo should be centered on the right ~1/3 of the card in the team
    path... the preview... in coach panel" — same markup, so the fix applies
-   to both automatically). flex:0 0 33% is also the real width limit now
-   (owner, 2026-08-02: "there does need to be a limit on logo width" — a
-   wide wordmark logo was eating most of the banner/row); .team-brand-name
-   stays flex:1, so it gets whatever's left of the other ~67%. */
-.team-brand-logo-slot { flex: 0 0 33%; min-width: 0; display: flex; align-items: center; justify-content: center; }
+   to both automatically; widened to 3/8 shortly after: "center the logo in
+   the right 3/8 of the div instead of 1/3"). flex:0 0 37.5% is also the real
+   width limit (owner, 2026-08-02: "there does need to be a limit on logo
+   width" — a wide wordmark logo was eating most of the banner/row);
+   .team-brand-name stays flex:1, so it gets whatever's left of the other
+   ~62.5%. */
+.team-brand-logo-slot { flex: 0 0 37.5%; min-width: 0; display: flex; align-items: center; justify-content: center; }
 .team-brand-logo {
   /* Same height as .std-team-logo, now that the banner itself is fixed to
      the same height as a Standings row — sized well within it rather than
