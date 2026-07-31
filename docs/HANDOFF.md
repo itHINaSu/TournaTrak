@@ -3685,6 +3685,79 @@ accent 24%, var(--surface))` in `renderStandingsViewInner()`'s `rowCss`
 against the demo — visibly more present without reading as a different
 design.
 
+## IN PROGRESS, NOT YET VERIFIED: Coach panel Share (roster/lineup → image/txt/csv) (owner, 2026-08-02)
+Owner: *"Build in an option for coaches to 'share' their roster or lineups
+via the share button if clicked while in the coaches panel in either tab."*
+Follow-up on format: *"Reuse the current share selector, share, download,
+print. Add .txt and .csv to the download options alongside png, jpeg, and
+pdf."* Code is WRITTEN but this landed mid-session on an interrupt (owner
+had a separate urgent question) — **has not been visually tested in the
+demo yet.** Next session/turn: restart the demo API (coach.html markup
+changed), sign in as `coach_lopez`, open Lineups or Roster, confirm
+`#coachShareBtn` shows in the header, click it, confirm the preview canvas
+renders real rows (not blank/garbled), and exercise all five download
+formats + the Share button + Print before calling this done.
+
+**What's built, for whoever picks this up:**
+- Moved four zero-dependency helpers from `bracket.js` to `tt-common.js`
+  (`saveBlob`, `canvasBlob`, `buildPdf` — the hand-rolled PDF-from-JPEG
+  builder — and `useNativeSave`) so the coach panel can use them without
+  loading the rest of bracket.js. `bracket.js`'s own calls to them are
+  unchanged (same global names, just defined earlier now).
+- Moved the generic `.share-*` CSS (overlay/box/title/opts/preview/actions/
+  menu/hint) from `bracket.css` to `base.css`. Left `.share-themes`/
+  `.share-scope`/`.share-align`/`.share-opt-note` (bracket-only option rows)
+  and `.share-frame` (bracket's offscreen render iframe) in `bracket.css`.
+- New `#coachShareBtn` in `coach.html`'s header (shown only on Lineups/
+  Roster — `updateCoachShareBtn()`, called from `initCoachTabs()`'s click
+  handler and `restoreCoachTab()`'s no-click fallback path). New
+  `#coachShareOverlay` reusing `.share-overlay`/`.share-box` with NO option
+  rows (a table has no theme/scope/align to choose) — just a preview image
+  and Cancel/Print/Download-menu/Share.
+- `coach.js`: `buildCoachShareData()` reads whichever tab is ACTIVE right off
+  the DOM/in-memory buffer (not a fetch) — roster from `_rosterRows` (after
+  `harvestRoster()`, so in-progress typing is included, same as Save does),
+  lineup by reading `#lineupBody`'s actual `<input>`/`<select>` values plus
+  `#lineupHead`'s `<th>` text for column labels (so it always matches
+  whatever `lineupConfig()` the tournament is using, softball or otherwise,
+  without hardcoding column names). `paintCoachShareCanvas()` draws a plain
+  white-background/dark-text table (deliberately NOT theme-matched — this
+  gets read on any device by a scorekeeper or a parent, not just the coach's
+  own screen) sized to its own content via `ctx.measureText`. `.txt` is a
+  numbered plain-language list; `.csv` is a quoted-field table matching the
+  visible headers. PNG/JPEG/PDF reuse the moved `buildPdf`/`canvasBlob`;
+  Share tries `navigator.share` with the PNG file, falling back to opening
+  the Download menu (there's no public URL to fall back to the way the
+  bracket's Share can).
+
+## TABLED: /t/main tournament regenerates after delete (owner, 2026-08-02) — DO NOT proactively fix
+Owner: *"I delete it and it comes back... Table this for now. The tournament
+starts tonight and I need other features hammered out first. Add that to
+pending and ignore it unless you incidentally find it in the course of other
+work."* Owner confirmed `/t/main` is NOT their real tournament ("I will not
+have a real tournament named main") and that deleting it is followed by it
+reappearing, named "TournaTrak".
+
+**Diagnosis only, not yet verified against the live box:** `migrate.js`'s
+`ensureTournament(pool)` runs on every `store.init()` (server startup, so on
+every redeploy) and does `INSERT INTO tournaments (slug, name) VALUES
+('main', 'TournaTrak') ON CONFLICT (slug) DO NOTHING`. That's unconditional —
+it can't tell "fresh install, zero tournaments, needs a bootstrap row" apart
+from "an admin deliberately deleted their only tournament, on purpose,
+leaving zero rows" — both look identical to the DB (0 rows in
+`tournaments`). Deleting the row removes the `ON CONFLICT` target, so the
+next restart's `INSERT` succeeds again with the same default name. Separate
+from this: `tournaments.name` (the table column `ensureTournament` sets
+once) and `settings.tournamentName` (what Site Settings actually edits, and
+what every visible page reads — confirmed via grep, the two are completely
+disconnected) are two different fields that never sync — worth keeping in
+mind if/when this gets picked up, since the fix likely touches both "don't
+unconditionally recreate" AND "keep the two name fields in agreement."
+
+**Explicitly not being fixed right now** — the owner's tournament starts
+tonight and asked for this to wait. Only touch it if it comes up naturally
+while working on something else.
+
 ## Settings > Teams: click into a team for a "coach panel" of its branding (owner, 2026-08-02)
 Owner: *"I asked to not have the settings > teams have all the options on one
 page. Allow TDs to click into a team an get a 'coach panel' in setting >

@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=4.08.014">
-<link rel="stylesheet" href="/admin.css?v=4.08.014">
-<link rel="stylesheet" href="/lineup.css?v=4.08.014">
-<script src="/app-h.js?v=4.08.014"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.015">
+<link rel="stylesheet" href="/admin.css?v=4.08.015">
+<link rel="stylesheet" href="/lineup.css?v=4.08.015">
+<script src="/app-h.js?v=4.08.015"></script>
 </head>
 <body>
 
@@ -72,6 +72,35 @@
   </div>
 </div>
 
+<!-- Share roster/lineup (owner, 2026-08-02) — reuses the .share-overlay/
+     .share-box/.share-actions/.share-menu building blocks the public
+     bracket's own Share uses (now in base.css so both pages can), but with
+     no option rows: a roster/lineup table has no theme/scope/align to pick,
+     just Print/Download/Share on whatever's currently rendered. See
+     openCoachShare() in coach.js. -->
+<div class="share-overlay" id="coachShareOverlay" hidden>
+  <div class="share-box">
+    <div class="share-title" id="coachShareTitle">Share</div>
+    <div class="share-preview-wrap"><img id="coachSharePreview" class="share-preview" alt="Roster/lineup preview"></div>
+    <div class="share-actions">
+      <button class="admin-clear-btn" data-action="closeCoachShare">Cancel</button>
+      <button class="lineup-tool-btn share-act" data-action="printCoachShare" title="Send this to a printer">Print</button>
+      <span class="team-share-wrap">
+        <button class="lineup-tool-btn share-act" data-action="downloadCoachShare">Download</button>
+        <div class="share-menu share-menu--up" id="coachDownloadMenu" hidden>
+          <button class="share-menu-item" data-action="downloadCoachShareAs" data-arg="png">PNG image</button>
+          <button class="share-menu-item" data-action="downloadCoachShareAs" data-arg="jpeg">JPEG image</button>
+          <button class="share-menu-item" data-action="downloadCoachShareAs" data-arg="pdf">PDF document</button>
+          <button class="share-menu-item" data-action="downloadCoachShareAs" data-arg="txt">Text file (.txt)</button>
+          <button class="share-menu-item" data-action="downloadCoachShareAs" data-arg="csv">Spreadsheet (.csv)</button>
+        </div>
+      </span>
+      <button class="lineup-tool-btn share-act share-dl" data-action="shareCoachShare" title="Share this roster or lineup">Share</button>
+    </div>
+    <div class="share-hint" id="coachShareHint"></div>
+  </div>
+</div>
+
 <header class="site-header" id="siteHeader">
   <img id="coachSiteLogo" class="site-logo" alt="" hidden>
   <div class="header-name-block">
@@ -104,6 +133,12 @@
          also") — an installed coach panel has no browser reload button
          either. -->
     <button class="admin-public-btn" id="refreshBtn" hidden data-action="refreshNow" title="Reload the latest data">Refresh</button>
+    <!-- Only makes sense on Lineups/Roster (owner, 2026-08-02: "an option for
+         coaches to share their roster or lineups via the share button if
+         clicked while in the coaches panel in either tab") — shown/hidden per
+         tab in initCoachTabs()/restoreCoachTab(), same as the tab-specific
+         init flags below. -->
+    <button class="admin-public-btn" id="coachShareBtn" hidden data-action="openCoachShare" title="Share this roster or lineup">Share</button>
     <a href="/" class="admin-public-btn">← Bracket</a>
     <!-- Staff (admin/results) who are ALSO viewing the coach panel — either
          because they coach a team themselves, or because they're checking
@@ -451,11 +486,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.014"></script>
-<script src="/theme-css.js?v=4.08.014"></script>
-<script src="/tt-common.js?v=4.08.014"></script>
-<script src="/bracket-data.js?v=4.08.014"></script>
-<script src="/lineup.js?v=4.08.014"></script>
-<script src="/coach.js?v=4.08.014"></script>
+<script src="/settings-defaults.js?v=4.08.015"></script>
+<script src="/theme-css.js?v=4.08.015"></script>
+<script src="/tt-common.js?v=4.08.015"></script>
+<script src="/bracket-data.js?v=4.08.015"></script>
+<script src="/lineup.js?v=4.08.015"></script>
+<script src="/coach.js?v=4.08.015"></script>
 </body>
 </html>

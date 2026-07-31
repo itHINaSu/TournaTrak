@@ -2339,38 +2339,10 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
 @media (pointer: coarse) { .project-clear { min-height: 44px; } }
 @media print { .project-bar { display: none !important; } }
 
-/* ── Share menu (desktop fallback for navigator.share) ── */
-.team-share-wrap { position: relative; display: inline-flex; }
-.share-menu {
-  position: absolute;
-  top: calc(100% + 0.4em);
-  right: 0;
-  z-index: 200;
-  min-width: 11em;
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border: 0.07em solid var(--border);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 0.5em 1.6em rgba(0,0,0,0.35);
-  overflow: hidden;
-}
-.share-menu-item {
-  padding: 0.7em 1em;
-  font-family: 'Barlow', sans-serif;
-  font-size: var(--text-sm);
-  color: var(--text);
-  text-align: left;
-  text-decoration: none;
-  background: none;
-  border: 0;
-  border-bottom: 0.07em solid var(--border);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.share-menu-item:last-child { border-bottom: 0; }
-.share-menu-item:hover { background: color-mix(in srgb, var(--blue) 14%, transparent); color: var(--blue-lt); }
-@media (pointer: coarse) { .share-menu-item { min-height: 44px; display: flex; align-items: center; } }
+/* .share-* generic building blocks (overlay/box/menu/actions/etc.) moved to
+   base.css (owner, 2026-08-02) — the coach panel's own Share needs them too,
+   and coach.html doesn't load this file. .share-themes/.share-scope/
+   .share-align/.share-opt-note stay here — bracket-specific option rows. */
 
 /* ── Team Path "What if?" stepper ── */
 .pathproj-box { max-width: 30rem; }
@@ -2751,90 +2723,13 @@ body.print-palette .bc-proj-chip {
 .team-path-win-label--loss { color: var(--lose-color); }
 
 /* ── Share bracket as an image ──────────────────────────────────────── */
-.share-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 1.5em;
-}
-.share-box {
-  background: var(--surface);
-  border: 0.07em solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 1.2em;
-  max-width: min(92vw, 60em);
-  max-height: 88vh;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8em;
-}
-.share-title {
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.95rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text);
-}
-.share-opts { display: flex; flex-wrap: wrap; gap: 1em; }
-.share-opt {
-  display: flex;
-  align-items: center;
-  gap: 0.45em;
-  font-family: 'Barlow', sans-serif;
-  font-size: var(--text-sm);
-  color: var(--text-dim);
-  cursor: pointer;
-}
-/* Checkerboard so a transparent-background render is still readable. */
-.share-preview-wrap {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: auto;
-  border: 0.07em solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface2);
-}
-.share-preview { display: block; max-width: 100%; height: auto; }
-.share-actions { display: flex; align-items: center; justify-content: flex-end; gap: 0.6em; flex-wrap: wrap; }
-/* Cancel goes hard left so the three things you can DO with the bracket sit
-   together on the right, in the order you'd reach for them. */
-.share-actions .admin-clear-btn { margin-right: auto; }
-/* .flight-pill is flex:1 because the flight row divides its width between the
-   pills. These are actions in a toolbar, not a segmented control — each one
-   sizes to its own label. */
-.share-act { flex: 0 0 auto; min-height: 2.5rem; padding-left: 1.1em; padding-right: 1.1em; }
-.share-dl { background: var(--blue); border-color: var(--blue); color: #fff; }
-/* The dialog's action row is at its BOTTOM, so its menus open upward — the
-   downward one would land off the box. */
-.share-menu--up { top: auto; bottom: calc(100% + 0.4em); }
-@media (pointer: coarse) {
-  .share-act { min-height: 44px; }
-}
-/* Narrow screens: the three actions share one row and Cancel drops to its own
-   line under them. Left as-is they wrapped one at a time, stranding Share —
-   the primary action — alone at the bottom right looking like an afterthought. */
-@media (max-width: 34rem) {
-  .share-actions { gap: 0.5em; }
-  .share-act, .share-actions .team-share-wrap { flex: 1 1 0; }
-  .share-actions .team-share-wrap .share-act { width: 100%; }
-  .share-actions .admin-clear-btn { order: 9; flex: 1 1 100%; margin-right: 0; }
-}
-.share-hint {
-  font-family: 'Barlow', sans-serif;
-  font-size: var(--text-xs);
-  color: var(--text-mute);
-  text-align: right;
-}
-
 /* Offscreen render frame for the image exporter. It must actually LAY OUT
    (the bracket is sized in vw/vh and measured with getBoundingClientRect),
    so it can't be display:none or zero-sized — it is parked off-canvas
    instead. Fixed size = the virtual desktop viewport the image is rendered
-   at, so a phone still exports the full desktop bracket. */
+   at, so a phone still exports the full desktop bracket. Bracket-specific
+   (the coach panel's Share renders a plain table, no offscreen frame needed),
+   so this one stays here rather than moving to base.css with the rest. */
 .share-frame {
   position: fixed;
   left: -20000px;

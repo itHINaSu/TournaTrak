@@ -99,6 +99,7 @@ function initCoachTabs() {
         initTeamTab();
       }
       try { localStorage.setItem('ttCoachTab', name); } catch (e) {}
+      updateCoachShareBtn();
     });
   });
 }
@@ -109,8 +110,10 @@ function restoreCoachTab() {
   var target = saved && document.querySelector('.admin-tab[data-tab="' + saved + '"]');
   if (target) { target.click(); return; }
   // Lineups is the default and is already marked active in the markup, so it
-  // needs its init kicked off by hand.
+  // needs its init kicked off by hand — same for the Share button's visibility,
+  // which the click handler normally sets (this path never fires a click).
   if (!window._lineupInitDone) { window._lineupInitDone = true; lineupInit(); }
+  updateCoachShareBtn();
 }
 
 async function initCoachPanel() {
@@ -773,6 +776,288 @@ async function coachLogout() {
   window.location.href = '/';
 }
 
+// ── Share roster/lineup (owner, 2026-08-02) ─────────────────────────────
+// "Build in an option for coaches to share their roster or lineups via the
+// share button if clicked while in the coaches panel in either tab." One
+// button in the persistent header (shown only on Lineups/Roster — see
+// updateCoachShareBtn, called from initCoachTabs()/restoreCoachTab()), so
+// there's one Share affordance rather than duplicating it into two
+// differently-shaped tab toolbars. Renders whichever of the two tabs is
+// active as a plain table image — no theme/scope/align options like the
+// bracket's own Share, since there's nothing here for those to mean.
+function updateCoachShareBtn() {
+  var btn = document.getElementById('coachShareBtn');
+  if (!btn) return;
+  var active = document.querySelector('.admin-tab.active');
+  var tab = active && active.dataset.tab;
+  btn.hidden = !(tab === 'lineups' || tab === 'roster');
+}
+
+// Reads whatever's actually on screen, not a separate data model — a coach
+// mid-edit sees exactly what they're about to share, typos included, same
+// as the bracket's Share always matching the live page.
+function buildCoachShareData() {
+  var active = document.querySelector('.admin-tab.active');
+  var tab = active && active.dataset.tab;
+  if (tab === 'roster') {
+    harvestRoster();   // pull in-progress typing before reading the buffer
+    var teamLabel = (document.getElementById('coachTeamLine') || {}).textContent || '';
+    var rows = _rosterRows.filter(function(r) { return !isBlankRosterRow(r); }).map(function(r) {
+      return [(r.jerseys || []).join(', '), r.name || '', r.position || ''];
+    });
+    return { title: (teamLabel || 'Team') + ' — Roster', subtitle: '', headers: ['#', 'Player Name', 'Position'], rows: rows };
+  }
+  if (tab === 'lineups') {
+    var headCells = Array.prototype.slice.call(document.querySelectorAll('#lineupHead th'))
+      .filter(function(th) { return !th.classList.contains('lineup-th--order'); });
+    var headers = headCells.map(function(th) { return th.textContent.trim(); });
+    var rows = [];
+    document.querySelectorAll('#lineupBody tr.lineup-row').forEach(function(tr) {
+      var cells = Array.prototype.slice.call(tr.children).filter(function(td) {
+        return !td.classList.contains('lineup-td-order');
+      });
+      var vals = cells.map(function(td) {
+        var inp = td.querySelector('input');
+        if (inp) return inp.value.trim();
+        var sel = td.querySelector('select');
+        if (sel && sel.selectedIndex >= 0) return sel.options[sel.selectedIndex].text.trim();
+        var sub = td.querySelector('.lineup-sub-tag');
+        if (sub) return sub.textContent.trim();
+        return td.textContent.trim();
+      });
+      if (vals.every(function(v) { return !v; })) return;   // blank row, skip
+      rows.push(vals);
+    });
+    var teamNameEl = document.getElementById('lineupTeamName');
+    var gameSel = document.getElementById('lineupGameSelect');
+    var gameText = gameSel && gameSel.selectedIndex >= 0 ? gameSel.options[gameSel.selectedIndex].text.trim() : '';
+    return {
+      title: ((teamNameEl && teamNameEl.textContent) || 'Team') + ' — Lineup',
+      subtitle: gameText,
+      headers: headers, rows: rows,
+    };
+  }
+  return null;
+}
+
+// Column widths sized to their own content (header vs every row, whichever
+// is widest) rather than a fixed split — a jersey-number column and a name
+// column have nothing in common to divide space evenly by.
+function coachShareColWidths(ctx, headers, rows) {
+  return headers.map(function(h, i) {
+    var w = ctx.measureText(h.toUpperCase()).width;
+    rows.forEach(function(r) { w = Math.max(w, ctx.measureText(r[i] || '').width); });
+    return w + 48;   // breathing room between columns
+  });
+}
+
+// Plain print-style table (white background, dark text) — a roster handed
+// to a scorekeeper or texted to a parent is read on any device in any
+// theme, so it deliberately ignores the app's own dark/light setting rather
+// than risk white-on-white or unreadable low-contrast combinations.
+function paintCoachShareCanvas(data) {
+  var scale = 2, PAD = 40, TITLE_H = 46, SUB_H = data.subtitle ? 30 : 0, HEAD_H = 40, ROW_H = 40;
+  var probe = document.createElement('canvas').getContext('2d');
+  probe.font = '15px Barlow, sans-serif';
+  var colW = coachShareColWidths(probe, data.headers, data.rows);
+  var totalW = colW.reduce(function(a, b) { return a + b; }, 0);
+  var W = Math.max(totalW + PAD * 2, 320);
+  var H = PAD * 2 + TITLE_H + SUB_H + HEAD_H + Math.max(data.rows.length, 1) * ROW_H;
+  var canvas = document.createElement('canvas');
+  canvas.width = W * scale; canvas.height = H * scale;
+  var ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = 'alphabetic';
+  var y = PAD;
+  ctx.fillStyle = '#14161a';
+  ctx.font = 'bold 24px Oswald, sans-serif';
+  ctx.fillText(data.title, PAD, y + 22);
+  y += TITLE_H;
+  if (data.subtitle) {
+    ctx.font = '15px Barlow, sans-serif';
+    ctx.fillStyle = '#555c66';
+    ctx.fillText(data.subtitle, PAD, y + 14);
+    y += SUB_H;
+  }
+  ctx.font = 'bold 13px Barlow, sans-serif';
+  ctx.fillStyle = '#8a6d1a';
+  var x = PAD;
+  data.headers.forEach(function(h, i) { ctx.fillText(h.toUpperCase(), x, y + 16); x += colW[i]; });
+  ctx.strokeStyle = '#c49a1a';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(PAD, y + 26); ctx.lineTo(PAD + totalW, y + 26); ctx.stroke();
+  y += HEAD_H;
+  if (!data.rows.length) {
+    ctx.font = '15px Barlow, sans-serif';
+    ctx.fillStyle = '#8a8f98';
+    ctx.fillText('Nothing to share yet.', PAD, y + 16);
+  }
+  data.rows.forEach(function(row, ri) {
+    if (ri % 2 === 1) {
+      ctx.fillStyle = '#f2f2f2';
+      ctx.fillRect(PAD - 12, y - 2, totalW + 24, ROW_H);
+    }
+    ctx.fillStyle = '#14161a';
+    ctx.font = '15px Barlow, sans-serif';
+    var xx = PAD;
+    row.forEach(function(val, ci) { ctx.fillText(val || '—', xx, y + 22); xx += colW[ci]; });
+    y += ROW_H;
+  });
+  return canvas;
+}
+
+var _coachShareCanvas = null;
+var _coachShareFiles = null;
+var _coachShareData = null;
+
+function coachShareFileBase() {
+  var t = (_coachShareData && _coachShareData.title) || 'share';
+  return t.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'share';
+}
+
+function coachShareRowsToText() {
+  var d = _coachShareData;
+  if (!d) return '';
+  var lines = [d.title];
+  if (d.subtitle) lines.push(d.subtitle);
+  lines.push('');
+  d.rows.forEach(function(row, i) {
+    lines.push((i + 1) + '. ' + row.filter(function(v) { return v; }).join(' — '));
+  });
+  return lines.join('\n') + '\n';
+}
+
+function coachShareRowsToCsv() {
+  var d = _coachShareData;
+  if (!d) return '';
+  function q(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
+  var lines = [d.headers.map(q).join(',')];
+  d.rows.forEach(function(row) { lines.push(row.map(q).join(',')); });
+  return lines.join('\r\n') + '\r\n';
+}
+
+async function prepareCoachShareFiles() {
+  _coachShareFiles = null;
+  if (!_coachShareCanvas || typeof File === 'undefined') return;
+  var pngBlob = await canvasBlob(_coachShareCanvas, 'image/png');
+  var jpegBlob = await canvasBlob(_coachShareCanvas, 'image/jpeg', 0.92);
+  var jpegBytes = new Uint8Array(await jpegBlob.arrayBuffer());
+  var pdfBlob = buildPdf([{ width: _coachShareCanvas.width, height: _coachShareCanvas.height, jpeg: jpegBytes }]);
+  var base = coachShareFileBase();
+  _coachShareFiles = {
+    png:  [new File([pngBlob], base + '.png', { type: 'image/png' })],
+    jpeg: [new File([jpegBlob], base + '.jpg', { type: 'image/jpeg' })],
+    pdf:  [new File([pdfBlob], base + '.pdf', { type: 'application/pdf' })],
+  };
+}
+
+function refreshCoachShareCanvas() {
+  var img = document.getElementById('coachSharePreview');
+  var hint = document.getElementById('coachShareHint');
+  var title = document.getElementById('coachShareTitle');
+  var data = buildCoachShareData();
+  if (!data) { closeCoachShare(); return; }
+  _coachShareData = data;
+  if (title) title.textContent = data.title;
+  _coachShareCanvas = paintCoachShareCanvas(data);
+  if (img) img.src = _coachShareCanvas.toDataURL('image/png');
+  if (hint) hint.textContent = data.rows.length + (data.rows.length === 1 ? ' player' : ' players');
+  prepareCoachShareFiles();
+}
+
+function openCoachShare() {
+  var ov = document.getElementById('coachShareOverlay');
+  if (!ov) return;
+  ov.hidden = false;
+  refreshCoachShareCanvas();
+}
+
+function closeCoachShare() {
+  var ov = document.getElementById('coachShareOverlay');
+  if (ov) ov.hidden = true;
+  var menu = document.getElementById('coachDownloadMenu');
+  if (menu) menu.hidden = true;
+}
+
+function downloadCoachShare() {
+  var menu = document.getElementById('coachDownloadMenu');
+  if (!menu) return;
+  menu.hidden = !menu.hidden;
+}
+
+function downloadCoachShareAs(fmt) {
+  var menu = document.getElementById('coachDownloadMenu');
+  if (menu) menu.hidden = true;
+  var base = coachShareFileBase();
+  if (fmt === 'txt') {
+    saveBlob(new Blob([coachShareRowsToText()], { type: 'text/plain' }), base + '.txt');
+    closeCoachShare();
+    return;
+  }
+  if (fmt === 'csv') {
+    saveBlob(new Blob([coachShareRowsToCsv()], { type: 'text/csv' }), base + '.csv');
+    closeCoachShare();
+    return;
+  }
+  var files = _coachShareFiles && _coachShareFiles[fmt];
+  var hint = document.getElementById('coachShareHint');
+  if (files && useNativeSave(files)) {
+    navigator.share({ files: files, title: (_coachShareData && _coachShareData.title) || 'Share' })
+      .then(function() { closeCoachShare(); })
+      .catch(function(err) {
+        if (err && err.name === 'AbortError') return;
+        if (files) { files.forEach(function(f) { saveBlob(f, f.name); }); closeCoachShare(); }
+      });
+    return;
+  }
+  if (files) {
+    files.forEach(function(f) { saveBlob(f, f.name); });
+    closeCoachShare();
+  } else if (hint) {
+    hint.textContent = 'Preparing…';
+  }
+}
+
+function shareCoachShare() {
+  var png = _coachShareFiles && _coachShareFiles.png;
+  var text = (_coachShareData && _coachShareData.title) || 'Share';
+  if (png && navigator.canShare && navigator.canShare({ files: png })) {
+    navigator.share({ files: png, title: text }).catch(function(err) {
+      if (err && err.name === 'AbortError') return;
+    });
+    return;
+  }
+  // No file-sharing sheet available (most desktop browsers) — Download is
+  // the equivalent action there, so open the same menu Download would.
+  downloadCoachShare();
+}
+
+// Print through a hidden iframe, same approach as the bracket's own Share —
+// no popup blocker, no browser chrome, disposes of itself.
+function printCoachShare() {
+  if (!_coachShareCanvas) return;
+  var ifr = document.createElement('iframe');
+  ifr.className = 'share-frame';
+  ifr.setAttribute('aria-hidden', 'true');
+  document.body.appendChild(ifr);
+  var doc = ifr.contentDocument;
+  doc.open();
+  doc.write('<!doctype html><html><head><title>' + esc((_coachShareData && _coachShareData.title) || 'Share') + '</title>'
+    + '<style>@page{margin:8mm}html,body{margin:0;padding:0;background:#fff}'
+    + 'img{display:block;max-width:100%;height:auto}</style></head><body>'
+    + '<img src="' + _coachShareCanvas.toDataURL('image/png') + '"></body></html>');
+  doc.close();
+  var img = doc.images[0];
+  function go() {
+    try { ifr.contentWindow.focus(); ifr.contentWindow.print(); } catch (e) {}
+    setTimeout(function() { ifr.remove(); }, 60000);
+  }
+  if (!img || img.complete) go();
+  else { img.onload = go; img.onerror = go; }
+}
+
 Object.assign(TT_ACTIONS, {
   saveCoachUsername: function () { saveCoachUsername(); },
   saveCoachPassword: function () { saveCoachPassword(); },
@@ -784,6 +1069,12 @@ Object.assign(TT_ACTIONS, {
   saveTeamProfile:   function () { saveTeamProfile(); },
   removeTeamTabLogo: function () { removeTeamTabLogo(); },
   clearTeamTabColor: function (arg) { clearTeamTabColor(arg); },
+  openCoachShare:       function () { openCoachShare(); },
+  closeCoachShare:      function () { closeCoachShare(); },
+  printCoachShare:      function () { printCoachShare(); },
+  downloadCoachShare:   function () { downloadCoachShare(); },
+  downloadCoachShareAs: function (arg) { downloadCoachShareAs(arg); },
+  shareCoachShare:      function () { shareCoachShare(); },
 });
 
 initCoachPanel();

@@ -255,6 +255,107 @@ function ttIsPwa() {
   return window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
 }
 
+// ── File-saving primitives (Share/Download, any canvas-based image) ─────
+// Originally bracket.js-only; moved here (owner, 2026-08-02) so the coach
+// panel's own Share (roster/lineup) can use the same download/PDF/native-
+// share machinery without loading the rest of bracket.js. None of these
+// carry bracket-specific logic — pure functions over a canvas/blob/file.
+function saveBlob(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoking immediately can cancel the download in some browsers; the click
+  // has certainly been consumed long before this fires.
+  setTimeout(function() { URL.revokeObjectURL(url); }, 10000);
+}
+
+function canvasBlob(canvas, mime, quality) {
+  return new Promise(function(resolve, reject) {
+    canvas.toBlob(function(b) { b ? resolve(b) : reject(new Error('toBlob failed')); }, mime, quality);
+  });
+}
+
+// ── PDF ───────────────────────────────────────────────────────────────
+// Hand-built, because script-src is 'self': a PDF library would have to be
+// vendored and kept current, and this needs exactly one feature — a page per
+// image. The JPEG goes in verbatim as a DCTDecode XObject, which is the one
+// image format a PDF can carry with no re-encoding on our side.
+//
+// Pages are the image's own size at 96dpi (px × 0.75 = pt), so a wide image
+// stays a wide page and the printer's "fit to page" does the rest. Forcing
+// Letter here would letterbox every image into a stripe up the middle.
+function buildPdf(pages) {
+  var enc = new TextEncoder();
+  var chunks = [], length = 0;
+  function push(part) {
+    var b = typeof part === 'string' ? enc.encode(part) : part;
+    chunks.push(b); length += b.length;
+    return length;
+  }
+  var offsets = [0];                       // object 0 is the free-list head
+  function startObj(n) { offsets[n] = length; }
+
+  push('%PDF-1.4\n');
+  // The conventional "this file is binary, do not translate line endings"
+  // marker. Pushed as raw bytes: through TextEncoder those four would come out
+  // as eight bytes of UTF-8 and stop being the marker.
+  push(new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]));
+  // 1 = catalog, 2 = page tree, then 3 objects per page (page, content, image)
+  var pageIds = pages.map(function(_, i) { return 3 + i * 3; });
+  startObj(1);
+  push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
+  startObj(2);
+  push('2 0 obj\n<< /Type /Pages /Kids [' + pageIds.map(function(id) { return id + ' 0 R'; }).join(' ')
+    + '] /Count ' + pages.length + ' >>\nendobj\n');
+
+  pages.forEach(function(pg, i) {
+    var pageId = pageIds[i], contentId = pageId + 1, imgId = pageId + 2;
+    var w = Math.round(pg.width * 0.75), h = Math.round(pg.height * 0.75);
+    startObj(pageId);
+    push(pageId + ' 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + w + ' ' + h + ']'
+      + ' /Resources << /XObject << /Im0 ' + imgId + ' 0 R >> >>'
+      + ' /Contents ' + contentId + ' 0 R >>\nendobj\n');
+    var content = 'q ' + w + ' 0 0 ' + h + ' 0 0 cm /Im0 Do Q\n';
+    startObj(contentId);
+    push(contentId + ' 0 obj\n<< /Length ' + content.length + ' >>\nstream\n' + content + 'endstream\nendobj\n');
+    startObj(imgId);
+    push(imgId + ' 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + pg.width + ' /Height ' + pg.height
+      + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + pg.jpeg.length + ' >>\nstream\n');
+    push(pg.jpeg);
+    push('\nendstream\nendobj\n');
+  });
+
+  var total = 3 + pages.length * 3;
+  var xref = length;
+  var table = 'xref\n0 ' + total + '\n0000000000 65535 f \n';
+  for (var n = 1; n < total; n++) {
+    table += ('0000000000' + (offsets[n] || 0)).slice(-10) + ' 00000 n \n';
+  }
+  push(table);
+  push('trailer\n<< /Size ' + total + ' /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+
+  var out = new Uint8Array(length), at = 0;
+  chunks.forEach(function(c) { out.set(c, at); at += c.length; });
+  return new Blob([out], { type: 'application/pdf' });
+}
+
+// A phone has no visible Downloads folder, and in an INSTALLED PWA an
+// <a download> frequently does nothing at all. The share sheet is the
+// phone's own save UI ("Save Image", "Save to Files"), so that is what
+// Download should open there. Gated on a coarse pointer rather than on
+// canShare alone: desktop Chrome can share files too, and a share sheet is
+// not what "Download" means on a laptop.
+function useNativeSave(files) {
+  return !!files
+    && window.matchMedia('(pointer: coarse)').matches
+    && !!navigator.canShare
+    && navigator.canShare({ files: files });
+}
+
 // ── Manual refresh (header button + pull-to-refresh) ──────────────────
 // Originally bracket.js-only (2026-08-02, owner: "an installed PWA has no
 // browser chrome, so there is no reload button and no way to force a fetch
