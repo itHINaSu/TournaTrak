@@ -4369,6 +4369,40 @@ function renderMobileBracket(root, dims) {
     var lb = feeds.filter(function(s) { return !isWBGame(s.slot); });
     if (wb.length !== 1 || lb.length !== 1) return;   // not a WB+LB pair
     var pulled = [wb[0].slot, lb[0].slot];
+    var finalsDivs = [
+      { idx: 0, label: (getSetting('leftLabel') || 'Winners') + ' Final' },
+      { idx: 1, label: (getSetting('rightLabel') || 'Losers') + ' Final' },
+    ];
+    // The LB SEMIFINAL joins the finals column too, below both finals, behind
+    // the TD-configurable play-in divider (owner, 2026-08-02: "Merge into
+    // finals. The heading for that game is that play[-in] game label that we
+    // built out in the admin settings panel so that it separates that round
+    // from the finals round"). This is a deliberate EXCEPTION to the
+    // two-winner rule that governs every other column: the LB semifinal
+    // pairs two LB winners, so the rule on its own would give it a column —
+    // the owner wants the whole endgame on one page instead, which the rule
+    // cannot derive and must therefore be stated here.
+    //
+    // Guarded to a single game: "in a true double elimination there will
+    // never be two games in the losers bracket semifinal" (the winner goes
+    // on to play the WB final's loser), so a round that somehow holds more
+    // than one is not the game this exception is about and is left where the
+    // rule put it, rather than dragging a whole round into the finals page.
+    var lbFinalGame = GAMES[lb[0].slot];
+    var semiFeed = lbFinalGame && [lbFinalGame.t1, lbFinalGame.t2].filter(function(s) {
+      return s && s.type === 'winner' && s.slot && GAMES[s.slot];
+    })[0];
+    if (semiFeed) {
+      var semiGame = GAMES[semiFeed.slot];
+      var sameRound = Object.keys(GAMES).filter(function(gid) {
+        var gm = GAMES[gid];
+        return gm.round === semiGame.round && gm.side === semiGame.side && !gm.tier;
+      });
+      if (sameRound.length === 1) {
+        pulled.push(semiFeed.slot);
+        finalsDivs.push({ idx: 2, label: getSetting('playInLabel') });
+      }
+    }
     pulled.forEach(function(gid) {
       cols.forEach(function(col) {
         var idx = col.gids.indexOf(gid);
@@ -4386,11 +4420,7 @@ function renderMobileBracket(root, dims) {
     // never in `pulled`, so nothing above ever removed it) — just insert the
     // new Finals column right before it.
     cols.splice(champIdx, 0, {
-      round: 'FINALS', label: 'Finals', gids: pulled,
-      divs: [
-        { idx: 0, label: (getSetting('leftLabel') || 'Winners') + ' Final' },
-        { idx: 1, label: (getSetting('rightLabel') || 'Losers') + ' Final' },
-      ],
+      round: 'FINALS', label: 'Finals', gids: pulled, divs: finalsDivs,
     });
   })();
 
