@@ -1639,3 +1639,119 @@ input[type="time"]:focus {
 }
 .user-coach-none { font-size: 0.78rem; color: var(--text-mute); font-style: italic; }
 .user-coach-row .coach-add-team-row { flex: 0 0 100%; }
+
+/* ── Move Game Times (long rain delay) ──────────────────────────────────
+   Sits under the offset controls in the Delays panel. The offset annotates a
+   printed time; this rewrites it. */
+.resched-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.4em;
+  flex-wrap: wrap;
+}
+.resched-count { font-size: 0.72rem; color: var(--text-dim); }
+
+/* Capped and scrollable: a 61-game event would otherwise bury the controls
+   below it, and this list sits in the middle of a form. */
+.resched-list {
+  max-height: 15em;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface);
+}
+/* Scoped to .settings-field the same way .lineup-req-opt above is, and for
+   exactly the same reason: `.settings-field label` is display:block, uppercase
+   and dimmed — right for a field caption, wrong for a row of controls. Without
+   the extra specificity these rows do not flex at all and the checkbox strands
+   itself at the far right. */
+.settings-field .resched-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  padding: 0.36em 0.6em;
+  margin-bottom: 0;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.76rem;
+  letter-spacing: normal;
+  text-transform: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.settings-field .resched-row:last-child { border-bottom: none; }
+/* `.settings-field input` is width:100%, sized for the text fields that make
+   up the rest of this panel. Applied to a checkbox it produces a ~975px-wide
+   control that shoves the row's own text off the right-hand edge — the text is
+   present and correctly coloured, just parked outside the row. Same family of
+   trap as the display:block one above: a panel-wide input rule meets a control
+   that is not a text box. */
+.settings-field .resched-chk {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+.resched-when { color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.resched-lbl  { color: var(--text-dim); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Only the LIST rows let the label absorb slack — in a preview row that would
+   shove the from → to pair against the far edge, away from the game it
+   belongs to. */
+.resched-list .resched-lbl { flex: 1; }
+.resched-fld  { color: var(--text-mute); font-size: 0.7rem; white-space: nowrap; margin-left: auto; }
+
+.resched-mode-row { display: flex; gap: 1.1em; flex-wrap: wrap; }
+/* Same override as the rows above — these are choices, not field captions. */
+.settings-field .resched-mode-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  margin-bottom: 0;
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text);
+  cursor: pointer;
+}
+/* Same width:100% trap as the row checkboxes. */
+.settings-field .resched-mode-row input { width: auto; margin: 0; padding: 0; flex: 0 0 auto; }
+.settings-field .resched-mode-row label { white-space: nowrap; }
+.resched-shift-row { display: flex; align-items: center; gap: 0.4em; }
+
+.resched-preview {
+  margin-top: 0.7em;
+  padding: 0.6em 0.7em;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface2);
+}
+.resched-preview-hdr {
+  font-size: 0.78rem;
+  color: var(--text);
+  margin-bottom: 0.45em;
+  font-weight: 600;
+}
+.resched-move {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 0.74rem;
+  padding: 0.18em 0;
+  flex-wrap: wrap;
+}
+.resched-from  { color: var(--text-mute); text-decoration: line-through; white-space: nowrap; }
+.resched-arrow { color: var(--text-mute); }
+.resched-to    { color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* A move that crosses to a different DAY is the one a TD most needs to spot
+   before applying — a Saturday game landing on Sunday is usually a typo in
+   the shift amount. */
+.resched-to--day { color: var(--gold-lt); font-weight: 600; }
+.resched-note {
+  margin-top: 0.55em;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+.resched-err { font-size: 0.76rem; color: var(--lose-color); }

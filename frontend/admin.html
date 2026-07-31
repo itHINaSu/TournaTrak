@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.034">
-<link rel="stylesheet" href="/admin.css?v=4.08.034">
-<link rel="stylesheet" href="/lineup.css?v=4.08.034">
-<link rel="stylesheet" href="/builder.css?v=4.08.034">
-<link rel="stylesheet" href="/score.css?v=4.08.034">
-<script src="/app-h.js?v=4.08.034"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.035">
+<link rel="stylesheet" href="/admin.css?v=4.08.035">
+<link rel="stylesheet" href="/lineup.css?v=4.08.035">
+<link rel="stylesheet" href="/builder.css?v=4.08.035">
+<link rel="stylesheet" href="/score.css?v=4.08.035">
+<script src="/app-h.js?v=4.08.035"></script>
 </head>
 <body>
 
@@ -1146,6 +1146,67 @@
       <span class="sched-status" id="delayBannerStatus"></span>
     </div>
   </div>
+  <!-- The offset above is a DISPLAY badge: it annotates the printed time and
+       vanishes once a result lands. This section is the other thing a long
+       rain delay needs — actually rewriting the times on the cards, because
+       "+180 min" on every Saturday game is not a schedule anyone can read.
+       Both exist on purpose; the offset is for "running late", this is for
+       "the day has moved". -->
+  <div class="settings-section">
+    <div class="settings-section-hdr">Move Game Times</div>
+    <div class="admin-subtitle admin-subtitle--flush">Rewrites the real start times on the cards. Pick the games, choose how they move, then preview before applying. Undo restores the previous schedule.</div>
+
+    <div class="settings-field" id="reschedDayWrap">
+      <label>Day <span class="field-label-hint">(none selected = all days)</span></label>
+      <div class="delay-chip-row" id="reschedDayChips"></div>
+    </div>
+    <div class="settings-field" id="reschedFieldWrap">
+      <label>Field <span class="field-label-hint">(none selected = all fields)</span></label>
+      <div class="delay-chip-row" id="reschedFieldChips"></div>
+    </div>
+
+    <div class="settings-field">
+      <label>Games <span class="field-label-hint">(tick the ones to move)</span></label>
+      <div class="resched-toolbar">
+        <button class="admin-clear-btn" data-action="reschedSelectAll">Select all shown</button>
+        <button class="admin-clear-btn" data-action="reschedSelectNone">Clear selection</button>
+        <span class="resched-count" id="reschedCount"></span>
+      </div>
+      <div class="resched-list" id="reschedList"></div>
+    </div>
+
+    <div class="settings-field">
+      <label>How they move</label>
+      <div class="resched-mode-row">
+        <label class="share-opt"><input type="radio" name="reschedMode" value="shift" checked data-action-change="reschedModeChange"> Shift by an amount</label>
+        <label class="share-opt"><input type="radio" name="reschedMode" value="restart" data-action-change="reschedModeChange"> Restart at a set time</label>
+      </div>
+    </div>
+
+    <div class="settings-field" id="reschedShiftWrap">
+      <label>Shift by <span class="field-label-hint">(negative moves games earlier)</span></label>
+      <div class="resched-shift-row">
+        <input type="number" id="reschedHours" placeholder="0" class="u-maxw-10"> <span class="dt-sep">h</span>
+        <input type="number" id="reschedMins" placeholder="0" class="u-maxw-10"> <span class="dt-sep">min</span>
+      </div>
+    </div>
+
+    <div class="settings-field" id="reschedRestartWrap" hidden>
+      <!-- The whole selection moves as a block: the EARLIEST selected game
+           lands on this time and every other selected game keeps its existing
+           gap behind it. Three washed-out games an hour apart stay an hour
+           apart. -->
+      <label>Earliest selected game restarts at <span class="field-label-hint">(the rest keep their spacing)</span></label>
+      <div id="reschedRestartAt"></div>
+    </div>
+
+    <div class="settings-save-row">
+      <button class="sched-save-btn" data-action="reschedPreview">Preview</button>
+      <span class="sched-status" id="reschedStatus"></span>
+    </div>
+    <div class="resched-preview" id="reschedPreview" hidden></div>
+  </div>
+
   <div class="settings-section">
     <div class="settings-section-hdr">Active Offsets</div>
     <div id="activeOffsetsList"></div>
@@ -1156,15 +1217,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.08.034"></script>
-<script src="/theme-css.js?v=4.08.034"></script>
-<script src="/tt-common.js?v=4.08.034"></script>
-<script src="/bracket-data.js?v=4.08.034"></script>
-<script src="/admin.js?v=4.08.034"></script>
-<script src="/lineup.js?v=4.08.034"></script>
-<script src="/score.js?v=4.08.034"></script>
-<script src="/builder-form.js?v=4.08.034"></script>
-<script src="/builder.js?v=4.08.034"></script>
-<script src="/sw-register.js?v=4.08.034" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.035"></script>
+<script src="/theme-css.js?v=4.08.035"></script>
+<script src="/tt-common.js?v=4.08.035"></script>
+<script src="/bracket-data.js?v=4.08.035"></script>
+<script src="/admin.js?v=4.08.035"></script>
+<script src="/lineup.js?v=4.08.035"></script>
+<script src="/score.js?v=4.08.035"></script>
+<script src="/builder-form.js?v=4.08.035"></script>
+<script src="/builder.js?v=4.08.035"></script>
+<script src="/sw-register.js?v=4.08.035" data-sw="/admin-sw.js"></script>
 </body>
 </html>

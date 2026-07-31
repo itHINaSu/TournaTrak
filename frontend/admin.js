@@ -3351,6 +3351,7 @@ function setSchedMode(mode) {
     slot.appendChild(dPanel);
     dPanel.hidden = false;
     renderDelaysAdmin();
+    renderReschedule();
   } else if (dPanel) {
     dPanel.hidden = true;
   }
@@ -3407,7 +3408,7 @@ function setResultsMode(mode) {
   if (saveBtn)  saveBtn.hidden = !(mode === 'buckets');
   if (saveStat) saveStat.hidden = !(mode === 'buckets');
   if (mode === 'buckets') renderBucketAdmin();
-  if (mode === 'delays')  renderDelaysAdmin();
+  if (mode === 'delays')  { renderDelaysAdmin(); renderReschedule(); }
   // Reload every time it opens: a scorekeeper coming back to this sub-tab
   // after working elsewhere must not be shown a stale board.
   if (mode === 'live' && typeof scoreInit === 'function') scoreInit();
@@ -3508,6 +3509,263 @@ function renderDelaysAdmin() {
       + '</div>';
   });
   list.innerHTML = html;
+}
+
+// ── Move Game Times (long rain delay) ─────────────────────────────────
+//
+// The offset above annotates a printed time and disappears once a result is
+// recorded — right for "we are running 20 minutes late", useless for "Friday
+// washed out and Saturday now starts three hours later". This rewrites the
+// stored times.
+//
+// Two operations, because the owner's case needs both at once: all of
+// Saturday pushed back by the length of the games that did not happen, and
+// the three washed-out games themselves moved to a time the TD picks.
+//
+// Everything writes through POST /api/schedule, the same whole-document
+// replace the Quick editor uses — which means one undo snapshot per apply
+// (so Undo reverses the whole reschedule, not one game), and it means every
+// field that is NOT the time has to be carried through untouched. layoutRow
+// especially: it is why fixing one game's time in the Advanced editor used to
+// silently undo a hand-arranged bracket.
+
+// The effective current time of a game, with the same fallback the day/field
+// helpers use — a game can take its time from the schedule document or from
+// the generated bracket underneath it.
+function reschedTimeOf(sid) {
+  var over = schedule[sid] || {};
+  return over.time || (GAMES[sid] && GAMES[sid].time) || '';
+}
+
+// Local wall-clock arithmetic on 'YYYY-MM-DDTHH:MM'. Deliberately NOT via
+// Date parsing of the bare string: browsers differ on whether a
+// timezone-less datetime is local or UTC, and a tournament schedule is local
+// wall-clock by definition — 9:00 means 9:00 at the field. Built from parts,
+// so a shift across a DST boundary keeps the clock time the TD typed rather
+// than silently sliding an hour.
+function reschedAddMinutes(iso, delta) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(iso || '');
+  if (!m) return '';
+  var d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5] + delta, 0, 0);
+  if (isNaN(d.getTime())) return '';
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+       + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+// Games matching the current day/field chips, earliest first. Games with no
+// start time cannot be moved and are left out entirely.
+function reschedCandidates() {
+  var days   = getSelectedChips('reschedDayChips');
+  var fields = getSelectedChips('reschedFieldChips');
+  var out = [];
+  Object.keys(GAMES).forEach(function(sid) {
+    var t = reschedTimeOf(sid);
+    if (!t) return;
+    var over = schedule[sid] || {};
+    var f = over.field || GAMES[sid].field || '';
+    if (days.length   && days.indexOf(t.slice(0, 10)) === -1) return;
+    if (fields.length && fields.indexOf(f) === -1) return;
+    out.push({ sid: sid, time: t, field: f });
+  });
+  out.sort(function(a, b) { return a.time < b.time ? -1 : a.time > b.time ? 1 : 0; });
+  return out;
+}
+
+function renderReschedule() {
+  var days   = getScheduleDays();
+  var fields = getScheduleFields();
+
+  var dayWrap = document.getElementById('reschedDayWrap');
+  var dayChips = document.getElementById('reschedDayChips');
+  if (dayWrap) dayWrap.hidden = !(days.length > 1);
+  if (dayChips && days.length > 1) {
+    dayChips.innerHTML = days.map(function(d) {
+      return '<button class="delay-chip" data-value="' + esc(d) + '" data-action="reschedChip">' + esc(fmtDayLabel(d)) + '</button>';
+    }).join('');
+  }
+  var fWrap = document.getElementById('reschedFieldWrap');
+  var fChips = document.getElementById('reschedFieldChips');
+  if (fWrap) fWrap.hidden = !(fields.length > 1);
+  if (fChips && fields.length > 1) {
+    fChips.innerHTML = fields.map(function(f) {
+      return '<button class="delay-chip" data-value="' + esc(f) + '" data-action="reschedChip">' + esc(f) + '</button>';
+    }).join('');
+  }
+
+  var restart = document.getElementById('reschedRestartAt');
+  if (restart && !restart.innerHTML) {
+    restart.innerHTML = datetimePairHTML('reschedRestart', '');
+  }
+  renderReschedList();
+}
+
+// Rebuilt whenever the chips change. Ticks are preserved across a rebuild so
+// narrowing the filter does not silently drop a game the TD already chose.
+var _reschedChecked = {};
+
+function renderReschedList() {
+  var list = document.getElementById('reschedList');
+  if (!list) return;
+  var games = reschedCandidates();
+  if (!games.length) {
+    list.innerHTML = '<div class="admin-subtitle admin-subtitle--flush">No scheduled games match — a game with no start time cannot be moved.</div>';
+    updateReschedCount();
+    return;
+  }
+  list.innerHTML = games.map(function(g) {
+    var on = _reschedChecked[g.sid] ? ' checked' : '';
+    return '<label class="resched-row">'
+      + '<input type="checkbox" class="resched-chk" value="' + esc(g.sid) + '"' + on
+      + ' data-action-change="reschedTick">'
+      + '<span class="resched-when">' + esc(fmtDayLabel(g.time.slice(0, 10))) + ' ' + esc(fmtClock(g.time)) + '</span>'
+      + '<span class="resched-lbl">' + esc(gameLabel(g.sid)) + '</span>'
+      + (g.field ? '<span class="resched-fld">' + esc(g.field) + '</span>' : '')
+      + '</label>';
+  }).join('');
+  updateReschedCount();
+}
+
+// 'YYYY-MM-DDTHH:MM' → '6:00 PM'. The admin cards have their own formatter
+// but it is bound up with live/offset state; this only ever needs the clock.
+function fmtClock(iso) {
+  var m = /T(\d{2}):(\d{2})$/.exec(iso || '');
+  if (!m) return '';
+  var h = +m[1], ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12; if (h === 0) h = 12;
+  return h + ':' + m[2] + ' ' + ap;
+}
+
+function updateReschedCount() {
+  var el = document.getElementById('reschedCount');
+  if (!el) return;
+  var n = Object.keys(_reschedChecked).filter(function(k) { return _reschedChecked[k]; }).length;
+  el.textContent = n ? n + ' selected' : '';
+}
+
+function reschedSelected() {
+  return reschedCandidates().filter(function(g) { return _reschedChecked[g.sid]; });
+}
+
+// Works out the new time for every selected game, without writing anything.
+// Returns { moves: [{sid,from,to}], error }.
+function reschedComputeMoves() {
+  var picked = reschedSelected();
+  if (!picked.length) return { error: 'Tick at least one game.' };
+
+  var modeEl = document.querySelector('input[name="reschedMode"]:checked');
+  var mode = modeEl ? modeEl.value : 'shift';
+  var delta;
+
+  if (mode === 'shift') {
+    var h = parseInt(document.getElementById('reschedHours').value, 10) || 0;
+    var mi = parseInt(document.getElementById('reschedMins').value, 10) || 0;
+    // One signed quantity: "-2h 30m" has to mean two and a half hours EARLIER,
+    // not minus two hours plus thirty minutes.
+    var neg = h < 0 || mi < 0;
+    delta = (Math.abs(h) * 60 + Math.abs(mi)) * (neg ? -1 : 1);
+    if (!delta) return { error: 'Enter an amount to shift by.' };
+  } else {
+    var at = readDatetime('reschedRestart');
+    if (!at) return { error: 'Pick the date and time to restart at.' };
+    // picked is already earliest-first, so [0] is the anchor.
+    delta = reschedMinutesBetween(picked[0].time, at);
+    if (delta === null) return { error: 'That restart time is not valid.' };
+  }
+
+  var moves = [];
+  for (var i = 0; i < picked.length; i++) {
+    var to = reschedAddMinutes(picked[i].time, delta);
+    if (!to) return { error: 'Could not compute a new time for ' + gameLabel(picked[i].sid) + '.' };
+    moves.push({ sid: picked[i].sid, from: picked[i].time, to: to });
+  }
+  return { moves: moves };
+}
+
+function reschedMinutesBetween(fromIso, toIso) {
+  var a = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(fromIso || '');
+  var b = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(toIso || '');
+  if (!a || !b) return null;
+  var da = new Date(+a[1], +a[2] - 1, +a[3], +a[4], +a[5]);
+  var db = new Date(+b[1], +b[2] - 1, +b[3], +b[4], +b[5]);
+  if (isNaN(da.getTime()) || isNaN(db.getTime())) return null;
+  return Math.round((db - da) / 60000);
+}
+
+function reschedPreview() {
+  var out = document.getElementById('reschedPreview');
+  var status = document.getElementById('reschedStatus');
+  if (!out) return;
+  var r = reschedComputeMoves();
+  if (r.error) {
+    out.hidden = false;
+    out.innerHTML = '<div class="resched-err">' + esc(r.error) + '</div>';
+    if (status) status.textContent = '';
+    return;
+  }
+  // Surfaced because it is genuinely surprising: the server sends a
+  // "schedule change" push per moved game, but ONLY when 12 or fewer moved —
+  // a bigger rewrite sends nothing at all, by design (a Save-all would
+  // otherwise fire 61 notifications). On a big shift the delay banner is how
+  // spectators find out, so say so here rather than let a TD assume.
+  var pushNote = r.moves.length <= 12
+    ? r.moves.length + ' notification' + (r.moves.length === 1 ? '' : 's') + ' will be sent to spectators following these teams.'
+    : 'Too many games for per-game notifications (' + r.moves.length + ' > 12), so NO push will be sent. Set the delay notice above so spectators know.';
+
+  out.hidden = false;
+  out.innerHTML = '<div class="resched-preview-hdr">' + r.moves.length + ' game' + (r.moves.length === 1 ? '' : 's') + ' will move</div>'
+    + r.moves.map(function(m) {
+        var dayChanged = m.from.slice(0, 10) !== m.to.slice(0, 10);
+        return '<div class="resched-move">'
+          + '<span class="resched-lbl">' + esc(gameLabel(m.sid)) + '</span>'
+          + '<span class="resched-from">' + esc(fmtDayLabel(m.from.slice(0, 10))) + ' ' + esc(fmtClock(m.from)) + '</span>'
+          + '<span class="resched-arrow">&rarr;</span>'
+          + '<span class="resched-to' + (dayChanged ? ' resched-to--day' : '') + '">'
+          + esc(fmtDayLabel(m.to.slice(0, 10))) + ' ' + esc(fmtClock(m.to)) + '</span>'
+          + '</div>';
+      }).join('')
+    + '<div class="resched-note">' + esc(pushNote) + '</div>'
+    + '<div class="settings-save-row">'
+    + '<button class="sched-save-btn" data-action="reschedApply">Apply these times</button>'
+    + '</div>';
+}
+
+async function reschedApply() {
+  var status = document.getElementById('reschedStatus');
+  var r = reschedComputeMoves();
+  if (r.error) { showToast(r.error, true); return; }
+
+  var ok = await ttConfirm('Move ' + r.moves.length + ' game' + (r.moves.length === 1 ? '' : 's') + '? Undo will restore the current schedule.');
+  if (!ok) return;
+
+  // Same shape as saveQuickEdits: start from the whole existing document and
+  // overwrite only the time on the games that moved, so num/tier/field/feeds
+  // and above all layoutRow survive the write.
+  var out = Object.assign({}, schedule);
+  r.moves.forEach(function(m) {
+    out[m.sid] = Object.assign({}, schedule[m.sid] || {}, { time: m.to });
+  });
+
+  try {
+    var resp = await apiFetch('/api/schedule', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(out)
+    });
+    if (!resp) return;
+    if (!resp.ok) throw new Error();
+    schedule = out;
+    if (typeof applySchedule === 'function') applySchedule(schedule);
+    showToast(r.moves.length + ' game' + (r.moves.length === 1 ? '' : 's') + ' moved');
+    if (status) { status.textContent = '✓ Applied'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+    _reschedChecked = {};
+    var pv = document.getElementById('reschedPreview');
+    if (pv) { pv.hidden = true; pv.innerHTML = ''; }
+    renderReschedule();
+    renderAdmin();   // the scoring cards print these times too
+  } catch (e) {
+    showToast('Could not move the games', true);
+    if (status) { status.textContent = '✗ Error'; setTimeout(function(){ status.textContent = ''; }, 3000); }
+  }
 }
 
 function getSelectedChips(containerId) {
@@ -5134,6 +5392,24 @@ Object.assign(TT_ACTIONS, {
   clearAllOffsets:     function() { clearAllOffsets(); },
   deleteOffset:        function(arg) { deleteOffset(Number(arg)); },
   toggleChipSel:       function(arg, el) { el.classList.toggle('delay-chip--sel'); },
+  // Same toggle, but the game list below it has to be refiltered.
+  reschedChip:         function(arg, el) { el.classList.toggle('delay-chip--sel'); renderReschedList(); },
+  reschedTick:         function(arg, el) { _reschedChecked[el.value] = el.checked; updateReschedCount(); },
+  reschedSelectAll:    function() {
+    reschedCandidates().forEach(function(g) { _reschedChecked[g.sid] = true; });
+    renderReschedList();
+  },
+  reschedSelectNone:   function() { _reschedChecked = {}; renderReschedList(); },
+  reschedModeChange:   function() {
+    var mode = document.querySelector('input[name="reschedMode"]:checked');
+    var isShift = !mode || mode.value === 'shift';
+    var s = document.getElementById('reschedShiftWrap');
+    var r = document.getElementById('reschedRestartWrap');
+    if (s) s.hidden = !isShift;
+    if (r) r.hidden = isShift;
+  },
+  reschedPreview:      function() { reschedPreview(); },
+  reschedApply:        function() { reschedApply(); },
   // settings
   showSettingsSection: function(arg) { showSettingsSection(arg); },
   onLineupPresetChange: function() { onLineupPresetChange(); },
