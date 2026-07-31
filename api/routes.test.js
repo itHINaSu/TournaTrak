@@ -2202,3 +2202,55 @@ describe('a coach invited by magic link must be able to set a password', () => {
     assert.equal((seen.json.players || seen.json || [])[0].name, 'Jo Park');
   });
 });
+
+describe('an ADMIN who also coaches invites a new coach', () => {
+  rtest('the invitee is blocked until setup, then sees the team roster and lineup', async () => {
+    // The exact reported case (owner, 2026-08-02): "an admin user who is a
+    // coach generated a link for a new user. They have not yet setup an
+    // account and are unable to see roster/lineup." The inviter's role here is
+    // admin, not team — requireCoachSelf authorises on the TEAM LIST, so this
+    // must work without the admin needing a second account.
+    const a = await loginAdmin();
+    const me = (await a.get('/api/session')).json.username;
+    assert.equal((await a.post('/api/users/' + me + '/teams', { teamName: 'AdminCoached' })).status, 200,
+      'admin takes a team of their own');
+    assert.deepEqual((await a.get('/api/session')).json.teams, ['AdminCoached']);
+
+    const made = await a.post('/api/coach/coaches', { username: 'asst_of_admin' });
+    assert.equal(made.status, 200, JSON.stringify(made.json));
+
+    // Roster the admin can already manage.
+    assert.equal((await a.post('/api/roster/' + encodeURIComponent('AdminCoached'),
+      { players: [{ name: 'Robin Vale', numbers: ['11'] }] })).status, 200);
+
+    const inv = agent();
+    const hit = await inv.req('GET', '/api/setup-password/' + made.json.setupToken,
+      undefined, { manual: true });
+    assert.match(hit.headers.get('location'), /^\/coach\?setup=/);
+
+    // BEFORE setup: signed in, correct team, and locked out of everything —
+    // which is exactly what "unable to see roster/lineup" looked like.
+    const before = await inv.get('/api/session');
+    assert.equal(before.json.mustChangePassword, true);
+    assert.deepEqual(before.json.teams, ['AdminCoached'],
+      'the invitee is on the right team even before setup');
+    assert.equal((await inv.get('/api/roster/' + encodeURIComponent('AdminCoached'))).status, 403);
+
+    // AFTER setup: the same team data the admin manages.
+    assert.equal((await inv.post('/api/change-password', { password: 'newcoachpw123' })).status, 200);
+    const seen = await inv.get('/api/roster/' + encodeURIComponent('AdminCoached'));
+    assert.equal(seen.status, 200, JSON.stringify(seen.json));
+    assert.equal((seen.json.players || seen.json || [])[0].name, 'Robin Vale',
+      'roster follows the TEAM, not the account');
+
+    // And a lineup written by the admin is visible to the new coach.
+    const sched = (await a.get('/api/schedule')).json || {};
+    const results = (await a.get('/api/results')).json || {};
+    const gid = Object.keys(sched).find(k => !results[k] || !results[k].winner);
+    assert.equal((await a.post('/api/lineups/game/' + gid + '/' + encodeURIComponent('AdminCoached'),
+      { rows: [{ name: 'Robin Vale', jersey: '11', position: 'C' }] })).status, 200);
+    const lu = await inv.get('/api/lineups/game/' + gid + '/' + encodeURIComponent('AdminCoached'));
+    assert.equal(lu.status, 200);
+    assert.equal((lu.json.rows || lu.json || [])[0].name, 'Robin Vale');
+  });
+});

@@ -2437,6 +2437,15 @@ Settings → Teams and → Coaches hand out. A team USER's `accessToken`
 not the other is exactly how "the coach link still goes to lineup" happened
 after the coach-panel join page shipped. `resolveJoinToken()` accepts both.
 
+**"A new coach cannot see roster/lineup" is almost always mustChangePassword.**
+An invited coach is signed in and on the correct team BEFORE they set a
+password — but every coach route 403s with "Password change required" until
+they do, so the panel looks empty and the data looks unshared. That is
+intended; what was missing was any UI saying so, fixed by `showCoachSetup()`.
+Pinned by a test covering the exact reported shape: an ADMIN who also coaches
+invites a new user, who is 403'd from the roster before setup and sees the
+admin's roster AND lineup immediately after.
+
 **Roster and lineup are already keyed by TEAM, not by account** — verified by
 tests that register two separate coach accounts on one team and read each
 other's writes (`team data is shared between a team's coaches`). If two
