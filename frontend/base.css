@@ -621,12 +621,15 @@ body.print-palette .flight-col--champ {
   padding: 0.9em 1.1em;
   /* Fixed, not content-driven — a big logo used to grow the whole banner
      taller (owner, 2026-08-02: "should be a fixed height and not increased
-     to fit a logo. Use the same height as the standings card") — matches
-     .std-row/.team-chip's own height, which is set the same way for the
-     same reason. overflow:hidden is what makes that height stick: without
-     it a long name + a wide logo would just spill past the fixed box
-     instead of being contained by it. */
-  height: 3.85rem;
+     to fit a logo"). Bigger than a Standings row on purpose (owner,
+     2026-08-02: "the team-brand-banner was supposed to be set back to the
+     larger size, but all team-brand-banners should have a uniform height")
+     — every use of this class (Team Path banner, coach/admin previews,
+     Lineups/Roster tab headers) shares the one rule, so "uniform" falls out
+     for free from it being a single class. overflow:hidden is what makes
+     the fixed height stick: without it a long name + a wide logo would just
+     spill past the box instead of being contained by it. */
+  height: 5rem;
   overflow: hidden;
   border-radius: var(--radius-sm);
   margin-bottom: 1em;
@@ -651,15 +654,14 @@ body.print-palette .flight-col--champ {
    ~62.5%. */
 .team-brand-logo-slot { flex: 0 0 37.5%; min-width: 0; display: flex; align-items: center; justify-content: center; }
 .team-brand-logo {
-  /* Same height as .std-team-logo, now that the banner itself is fixed to
-     the same height as a Standings row — sized well within it rather than
+  /* ~75% of the banner's own fixed height, sized well within it rather than
      the other way around (owner, 2026-08-02: "Team logos should be 70-90%
      of the height of the div" / banner "should be a fixed height and not
      increased to fit a logo"). Width follows the logo's own aspect ratio
      (owner, 2026-08-02: "Allow a non-square crop for team logos... height
      should be the determining factor for sizing"); max-width:100% is what
      actually enforces the slot above as the real cap on a wide logo.  */
-  height: 3.25rem;
+  height: 3.75rem;
   width: auto;
   max-width: 100%;
   object-fit: contain;
@@ -680,11 +682,10 @@ body.print-palette .flight-col--champ {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: 'Oswald', sans-serif;
-  /* Scaled up now that the banner itself is a fixed, more compact height
-     (owner, 2026-08-02: "liked the bigger team-brand-banner... increase
-     team name font size to an appropriate scale within the div") — 1.15rem
-     read small next to a 3.25rem-tall logo in a 3.85rem box. */
-  font-size: 1.6rem;
+  /* Scaled to the banner's own (now bigger, fixed) height (owner,
+     2026-08-02: "increase team name font size to an appropriate scale
+     within the div"). */
+  font-size: 1.9rem;
   font-weight: 700;
   letter-spacing: 0.03em;
 }

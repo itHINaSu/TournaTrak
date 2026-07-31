@@ -67,10 +67,25 @@ function showCoachPanel(session) {
   ttSetupRefresh(function() { window.location.reload(); return new Promise(function() {}); });
 }
 
+// Whichever team the (lineup.js-owned) selector currently shows — falls
+// back to lineup.js's own `currentTeamName` global for a genuine coach
+// session, where the selector is hidden (a single team is furniture, same
+// reasoning as rosterTeamRow above).
+function syncLineupTeamBannerFromSelector() {
+  var sel = document.getElementById('lineupTeamSel');
+  var team = (sel && sel.value) || (typeof currentTeamName !== 'undefined' ? currentTeamName : null);
+  syncTeamBrandBannerFor('lineupTeam', team);
+}
+
 // Tab switching, matching admin.js's contract so the two panels behave
 // identically — including deferring lineupInit() until the tab is first
 // opened rather than racing the access gate.
 function initCoachTabs() {
+  // lineup.js owns this element's own change handler (loading the new
+  // team's games/lineup); this is an ADDITIONAL listener, not a
+  // replacement, purely to keep the banner in sync when staff switch teams.
+  var lineupTeamSelEl = document.getElementById('lineupTeamSel');
+  if (lineupTeamSelEl) lineupTeamSelEl.addEventListener('change', syncLineupTeamBannerFromSelector);
   document.querySelectorAll('.admin-tab').forEach(function (tab) {
     tab.addEventListener('click', function () {
       var name = tab.dataset.tab;
@@ -81,7 +96,7 @@ function initCoachTabs() {
       if (panel) panel.classList.add('active');
       if (name === 'lineups' && !window._lineupInitDone) {
         window._lineupInitDone = true;
-        lineupInit();
+        lineupInit().then(syncLineupTeamBannerFromSelector);
       }
       // The roster needs the settings and schedule lineup.js loads (position
       // options, and the team list when staff are looking). Boot that first
@@ -112,7 +127,7 @@ function restoreCoachTab() {
   // Lineups is the default and is already marked active in the markup, so it
   // needs its init kicked off by hand — same for the Share button's visibility,
   // which the click handler normally sets (this path never fires a click).
-  if (!window._lineupInitDone) { window._lineupInitDone = true; lineupInit(); }
+  if (!window._lineupInitDone) { window._lineupInitDone = true; lineupInit().then(syncLineupTeamBannerFromSelector); }
   updateCoachShareBtn();
 }
 
@@ -408,10 +423,78 @@ async function deleteRosterRow(idx) {
   renderRoster();
 }
 
+// ── Team-brand banner, Lineups + Roster ──────────────────────────────────
+// Owner, 2026-08-02: "replace the lineup-team-name div in lineups and add a
+// div to roster" — a coach (or staff checking a team) sees their own
+// branding right where they're working, not just on Team Path/Standings.
+// Cached: the same /api/teams list is looked up every time the team
+// selector changes, on both tabs, and there is no reason to refetch it more
+// than once per page load — team branding doesn't change out from under an
+// open session.
+var _coachTeamsCacheP = null;
+var _coachTeamsData = null;   // synchronous snapshot, once the fetch above resolves — see buildCoachShareData
+function coachTeamsCache() {
+  if (!_coachTeamsCacheP) {
+    _coachTeamsCacheP = fetch(coachApiBase() + '/teams')
+      .then(function (r) { return r.ok ? r.json() : { teams: [] }; })
+      .catch(function () { return { teams: [] }; })
+      .then(function (data) { _coachTeamsData = data; return data; });
+  }
+  return _coachTeamsCacheP;
+}
+// The brand fields Share needs, for whichever team a tab is currently
+// showing — synchronous because Share's canvas painter isn't async, so this
+// reads whatever coachTeamsCache() has already resolved rather than
+// (re)triggering a fetch and awaiting it (owner, 2026-08-02: "if a team has
+// colors and a logo include the team-brand-banner at the top of that
+// image"). Blank on the very first paint before the cache resolves — the
+// banner just catches up on the next refresh, same lag the on-tab preview
+// already has.
+function coachShareBrandFor(teamName) {
+  var t = teamName && _coachTeamsData && (_coachTeamsData.teams || []).find(function (x) { return x.name === teamName; });
+  if (!t || !(t.logo || t.primaryColor || t.secondaryColor)) return null;
+  return t;
+}
+// prefix + 'Banner'/'BannerName'/'BannerLogoSlot'/'BannerLogo' — same
+// element-naming shape as the Team tab's own live preview (teamTabPreview*).
+// Always shown once a team name is known (unlike Team Path's banner, which
+// hides entirely with no branding at all) — this is the team-identity
+// header for the tab now, not an optional extra, so a plain/uncustomized
+// team still gets a (neutral, teamBrandBannerCss's own default-gray) banner
+// rather than reverting to blank.
+function syncTeamBrandBannerFor(prefix, teamName) {
+  var banner = document.getElementById(prefix + 'Banner');
+  if (!banner) return;
+  var nameEl = document.getElementById(prefix + 'BannerName');
+  var logoSlot = document.getElementById(prefix + 'BannerLogoSlot');
+  var logoImg = document.getElementById(prefix + 'BannerLogo');
+  if (!teamName) {
+    banner.hidden = true;
+    return;
+  }
+  banner.hidden = false;
+  if (nameEl) nameEl.textContent = teamName;   // shows immediately; refined below once branding loads
+  if (logoSlot) logoSlot.hidden = true;
+  coachTeamsCache().then(function (data) {
+    // A stale response for a team the selector has since moved on from.
+    if (banner.hidden) return;
+    var t = (data.teams || []).find(function (x) { return x.name === teamName; }) || {};
+    banner.style.cssText = teamBrandBannerCss(t.primaryColor, t.secondaryColor, t.brandStyle, t.brandAngle,
+      t.brandTextColor, t.brandNameOutlineColor,
+      { stripeWidth: t.brandStripeWidth, stripeGap: t.brandStripeGap, patternScale: t.brandPatternScale, gradientBalance: t.brandGradientBalance });
+    if (nameEl) nameEl.textContent = t.displayName || teamName;
+    if (logoImg && logoSlot) {
+      if (t.logo) { logoImg.src = t.logo; logoSlot.hidden = false; }
+      else { logoImg.removeAttribute('src'); logoSlot.hidden = true; }
+    }
+  });
+}
+
 async function loadRoster(team) {
   setStatus('rosterStatus', '');
   _rosterTeam = team;
   _rosterRows = [];
+  syncTeamBrandBannerFor('rosterTeam', team);
   if (!team) { renderRoster(); return; }
   var r = await fetch(coachApiBase() + '/roster/' + encodeURIComponent(team))
     .catch(function () { return null; });
@@ -902,11 +985,12 @@ function buildCoachShareData() {
   var tab = active && active.dataset.tab;
   if (tab === 'roster') {
     harvestRoster();   // pull in-progress typing before reading the buffer
-    var teamLabel = (document.getElementById('coachTeamLine') || {}).textContent || '';
+    var teamLabel = _rosterTeam || (document.getElementById('coachTeamLine') || {}).textContent || '';
     var rows = _rosterRows.filter(function(r) { return !isBlankRosterRow(r); }).map(function(r) {
       return [(r.jerseys || []).join(', '), r.name || '', r.position || ''];
     });
-    return { title: (teamLabel || 'Team') + ' — Roster', subtitle: '', headers: ['#', 'Player Name', 'Position'], rows: rows };
+    return { title: (teamLabel || 'Team') + ' — Roster', subtitle: '', headers: ['#', 'Player Name', 'Position'], rows: rows,
+      brand: coachShareBrandFor(teamLabel) };
   }
   if (tab === 'lineups') {
     var headCells = Array.prototype.slice.call(document.querySelectorAll('#lineupHead th'))
@@ -934,13 +1018,18 @@ function buildCoachShareData() {
       if (vals.every(function(v) { return !v; })) return;   // blank row, skip
       rows.push(vals);
     });
-    var teamNameEl = document.getElementById('lineupTeamName');
+    // #lineupTeamName was replaced by the team-brand-banner (owner,
+    // 2026-08-02: "replace the lineup-team-name div in lineups") — its name
+    // now lives in #lineupTeamBannerName instead.
+    var teamNameEl = document.getElementById('lineupTeamBannerName');
+    var teamName = (teamNameEl && teamNameEl.textContent) || '';
     var gameSel = document.getElementById('lineupGameSelect');
     var gameText = gameSel && gameSel.selectedIndex >= 0 ? gameSel.options[gameSel.selectedIndex].text.trim() : '';
     return {
-      title: ((teamNameEl && teamNameEl.textContent) || 'Team') + ' — Lineup',
+      title: (teamName || 'Team') + ' — Lineup',
       subtitle: gameText,
       headers: headers, rows: rows,
+      brand: coachShareBrandFor(teamName),
     };
   }
   return null;
@@ -961,14 +1050,43 @@ function coachShareColWidths(ctx, headers, rows) {
 // to a scorekeeper or texted to a parent is read on any device in any
 // theme, so it deliberately ignores the app's own dark/light setting rather
 // than risk white-on-white or unreadable low-contrast combinations.
+// Roughly approximates teamBrandBannerCss's solid/gradient output in canvas
+// terms — plain fillStyle for solid, a linear gradient at the same angle
+// for anything else. Stripes/honeycomb aren't reachable through the picker
+// right now (hidden, see admin.html/coach.html), so there's nothing to
+// approximate for those; a team that already has one saved from before it
+// was hidden just paints as its own primary color here, same as "solid"
+// would.
+function coachShareBrandFillStyle(ctx, b, bx, by, bw, bh) {
+  var p = b.primaryColor || b.secondaryColor || '#4a4a4a';
+  var s = b.secondaryColor || b.primaryColor || '#4a4a4a';
+  if (b.brandStyle === 'solid' || !b.secondaryColor) return p;
+  var angle = (typeof b.brandAngle === 'number') ? b.brandAngle : 135;
+  var rad = (angle - 90) * Math.PI / 180;   // CSS 0deg = up; canvas 0rad = right
+  var cx = bx + bw / 2, cy = by + bh / 2;
+  var half = Math.max(bw, bh) / 2;
+  var grad = ctx.createLinearGradient(cx - Math.cos(rad) * half, cy - Math.sin(rad) * half,
+    cx + Math.cos(rad) * half, cy + Math.sin(rad) * half);
+  grad.addColorStop(0, p);
+  grad.addColorStop(1, s);
+  return grad;
+}
+
 function paintCoachShareCanvas(data) {
   var scale = 2, PAD = 40, TITLE_H = 46, SUB_H = data.subtitle ? 30 : 0, HEAD_H = 40, ROW_H = 40;
+  // Owner, 2026-08-02: "if a team has colors and a logo include the
+  // team-brand-banner at the top of that image" — the banner's own colors
+  // (and name), not the uploaded logo graphic itself: drawing an arbitrary
+  // data-URI image onto canvas needs an async Image().onload, which this
+  // painter (called synchronously from several places) doesn't have room
+  // for right now.
+  var BRAND_H = data.brand ? 64 : 0;
   var probe = document.createElement('canvas').getContext('2d');
   probe.font = '15px Barlow, sans-serif';
   var colW = coachShareColWidths(probe, data.headers, data.rows);
   var totalW = colW.reduce(function(a, b) { return a + b; }, 0);
   var W = Math.max(totalW + PAD * 2, 320);
-  var H = PAD * 2 + TITLE_H + SUB_H + HEAD_H + Math.max(data.rows.length, 1) * ROW_H;
+  var H = PAD * 2 + BRAND_H + TITLE_H + SUB_H + HEAD_H + Math.max(data.rows.length, 1) * ROW_H;
   var canvas = document.createElement('canvas');
   canvas.width = W * scale; canvas.height = H * scale;
   var ctx = canvas.getContext('2d');
@@ -977,6 +1095,15 @@ function paintCoachShareCanvas(data) {
   ctx.fillRect(0, 0, W, H);
   ctx.textBaseline = 'alphabetic';
   var y = PAD;
+  if (data.brand) {
+    var bx = PAD, bw = totalW, bh = BRAND_H - 14;
+    ctx.fillStyle = coachShareBrandFillStyle(ctx, data.brand, bx, y, bw, bh);
+    ctx.fillRect(bx, y, bw, bh);
+    ctx.fillStyle = data.brand.brandTextColor || '#ffffff';
+    ctx.font = 'bold 22px Oswald, sans-serif';
+    ctx.fillText((data.brand.displayName || data.brand.name || '').toUpperCase(), bx + 16, y + bh / 2 + 8);
+    y += BRAND_H;
+  }
   ctx.fillStyle = '#14161a';
   ctx.font = 'bold 24px Oswald, sans-serif';
   ctx.fillText(data.title, PAD, y + 22);

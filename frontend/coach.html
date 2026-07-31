@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=4.08.028">
-<link rel="stylesheet" href="/admin.css?v=4.08.028">
-<link rel="stylesheet" href="/lineup.css?v=4.08.028">
-<script src="/app-h.js?v=4.08.028"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.029">
+<link rel="stylesheet" href="/admin.css?v=4.08.029">
+<link rel="stylesheet" href="/lineup.css?v=4.08.029">
+<script src="/app-h.js?v=4.08.029"></script>
 </head>
 <body>
 
@@ -214,9 +214,15 @@
       <div class="lineup-state-body">Could not load lineup data.</div>
     </div>
     <div id="lineupContent" hidden class="lineup-wrap">
-      <div class="lineup-team-header">
-        <div class="lineup-team-label">Team</div>
-        <div id="lineupTeamName" class="lineup-team-name"></div>
+      <!-- Replaces the old plain-text team-name header (owner, 2026-08-02:
+           "replace the lineup-team-name div in lineups... add that banner to
+           the top of lineup and roster in the coaches panel anyway") — same
+           team-brand-banner markup as Team Path/coach previews, but always
+           shown once a team is known rather than hidden when unbranded (see
+           syncTeamBrandBannerFor in coach.js). -->
+      <div class="team-brand-banner" id="lineupTeamBanner" hidden>
+        <span class="team-brand-name" id="lineupTeamBannerName"></span>
+        <span class="team-brand-logo-slot" id="lineupTeamBannerLogoSlot" hidden><img class="team-brand-logo" id="lineupTeamBannerLogo" alt=""></span>
       </div>
       <div id="lineupSelectorsRow" class="lineup-selectors-row" hidden>
         <div class="lineup-game-info lineup-sel-half" id="lineupTeamHalf">
@@ -284,6 +290,13 @@
         <div class="lineup-state-body">Loading…</div>
       </div>
       <div id="rosterContent" hidden>
+        <!-- Owner, 2026-08-02: "add that banner to the top of lineup and
+             roster in the coaches panel anyway" — see the matching one in
+             the Lineups tab above for how it's kept in sync. -->
+        <div class="team-brand-banner" id="rosterTeamBanner" hidden>
+          <span class="team-brand-name" id="rosterTeamBannerName"></span>
+          <span class="team-brand-logo-slot" id="rosterTeamBannerLogoSlot" hidden><img class="team-brand-logo" id="rosterTeamBannerLogo" alt=""></span>
+        </div>
         <!-- Team picker, shown only to staff (a coach has one team, and a
              selector with a single option is furniture). -->
         <div id="rosterTeamRow" class="lineup-selectors-row" hidden>
@@ -531,11 +544,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.028"></script>
-<script src="/theme-css.js?v=4.08.028"></script>
-<script src="/tt-common.js?v=4.08.028"></script>
-<script src="/bracket-data.js?v=4.08.028"></script>
-<script src="/lineup.js?v=4.08.028"></script>
-<script src="/coach.js?v=4.08.028"></script>
+<script src="/settings-defaults.js?v=4.08.029"></script>
+<script src="/theme-css.js?v=4.08.029"></script>
+<script src="/tt-common.js?v=4.08.029"></script>
+<script src="/bracket-data.js?v=4.08.029"></script>
+<script src="/lineup.js?v=4.08.029"></script>
+<script src="/coach.js?v=4.08.029"></script>
 </body>
 </html>
