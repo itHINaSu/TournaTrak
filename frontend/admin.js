@@ -4627,6 +4627,13 @@ function teamsDetailSyncColor(which) {
   if (inp) inp.value = v || TEAMS_DETAIL_COLOR_UNSET;
   if (clear) clear.hidden = !v;
   if (inp && inp.parentElement) inp.parentElement.classList.toggle('color-swatch--unset', !v);
+  // Outline weight only means anything once an outline color is actually set
+  // (owner, 2026-08-02: "select a reasonable range and allow coaches to
+  // increase/decrease the outline weight within the preset range").
+  if (which === 'brandNameOutlineColor') {
+    var owRow = document.getElementById('teamsDetailOutlineWidthRow');
+    if (owRow) owRow.hidden = !v;
+  }
   teamsDetailUpdatePreview();
 }
 
@@ -4675,6 +4682,10 @@ function teamsDetailGradientBalanceValue() {
   var el = document.getElementById('teamsDetailGradientBalance');
   return el ? Number(el.value) : 50;
 }
+function teamsDetailOutlineWidthValue() {
+  var el = document.getElementById('teamsDetailOutlineWidth');
+  return el ? Number(el.value) : 35;
+}
 // Mirrors coach.js's teamTabSyncStyleRow — see that comment for why
 // stripe-width/pattern-scale get relabeled per style instead of separate
 // honeycomb-only sliders.
@@ -4710,7 +4721,7 @@ function teamsDetailUpdatePreview() {
   banner.style.cssText = teamBrandBannerCss(primary, secondary,
     teamsDetailStyleValue(), teamsDetailAngleValue(), _teamsDetailColors.brandTextColor, _teamsDetailColors.brandNameOutlineColor,
     { stripeWidth: teamsDetailStripeWidthValue(), stripeGap: teamsDetailStripeGapValue(), patternScale: teamsDetailPatternScaleValue(),
-      gradientBalance: teamsDetailGradientBalanceValue() });
+      gradientBalance: teamsDetailGradientBalanceValue(), outlineWidth: teamsDetailOutlineWidthValue() });
   if (logoImg) {
     // Mirrors coach.js's teamTabUpdatePreview — the SLOT reserves its own
     // ~third of the banner's width even with an empty img inside, so it has
@@ -4765,6 +4776,8 @@ function openTeamDetail(idx) {
   if (scaleEl) scaleEl.value = typeof team.brandPatternScale === 'number' ? team.brandPatternScale : 28;
   var balanceEl = document.getElementById('teamsDetailGradientBalance');
   if (balanceEl) balanceEl.value = typeof team.brandGradientBalance === 'number' ? team.brandGradientBalance : 50;
+  var outlineWidthEl = document.getElementById('teamsDetailOutlineWidth');
+  if (outlineWidthEl) outlineWidthEl.value = typeof team.brandOutlineWidth === 'number' ? team.brandOutlineWidth : 35;
   teamsDetailSyncStyleRow();
   var lockedEl = document.getElementById('teamsDetailLockedNote');
   if (lockedEl) lockedEl.hidden = !team.locked;
@@ -4810,6 +4823,7 @@ async function saveTeamsDetail() {
   body.brandStripeGap = teamsDetailStripeGapValue();
   body.brandPatternScale = teamsDetailPatternScaleValue();
   body.brandGradientBalance = teamsDetailGradientBalanceValue();
+  body.brandOutlineWidth = teamsDetailOutlineWidthValue();
   try {
     var r = await apiFetch('/api/team-profile/' + encodeURIComponent(team.name), {
       method: 'PUT',
@@ -4882,6 +4896,8 @@ function removeTeamsDetailLogo() {
   if (scaleEl) scaleEl.addEventListener('input', teamsDetailUpdatePreview);
   var balanceEl = document.getElementById('teamsDetailGradientBalance');
   if (balanceEl) balanceEl.addEventListener('input', teamsDetailUpdatePreview);
+  var outlineWidthEl = document.getElementById('teamsDetailOutlineWidth');
+  if (outlineWidthEl) outlineWidthEl.addEventListener('input', teamsDetailUpdatePreview);
 })();
 
 Object.assign(TT_ACTIONS, {

@@ -270,6 +270,16 @@
    name+meta stack plus padding). max-width:100% additionally constrains it to
    the slot above, so a wide logo shrinks to fit rather than overflowing it. */
 .std-team-logo { height: 3.25rem; width: auto; max-width: 100%; object-fit: contain; border-radius: var(--radius-xs); }
+/* Mobile/PWA Standings needs a narrower slot than desktop — the team name
+   column is tighter here than on Team Path's selector chips or the
+   team-brand-banner, which share this same 37.5% fraction on desktop (owner,
+   2026-08-02: "The logo position for standings on mobile/pwa should be
+   closer to centered on right 1/3 instead of 3/8"). Same breakpoint the
+   bracket view uses to switch to its mobile carousel (window.innerWidth <
+   1280), so "mobile" means the same thing here as everywhere else in the app. */
+@media (max-width: 1279px) {
+  .std-logo-slot { flex: 0 0 33.33%; }
+}
 .std-rank {
   font-family: 'Oswald', sans-serif;
   font-size: var(--text-lg);

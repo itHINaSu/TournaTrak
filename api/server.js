@@ -1558,6 +1558,13 @@ const BRAND_PATTERN_SCALE_MIN = 8, BRAND_PATTERN_SCALE_MAX = 120;
 // hint, today's behavior), lower shifts the 50/50 blend point toward the
 // primary side, higher toward the secondary side.
 const BRAND_GRADIENT_BALANCE_MIN = 0, BRAND_GRADIENT_BALANCE_MAX = 100;
+// Team-name outline weight, in thousandths of an em (owner, 2026-08-02:
+// "Increase the outline weight a touch. Or select a reasonable range and
+// allow coaches to increase/decrease the outline weight within the preset
+// range.") — 15 is a thin hairline, 70 a bold outline; teamBrandBannerCss's
+// own default (used when a team has no value stored) is 35, up from the
+// original hardcoded 28.
+const BRAND_OUTLINE_WIDTH_MIN = 15, BRAND_OUTLINE_WIDTH_MAX = 70;
 
 api.get('/theme-colors', ah(async (req, res) => {
   // Response varies by role (heavy fields are editor-only) — no shared caches.
@@ -2030,6 +2037,10 @@ function normalizeTeam(t) {
   }
   if (validHexColor(t.brandTextColor)) out.brandTextColor = t.brandTextColor.toLowerCase();
   if (validHexColor(t.brandNameOutlineColor)) out.brandNameOutlineColor = t.brandNameOutlineColor.toLowerCase();
+  if (t.brandOutlineWidth !== '' && t.brandOutlineWidth != null) {
+    const ow = Number(t.brandOutlineWidth);
+    if (Number.isFinite(ow) && ow >= BRAND_OUTLINE_WIDTH_MIN && ow <= BRAND_OUTLINE_WIDTH_MAX) out.brandOutlineWidth = Math.round(ow);
+  }
   // Freezes a coach out of PUT /team-profile for this team (name/short
   // name/logo/colors) once staff have set it — an admin still edits freely
   // via POST /teams, which never checks its own lock.
@@ -2118,6 +2129,7 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
       brandGradientBalance: t && 'brandGradientBalance' in t ? t.brandGradientBalance : prior.brandGradientBalance,
       brandTextColor: t && 'brandTextColor' in t ? t.brandTextColor : prior.brandTextColor,
       brandNameOutlineColor: t && 'brandNameOutlineColor' in t ? t.brandNameOutlineColor : prior.brandNameOutlineColor,
+      brandOutlineWidth: t && 'brandOutlineWidth' in t ? t.brandOutlineWidth : prior.brandOutlineWidth,
       locked:         t && 'locked'         in t ? !!t.locked       : !!prior.locked,
     });
     if (seenIds.has(rec.id)) rec.id = newTeamId();   // never emit a duplicate
@@ -2169,6 +2181,7 @@ api.put('/team-profile/:teamName', requireLineupAccess, ah(async (req, res) => {
     brandGradientBalance: 'brandGradientBalance' in body ? body.brandGradientBalance : current.brandGradientBalance,
     brandTextColor: 'brandTextColor' in body ? body.brandTextColor : current.brandTextColor,
     brandNameOutlineColor: 'brandNameOutlineColor' in body ? body.brandNameOutlineColor : current.brandNameOutlineColor,
+    brandOutlineWidth: 'brandOutlineWidth' in body ? body.brandOutlineWidth : current.brandOutlineWidth,
     locked: current.locked,
   });
   const clean = teams.slice();

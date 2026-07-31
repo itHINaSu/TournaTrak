@@ -107,6 +107,7 @@ function rebuildTeamLabels() {
         brandGradientBalance: typeof t.brandGradientBalance === 'number' ? t.brandGradientBalance : null,
         brandTextColor: t.brandTextColor || null,
         brandNameOutlineColor: t.brandNameOutlineColor || null,
+        brandOutlineWidth: typeof t.brandOutlineWidth === 'number' ? t.brandOutlineWidth : null,
       };
     }
   });
@@ -6269,7 +6270,7 @@ function renderTeamViewInner(realResults){
             ? teamBrandBannerCss(brand.primaryColor, brand.secondaryColor,
                 brand.brandStyle, brand.brandAngle, brand.brandTextColor, brand.brandNameOutlineColor,
                 { stripeWidth: brand.brandStripeWidth, stripeGap: brand.brandStripeGap, patternScale: brand.brandPatternScale,
-                  gradientBalance: brand.brandGradientBalance })
+                  gradientBalance: brand.brandGradientBalance, outlineWidth: brand.brandOutlineWidth })
             : '';
           // Same height/width as a Standings row (owner, 2026-08-02: "The
           // 'buttons' to select a team in team path should be the same
@@ -6335,7 +6336,7 @@ function renderTeamViewInner(realResults){
       + esc(teamBrandBannerCss(brand.primaryColor, brand.secondaryColor,
           brand.brandStyle, brand.brandAngle, brand.brandTextColor, brand.brandNameOutlineColor,
           { stripeWidth: brand.brandStripeWidth, stripeGap: brand.brandStripeGap, patternScale: brand.brandPatternScale,
-            gradientBalance: brand.brandGradientBalance })) + '">'
+            gradientBalance: brand.brandGradientBalance, outlineWidth: brand.brandOutlineWidth })) + '">'
       + '<span class="team-brand-name">' + esc(teamLabel(team)) + '</span>'
       + (brand.logoUrl ? '<span class="team-brand-logo-slot"><img class="team-brand-logo" src="' + esc(brand.logoUrl) + '" alt=""></span>' : '')
       + '</div>';

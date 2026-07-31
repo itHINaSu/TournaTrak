@@ -481,7 +481,8 @@ function syncTeamBrandBannerFor(prefix, teamName) {
     var t = (data.teams || []).find(function (x) { return x.name === teamName; }) || {};
     banner.style.cssText = teamBrandBannerCss(t.primaryColor, t.secondaryColor, t.brandStyle, t.brandAngle,
       t.brandTextColor, t.brandNameOutlineColor,
-      { stripeWidth: t.brandStripeWidth, stripeGap: t.brandStripeGap, patternScale: t.brandPatternScale, gradientBalance: t.brandGradientBalance });
+      { stripeWidth: t.brandStripeWidth, stripeGap: t.brandStripeGap, patternScale: t.brandPatternScale,
+        gradientBalance: t.brandGradientBalance, outlineWidth: t.brandOutlineWidth });
     if (nameEl) nameEl.textContent = t.displayName || teamName;
     if (logoImg && logoSlot) {
       if (t.logo) { logoImg.src = t.logo; logoSlot.hidden = false; }
@@ -612,6 +613,13 @@ function teamTabSyncColor(which) {
   if (inp) inp.value = v || TEAM_TAB_COLOR_UNSET;
   if (clear) clear.hidden = !v;
   if (inp && inp.parentElement) inp.parentElement.classList.toggle('color-swatch--unset', !v);
+  // Outline weight only means anything once an outline color is actually set
+  // (owner, 2026-08-02: "select a reasonable range and allow coaches to
+  // increase/decrease the outline weight within the preset range").
+  if (which === 'brandNameOutlineColor') {
+    var owRow = document.getElementById('teamTabOutlineWidthRow');
+    if (owRow) owRow.hidden = !v;
+  }
   teamTabUpdatePreview();
 }
 
@@ -667,6 +675,10 @@ function teamTabGradientBalanceValue() {
   var el = document.getElementById('teamTabGradientBalance');
   return el ? Number(el.value) : 50;
 }
+function teamTabOutlineWidthValue() {
+  var el = document.getElementById('teamTabOutlineWidth');
+  return el ? Number(el.value) : 35;
+}
 // Each slider only means something for its own style(s) — hide the rest so
 // they don't look like controls that do nothing (owner, 2026-08-02: "for
 // stripes the width of the stripes, and the spacing between stripes should
@@ -711,7 +723,7 @@ function teamTabUpdatePreview() {
   banner.style.cssText = teamBrandBannerCss(primary, secondary,
     teamTabStyleValue(), teamTabAngleValue(), _teamTabColors.brandTextColor, _teamTabColors.brandNameOutlineColor,
     { stripeWidth: teamTabStripeWidthValue(), stripeGap: teamTabStripeGapValue(), patternScale: teamTabPatternScaleValue(),
-      gradientBalance: teamTabGradientBalanceValue() });
+      gradientBalance: teamTabGradientBalanceValue(), outlineWidth: teamTabOutlineWidthValue() });
   if (logoImg) {
     // The SLOT (not just the image) has to hide too — it reserves its own
     // ~third of the banner's width even with an empty img inside, wasting
@@ -765,6 +777,8 @@ async function loadTeamTab(team) {
   if (scaleEl) scaleEl.value = (rec && typeof rec.brandPatternScale === 'number') ? rec.brandPatternScale : 28;
   var balanceEl = document.getElementById('teamTabGradientBalance');
   if (balanceEl) balanceEl.value = (rec && typeof rec.brandGradientBalance === 'number') ? rec.brandGradientBalance : 50;
+  var outlineWidthEl = document.getElementById('teamTabOutlineWidth');
+  if (outlineWidthEl) outlineWidthEl.value = (rec && typeof rec.brandOutlineWidth === 'number') ? rec.brandOutlineWidth : 35;
   teamTabSyncStyleRow();
   // Staff viewing the coach panel (checking what a coach sees, or coaching
   // themselves) are never locked out — only a genuine coach session is.
@@ -826,6 +840,7 @@ async function saveTeamProfile() {
   body.brandStripeGap = teamTabStripeGapValue();
   body.brandPatternScale = teamTabPatternScaleValue();
   body.brandGradientBalance = teamTabGradientBalanceValue();
+  body.brandOutlineWidth = teamTabOutlineWidthValue();
   var r = await fetch(coachApiBase() + '/team-profile/' + encodeURIComponent(_teamTabTeam), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -862,6 +877,8 @@ async function saveTeamProfile() {
     if (scaleEl) scaleEl.value = typeof data.team.brandPatternScale === 'number' ? data.team.brandPatternScale : 28;
     var balanceEl = document.getElementById('teamTabGradientBalance');
     if (balanceEl) balanceEl.value = typeof data.team.brandGradientBalance === 'number' ? data.team.brandGradientBalance : 50;
+    var outlineWidthEl = document.getElementById('teamTabOutlineWidth');
+    if (outlineWidthEl) outlineWidthEl.value = typeof data.team.brandOutlineWidth === 'number' ? data.team.brandOutlineWidth : 35;
     teamTabSyncStyleRow();
   }
 }
@@ -913,6 +930,8 @@ async function initTeamTab() {
   if (scaleEl) scaleEl.addEventListener('input', teamTabUpdatePreview);
   var balanceEl = document.getElementById('teamTabGradientBalance');
   if (balanceEl) balanceEl.addEventListener('input', teamTabUpdatePreview);
+  var outlineWidthEl = document.getElementById('teamTabOutlineWidth');
+  if (outlineWidthEl) outlineWidthEl.addEventListener('input', teamTabUpdatePreview);
   var displayEl = document.getElementById('teamTabDisplay');
   if (displayEl) displayEl.addEventListener('input', teamTabUpdatePreview);
   await loadTeamTab(teams[0] || null);

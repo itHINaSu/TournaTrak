@@ -763,12 +763,13 @@ function ttApplyLogoScale(scale) {
 // to look right and was judged not worth the risk of shipping something
 // that renders wrong on a screen nobody previewed it on.
 //
-// extra: { stripeWidth, stripeGap, patternScale } — "for stripes the width
-// of the stripes, and the spacing between stripes should be modifiable."
-// stripeWidth/stripeGap only apply to 'stripes'; patternScale (the tile
-// size) only to 'chevron'/'dots'. All three default to their original
+// extra: { stripeWidth, stripeGap, patternScale, outlineWidth } — "for
+// stripes the width of the stripes, and the spacing between stripes should
+// be modifiable." stripeWidth/stripeGap only apply to 'stripes'; patternScale
+// (the tile size) only to 'chevron'/'dots'. outlineWidth (thousandths of an
+// em) only applies when outlineColor is set. All default to their original
 // hardcoded values so every existing saved team (no tunables set) renders
-// identically to before this feature existed.
+// identically to before each feature existed.
 //
 // textColor overrides the banner's default white (.team-brand-banner
 // already carries a text-shadow for legibility against ANY background, so
@@ -778,8 +779,10 @@ function ttApplyLogoScale(scale) {
 // text-shadow rather than -webkit-text-stroke — see the note further down
 // where it's built for why. Set via text-shadow, an inherited property, so
 // setting it on the banner reaches .team-brand-name without a second
-// selector; the fixed width keeps this "add an outline", not a second
-// tunable nobody asked for.
+// selector. Weight is tunable via outlineWidth (owner, 2026-08-02: "Increase
+// the outline weight a touch. Or select a reasonable range and allow
+// coaches to increase/decrease the outline weight within the preset
+// range.") — see where it's applied further down for the range.
 // Flat-top hexagon honeycomb, built as a tileable inline SVG (not a CSS
 // gradient hack) — owner, 2026-08-02: "The dots and chevron are exactly what
 // i wanted to avoid, how about a concrete texture, a honeycomb option?" A
@@ -867,7 +870,15 @@ function teamBrandBannerCss(primary, secondary, style, angle, textColor, outline
   // rather than dropping it, so legibility against the banner itself is
   // unaffected by whether an outline is set.
   if (outlineColor) {
-    var d = '0.028em';
+    // Weight is stored in thousandths of an em (an integer, matching the
+    // Math.round convention every other brand* slider uses) — owner,
+    // 2026-08-02: "Increase the outline weight a touch. Or select a
+    // reasonable range and allow coaches to increase/decrease the outline
+    // weight within the preset range." 35 (0.035em) is the new default,
+    // a bump from the original hardcoded 0.028em; the slider covers
+    // 15-70 (thin hairline to bold).
+    var ow = (typeof e.outlineWidth === 'number' && e.outlineWidth > 0) ? e.outlineWidth : 35;
+    var d = (ow / 1000) + 'em';
     css += ' text-shadow: '
       + '-' + d + ' -' + d + ' 0 ' + outlineColor + ', '
       + '0 -' + d + ' 0 ' + outlineColor + ', '
