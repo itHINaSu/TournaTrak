@@ -4269,8 +4269,16 @@ function renderMobileBracket(root, dims) {
     // and the convergence animation still has feeders to converge on.
     if (!bucket.L.length && cols.length > 0) {
       var prev = cols[cols.length - 1];
-      prev.divs.push({ idx: prev.gids.length, label: 'Round ' + bucket.idx, type: 'absorbed' });
-      prev.label = prev.label + ' · Round ' + bucket.idx;
+      // roundNum marks this as a GENUINELY later round folded in — distinct
+      // from the same-round WB/LB divider below, which shares its column's
+      // own baseIdx and must NOT double up in the recomputed label.
+      prev.divs.push({ idx: prev.gids.length, label: 'Round ' + bucket.idx, type: 'absorbed', roundNum: bucket.idx });
+      // label is rebuilt from baseLabel + surviving divs further down, AFTER
+      // the championship-parity pass below — a game folded in here (e.g. an
+      // LB round) can later be pulled back OUT of this same column (e.g. the
+      // LB Final, promoted into the CHAMP column), and concatenating the
+      // string eagerly here would leave a stale "· Round N" in the header
+      // for a round that column no longer contains anything from.
       bucket.R.forEach(function(gid) { prev.gids.push(gid); });
       return;
     }
@@ -4284,13 +4292,16 @@ function renderMobileBracket(root, dims) {
       flat = flat.concat(wave);
     });
     if (bucket.R.length) {
+      // Same round as the column itself (bucket.idx) — the header already
+      // says this via baseLabel, so this divider is excluded from the
+      // recomputed label below by NOT setting roundNum.
       divs.push({ idx: flat.length, label: 'Round ' + bucket.idx, type: 'absorbed' });
       waveOrder(bucket.R).forEach(function(wave, wi) {
         if (wi) divs.push({ idx: flat.length, label: getSetting('playInLabel'), type: 'playin' });
         flat = flat.concat(wave);
       });
     }
-    cols.push({ round: round, label: 'Round ' + bucket.idx, gids: flat, divs: divs });
+    cols.push({ round: round, label: 'Round ' + bucket.idx, baseLabel: 'Round ' + bucket.idx, gids: flat, divs: divs });
   });
 
   // Championship columns keep their own round keys and labels.
@@ -4346,6 +4357,23 @@ function renderMobileBracket(root, dims) {
       { idx: 2, label: (getSetting('rightLabel') || 'Losers') + ' Final' },
     ];
   })();
+
+  // Rebuild every non-championship column's header label from what's
+  // ACTUALLY left in it now that the parity pass above may have pulled a
+  // round's only game back out (e.g. an LB Final promoted into the CHAMP
+  // column) — owner, 2026-08-02, on a column left reading "Round 4 · Round
+  // 5 · Round 6" with no Round 6 content inside it any more: "Round 5 is
+  // not fed by two winners from a previous round." The divs list is already
+  // correctly pruned above (a divider past the end of gids is dropped); this
+  // just makes the label agree with it instead of the eager string
+  // concatenation done while folding rounds in, which had no way to know a
+  // later fold's content might be removed again afterward.
+  cols.forEach(function(col) {
+    if (col.round === 'CHAMP' || col.round === 'CHAMP2' || !col.baseLabel) return;
+    var parts = [col.baseLabel];
+    (col.divs || []).forEach(function(d) { if (d.type === 'absorbed' && d.roundNum != null) parts.push(d.label); });
+    col.label = parts.join(' · ');
+  });
 
   renderMobileColumns(root, cols);
 }
