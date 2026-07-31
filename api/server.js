@@ -1052,6 +1052,29 @@ async function resolveTeamToken(token) {
     .find(u => u.role === 'team' && u.accessToken === hashed) || null;
 }
 
+// THERE ARE TWO KINDS OF TEAM LINK and the join page has to accept both.
+//
+//  1. `team_links` (Settings > Teams / Coaches, route /api/team-link/:token) —
+//     a per-TEAM token with no account behind it at all. This is the one a TD
+//     actually hands out, so it is the one the owner meant.
+//  2. A team USER's accessToken (route /api/team-access/:token) — the older
+//     per-account magic link.
+//
+// Only the first was missed when the join page was built, which is why the
+// link a TD copies still went to the lineup page. Returns { team, tid }.
+async function resolveJoinToken(token, reqTid) {
+  if (!TEAM_TOKEN_RE.test(token || '')) return null;
+  for (const t of await store.listTournaments()) {
+    const links = await teamLinks(t.id);
+    const hit = Object.entries(links).find(([, v]) => v && v.token === token);
+    if (hit) return { team: hit[0], tid: t.id };
+  }
+  const user = await resolveTeamToken(token);
+  if (!user) return null;
+  const tid = teamTokenTid(user, reqTid);
+  return { team: coachTeamsOf(user, tid)[0] || user.teamName || '', tid };
+}
+
 // Which tournament a team link belongs to: prefer the current mount if the
 // account is granted there, else its first grant.
 function teamTokenTid(user, reqTid) {
@@ -1071,13 +1094,11 @@ async function teamTokenSlugQuery(destTid) {
 // accept as-is. Nothing about the team account behind the link.
 api.get('/team-join/:token', ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  const user = await resolveTeamToken(req.params.token);
-  if (!user) return res.status(404).json({ error: 'This link is not valid.' });
-  const destTid = teamTokenTid(user, req.tid);
-  const teamName = coachTeamsOf(user, destTid)[0] || user.teamName || '';
+  const found = await resolveJoinToken(req.params.token, req.tid);
+  if (!found || !found.team) return res.status(404).json({ error: 'This link is not valid.' });
   res.json({
-    teamName,
-    suggestedUsername: await suggestCoachUsername(destTid, teamName),
+    teamName: found.team,
+    suggestedUsername: await suggestCoachUsername(found.tid, found.team),
   });
 }));
 
@@ -1089,8 +1110,8 @@ api.get('/team-join/:token', ah(async (req, res) => {
 // regenerate it.
 api.post('/team-join/:token', loginRateLimit, ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  const user = await resolveTeamToken(req.params.token);
-  if (!user) return res.status(404).json({ error: 'This link is not valid.' });
+  const found = await resolveJoinToken(req.params.token, req.tid);
+  if (!found || !found.team) return res.status(404).json({ error: 'This link is not valid.' });
 
   const { username, password } = req.body || {};
   if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
@@ -1106,9 +1127,8 @@ api.post('/team-join/:token', loginRateLimit, ah(async (req, res) => {
     return res.status(409).json({ error: 'That username is taken — pick another.' });
   }
 
-  const destTid = teamTokenTid(user, req.tid);
-  const teamName = coachTeamsOf(user, destTid)[0] || user.teamName || '';
-  if (!teamName) return res.status(400).json({ error: 'This link has no team.' });
+  const destTid = found.tid;
+  const teamName = found.team;
 
   try {
     const hash = await bcrypt.hash(password, 12);
@@ -1193,6 +1213,49 @@ api.post('/coach/coaches', requireCoachSelf, ah(async (req, res) => {
     console.error('coach-invite error:', err);
     res.status(500).json({ error: 'Failed to create coach' });
   }
+}));
+
+// Remove a coach from a team you coach. Deliberately narrow: it only ever
+// removes the TEAM, and deletes the account only when that was its last team
+// AND it is a pure coach with no other role — a coach must never be able to
+// delete a TD's account just because the TD also coaches.
+api.delete('/coach/coaches/:username', requireCoachSelf, ah(async (req, res) => {
+  const mine = coachTeamsOf(req.user, req.tid);
+  const target = await store.findUser(req.params.username);
+  if (!target) return res.status(404).json({ error: 'No such coach' });
+  if (target.username === req.user.username) {
+    return res.status(400).json({ error: 'You cannot remove yourself.' });
+  }
+  const shared = coachTeamsOf(target, req.tid).filter(t => mine.includes(t));
+  if (!shared.length) return res.status(403).json({ error: 'They do not coach your team.' });
+  if (target.role !== 'team') {
+    return res.status(403).json({ error: 'That account is staff — ask an admin.' });
+  }
+  // setUserTeams REPLACES this tournament's list, so compute what remains.
+  const left = coachTeamsOf(target, req.tid).filter(t => !shared.includes(t));
+  await store.setUserTeams(target.username, req.tid, left);
+  // A pure coach with no teams left has nothing it can do and no way to sign
+  // in usefully — same tidy-up the admin panel's coach removal performs.
+  if (!left.length) await store.deleteUser(target.username);
+  res.json({ ok: true, removed: !left.length });
+}));
+
+// A fresh setup link for a coach who lost theirs. Same shape as the admin
+// panel's regenerate: the old link dies, and the new one is shown once.
+api.post('/coach/coaches/:username/link', requireCoachSelf, ah(async (req, res) => {
+  const mine = coachTeamsOf(req.user, req.tid);
+  const target = await store.findUser(req.params.username);
+  if (!target) return res.status(404).json({ error: 'No such coach' });
+  if (!coachTeamsOf(target, req.tid).some(t => mine.includes(t))) {
+    return res.status(403).json({ error: 'They do not coach your team.' });
+  }
+  if (target.role !== 'team') {
+    return res.status(403).json({ error: 'That account is staff — ask an admin.' });
+  }
+  const setupToken = crypto.randomBytes(32).toString('hex');
+  await store.updateUser(target.username,
+    { setupToken: store.hashToken(setupToken), mustChangePassword: true });
+  res.json({ ok: true, setupToken });
 }));
 
 api.get('/team-access/:token', ah(async (req, res) => {
@@ -2465,8 +2528,20 @@ api.get('/team-link/:token', ah(async (req, res) => {
       return req.session.save(err => res.redirect(err ? dest('') : dest('?claim=1')));
     }
 
+    // Lands on the COACH PANEL's join page, not the lineup page (owner,
+    // 2026-08-02: the link should let a coach "create a password to setup
+    // their account like the link generated from admin > coaches"). The
+    // session is still started first, exactly as /team-access does: this link
+    // is how a coach gets in at all, and a registration wall in front of it
+    // would lock out everyone already using one. Registration is an offer on
+    // top of access — the join page has a "Continue without an account"
+    // escape, and a team-link session already reports role 'team' with the
+    // team attached, so the panel works either way.
+    const joinDest = (t.id === store.tid ? '/coach?join=' : '/coach?join=')
+      + encodeURIComponent(token)
+      + (t.id === store.tid ? '' : '&t=' + encodeURIComponent(t.slug));
     return startSession(req, { teamLink: { tid: t.id, team } },
-      () => res.redirect(dest('')),
+      () => res.redirect(joinDest),
       () => res.redirect('/lineup?invalid=1'));
   }
   res.redirect('/lineup?invalid=1');

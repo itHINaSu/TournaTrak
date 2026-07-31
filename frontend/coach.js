@@ -206,12 +206,60 @@ function coachSlugQuery() {
   return t ? '?t=' + encodeURIComponent(t) : '';
 }
 
+// A coach who arrived on a setup magic link has mustChangePassword set, and
+// EVERY coach route 403s with "Password change required" until they clear it.
+// So the password form has to be the first thing they see — the admin panel
+// does the same with showChangePassword(). Burying it in the Account tab left
+// an invitee on a panel where nothing loaded and nothing said why.
+function showCoachSetup() {
+  showCoachGate('Set your password',
+    'Choose a password for your coach account. You will use it to sign in from now on.',
+    false);
+  var form = document.getElementById('coachSetupForm');
+  if (!form) return;
+  form.hidden = false;
+  var pass = document.getElementById('setupPass');
+  if (pass) pass.focus();
+  form.onsubmit = async function (e) {
+    e.preventDefault();
+    var err = document.getElementById('setupError');
+    var btn = document.getElementById('setupBtn');
+    var p1 = document.getElementById('setupPass').value;
+    var p2 = document.getElementById('setupPass2').value;
+    err.hidden = true;
+    if (p1.length < 8) { err.textContent = 'Use at least 8 characters.'; err.hidden = false; return; }
+    if (p1 !== p2)     { err.textContent = 'Those do not match.'; err.hidden = false; return; }
+    btn.disabled = true;
+    try {
+      var r = await fetch(coachApiBase() + '/change-password', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: p1 }),
+      });
+      var d = await r.json().catch(function () { return {}; });
+      if (!r.ok) {
+        err.textContent = d.error || 'Could not save that password.';
+        err.hidden = false; btn.disabled = false; return;
+      }
+      window.location.replace('/coach' + coachSlugQuery());
+    } catch (e2) {
+      err.textContent = 'Could not reach the server.';
+      err.hidden = false; btn.disabled = false;
+    }
+  };
+}
+
 async function initCoachPanel() {
   var joinToken = coachJoinToken();
   if (joinToken) { await showCoachJoin(joinToken); return; }
   var r = await fetch(coachApiBase() + '/session').catch(function () { return null; });
   var session = r && r.ok ? await r.json().catch(function () { return null; }) : null;
   _coachSession = session;
+
+  // Before the role checks: this account cannot use any of them yet.
+  if (session && session.authenticated && session.mustChangePassword) {
+    showCoachSetup();
+    return;
+  }
 
   if (!session || !session.authenticated) {
     showCoachGate('Coach Panel',
@@ -1396,12 +1444,58 @@ async function renderCoachList() {
   var list = await r.json().catch(function () { return []; });
   if (!list.length) { wrap.innerHTML = ''; return; }
   wrap.innerHTML = list.map(function (c) {
-    return '<div class="resched-move">'
-      + '<span class="resched-when">' + esc(c.username) + (c.isSelf ? ' (you)' : '') + '</span>'
-      + '<span class="resched-lbl">' + esc(c.teams.join(', ')) + '</span>'
-      + (c.pending ? '<span class="resched-fld">link not used yet</span>' : '')
+    return '<div class="coach-list-row">'
+      + '<span class="coach-list-name">' + esc(c.username) + (c.isSelf ? ' (you)' : '') + '</span>'
+      + '<span class="coach-list-teams">' + esc(c.teams.join(', ')) + '</span>'
+      + (c.pending ? '<span class="coach-list-pending">link not used</span>' : '')
+      // No controls on your own row: removing yourself is refused by the
+      // server anyway, and a new setup link for the account you are signed
+      // into is meaningless.
+      + (c.isSelf ? '' :
+          '<button class="admin-clear-btn coach-list-btn" data-action="coachNewLink" data-arg="'
+          + esc(c.username) + '">New link</button>'
+        + '<button class="admin-clear-btn coach-list-btn" data-action="coachRemove" data-arg="'
+          + esc(c.username) + '">Remove</button>')
       + '</div>';
   }).join('');
+}
+
+// Shows a freshly minted setup link once, in the same box the invite flow
+// uses — there is no way to see it again, by design.
+function showCoachLink(username, setupToken) {
+  var link = window.location.origin + '/api/setup-password/' + setupToken;
+  document.getElementById('newCoachName').textContent = username;
+  document.getElementById('newCoachLink').value = link;
+  document.getElementById('newCoachLinkWrap').hidden = false;
+  if (navigator.clipboard) navigator.clipboard.writeText(link).catch(function () {});
+}
+
+async function coachNewLink(username) {
+  if (!await ttConfirm('Create a new setup link for ' + username + '?\nTheir old link stops working.')) return;
+  setStatus('addCoachStatus', 'Working…');
+  try {
+    var r = await fetch(coachApiBase() + '/coach/coaches/' + encodeURIComponent(username) + '/link',
+      { method: 'POST' });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok) { setStatus('addCoachStatus', d.error || 'Failed', true); return; }
+    showCoachLink(username, d.setupToken);
+    setStatus('addCoachStatus', '✓ New link copied', true);
+    renderCoachList();
+  } catch (e) { setStatus('addCoachStatus', 'Failed', true); }
+}
+
+async function coachRemove(username) {
+  if (!await ttConfirm('Remove ' + username + ' from this team?\nThey lose access immediately.',
+      { okLabel: 'Remove', danger: true })) return;
+  setStatus('addCoachStatus', 'Removing…');
+  try {
+    var r = await fetch(coachApiBase() + '/coach/coaches/' + encodeURIComponent(username),
+      { method: 'DELETE' });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok) { setStatus('addCoachStatus', d.error || 'Failed', true); return; }
+    setStatus('addCoachStatus', '✓ Removed', true);
+    renderCoachList();
+  } catch (e) { setStatus('addCoachStatus', 'Failed', true); }
 }
 
 async function addTeamCoach() {
@@ -1417,11 +1511,7 @@ async function addTeamCoach() {
     var d = await r.json().catch(function () { return {}; });
     if (!r.ok) { setStatus('addCoachStatus', d.error || 'Failed', true); return; }
     // Shown once, like every other token in this app — only the hash is kept.
-    var link = window.location.origin + '/api/setup-password/' + d.setupToken;
-    document.getElementById('newCoachName').textContent = username;
-    document.getElementById('newCoachLink').value = link;
-    document.getElementById('newCoachLinkWrap').hidden = false;
-    if (navigator.clipboard) navigator.clipboard.writeText(link).catch(function () {});
+    showCoachLink(username, d.setupToken);
     inp.value = '';
     setStatus('addCoachStatus', '✓ Link copied', true);
     renderCoachList();
@@ -1440,6 +1530,8 @@ Object.assign(TT_ACTIONS, {
   sortRoster:        function (arg) { sortRoster(arg); },
   saveTeamProfile:   function () { saveTeamProfile(); },
   addTeamCoach:      function () { addTeamCoach(); },
+  coachNewLink:      function (arg) { coachNewLink(arg); },
+  coachRemove:       function (arg) { coachRemove(arg); },
   removeTeamTabLogo: function () { removeTeamTabLogo(); },
   recropTeamTabLogo: function () { recropTeamTabLogo(); },
   clearTeamTabColor: function (arg) { clearTeamTabColor(arg); },

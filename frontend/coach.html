@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=4.08.041">
-<link rel="stylesheet" href="/admin.css?v=4.08.041">
-<link rel="stylesheet" href="/lineup.css?v=4.08.041">
-<script src="/app-h.js?v=4.08.041"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.043">
+<link rel="stylesheet" href="/admin.css?v=4.08.043">
+<link rel="stylesheet" href="/lineup.css?v=4.08.043">
+<script src="/app-h.js?v=4.08.043"></script>
 </head>
 <body>
 
@@ -59,6 +59,22 @@
       <!-- The link already signed them in, so this must never be a dead end:
            anyone who does not want their own account carries on as before. -->
       <button type="button" class="admin-clear-btn login-btn" id="joinSkipBtn">Continue without an account</button>
+    </form>
+    <!-- Forced first password, shown when a coach arrives on a setup magic
+         link (mustChangePassword). Until it is set, every coach route 403s
+         with "Password change required", so this cannot be a section buried
+         in a tab the account cannot load. -->
+    <form id="coachSetupForm" hidden autocomplete="on">
+      <div class="settings-field">
+        <label for="setupPass">Create a password</label>
+        <input type="password" id="setupPass" autocomplete="new-password" placeholder="At least 8 characters">
+      </div>
+      <div class="settings-field">
+        <label for="setupPass2">Confirm password</label>
+        <input type="password" id="setupPass2" autocomplete="new-password" placeholder="Repeat it">
+      </div>
+      <div class="login-error" id="setupError" hidden></div>
+      <button type="submit" class="sched-save-btn login-btn" id="setupBtn">Save password</button>
     </form>
   </div>
 </div>
@@ -587,11 +603,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.041"></script>
-<script src="/theme-css.js?v=4.08.041"></script>
-<script src="/tt-common.js?v=4.08.041"></script>
-<script src="/bracket-data.js?v=4.08.041"></script>
-<script src="/lineup.js?v=4.08.041"></script>
-<script src="/coach.js?v=4.08.041"></script>
+<script src="/settings-defaults.js?v=4.08.043"></script>
+<script src="/theme-css.js?v=4.08.043"></script>
+<script src="/tt-common.js?v=4.08.043"></script>
+<script src="/bracket-data.js?v=4.08.043"></script>
+<script src="/lineup.js?v=4.08.043"></script>
+<script src="/coach.js?v=4.08.043"></script>
 </body>
 </html>

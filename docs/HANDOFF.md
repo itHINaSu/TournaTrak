@@ -199,6 +199,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **The TD-facing team link now opens the coach panel, and an invited coach can actually set a password.** Two separate link systems exist and only one had been converted: `/api/team-access/:token` (a team USER's accessToken) versus **`/api/team-link/:token`, backed by `team_links` — the one Settings → Teams / Coaches actually hands out**. The second still went to `/lineup`. `resolveJoinToken()` now accepts BOTH, and `/team-link/:token` redirects to `/coach?join=…` while still starting the session first (same rule as the other link: registration is an offer on top of access, never a wall). Separately, `coach.js` had **no handling of `mustChangePassword` at all**, so an invitee arriving on a setup magic link landed on a panel where every route 403s with "Password change required" and nothing said why — `showCoachSetup()` now forces the password form first, the way the admin panel's `showChangePassword()` does. **Coaches can also remove a coach or reissue their link** (`DELETE /coach/coaches/:username`, `POST /coach/coaches/:username/link`), scoped to their own teams, refusing self-removal and refusing staff accounts outright. |
 | (this) | **iOS push delivered nothing: the VAPID subject was `mailto:admin@localhost`** (owner, 2026-08-02, permissions confirmed granted in iOS Settings). Apple validates the VAPID JWT's `sub` claim and rejects a non-routable one — 403, per send, silently, because every sender is fire-and-forget. FCM accepts almost anything, which is why the same build would deliver to Android and never to an iPhone. `.env.example` documents `VAPID_SUBJECT` but ships it COMMENTED OUT, so any instance that never set it hit the broken default. Now: `validVapidSubject()` accepts only a real `mailto:`/`https:` URI, the subject resolves per send (a valid configured `VAPID_SUBJECT` → `DEFAULT_VAPID_SUBJECT`, now the REAL address `mailto:notifications@tournatrak.com` so an instance that never touches `.env` still delivers to iOS; an invalid override is ignored with a warning rather than silently poisoning every send, and the chosen subject is logged at boot), and failures log `statusCode` + the service's own body instead of just `err.message`. **`POST /api/push/public-test` + a "Send a test" button** on the notify page send to the caller's own device and show the push service's verbatim rejection — previously there was no way to tell a refused push from one never sent. |
 | (this) | **Install page type scaled up** (owner: "a bit small on mobile") — intro and steps to `--text-md`, note to `--text-sm`, with `#view-install`-scoped overrides for the `.notify-section-hdr` / `.notify-note` it borrows so the notifications settings page is untouched. |
 | (this) | **Share was "locked to the bracket page"** (owner, 2026-08-02) — `#shareOverlay` lived INSIDE `#view-bracket`, so opening it from Schedule/Standings/Team Path set `hidden=false` on a dialog nested in a panel that is only displayable while `.active`. Nothing appeared, and it then popped into view the moment the visitor next opened the Bracket tab, which reads exactly like a queued click. **HANDOFF had already flagged this exposure** when the notifications panel was moved for the same reason ("The Save-image overlay is still inside `#view-bracket` and has the same exposure"). Moved to a direct child of `<body>`; the capture code was fine all along. Verified all four targets render at 390px and 1400px. |
@@ -2428,6 +2429,20 @@ final, not under the final itself — that is where the line now runs off the
 end of the row with nothing to follow.
 
 ## Coach passwords (optional, alongside magic links)
+
+**TWO team-link systems exist — check which one you are changing.**
+`team_links` (`/api/team-link/:token`, per TEAM, no account behind it) is what
+Settings → Teams and → Coaches hand out. A team USER's `accessToken`
+(`/api/team-access/:token`) is the older per-account link. Converting one and
+not the other is exactly how "the coach link still goes to lineup" happened
+after the coach-panel join page shipped. `resolveJoinToken()` accepts both.
+
+**Roster and lineup are already keyed by TEAM, not by account** — verified by
+tests that register two separate coach accounts on one team and read each
+other's writes (`team data is shared between a team's coaches`). If two
+accounts ever appear to see different data, the cause is not the storage
+model: check that both are granted the same team NAME on the same TOURNAMENT.
+
 Coaches auth primarily by magic link, but may OPTIONALLY set a password:
 - `/api/session` exposes `hasPassword` (all authenticated users).
 - Standalone lineup page: header "Set Password" / "Change Password" button

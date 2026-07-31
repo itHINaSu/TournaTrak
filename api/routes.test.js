@@ -2018,3 +2018,187 @@ describe('coaches inviting coaches', () => {
     assert.equal((await a.post('/api/coach/coaches', { username: 'nope' })).status, 403);
   });
 });
+
+// ── The TD-facing team link, and coaches managing coaches (2026-08-02) ──
+describe('the Settings team link opens the coach panel', () => {
+  rtest('/team-link/:token lands on the coach join page, still signed in', async () => {
+    const a = await loginAdmin();
+    const mk = await a.post('/api/team-links/' + encodeURIComponent('Linkers'), {});
+    assert.equal(mk.status, 200, JSON.stringify(mk.json));
+    const token = mk.json.token || (mk.json.link && mk.json.link.token);
+    assert.ok(token, 'a team link has a token: ' + JSON.stringify(mk.json));
+
+    const c = agent();
+    const hit = await c.req('GET', '/api/team-link/' + token, undefined, { manual: true });
+    assert.equal(hit.status, 302);
+    assert.match(hit.headers.get('location'), /^\/coach\?join=/,
+      'the link a TD hands out must open the coach panel, got ' + hit.headers.get('location'));
+    // Access is preserved: registration is an offer, not a wall.
+    const who = await c.get('/api/session');
+    assert.equal(who.json.authenticated, true);
+    assert.equal(who.json.role, 'team');
+
+    // And the join page resolves THIS kind of token, not just an account one.
+    const info = await c.get('/api/team-join/' + token);
+    assert.equal(info.status, 200, JSON.stringify(info.json));
+    assert.equal(info.json.teamName, 'Linkers');
+    assert.ok(info.json.suggestedUsername, 'a username is suggested');
+  });
+
+  rtest('registering through a team link creates a real coach account', async () => {
+    const a = await loginAdmin();
+    const mk = await a.post('/api/team-links/' + encodeURIComponent('Signups'), {});
+    const token = mk.json.token || (mk.json.link && mk.json.link.token);
+    const c = agent();
+    const r = await c.post('/api/team-join/' + token,
+      { username: 'coach_fromlink', password: 'linkpass12345' });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    const who = await c.get('/api/session');
+    assert.equal(who.json.username, 'coach_fromlink');
+    assert.equal(who.json.role, 'team');
+    assert.deepEqual(who.json.teams, ['Signups']);
+  });
+});
+
+describe('coaches managing coaches', () => {
+  async function coachFor(team, username) {
+    const a = await loginAdmin();
+    const mk = await a.post('/api/team-links/' + encodeURIComponent(team), {});
+    const token = mk.json.token || (mk.json.link && mk.json.link.token);
+    const c = agent();
+    await c.post('/api/team-join/' + token, { username, password: 'coachpass1234' });
+    return c;
+  }
+
+  rtest('a coach can regenerate another coach\'s link, and the new one works', async () => {
+    const c = await coachFor('Regen', 'coach_regen_a');
+    const made = await c.post('/api/coach/coaches', { username: 'asst_regen' });
+    assert.equal(made.status, 200);
+    const first = made.json.setupToken;
+
+    const again = await c.post('/api/coach/coaches/asst_regen/link', {});
+    assert.equal(again.status, 200, JSON.stringify(again.json));
+    assert.ok(again.json.setupToken && again.json.setupToken !== first, 'a NEW token');
+
+    // Old link is dead, new link works and lands on the coach panel.
+    const dead = agent();
+    assert.match((await dead.req('GET', '/api/setup-password/' + first,
+      undefined, { manual: true })).headers.get('location'), /setup=invalid/);
+    const live = agent();
+    const ok = await live.req('GET', '/api/setup-password/' + again.json.setupToken,
+      undefined, { manual: true });
+    assert.match(ok.headers.get('location'), /^\/coach\?setup=/);
+  });
+
+  rtest('a coach can remove another coach, and cannot remove themselves', async () => {
+    const c = await coachFor('Removal', 'coach_rm_owner');
+    assert.equal((await c.post('/api/coach/coaches', { username: 'asst_rm' })).status, 200);
+    assert.ok((await c.get('/api/coach/coaches')).json.some(x => x.username === 'asst_rm'));
+
+    assert.equal((await c.req('DELETE', '/api/coach/coaches/coach_rm_owner')).status, 400,
+      'removing yourself is refused');
+    const del = await c.req('DELETE', '/api/coach/coaches/asst_rm');
+    assert.equal(del.status, 200, JSON.stringify(del.json));
+    assert.ok(!(await c.get('/api/coach/coaches')).json.some(x => x.username === 'asst_rm'));
+  });
+
+  rtest('a coach cannot touch another team\'s coach, or a staff account', async () => {
+    const mine = await coachFor('MineOnly', 'coach_scope_a');
+    const other = await coachFor('TheirsOnly', 'coach_scope_b');
+    assert.ok(other);
+    assert.equal((await mine.req('DELETE', '/api/coach/coaches/coach_scope_b')).status, 403);
+    assert.equal((await mine.post('/api/coach/coaches/coach_scope_b/link', {})).status, 403);
+    // Staff accounts are off limits even if they share the team.
+    const a = await loginAdmin();
+    assert.equal((await a.get('/api/session')).json.role, 'admin');
+    assert.equal((await mine.req('DELETE', '/api/coach/coaches/' + (await a.get('/api/session')).json.username)).status, 403);
+  });
+});
+
+// ── Roster and lineup belong to the TEAM, not the account (2026-08-02) ──
+describe('team data is shared between a team\'s coaches', () => {
+  async function coachOn(team, username) {
+    const a = await loginAdmin();
+    const mk = await a.post('/api/team-links/' + encodeURIComponent(team), {});
+    const token = mk.json.token || (mk.json.link && mk.json.link.token);
+    const c = agent();
+    const r = await c.post('/api/team-join/' + token, { username, password: 'sharedpass123' });
+    assert.equal(r.status, 200, 'join: ' + JSON.stringify(r.json));
+    return c;
+  }
+
+  rtest('a roster saved by one coach is visible to another', async () => {
+    const one = await coachOn('Sharers', 'coach_share_1');
+    const two = await coachOn('Sharers', 'coach_share_2');
+
+    const save = await one.post('/api/roster/' + encodeURIComponent('Sharers'),
+      { players: [{ name: 'Alex Kim', numbers: ['7'] }, { name: 'Sam Diaz', numbers: ['9'] }] });
+    assert.equal(save.status, 200, JSON.stringify(save.json));
+
+    const seen = await two.get('/api/roster/' + encodeURIComponent('Sharers'));
+    assert.equal(seen.status, 200, JSON.stringify(seen.json));
+    const names = (seen.json.players || seen.json || []).map(p => p.name);
+    assert.deepEqual(names, ['Alex Kim', 'Sam Diaz'],
+      'the roster belongs to the team, not the account that typed it: ' + JSON.stringify(seen.json));
+  });
+
+  rtest('a lineup saved by one coach is visible to another', async () => {
+    const one = await coachOn('Lineupers', 'coach_lu_1');
+    const two = await coachOn('Lineupers', 'coach_lu_2');
+    // A game with a recorded result is LOCKED, so pick one that has none —
+    // otherwise this fails on the lock and says nothing about sharing.
+    const a = await loginAdmin();
+    const sched = (await a.get('/api/schedule')).json || {};
+    const results = (await a.get('/api/results')).json || {};
+    const gid = Object.keys(sched).find(k => !results[k] || !results[k].winner);
+    assert.ok(gid, 'need at least one unplayed game');
+
+    const save = await one.post('/api/lineups/game/' + gid + '/' + encodeURIComponent('Lineupers'),
+      { rows: [{ name: 'Alex Kim', jersey: '7', position: 'P' }] });
+    assert.equal(save.status, 200, JSON.stringify(save.json));
+
+    const seen = await two.get('/api/lineups/game/' + gid + '/' + encodeURIComponent('Lineupers'));
+    assert.equal(seen.status, 200, JSON.stringify(seen.json));
+    const rows = seen.json.rows || seen.json || [];
+    assert.equal(rows.length, 1, 'the lineup must follow the team: ' + JSON.stringify(seen.json));
+    assert.equal(rows[0].name, 'Alex Kim');
+  });
+});
+
+describe('a coach invited by magic link must be able to set a password', () => {
+  rtest('every coach route 403s until the password is set, then works', async () => {
+    // This is why the form has to be the FIRST thing the panel shows: an
+    // invitee cannot load anything until mustChangePassword is cleared.
+    const a = await loginAdmin();
+    const mk = await a.post('/api/team-links/' + encodeURIComponent('Setuppers'), {});
+    const token = mk.json.token || (mk.json.link && mk.json.link.token);
+    const owner = agent();
+    await owner.post('/api/team-join/' + token, { username: 'coach_setup_own', password: 'ownerpass123' });
+    const made = await owner.post('/api/coach/coaches', { username: 'asst_setup' });
+    assert.equal(made.status, 200);
+
+    const inv = agent();
+    const hit = await inv.req('GET', '/api/setup-password/' + made.json.setupToken,
+      undefined, { manual: true });
+    assert.match(hit.headers.get('location'), /^\/coach\?setup=/);
+
+    const sess = await inv.get('/api/session');
+    assert.equal(sess.json.authenticated, true);
+    assert.equal(sess.json.mustChangePassword, true,
+      'the panel keys the forced form off this');
+
+    // Locked out of its own team data until it sets one.
+    assert.equal((await inv.get('/api/roster/' + encodeURIComponent('Setuppers'))).status, 403);
+
+    assert.equal((await inv.post('/api/change-password', { password: 'assistantpw1' })).status, 200);
+    const after = await inv.get('/api/session');
+    assert.equal(after.json.mustChangePassword, false);
+    assert.equal(after.json.role, 'team');
+    // And now it sees the SAME team roster the owner manages.
+    await owner.post('/api/roster/' + encodeURIComponent('Setuppers'),
+      { players: [{ name: 'Jo Park', numbers: ['3'] }] });
+    const seen = await inv.get('/api/roster/' + encodeURIComponent('Setuppers'));
+    assert.equal(seen.status, 200);
+    assert.equal((seen.json.players || seen.json || [])[0].name, 'Jo Park');
+  });
+});
