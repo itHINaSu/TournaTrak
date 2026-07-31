@@ -2496,12 +2496,33 @@ function renderFlightBracket(root, tier) {
       + '<div class="champ-bc"><div class="bc bc--static' + projCls(champGid) + '" data-gid="' + esc(champGid) + '">' + cardHTML(champGid, true) + '</div></div>'
       + champWinnerHTML(champGid, fr.winner);
 
-    // Height + top margin match a round column exactly, so the tinted column
-    // spans the bracket the way the Open tree's does instead of hugging its
-    // contents. u-relative is what .champ-anchor positions against.
+    // Height + top margin match a round column, so the tinted column spans
+    // the bracket the way the Open tree's does — UP TO whatever the tree's
+    // real content actually needs. totalVh comes from gridH, which can run
+    // well past the tree's real row count (FLIGHT_MIN_ROWS's floor, or a TD
+    // hand-placing cards into the top of a taller grid), and the tinted
+    // background used to always claim the full totalVh regardless, dragging
+    // the whole page's scroll height down with it even though nothing was
+    // drawn in the extra space (owner, 2026-08-02: "the championship
+    // highlighted column... extends low enough that a user can scroll...
+    // even though all games fit in the window"). Capped at totalVh as an
+    // upper bound, so a tree that genuinely fills its grid renders exactly
+    // as before — this only ever shrinks the column, never grows it.
+    // u-relative is what .champ-anchor positions against.
+    var contentBottomVh = 0;
+    treeCols.forEach(function(gids) {
+      gids.forEach(function(gid) {
+        if (pos[gid] !== undefined) contentBottomVh = Math.max(contentBottomVh, pos[gid] + dims.slotVh * CARD_RATIO);
+      });
+    });
+    var champOwnVh = anchored
+      ? champCardTop + dims.slotVh * CARD_RATIO * 1.3   // card + winner banner, below the anchor
+      : dims.slotVh * CARD_RATIO * 2.6;                 // trophy+title+time+card+winner, centred
+    var champBoxVh = Math.min(totalVh, Math.max(contentBottomVh, champOwnVh));
+
     champHTML = '<div class="champ-center--desktop champ-center--flight'
       + (anchored ? ' u-relative' : '') + '" data-css="width:' + (dims.champVw - 1.6) + 'vw'
-      + ';height:' + totalVh + 'vh;margin-top:' + hdrVh + 'vh">'
+      + ';height:' + champBoxVh + 'vh;margin-top:' + hdrVh + 'vh">'
       + (anchored
           ? '<div class="champ-anchor" data-css="top:' + champCardTop + 'vh">' + champBlock + '</div>'
           : champBlock)

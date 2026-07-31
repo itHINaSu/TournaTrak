@@ -3039,6 +3039,53 @@ next to the hamburger at 1440px (7.8px gap, matching the 0.5em CSS gap);
 `#bucketEditBtn` next to the hamburger at 390px, signed in as a fresh
 `buckets`-role account (7.4px gap). Neither shows for a signed-out visitor.
 
+## A flight's championship column no longer claims the full theoretical grid height (owner, 2026-08-02)
+Owner report, with screenshots: *"The championship highlighted column in the A
+bracket extends low enough that a user can scroll on desktop even though all
+games fit in the window. It is not as tall on the open bracket."* Confirmed
+from the screenshots: the round columns' real cards ended well above where
+the gold-tinted championship column's box actually ended — the tinted
+background (which is what makes the wasted space visible; the round columns
+have the same unused space, it's just not painted) extended far past the
+last real card.
+
+Root cause, in `renderFlightBracket()` (bracket.js): the championship
+column's box height was hardcoded to `totalVh` — the SAME height as the
+round columns, which comes from `gridH = Math.max(...treeCols row counts,
+FLIGHT_MIN_ROWS)`. `gridH` is a THEORETICAL slot count for the tallest
+column; nothing ever shrank it back down to how much of that grid the tree
+actually used. Two ways the gap opens: `FLIGHT_MIN_ROWS` (4) padding a small
+flight's real row count up, or a TD hand-placing cards (bracket Edit mode)
+into only part of a taller grid — `layoutRow` positions are honored, but the
+column's own declared height never followed them down.
+
+Fix scope is deliberately narrow — **only the championship column's own
+height changed, not the round columns**. Widening the fix to shrink
+round-col height too would touch connector-line math (`totalVh` feeds
+`connLines()`'s src/dst percentages) and the hand-placement UX (a TD may
+want breathing room below a card on purpose); none of that was broken, and
+the owner's complaint was specifically about the tinted column. New height
+is `Math.min(totalVh, Math.max(contentBottomVh, champOwnVh))` — the real
+tree's lowest card position (`contentBottomVh`, computed from the same
+`pos[]` map the cards themselves render from, so it already accounts for
+hand-placement) or whatever the championship card's own block needs
+(`champOwnVh`), whichever is bigger, capped at the old `totalVh` so a tree
+that genuinely fills its grid renders byte-for-byte as before — this change
+can only ever shrink the column, never grow it.
+
+Verified by reproducing the exact shape from the screenshots: generated a
+32-team tiered schedule (the format's max), then hand-placed the A bracket's
+8 first-round entrants into the top 35% of their column via `POST
+/schedule/layout` (the same endpoint bracket Edit mode's Save uses) to
+recreate cards clustered away from the grid's full height. Before the fix,
+`champStyleHeight` matched the round columns at 84.55vh; after, 36.2vh — a
+57% reduction, landing close to where the real content (including the
+championship card itself, anchored near the semifinal row same as the Open
+tree does it) actually sits. Also checked Open/A/B all still render with no
+console errors, and a fully-populated (non-hand-placed) 32-team A bracket —
+where the grid genuinely has no slack — renders IDENTICALLY to before (the
+`Math.min(totalVh, ...)` cap is what guarantees that).
+
 ## Share always captures the Bracket tab, and defaults to left-aligned (owner, 2026-08-02)
 Two owner reports, same conversation:
 
