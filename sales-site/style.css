@@ -12,6 +12,7 @@
   --blue:        #4a90e2;
   --red-live:    #e84040;
   --green:       #22c55e;
+  --red-lose:    #c05050;
 
   --bg:          #0b0d10;
   --bg-2:        #13151a;
@@ -416,7 +417,7 @@ section { padding: 5rem 0; }
   color: var(--text);
 }
 .mock-team-name.won { color: var(--green); }
-.mock-team-name.lost { color: var(--text-muted); }
+.mock-team-name.lost { color: var(--red-lose); }
 
 .mock-score {
   font-size: 1.1rem;
@@ -427,7 +428,7 @@ section { padding: 5rem 0; }
 }
 .mock-score.live { color: var(--blue); }
 .mock-score.win { color: var(--green); }
-.mock-score.lose { color: var(--text-muted); }
+.mock-score.lose { color: var(--red-lose); }
 
 /* ══════════════════════════════════════════
    PROBLEM → SOLUTION
