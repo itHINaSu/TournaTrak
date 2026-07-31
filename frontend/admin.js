@@ -4701,6 +4701,7 @@ function teamsDetailUpdatePreview() {
   var banner = document.getElementById('teamsDetailPreview');
   if (!banner) return;
   var logoImg = document.getElementById('teamsDetailPreviewLogo');
+  var logoSlot = document.getElementById('teamsDetailPreviewLogoSlot');
   var nameEl = document.getElementById('teamsDetailPreviewName');
   var logo = _teamsDetailLogo, primary = _teamsDetailColors.primaryColor, secondary = _teamsDetailColors.secondaryColor;
   var hasAnything = !!logo || !!primary || !!secondary;
@@ -4711,8 +4712,11 @@ function teamsDetailUpdatePreview() {
     { stripeWidth: teamsDetailStripeWidthValue(), stripeGap: teamsDetailStripeGapValue(), patternScale: teamsDetailPatternScaleValue(),
       gradientBalance: teamsDetailGradientBalanceValue() });
   if (logoImg) {
-    if (logo) { logoImg.src = logo; logoImg.hidden = false; }
-    else { logoImg.removeAttribute('src'); logoImg.hidden = true; }
+    // Mirrors coach.js's teamTabUpdatePreview — the SLOT reserves its own
+    // ~third of the banner's width even with an empty img inside, so it has
+    // to hide too when there's no logo.
+    if (logo) { logoImg.src = logo; if (logoSlot) logoSlot.hidden = false; }
+    else { logoImg.removeAttribute('src'); if (logoSlot) logoSlot.hidden = true; }
   }
   if (nameEl) {
     var displayEl = document.getElementById('teamsDetailDisplay');

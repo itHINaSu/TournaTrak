@@ -6337,7 +6337,7 @@ function renderTeamViewInner(realResults){
           { stripeWidth: brand.brandStripeWidth, stripeGap: brand.brandStripeGap, patternScale: brand.brandPatternScale,
             gradientBalance: brand.brandGradientBalance })) + '">'
       + '<span class="team-brand-name">' + esc(teamLabel(team)) + '</span>'
-      + (brand.logoUrl ? '<img class="team-brand-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
+      + (brand.logoUrl ? '<span class="team-brand-logo-slot"><img class="team-brand-logo" src="' + esc(brand.logoUrl) + '" alt=""></span>' : '')
       + '</div>';
   }
 

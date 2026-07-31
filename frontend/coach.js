@@ -619,6 +619,7 @@ function teamTabUpdatePreview() {
   var banner = document.getElementById('teamTabPreview');
   if (!banner) return;
   var logoImg = document.getElementById('teamTabPreviewLogo');
+  var logoSlot = document.getElementById('teamTabPreviewLogoSlot');
   var nameEl = document.getElementById('teamTabPreviewName');
   var logo = _teamTabLogo, primary = _teamTabColors.primaryColor, secondary = _teamTabColors.secondaryColor;
   var hasAnything = !!logo || !!primary || !!secondary;
@@ -629,8 +630,12 @@ function teamTabUpdatePreview() {
     { stripeWidth: teamTabStripeWidthValue(), stripeGap: teamTabStripeGapValue(), patternScale: teamTabPatternScaleValue(),
       gradientBalance: teamTabGradientBalanceValue() });
   if (logoImg) {
-    if (logo) { logoImg.src = logo; logoImg.hidden = false; }
-    else { logoImg.removeAttribute('src'); logoImg.hidden = true; }
+    // The SLOT (not just the image) has to hide too — it reserves its own
+    // ~third of the banner's width even with an empty img inside, wasting
+    // space when there's no logo set (owner, 2026-08-02: logo "centered on
+    // the right ~1/3 of the card").
+    if (logo) { logoImg.src = logo; if (logoSlot) logoSlot.hidden = false; }
+    else { logoImg.removeAttribute('src'); if (logoSlot) logoSlot.hidden = true; }
   }
   if (nameEl) {
     var displayEl = document.getElementById('teamTabDisplay');

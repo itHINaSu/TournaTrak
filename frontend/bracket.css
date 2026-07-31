@@ -229,6 +229,14 @@
   border: 0.07em solid var(--border);
   border-radius: var(--radius-sm);
   padding: 0.6em 1em;
+  /* Explicit, not just content-driven — every row the same height regardless
+     of name length or whether it has a logo (owner, 2026-08-02: "all divs
+     should be the same height. Logos should not increase the height of the
+     div"). Matches .team-chip/.team-brand-banner's own height for the same
+     reason. overflow:hidden is the actual enforcement — without it a taller
+     child would still push the row open despite the explicit height. */
+  height: 3.85rem;
+  overflow: hidden;
 }
 /* De-emphasize rank and record for a team that hasn't played, NOT the name
    itself — this used to be opacity on the whole row, which dimmed the team
@@ -1276,13 +1284,14 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
   background: var(--surface);
   border: 0.07em solid var(--border);
   border-radius: var(--radius-sm);
-  /* Same padding as .std-row, and a min-height matched to its typical
-     rendered height (owner, 2026-08-02: "same height... as the boxes for
-     standings") — .std-row gets there from two lines of content (name +
-     RF/RA); a chip has only the one, so the height is set explicitly
-     instead of trying to reproduce a second line that has no data to show. */
+  /* Same padding and explicit height as .std-row — not min-height: every
+     chip the same height regardless of a logo or a wrapped/long name, same
+     as every Standings row (owner, 2026-08-02: "same height... as the boxes
+     for standings" / "all divs should be the same height. Logos should not
+     increase the height of the div"). overflow:hidden is the enforcement. */
   padding: 0.6em 1em;
-  min-height: 3.85rem;
+  height: 3.85rem;
+  overflow: hidden;
   font-family: 'Oswald', sans-serif;
   font-size: 0.95rem;
   font-weight: 500;
