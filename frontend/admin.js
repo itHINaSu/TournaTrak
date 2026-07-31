@@ -1577,11 +1577,8 @@ function showAdmin(username, role, teamName) {
   // their staff role opens by default.
   var coachLinkEl = document.getElementById('coachPanelLink');
   if (coachLinkEl) coachLinkEl.hidden = !currentTeamName;
-  // Installed-app-only, same rule as the public bracket's #refreshBtn — a
-  // browser tab already has its own reload button (owner, 2026-08-02: "the
-  // refresh button should be available in coach and admin panel also").
-  var refreshBtnEl = document.getElementById('refreshBtn');
-  if (refreshBtnEl) refreshBtnEl.hidden = !ttIsPwa();
+  // No Refresh button on this panel (owner, 2026-08-02) — pull-to-refresh
+  // covers the installed app, which was the only place it was ever shown.
   ttSetupRefresh(fetchAll);
   applyRoleRestrictions(currentRole);
   var roleEl = document.getElementById('newUserRole');

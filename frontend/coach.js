@@ -65,15 +65,8 @@ function showCoachPanel(session) {
   var adminLinkEl = document.getElementById('adminPanelLink');
   if (adminLinkEl) adminLinkEl.hidden = !(session.role === 'admin' || session.role === 'results');
   updateHeaderMenu();
-  // Installed-app-only, same rule as the public bracket's #refreshBtn — a
-  // browser tab already has its own reload button (owner, 2026-08-02: "the
-  // refresh button should be available in coach and admin panel also").
-  // There's no single "reload the current tab's data" entry point here the
-  // way admin.js's fetchAll() is (each tab lazy-inits its own listeners, so
-  // re-running that init risks double-binding them) — a full reload is the
-  // safe, simple equivalent of the browser's own reload button.
-  var refreshBtnEl = document.getElementById('refreshBtn');
-  if (refreshBtnEl) refreshBtnEl.hidden = !ttIsPwa();
+  // No Refresh button on this panel (owner, 2026-08-02) — pull-to-refresh
+  // covers the installed app, which was the only place it was ever shown.
   ttSetupRefresh(function() { window.location.reload(); return new Promise(function() {}); });
 }
 

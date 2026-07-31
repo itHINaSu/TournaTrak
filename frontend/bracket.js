@@ -6865,11 +6865,10 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   // Signed in: the panel links, by role, and no Sign in. Signing in is what
   // decides which panel you are offered, rather than the visitor guessing
   // first and being told afterwards that they picked the wrong door.
-  // Refresh exists ONLY because an installed app has no browser reload button.
-  // In a browser it duplicates a control the user already has, in a better
-  // place, so it is one more thing crowding the menu for no gain.
-  var refreshBtn = document.getElementById('refreshBtn');
-  if (refreshBtn)     refreshBtn.hidden = !isPwa;
+  // No Refresh BUTTON any more (owner, 2026-08-02): pull-to-refresh covers the
+  // installed app, which was the only place the button was ever shown, so it
+  // was one more thing crowding the menu. refreshNow() itself stays — the
+  // gesture calls it, and so does the SW update check behind it.
   // Install App is the inverse: never in the installed app (there is nothing
   // left to install), and mobile only — "add to home screen" is not a gesture
   // anyone is looking for on a desktop. syncInstallBtn owns the rule so the

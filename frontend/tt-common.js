@@ -485,7 +485,31 @@ function ptrEnd() {
   if (!armed) { ptrReset(false); return; }
   var el = ptrEl();
   if (el) { el.classList.add('ptr-spin'); el.classList.remove('ptr-settle'); }
-  ttRefreshNow(_ptrReloadFn, null).then(function() { ptrReset(true); }, function() { ptrReset(true); });
+  // A SUCCESSFUL refresh finishes with one clean 360 (owner, 2026-08-02).
+  // The indefinite spin says "working"; the single turn says "done", which is
+  // the part a viewer actually needs — a refresh that changed nothing on
+  // screen is otherwise indistinguishable from one that never ran.
+  ttRefreshNow(_ptrReloadFn, null).then(function() { ptrFinishSpin(el); },
+                                        function() { ptrReset(true); });
+}
+
+// Swap the looping spin for a single rotation, let it complete, then settle.
+// Restarting the animation needs a reflow between removing and adding the
+// class, or the browser coalesces both into no change at all.
+function ptrFinishSpin(el) {
+  if (!el) { ptrReset(true); return; }
+  el.classList.remove('ptr-spin');
+  void el.offsetWidth;                       // force the restart
+  el.classList.add('ptr-done');
+  var settle = function() {
+    el.removeEventListener('animationend', settle);
+    ptrReset(false);
+    el.classList.remove('ptr-done');
+  };
+  el.addEventListener('animationend', settle);
+  // animationend never fires under prefers-reduced-motion (the animation is
+  // switched off), so it must not be the only way out.
+  setTimeout(function() { settle(); }, 700);
 }
 document.addEventListener('touchend', ptrEnd, { passive: true });
 document.addEventListener('touchcancel', function() {

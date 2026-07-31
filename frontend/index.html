@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.037">
-<link rel="stylesheet" href="/bracket.css?v=4.08.037">
-<script src="/app-h.js?v=4.08.037"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.040">
+<link rel="stylesheet" href="/bracket.css?v=4.08.040">
+<script src="/app-h.js?v=4.08.040"></script>
 </head>
 <body>
 
@@ -59,12 +59,6 @@
     <button class="admin-public-btn" id="shareImageBtn" hidden data-action="openShareImage" title="Share, download or print this bracket">Share</button>
     <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
     <button class="admin-public-btn" id="notifyBtn" hidden data-action="openNotifyPanel" title="Get notified about games">Notifications</button>
-    <!-- INSTALLED APP ONLY (hidden by default, shown by the session handler
-         when isPwa). A PWA has no browser reload button, so this is the only
-         way to force a refresh there; in a browser it duplicates a control the
-         user already has. pull-to-refresh (bracket.js) is the same action by
-         gesture and stays available everywhere. -->
-    <button class="admin-public-btn" id="refreshBtn" hidden data-action="refreshNow" title="Reload the latest scores and schedule">Refresh</button>
     <a href="/coach" class="admin-public-btn" id="lineupPortalBtn" hidden>Coach Panel →</a>
     <a href="/admin" class="admin-public-btn" id="adminPortalBtn" hidden>Admin Panel →</a>
     <!-- MOBILE ONLY, and never in the installed app — the inverse of Refresh
@@ -158,80 +152,6 @@
     <button class="flight-pill active" data-action="setFlight" data-arg="open">Open</button>
     <button class="flight-pill" data-action="setFlight" data-arg="A">A Bracket</button>
     <button class="flight-pill" data-action="setFlight" data-arg="B">B Bracket</button>
-  </div>
-  <div class="share-overlay" id="shareOverlay" hidden>
-    <div class="share-box">
-      <div class="share-title" id="shareTitle">Share bracket</div>
-      <!-- What to capture (owner, 2026-08-02: "Change share so that it
-           allows a user to share the entire contents of whatever page
-           they're on... keep the bracket as is, but add options for
-           schedule, standings, and team path"). Defaults to whichever of
-           these four tabs is active when Share is opened (openShareImage) —
-           the options below (scope/align) stay bracket-only; the rest
-           (results, theme) apply to every target. -->
-      <div class="share-opts share-target" id="shareTargetRow">
-        <label class="share-opt"><input type="radio" name="shareTarget" value="bracket" checked data-action-change="onShareTargetChange"> Bracket</label>
-        <label class="share-opt"><input type="radio" name="shareTarget" value="schedule" data-action-change="onShareTargetChange"> Schedule</label>
-        <label class="share-opt"><input type="radio" name="shareTarget" value="standings" data-action-change="onShareTargetChange"> Standings</label>
-        <label class="share-opt"><input type="radio" name="shareTarget" value="teampath" data-action-change="onShareTargetChange"> Team Path</label>
-      </div>
-      <div class="share-opts">
-        <label class="share-opt"><input type="checkbox" id="shareResults" checked data-action-change="refreshShareImage"> Include scores and winners</label>
-      </div>
-      <div class="share-opts share-themes">
-        <label class="share-opt"><input type="radio" name="shareTheme" value="dark" checked data-action-change="refreshShareImage"> Dark</label>
-        <label class="share-opt"><input type="radio" name="shareTheme" value="light" data-action-change="refreshShareImage"> Light</label>
-        <label class="share-opt"><input type="radio" name="shareTheme" value="print" data-action-change="refreshShareImage"> Print <span class="share-opt-note">(white, minimal ink)</span></label>
-      </div>
-      <!-- Only shown for tiered tournaments (updateShareScopeRow) — with a
-           single bracket there is nothing to combine. -->
-      <div class="share-opts share-scope" id="shareScopeRow" hidden>
-        <label class="share-opt"><input type="radio" name="shareScope" value="current" checked data-action-change="refreshShareImage"> This bracket</label>
-        <label class="share-opt"><input type="radio" name="shareScope" value="all-one" data-action-change="refreshShareImage"> All brackets <span class="share-opt-note">(one image)</span></label>
-        <label class="share-opt"><input type="radio" name="shareScope" value="all-separate" data-action-change="refreshShareImage"> All brackets <span class="share-opt-note">(separate files)</span></label>
-      </div>
-      <!-- Which edge the bracket content pins to inside its own canvas — this
-           matters even for a single bracket (owner, 2026-08-01: "should
-           appear regardless of what bracket(s) are selected"), not just when
-           stacking several onto one sheet, so it's always shown. Left is the
-           default everywhere the bracket appears, on-screen and shared. -->
-      <div class="share-opts share-align" id="shareAlignRow">
-        <label class="share-opt"><input type="radio" name="shareAlign" value="left" checked data-action-change="refreshShareImage"> Line up round 1</label>
-        <label class="share-opt"><input type="radio" name="shareAlign" value="center" data-action-change="refreshShareImage"> Centered</label>
-        <label class="share-opt"><input type="radio" name="shareAlign" value="right" data-action-change="refreshShareImage"> Line up championships</label>
-      </div>
-      <div class="share-preview-wrap"><img id="sharePreview" class="share-preview" alt="Bracket image preview"></div>
-      <div class="share-actions">
-        <button class="admin-clear-btn" data-action="closeShareImage">Cancel</button>
-        <button class="flight-pill share-act" data-action="printShareImage" title="Send this bracket to a printer">Print</button>
-        <!-- The format is a consequence of tapping Download, not a setting to
-             choose beforehand — so it lives in the menu the button opens,
-             matching how Share behaves one button along. -->
-        <span class="team-share-wrap">
-          <button class="flight-pill share-act" data-action="downloadShareImage">Download</button>
-          <div class="share-menu share-menu--up" id="downloadMenu" hidden>
-            <button class="share-menu-item" data-action="downloadAs" data-arg="png">PNG image</button>
-            <button class="share-menu-item" data-action="downloadAs" data-arg="jpeg">JPEG image</button>
-            <button class="share-menu-item" data-action="downloadAs" data-arg="pdf">PDF document</button>
-          </div>
-        </span>
-        <!-- Hands off to the device share sheet where there is one, and falls
-             back to the link menu below everywhere else. Every target is a
-             plain GET link — script-src is 'self', so a vendor SDK could not
-             load even if we wanted one. -->
-        <span class="team-share-wrap">
-          <button class="flight-pill share-act share-dl" data-action="shareShareImage" title="Share this bracket">Share</button>
-          <div class="share-menu share-menu--up" id="bracketShareMenu" hidden>
-            <button class="share-menu-item" data-action="shareCopy">Copy link</button>
-            <a class="share-menu-item" id="shareFb" target="_blank" rel="noopener noreferrer">Facebook</a>
-            <a class="share-menu-item" id="shareX" target="_blank" rel="noopener noreferrer">X</a>
-            <a class="share-menu-item" id="shareSms" hidden>Text message</a>
-            <a class="share-menu-item" id="shareEmail">Email</a>
-          </div>
-        </span>
-      </div>
-      <div class="share-hint" id="shareHint"></div>
-    </div>
   </div>
   <!-- Spectator notifications. Anonymous: there is no account behind these, so
        the settings live on this device and against this browser's push endpoint
@@ -436,13 +356,97 @@
   </div>
 </div>
 
+<!-- Share dialog. A DIRECT CHILD OF <body>, not of #view-bracket where it
+     used to live (owner, 2026-08-02: "the share button is locked to the
+     bracket page"). Inside a view panel it is only displayable while that
+     panel is .active, so opening Share from Schedule/Standings/Team Path
+     set hidden=false on a dialog nested in a hidden panel: nothing
+     appeared, and it then popped into view the moment the visitor next
+     opened the Bracket tab, which reads as a queued click. HANDOFF called
+     this exposure out when the notifications panel was moved for the same
+     reason. Keep it at body level. -->
+<div class="share-overlay" id="shareOverlay" hidden>
+    <div class="share-box">
+      <div class="share-title" id="shareTitle">Share bracket</div>
+      <!-- What to capture (owner, 2026-08-02: "Change share so that it
+           allows a user to share the entire contents of whatever page
+           they're on... keep the bracket as is, but add options for
+           schedule, standings, and team path"). Defaults to whichever of
+           these four tabs is active when Share is opened (openShareImage) —
+           the options below (scope/align) stay bracket-only; the rest
+           (results, theme) apply to every target. -->
+      <div class="share-opts share-target" id="shareTargetRow">
+        <label class="share-opt"><input type="radio" name="shareTarget" value="bracket" checked data-action-change="onShareTargetChange"> Bracket</label>
+        <label class="share-opt"><input type="radio" name="shareTarget" value="schedule" data-action-change="onShareTargetChange"> Schedule</label>
+        <label class="share-opt"><input type="radio" name="shareTarget" value="standings" data-action-change="onShareTargetChange"> Standings</label>
+        <label class="share-opt"><input type="radio" name="shareTarget" value="teampath" data-action-change="onShareTargetChange"> Team Path</label>
+      </div>
+      <div class="share-opts">
+        <label class="share-opt"><input type="checkbox" id="shareResults" checked data-action-change="refreshShareImage"> Include scores and winners</label>
+      </div>
+      <div class="share-opts share-themes">
+        <label class="share-opt"><input type="radio" name="shareTheme" value="dark" checked data-action-change="refreshShareImage"> Dark</label>
+        <label class="share-opt"><input type="radio" name="shareTheme" value="light" data-action-change="refreshShareImage"> Light</label>
+        <label class="share-opt"><input type="radio" name="shareTheme" value="print" data-action-change="refreshShareImage"> Print <span class="share-opt-note">(white, minimal ink)</span></label>
+      </div>
+      <!-- Only shown for tiered tournaments (updateShareScopeRow) — with a
+           single bracket there is nothing to combine. -->
+      <div class="share-opts share-scope" id="shareScopeRow" hidden>
+        <label class="share-opt"><input type="radio" name="shareScope" value="current" checked data-action-change="refreshShareImage"> This bracket</label>
+        <label class="share-opt"><input type="radio" name="shareScope" value="all-one" data-action-change="refreshShareImage"> All brackets <span class="share-opt-note">(one image)</span></label>
+        <label class="share-opt"><input type="radio" name="shareScope" value="all-separate" data-action-change="refreshShareImage"> All brackets <span class="share-opt-note">(separate files)</span></label>
+      </div>
+      <!-- Which edge the bracket content pins to inside its own canvas — this
+           matters even for a single bracket (owner, 2026-08-01: "should
+           appear regardless of what bracket(s) are selected"), not just when
+           stacking several onto one sheet, so it's always shown. Left is the
+           default everywhere the bracket appears, on-screen and shared. -->
+      <div class="share-opts share-align" id="shareAlignRow">
+        <label class="share-opt"><input type="radio" name="shareAlign" value="left" checked data-action-change="refreshShareImage"> Line up round 1</label>
+        <label class="share-opt"><input type="radio" name="shareAlign" value="center" data-action-change="refreshShareImage"> Centered</label>
+        <label class="share-opt"><input type="radio" name="shareAlign" value="right" data-action-change="refreshShareImage"> Line up championships</label>
+      </div>
+      <div class="share-preview-wrap"><img id="sharePreview" class="share-preview" alt="Bracket image preview"></div>
+      <div class="share-actions">
+        <button class="admin-clear-btn" data-action="closeShareImage">Cancel</button>
+        <button class="flight-pill share-act" data-action="printShareImage" title="Send this bracket to a printer">Print</button>
+        <!-- The format is a consequence of tapping Download, not a setting to
+             choose beforehand — so it lives in the menu the button opens,
+             matching how Share behaves one button along. -->
+        <span class="team-share-wrap">
+          <button class="flight-pill share-act" data-action="downloadShareImage">Download</button>
+          <div class="share-menu share-menu--up" id="downloadMenu" hidden>
+            <button class="share-menu-item" data-action="downloadAs" data-arg="png">PNG image</button>
+            <button class="share-menu-item" data-action="downloadAs" data-arg="jpeg">JPEG image</button>
+            <button class="share-menu-item" data-action="downloadAs" data-arg="pdf">PDF document</button>
+          </div>
+        </span>
+        <!-- Hands off to the device share sheet where there is one, and falls
+             back to the link menu below everywhere else. Every target is a
+             plain GET link — script-src is 'self', so a vendor SDK could not
+             load even if we wanted one. -->
+        <span class="team-share-wrap">
+          <button class="flight-pill share-act share-dl" data-action="shareShareImage" title="Share this bracket">Share</button>
+          <div class="share-menu share-menu--up" id="bracketShareMenu" hidden>
+            <button class="share-menu-item" data-action="shareCopy">Copy link</button>
+            <a class="share-menu-item" id="shareFb" target="_blank" rel="noopener noreferrer">Facebook</a>
+            <a class="share-menu-item" id="shareX" target="_blank" rel="noopener noreferrer">X</a>
+            <a class="share-menu-item" id="shareSms" hidden>Text message</a>
+            <a class="share-menu-item" id="shareEmail">Email</a>
+          </div>
+        </span>
+      </div>
+      <div class="share-hint" id="shareHint"></div>
+    </div>
+  </div>
+
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.037"></script>
-<script src="/theme-css.js?v=4.08.037"></script>
-<script src="/tt-common.js?v=4.08.037"></script>
-<script src="/bracket-data.js?v=4.08.037"></script>
-<script src="/bracket.js?v=4.08.037"></script>
-<script src="/sw-register.js?v=4.08.037" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.040"></script>
+<script src="/theme-css.js?v=4.08.040"></script>
+<script src="/tt-common.js?v=4.08.040"></script>
+<script src="/bracket-data.js?v=4.08.040"></script>
+<script src="/bracket.js?v=4.08.040"></script>
+<script src="/sw-register.js?v=4.08.040" data-sw="/sw.js"></script>
 </body>
 </html>

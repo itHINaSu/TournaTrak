@@ -731,6 +731,9 @@ body.print-palette .flight-col--champ {
 .ptr-indicator.ptr-settle  { transition: transform 0.22s ease, opacity 0.22s ease; }
 .ptr-spinner { width: 1.2em; height: 1.2em; }
 .ptr-indicator.ptr-spin .ptr-spinner { animation: ptrSpin 0.7s linear infinite; }
+/* One completed turn on success (owner, 2026-08-02) — the looping spin says
+   "working", this says "done". ease-out so it lands rather than stops dead. */
+.ptr-indicator.ptr-done .ptr-spinner { animation: ptrSpin 0.5s ease-out 1; }
 @keyframes ptrSpin { to { transform: rotate(360deg); } }
 
 /* The header Refresh button borrows the same spinner while a manual refresh
@@ -738,7 +741,8 @@ body.print-palette .flight-col--champ {
 #refreshBtn.is-refreshing { opacity: 0.65; }
 
 @media (prefers-reduced-motion: reduce) {
-  .ptr-indicator.ptr-spin .ptr-spinner { animation: none; }
+  .ptr-indicator.ptr-spin .ptr-spinner,
+  .ptr-indicator.ptr-done .ptr-spinner { animation: none; }
   .ptr-indicator.ptr-settle { transition: none; }
 }
 
