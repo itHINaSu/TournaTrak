@@ -3226,6 +3226,36 @@ exclude already-placed players within the same lineup, tap-a-filled-slot
 opens a picker instead of the keyboard, an Add Player option, a Clear
 Lineup button) hasn't been started.
 
+## Header ballooned on mobile whenever a tournament had a logo (owner, 2026-08-02) — regression fix
+Owner, with a screenshot: *"The header can't grow this large, buttons have
+to fit in the max width. I suspect it's adding space for the edit button
+which is hidden on mobile."* Not the edit button — `[hidden]` is
+`display:none!important` (base.css), so a hidden `#bracketEditBtn` truly
+takes no space. Reproduced instead by giving the demo a logo and viewing
+the public page at a phone width: the `@media (max-width:720px)` rule set
+`.site-header { flex-wrap: wrap }` so that once the logo shrank the room
+left for `.header-name-block`, the WHOLE persistent cluster (theme toggle +
+hamburger) got pushed onto its own second row below the name — not just a
+little shorter, an entire extra row's worth of height, every time, even for
+a short name. That rule dates to a real earlier problem (a long tournament
+name squeezed into a narrow sliver would wrap one word per line), but
+traded it for a worse everyday cost.
+
+Fix: `.site-header` no longer wraps at this breakpoint. `.header-name-block`
+already carries `flex:1; min-width:0` (base rule) — on a non-wrapping row
+that's enough for it to shrink to whatever space is actually left beside
+the logo and the cluster (`flex-shrink:0`), with its own title/subtitle text
+wrapping onto multiple lines WITHIN that column instead of pushing anything
+else around. The cluster now always stays on the header's one row, which is
+the actual ask ("buttons have to fit in the max width").
+
+Verified with Playwright at a 390px viewport against the demo with a logo
+set: header height dropped from 115.5px (cluster wrapped to its own row) to
+67.4px (cluster inline, name-block's own height grew from 31.7px to 51px as
+its title wrapped two lines instead). Screenshot confirms logo, title, and
+toggle/hamburger all sit on one visual row. Full API suite (140 tests)
+still passes (CSS-only change, run as a sanity check).
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an
