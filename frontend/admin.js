@@ -72,10 +72,10 @@ function activateAdminTab(tabName) {
   panel.classList.add('active');
   try { localStorage.setItem('adminTab', tabName); } catch(e) {}
   updateQuickBar();
-  if (tabName === 'lineups' && !window._lineupInitDone) {
-    window._lineupInitDone = true;
-    lineupInit();
-  }
+  // Teams replaced the standalone Lineups tab: lineups now live inside a team,
+  // in the embedded coach panel (see openTeamDetail). Always re-list on entry
+  // so a rename or a new team from elsewhere is reflected.
+  if (tabName === 'teams') { closeTeamDetail(); loadTeams(); }
   // Reset to default sub-view when re-entering a tab
   if (tabName === 'results')  setResultsMode('games');
   if (tabName === 'schedule') setSchedMode('quick');
@@ -128,7 +128,6 @@ function showSettingsSection(section) {
   closeSettingsSidebar();
   if (section === 'coaches') loadCoaches();
   if (section === 'users')   loadUsers();
-  if (section === 'teams')   loadTeams();
   if (section === 'tournaments') loadTournaments();
   if (section === 'pageinfo') { renderThemeSection(); renderFieldsPanel(); }
   // Reads the browser's live subscription state, so it has to run every time
@@ -4828,344 +4827,93 @@ function renderTeamsEditor() {
   wireTeamsDragAndDrop(list);
 }
 
-// ── Per-team detail view ────────────────────────────────────────────────
-// Same fields/behavior as the Coach Panel's own Team tab (coach.js
-// teamTab*), just scoped to WHATEVER team a TD clicked into rather than
-// "the signed-in coach's own team" — owner, 2026-08-02: "allow TDs to click
-// into a team and get a 'coach panel' in settings > teams for the selected
-// team". null = index into _teamsData.teams currently open; null = list view.
+// ── Per-team detail view (embedded coach panel) ─────────────────────────
+// Was ~330 lines re-implementing the coach panel's Team tab against whichever
+// team a TD clicked into. It now hosts the REAL panel in an iframe instead
+// (owner, 2026-08-02: "like an embedded coaches panel in the teams tab"), so
+// roster, lineups and branding have exactly one implementation and a TD is
+// looking at literally what the coach looks at. The deleted form lives in git
+// history if it is ever wanted back; do not resurrect it alongside the iframe,
+// because two editors for the same fields is what this replaced.
 var _teamsDetailIdx = null;
-var _teamsDetailLogo = null;   // data URI = has one; '' = remove on save; null = unchanged
-var TEAMS_DETAIL_COLOR_UNSET = '#4a4a4a';
-var _teamsDetailColors = {
-  primaryColor: null, secondaryColor: null, brandTextColor: null, brandNameOutlineColor: null,
-};
-var TEAMS_DETAIL_COLOR_IDS = {
-  primaryColor:          { input: 'teamsDetailPrimaryColor',   clear: 'teamsDetailPrimaryColorClear' },
-  secondaryColor:        { input: 'teamsDetailSecondaryColor', clear: 'teamsDetailSecondaryColorClear' },
-  brandTextColor:        { input: 'teamsDetailTextColor',      clear: 'teamsDetailTextColorClear' },
-  brandNameOutlineColor: { input: 'teamsDetailOutlineColor',   clear: 'teamsDetailOutlineColorClear' },
-};
 
-function teamsDetailStatus(text, isError) {
-  var el = document.getElementById('teamsDetailStatus');
-  if (!el) return;
-  el.textContent = text;
-  el.style.color = isError ? 'var(--lose-color)' : '';
-}
-
-function teamsDetailSyncLogo() {
-  var img = document.getElementById('teamsDetailLogoPreview');
-  var rm  = document.getElementById('teamsDetailLogoRemoveBtn');
-  var rc  = document.getElementById('teamsDetailLogoRecropBtn');
-  if (img && rm) {
-    if (_teamsDetailLogo) { img.src = _teamsDetailLogo; img.hidden = false; rm.hidden = false; if (rc) rc.hidden = false; }
-    else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; if (rc) rc.hidden = true; }
-  }
-  teamsDetailUpdatePreview();
-}
-
-// Mirrors coach.js's recropTeamTabLogo — re-opens the crop modal on whatever
-// logo is already set (freshly picked or already saved) instead of requiring
-// a re-upload (owner, 2026-08-02: "Teams should be able to modify the crop
-// after an image has already been saved").
-function recropTeamsDetailLogo() {
-  if (!_teamsDetailLogo) return;
-  ttOpenLogoCropModal(_teamsDetailLogo, function (uri) {
-    _teamsDetailLogo = uri;
-    teamsDetailSyncLogo();
-  });
-}
-
-function teamsDetailSyncColor(which) {
-  var ids = TEAMS_DETAIL_COLOR_IDS[which];
-  if (!ids) return;
-  var inp = document.getElementById(ids.input);
-  var clear = document.getElementById(ids.clear);
-  var v = _teamsDetailColors[which];
-  if (inp) inp.value = v || TEAMS_DETAIL_COLOR_UNSET;
-  if (clear) clear.hidden = !v;
-  if (inp && inp.parentElement) inp.parentElement.classList.toggle('color-swatch--unset', !v);
-  // Outline weight only means anything once an outline color is actually set
-  // (owner, 2026-08-02: "select a reasonable range and allow coaches to
-  // increase/decrease the outline weight within the preset range").
-  if (which === 'brandNameOutlineColor') {
-    var owRow = document.getElementById('teamsDetailOutlineWidthRow');
-    if (owRow) owRow.hidden = !v;
-  }
-  teamsDetailUpdatePreview();
-}
-
-function clearTeamsDetailColor(which) {
-  _teamsDetailColors[which] = '';
-  teamsDetailSyncColor(which);
-  var label = which === 'brandTextColor' ? 'Text color' : which === 'brandNameOutlineColor' ? 'Outline' : 'Color';
-  showToast(label + ' will be removed on Save');
-}
-
-// Owner, 2026-08-02: "Add a button in team panel to swap primary &
-// secondary colors, same for text/outline." Mirrors coach.js's
-// teamTabSwapColors — both fields are already settled to ''/hex by the
-// time openTeamDetail() has populated the form, so a plain swap is safe.
-function teamsDetailSwapColors(which) {
-  var a = which === 'textOutline' ? 'brandTextColor' : 'primaryColor';
-  var b = which === 'textOutline' ? 'brandNameOutlineColor' : 'secondaryColor';
-  var tmp = _teamsDetailColors[a];
-  _teamsDetailColors[a] = _teamsDetailColors[b];
-  _teamsDetailColors[b] = tmp;
-  teamsDetailSyncColor(a);
-  teamsDetailSyncColor(b);
-}
-
-function teamsDetailStyleValue() {
-  var el = document.querySelector('input[name="teamsDetailBrandStyle"]:checked');
-  return (el && el.value) || 'gradient';
-}
-function teamsDetailAngleValue() {
-  var el = document.getElementById('teamsDetailAngle');
-  return el ? Number(el.value) : 135;
-}
-function teamsDetailStripeWidthValue() {
-  var el = document.getElementById('teamsDetailStripeWidth');
-  return el ? Number(el.value) : 14;
-}
-function teamsDetailStripeGapValue() {
-  var el = document.getElementById('teamsDetailStripeGap');
-  return el ? Number(el.value) : 14;
-}
-function teamsDetailPatternScaleValue() {
-  var el = document.getElementById('teamsDetailPatternScale');
-  return el ? Number(el.value) : 28;
-}
-function teamsDetailGradientBalanceValue() {
-  var el = document.getElementById('teamsDetailGradientBalance');
-  return el ? Number(el.value) : 50;
-}
-function teamsDetailOutlineWidthValue() {
-  var el = document.getElementById('teamsDetailOutlineWidth');
-  return el ? Number(el.value) : 35;
-}
-// Mirrors coach.js's teamTabSyncStyleRow — see that comment for why
-// stripe-width/pattern-scale get relabeled per style instead of separate
-// honeycomb-only sliders.
-function teamsDetailSyncStyleRow() {
-  var style = teamsDetailStyleValue();
-  var angleRow = document.getElementById('teamsDetailAngleRow');
-  if (angleRow) angleRow.hidden = (style !== 'gradient' && style !== 'stripes');
-  var balanceRow = document.getElementById('teamsDetailGradientBalanceRow');
-  if (balanceRow) balanceRow.hidden = style !== 'gradient';
-  var stripeWidthRow = document.getElementById('teamsDetailStripeWidthRow');
-  var stripeGapRow = document.getElementById('teamsDetailStripeGapRow');
-  if (stripeWidthRow) stripeWidthRow.hidden = (style !== 'stripes' && style !== 'honeycomb');
-  if (stripeGapRow) stripeGapRow.hidden = style !== 'stripes';
-  var widthLabel = document.getElementById('teamsDetailStripeWidthLabel');
-  if (widthLabel) widthLabel.textContent = style === 'honeycomb' ? 'Line width' : 'Stripe width';
-  var scaleRow = document.getElementById('teamsDetailPatternScaleRow');
-  if (scaleRow) scaleRow.hidden = style !== 'honeycomb';
-  var scaleLabel = document.getElementById('teamsDetailPatternScaleLabel');
-  if (scaleLabel) scaleLabel.textContent = style === 'honeycomb' ? 'Hex size' : 'Pattern size';
-  teamsDetailUpdatePreview();
-}
-
-function teamsDetailUpdatePreview() {
-  var banner = document.getElementById('teamsDetailPreview');
-  if (!banner) return;
-  var logoImg = document.getElementById('teamsDetailPreviewLogo');
-  var logoSlot = document.getElementById('teamsDetailPreviewLogoSlot');
-  var nameEl = document.getElementById('teamsDetailPreviewName');
-  var logo = _teamsDetailLogo, primary = _teamsDetailColors.primaryColor, secondary = _teamsDetailColors.secondaryColor;
-  var hasAnything = !!logo || !!primary || !!secondary;
-  banner.hidden = !hasAnything;
-  if (!hasAnything) return;
-  banner.style.cssText = teamBrandBannerCss(primary, secondary,
-    teamsDetailStyleValue(), teamsDetailAngleValue(), _teamsDetailColors.brandTextColor, _teamsDetailColors.brandNameOutlineColor,
-    { stripeWidth: teamsDetailStripeWidthValue(), stripeGap: teamsDetailStripeGapValue(), patternScale: teamsDetailPatternScaleValue(),
-      gradientBalance: teamsDetailGradientBalanceValue(), outlineWidth: teamsDetailOutlineWidthValue() });
-  if (logoImg) {
-    // Mirrors coach.js's teamTabUpdatePreview — the SLOT reserves its own
-    // ~third of the banner's width even with an empty img inside, so it has
-    // to hide too when there's no logo.
-    if (logo) { logoImg.src = logo; if (logoSlot) logoSlot.hidden = false; }
-    else { logoImg.removeAttribute('src'); if (logoSlot) logoSlot.hidden = true; }
-  }
-  if (nameEl) {
-    var displayEl = document.getElementById('teamsDetailDisplay');
-    var team = _teamsData.teams[_teamsDetailIdx];
-    nameEl.textContent = (displayEl && displayEl.value.trim()) || (team && team.name) || '';
-  }
-}
-
-// Opens the detail view for _teamsData.teams[idx] — reads straight off the
-// already-loaded team list (no extra fetch needed, unlike coach.js's
-// loadTeamTab which has to fetch /teams itself since a coach page never
-// loads the full roster editor).
 function openTeamDetail(idx) {
   var team = _teamsData.teams[idx];
   if (!team) return;
   _teamsDetailIdx = idx;
-  _teamsDetailLogo = team.logo || null;
-  _teamsDetailColors = {
-    primaryColor: team.primaryColor || '',
-    secondaryColor: team.secondaryColor || '',
-    brandTextColor: team.brandTextColor || '',
-    brandNameOutlineColor: team.brandNameOutlineColor || '',
-  };
-  teamsDetailStatus('');
   document.getElementById('teamsListView').hidden = true;
   document.getElementById('teamsDetailView').hidden = false;
-  document.getElementById('teamsDetailHeading').textContent = team.name;
-  document.getElementById('teamsDetailDisplay').value = team.displayName || '';
-  document.getElementById('teamsDetailShort').value = team.shortName || '';
-  teamsDetailSyncLogo();
-  teamsDetailSyncColor('primaryColor');
-  teamsDetailSyncColor('secondaryColor');
-  teamsDetailSyncColor('brandTextColor');
-  teamsDetailSyncColor('brandNameOutlineColor');
-  var styleVal = team.brandStyle || 'gradient';
-  var styleEl = document.getElementById('teamsDetailStyle'
-    + styleVal.charAt(0).toUpperCase() + styleVal.slice(1)) || document.getElementById('teamsDetailStyleGradient');
-  if (styleEl) styleEl.checked = true;
-  var angleEl = document.getElementById('teamsDetailAngle');
-  if (angleEl) angleEl.value = typeof team.brandAngle === 'number' ? team.brandAngle : 135;
-  var stripeWidthEl = document.getElementById('teamsDetailStripeWidth');
-  if (stripeWidthEl) stripeWidthEl.value = typeof team.brandStripeWidth === 'number' ? team.brandStripeWidth : 14;
-  var stripeGapEl = document.getElementById('teamsDetailStripeGap');
-  if (stripeGapEl) stripeGapEl.value = typeof team.brandStripeGap === 'number' ? team.brandStripeGap : 14;
-  var scaleEl = document.getElementById('teamsDetailPatternScale');
-  if (scaleEl) scaleEl.value = typeof team.brandPatternScale === 'number' ? team.brandPatternScale : 28;
-  var balanceEl = document.getElementById('teamsDetailGradientBalance');
-  if (balanceEl) balanceEl.value = typeof team.brandGradientBalance === 'number' ? team.brandGradientBalance : 50;
-  var outlineWidthEl = document.getElementById('teamsDetailOutlineWidth');
-  if (outlineWidthEl) outlineWidthEl.value = typeof team.brandOutlineWidth === 'number' ? team.brandOutlineWidth : 35;
-  teamsDetailSyncStyleRow();
-  var lockedEl = document.getElementById('teamsDetailLockedNote');
-  if (lockedEl) lockedEl.hidden = !team.locked;
+  document.getElementById('teamsDetailHeading').textContent = team.displayName || team.name;
+  var frame = document.getElementById('teamsDetailFrame');
+  if (!frame) return;
+  // Scoped to whichever tournament this admin panel is pointed at, NOT to
+  // whichever happens to be flagged Live — a TD editing last week's event
+  // must not have the embedded panel silently act on tonight's. getAdminSlug()
+  // is the same source adminApiBase() uses; the coach panel reads it as ?t=.
+  var s = (typeof getAdminSlug === 'function') ? getAdminSlug() : '';
+  var slug = s ? '&t=' + encodeURIComponent(s) : '';
+  frame.style.height = '32rem';          // until the real content is measured
+  frame.src = '/coach?embed=1&team=' + encodeURIComponent(team.name) + slug;
+  frame.onload = function() { sizeTeamsDetailFrame(); };
+}
+
+// Same-origin, so the frame can simply be measured and grown to fit — no
+// postMessage handshake, and no scrollbar inside a scrollbar. Re-measured on
+// the embedded panel's own resizes (switching tabs there changes its height a
+// lot), with the observer torn down when the detail view closes so it does not
+// outlive the frame it watches.
+var _teamsFrameRO = null, _teamsFrameH = 0, _teamsFrameRAF = 0;
+function sizeTeamsDetailFrame() {
+  var frame = document.getElementById('teamsDetailFrame');
+  if (!frame) return;
+  var doc;
+  try { doc = frame.contentDocument; } catch (e) { return; }
+  if (!doc || !doc.body) return;
+  // MUST be idempotent-ish, or it feedback-loops: setting the height resizes
+  // the frame's viewport, which reflows its body, which fires the observer,
+  // which sets the height again — the frame then never stops moving and
+  // nothing inside it can be clicked (caught in testing as Playwright
+  // "element is not stable"). Two guards: ignore sub-threshold deltas, and
+  // coalesce bursts into one write per frame.
+  var apply = function() {
+    _teamsFrameRAF = 0;
+    var h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight || 0);
+    if (h <= 0) return;
+    if (Math.abs(h - _teamsFrameH) <= 4) return;   // settled — leave it alone
+    _teamsFrameH = h;
+    // NO padding added: whatever is written here comes back as the next
+    // measurement, so a constant would compound every frame.
+    frame.style.height = h + 'px';
+  };
+  var schedule = function() {
+    if (_teamsFrameRAF) return;
+    _teamsFrameRAF = requestAnimationFrame(apply);
+  };
+  _teamsFrameH = 0;
+  apply();
+  if (_teamsFrameRO) { _teamsFrameRO.disconnect(); _teamsFrameRO = null; }
+  if (typeof ResizeObserver === 'function') {
+    _teamsFrameRO = new ResizeObserver(schedule);
+    _teamsFrameRO.observe(doc.body);
+  }
 }
 
 function closeTeamDetail() {
   _teamsDetailIdx = null;
+  if (_teamsFrameRO) { _teamsFrameRO.disconnect(); _teamsFrameRO = null; }
+  if (_teamsFrameRAF) { cancelAnimationFrame(_teamsFrameRAF); _teamsFrameRAF = 0; }
+  _teamsFrameH = 0;
+  var frame = document.getElementById('teamsDetailFrame');
+  // Drop the src: an iframe left loaded keeps polling the API for a team the
+  // TD has navigated away from.
+  if (frame) { frame.onload = null; frame.removeAttribute('src'); }
   document.getElementById('teamsDetailView').hidden = true;
   document.getElementById('teamsListView').hidden = false;
+  loadTeams();   // pick up any branding the embedded panel just saved
 }
-
-async function saveTeamsDetail() {
-  teamsDetailStatus('');
-  var team = _teamsData.teams[_teamsDetailIdx];
-  if (!team) return;
-  var btn = document.getElementById('teamsDetailSaveBtn');
-  if (btn) btn.disabled = true;
-  var body = {
-    displayName: document.getElementById('teamsDetailDisplay').value.trim(),
-    shortName:   document.getElementById('teamsDetailShort').value.trim(),
-  };
-  if (_teamsDetailLogo !== null) body.logo = _teamsDetailLogo;
-  var primaryEl = document.getElementById('teamsDetailPrimaryColor');
-  var secondaryEl = document.getElementById('teamsDetailSecondaryColor');
-  if (_teamsDetailColors.primaryColor !== null) {
-    body.primaryColor = _teamsDetailColors.primaryColor === '' ? '' : (primaryEl ? primaryEl.value : _teamsDetailColors.primaryColor);
-  }
-  if (_teamsDetailColors.secondaryColor !== null) {
-    body.secondaryColor = _teamsDetailColors.secondaryColor === '' ? '' : (secondaryEl ? secondaryEl.value : _teamsDetailColors.secondaryColor);
-  }
-  var textColorEl = document.getElementById('teamsDetailTextColor');
-  if (_teamsDetailColors.brandTextColor !== null) {
-    body.brandTextColor = _teamsDetailColors.brandTextColor === '' ? '' : (textColorEl ? textColorEl.value : _teamsDetailColors.brandTextColor);
-  }
-  var outlineColorEl = document.getElementById('teamsDetailOutlineColor');
-  if (_teamsDetailColors.brandNameOutlineColor !== null) {
-    body.brandNameOutlineColor = _teamsDetailColors.brandNameOutlineColor === '' ? ''
-      : (outlineColorEl ? outlineColorEl.value : _teamsDetailColors.brandNameOutlineColor);
-  }
-  body.brandStyle = teamsDetailStyleValue();
-  body.brandAngle = teamsDetailAngleValue();
-  body.brandStripeWidth = teamsDetailStripeWidthValue();
-  body.brandStripeGap = teamsDetailStripeGapValue();
-  body.brandPatternScale = teamsDetailPatternScaleValue();
-  body.brandGradientBalance = teamsDetailGradientBalanceValue();
-  body.brandOutlineWidth = teamsDetailOutlineWidthValue();
-  try {
-    var r = await apiFetch('/api/team-profile/' + encodeURIComponent(team.name), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    var data = r ? await r.json().catch(function() { return {}; }) : {};
-    if (!r || !r.ok) { teamsDetailStatus(data.error || 'Could not save', true); return; }
-    // Merge the server's response back into the already-loaded list so the
-    // list view (and a re-open of this same team) reflects the save without
-    // a full refetch.
-    if (data.team) _teamsData.teams[_teamsDetailIdx] = data.team;
-    teamsDetailStatus('✓ Saved');
-    showToast('Team profile saved');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-}
-
-function pickTeamsDetailLogo(el) {
-  var f = el.files && el.files[0];
-  if (!f) return;
-  ttReadTeamLogoFile(f, function(uri) {
-    _teamsDetailLogo = uri;
-    teamsDetailSyncLogo();
-    showToast('Logo ready — press Save to apply');
-  }, function(msg) { showToast(msg, true); el.value = ''; });
-}
-
-function removeTeamsDetailLogo() {
-  _teamsDetailLogo = '';
-  teamsDetailSyncLogo();
-  showToast('Logo will be removed on Save');
-}
-
-// One-time wiring for the detail view's own controls (not per-team — the
-// same DOM nodes are reused across every openTeamDetail() call).
-(function wireTeamsDetailOnce() {
-  var fileInput = document.getElementById('teamsDetailLogoInput');
-  if (fileInput) fileInput.addEventListener('change', function() { pickTeamsDetailLogo(fileInput); });
-  var primaryEl = document.getElementById('teamsDetailPrimaryColor');
-  if (primaryEl) primaryEl.addEventListener('input', function() {
-    _teamsDetailColors.primaryColor = primaryEl.value;
-    teamsDetailSyncColor('primaryColor');
-  });
-  var secondaryEl = document.getElementById('teamsDetailSecondaryColor');
-  if (secondaryEl) secondaryEl.addEventListener('input', function() {
-    _teamsDetailColors.secondaryColor = secondaryEl.value;
-    teamsDetailSyncColor('secondaryColor');
-  });
-  var textColorEl = document.getElementById('teamsDetailTextColor');
-  if (textColorEl) textColorEl.addEventListener('input', function() {
-    _teamsDetailColors.brandTextColor = textColorEl.value;
-    teamsDetailSyncColor('brandTextColor');
-  });
-  var outlineColorEl = document.getElementById('teamsDetailOutlineColor');
-  if (outlineColorEl) outlineColorEl.addEventListener('input', function() {
-    _teamsDetailColors.brandNameOutlineColor = outlineColorEl.value;
-    teamsDetailSyncColor('brandNameOutlineColor');
-  });
-  var styleRow = document.getElementById('teamsDetailStyleRow');
-  if (styleRow) styleRow.addEventListener('change', teamsDetailSyncStyleRow);
-  var angleEl = document.getElementById('teamsDetailAngle');
-  if (angleEl) angleEl.addEventListener('input', teamsDetailUpdatePreview);
-  var stripeWidthEl = document.getElementById('teamsDetailStripeWidth');
-  if (stripeWidthEl) stripeWidthEl.addEventListener('input', teamsDetailUpdatePreview);
-  var stripeGapEl = document.getElementById('teamsDetailStripeGap');
-  if (stripeGapEl) stripeGapEl.addEventListener('input', teamsDetailUpdatePreview);
-  var scaleEl = document.getElementById('teamsDetailPatternScale');
-  if (scaleEl) scaleEl.addEventListener('input', teamsDetailUpdatePreview);
-  var balanceEl = document.getElementById('teamsDetailGradientBalance');
-  if (balanceEl) balanceEl.addEventListener('input', teamsDetailUpdatePreview);
-  var outlineWidthEl = document.getElementById('teamsDetailOutlineWidth');
-  if (outlineWidthEl) outlineWidthEl.addEventListener('input', teamsDetailUpdatePreview);
-})();
 
 Object.assign(TT_ACTIONS, {
   closeTeamDetail: function() { closeTeamDetail(); },
-  saveTeamsDetail: function() { saveTeamsDetail(); },
-  removeTeamsDetailLogo: function() { removeTeamsDetailLogo(); },
-  recropTeamsDetailLogo: function() { recropTeamsDetailLogo(); },
-  clearTeamsDetailColor: function(which) { clearTeamsDetailColor(which); },
-  swapTeamsDetailColors: function(which) { teamsDetailSwapColors(which); },
 });
 
 function teamLinkUrl(token) {

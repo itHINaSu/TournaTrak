@@ -18,7 +18,14 @@ var _coachSession = null;
 // lineup tab should only have access to the assigned team(s) lineups in the
 // coaches panel." An admin poking around /coach is still an admin, just
 // looking at their own team(s) here instead of every team.
-window._lineupCoachPanelHost = true;
+// ...EXCEPT when embedded in the admin panel's Teams tab, where the opposite
+// is true: a TD has clicked a specific team and expects that team's lineup.
+// Leaving the restriction on gave staff an EMPTY team selector there ("Select
+// a team first" over a list of nothing), because an admin account usually
+// coaches no team at all. Read from the URL rather than a later init, since
+// lineup.js consults this flag during its own startup.
+window._lineupCoachPanelHost =
+  new URLSearchParams(window.location.search).get('embed') !== '1';
 
 function coachApiBase() {
   // Same tournament scoping the lineup page uses: ?t=<slug> follows a coach to
@@ -292,8 +299,59 @@ async function initCoachPanel() {
     return;
   }
   showCoachPanel(session);
+  applyCoachEmbedMode();
   initCoachTabs();
   restoreCoachTab();
+  preselectCoachTeam();
+}
+
+// ── Embedded mode (?embed=1) ──────────────────────────────────────────
+// The admin panel's Teams tab hosts this page in an iframe so a TD gets the
+// real roster/lineup/branding editors rather than a second copy of them that
+// can drift (owner, 2026-08-02: "make sure that admins can view teams,
+// lineups, and rosters from that tab like an embedded coaches panel").
+// Strips the chrome that only makes sense standalone: this page's own header
+// (the admin panel already has one directly above the iframe — two stacked
+// headers is the giveaway that something is embedded rather than integrated)
+// and the Account tab, which manages the SIGNED-IN user's credentials and has
+// nothing to do with the team being looked at.
+function coachIsEmbedded() {
+  return new URLSearchParams(window.location.search).get('embed') === '1';
+}
+function applyCoachEmbedMode() {
+  if (!coachIsEmbedded()) return;
+  document.body.classList.add('coach-embed');
+  var hdr = document.getElementById('siteHeader');
+  if (hdr) hdr.hidden = true;
+  var acct = document.querySelector('.admin-tab[data-tab="account"]');
+  if (acct) acct.hidden = true;
+}
+
+// ?team=<name> — open on the team the TD clicked, rather than whichever the
+// selector happens to default to. Staff see every team in `rosterTeams()`, so
+// the value is just written into the selectors the three tabs already use and
+// their existing change handlers do the rest. Ignored silently when the team
+// isn't in the list: a stale link should land on a working panel, not an error.
+function preselectCoachTeam(_tries) {
+  var want = new URLSearchParams(window.location.search).get('team');
+  if (!want) return;
+  var applied = false;
+  ['lineupTeamSel', 'rosterTeamSel', 'teamTabTeamSel'].forEach(function (id) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    var has = Array.prototype.some.call(sel.options, function (o) { return o.value === want; });
+    if (!has || sel.value === want) return;
+    sel.value = want;
+    sel.dispatchEvent(new Event('change'));
+    applied = true;
+  });
+  // Each tab's selector is populated by that tab's own init, which has not run
+  // for a tab nobody has opened yet — so retry briefly. BOUNDED: a team that
+  // genuinely is not in the list (renamed, removed, stale link) must leave a
+  // working panel on its default team, not a timer running for the life of the
+  // page. ~5s of retries, then give up silently.
+  var tries = (_tries || 0) + 1;
+  if (!applied && tries < 12) setTimeout(function () { preselectCoachTeam(tries); }, 400);
 }
 
 // Transient status text. The timer is keyed per element and cancelled on each

@@ -1420,6 +1420,91 @@ input[type="time"]:focus {
 .team-ed-edit { flex: none; }
 .teams-detail-back { margin-bottom: 0.6em; }
 
+/* ── Teams tab: embedded coach panel ──────────────────────────────────
+   The team detail view hosts /coach?embed=1 in an iframe (see the comment on
+   #tab-teams in admin.html for why it is the real panel rather than a second
+   copy). The frame is auto-sized to its content by sizeTeamsDetailFrame() in
+   admin.js, so there is no inner scrollbar — a scroll region inside a scroll
+   region is the thing that makes an embed feel like an embed, and on a phone
+   it is genuinely hard to use. */
+.teams-detail-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  margin-bottom: 0.75em;
+  padding-bottom: 0.6em;
+  border-bottom: 0.07em solid var(--border);
+}
+.teams-detail-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.teams-detail-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  /* Replaced by a measured pixel height once loaded; this is only what the
+     frame occupies for the instant before that runs. */
+  height: 32rem;
+  overflow: hidden;
+}
+
+/* Embedded coach panel: it is a page inside a panel, so it must not re-assert
+   page-level chrome. The header is hidden in JS (applyCoachEmbedMode); this
+   drops the outer spacing that assumed one, and stops the body scrolling on
+   its own now that the host frame is sized to the content. */
+/* min-height:100vh on body (base.css) makes the embedded body always fill the
+   iframe, so measuring body.scrollHeight just returns the height we last SET —
+   and any padding added to it compounds every frame, growing the frame without
+   bound (observed: +8px/frame, forever). Releasing the minimum here is what
+   makes the measurement report CONTENT height instead. */
+body.coach-embed {
+  padding: 0;
+  /* Deliberately NOT `background: transparent`: base.css sets `--bg` on :root
+     for the DARK theme and overrides it under `body.light`, so a transparent
+     body leaves the browser painting the iframe canvas from the document's
+     dark color-scheme — a black panel inside a light admin page. Inheriting
+     body's normal `background: var(--bg)` resolves the variable ON body,
+     where the light override lives, and tracks the theme in both directions. */
+  overflow: visible;
+  min-height: 0;
+  height: auto;
+  display: block;
+}
+/* Below 1024px the panel becomes a full-height APP SHELL: body is a flex
+   column, #adminWrap takes the slack with overflow:hidden, and the tab bar is
+   ordered to the bottom as a nav. The iframe is narrower than that breakpoint
+   at any host width, so the embed always gets it — and an app shell has no
+   natural height to measure, which is what left the frame short with its tab
+   bar stranded mid-content. These put the document back to normal flow so it
+   has a real height, with the tab bar back at the top where a panel section
+   reads correctly. Higher specificity than the media-query rules they undo, so
+   source order does not matter. */
+body.coach-embed #adminWrap {
+  flex: none;
+  min-height: 0;
+  overflow: visible;
+  display: block;
+}
+body.coach-embed .admin-tab-bar,
+body.coach-embed #lineupNav.admin-tab-bar {
+  order: 0;
+  position: static;
+  box-shadow: none;
+  border-top: none;
+  border-bottom: 0.07em solid var(--border);
+  padding-bottom: 0;
+  margin-bottom: 0.75em;
+}
+body.coach-embed .admin-tab-panel { overflow: visible; }
+body.coach-embed .admin-container { padding-top: 0; }
+
 
 /* Builder embedded in schedule tab — fill the full panel width */
 #schedBuilderPanel .bld-main {
