@@ -110,21 +110,24 @@ CREATE TABLE IF NOT EXISTS lineups (
 
 -- Per-tournament config blobs: settings, offsets, field-colors,
 -- theme-colors, buckets, teams (builder team list + seeds), undo (one
--- snapshot taken before the last destructive write).
+-- snapshot taken before the last destructive write), rosters (squad lists
+-- keyed by team name, which lineups autofill from).
 CREATE TABLE IF NOT EXISTS config (
   tournament_id INTEGER NOT NULL REFERENCES tournaments(id) ON DELETE CASCADE,
   domain        TEXT    NOT NULL CHECK (domain IN
-                  ('settings','offsets','field_colors','theme_colors','buckets','teams','undo')),
+                  ('settings','offsets','field_colors','theme_colors','buckets','teams','undo','rosters')),
   data          JSONB   NOT NULL DEFAULT '{}',
   PRIMARY KEY (tournament_id, domain)
 );
 
--- Refresh the domain check on databases created before 'undo' existed. Same
--- treatment as users_role_check above: cheap and idempotent-in-effect, so it
--- runs every boot. Keep this list in sync with CONFIG_DOMAINS in store.js.
+-- Refresh the domain check on databases created before 'undo' or 'rosters'
+-- existed. Same treatment as users_role_check above: cheap and
+-- idempotent-in-effect, so it runs every boot. Keep this list in sync with
+-- CONFIG_DOMAINS in store.js — adding a domain there without adding it here
+-- fails at the first WRITE, not at boot, which reads as a 500 on one feature.
 ALTER TABLE config DROP CONSTRAINT IF EXISTS config_domain_check;
 ALTER TABLE config ADD CONSTRAINT config_domain_check
-  CHECK (domain IN ('settings','offsets','field_colors','theme_colors','buckets','teams','undo'));
+  CHECK (domain IN ('settings','offsets','field_colors','theme_colors','buckets','teams','undo','rosters'));
 
 -- Deployment-global key/value. Unlike `config`, which is per tournament and
 -- holds a TD's data, this is for things the SERVER owns across every

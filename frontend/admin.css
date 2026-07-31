@@ -94,6 +94,20 @@ input, select, textarea { font-size: max(1rem, 16px); }
 }
 .login-btn { width: 100%; margin-top: 0.25em; }
 .login-desc { font-size: 0.8em; color: var(--text-mute); margin-bottom: 1.2em; }
+/* The "you don't need an account" note. Boxed and left-aligned rather than
+   muted body text: it is the most important thing on the page for the largest
+   group of people who will ever see it, and mute-grey small print is exactly
+   what someone hunting for a password scrolls past. */
+.login-desc--who {
+  text-align: left;
+  color: var(--text-dim);
+  background: var(--surface2);
+  border-left: 0.2em solid var(--blue);
+  border-radius: var(--radius-xs);
+  padding: 0.8em 0.9em;
+  line-height: 1.5;
+}
+.login-desc--who strong { color: var(--text); }
 /* "View public bracket" escape hatch under the sign-in form (admin PWA) */
 .login-public-link {
   display: block;

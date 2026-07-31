@@ -2,8 +2,10 @@
 
 A primer for starting a fresh chat with full project context. Delete or update
 freely; this is a working note, not documentation. See also `ROADMAP.md`
-(v3/v4 plan), `SALES_SITE_BRIEF.md` (marketing-site brief), and `README.md`
-(refreshed 2026-07 for the Postgres port — keep it current).
+(v3/v4 plan), `FEATURES.md` (what ships, written for the sales-site agent —
+authoritative over the older `../sales-site/SALES_SITE_BRIEF.md`, which is
+still the guide for tone and page structure), and `README.md` (refreshed
+2026-07 for the Postgres port — keep it current).
 
 ## What it is
 Tournament bracket web app (softball/baseball origin, multi-format). The
@@ -53,6 +55,53 @@ What "current" means, concretely:
   measurement that lied), put it in "Session notes / traps worth inheriting";
 - prune what is now false. Deleting a stale paragraph is as valuable as adding
   a true one.
+
+## EVERY NEW ENTITY GETS A UNIQUE ID (owner directive, 2026-07-30)
+**Anything that is a *thing* in this product — a team, a player, a game, a
+season, a venue, whatever comes next — is created with a hidden, generated
+id, and that id is its identity.** Owner: *"A user generated field is just a
+bit unreliable and not flexible enough."* Both halves of that matter:
+
+- **Unreliable.** A name or a number is typed by a person on a phone at a
+  ballfield. It arrives misspelled, in the wrong case, with a trailing space,
+  or as "Thunder" one week and "The Thunder" the next. Every one of those is a
+  *different entity* if the text is the key.
+- **Not flexible enough.** Text people own is text people will change, and
+  they are entitled to. If the name is the key, a rename is a data migration —
+  so the product ends up forbidding the edit to protect its own storage, which
+  is the tail wagging the dog. Both times this has come up (a coach wanting to
+  set a team's display name, a player switching jersey numbers) the feature was
+  blocked by exactly this.
+
+The shape is settled — copy it rather than inventing a variant:
+
+```js
+const THING_ID_RE = /^x_[0-9a-f]{12}$/;              // one-letter prefix
+function newThingId() { return 'x_' + crypto.randomBytes(6).toString('hex'); }
+```
+
+`t_` = team, `p_` = player. Prefixes are for humans reading a payload or a log
+line; the length is arbitrary but consistent. Rules that came out of doing this
+twice:
+
+1. **Mint on first read, not in a migration script.** A `normalize*()` on the
+   read path that writes back once when something was missing gives you a
+   backfill for free and keeps old data working through a deploy.
+2. **Only honour an id already present on the record you are writing.** An id
+   arriving from a client that is unknown, malformed, or a duplicate of another
+   row's gets a *fresh* one. Otherwise a caller can hand itself someone else's
+   entity by guessing.
+3. **Keep the user-facing text as the record of what was written**, and let the
+   id carry the relationship. A saved lineup row shows the name as it was typed
+   that day *and* points at the player; those are two different questions and
+   they need two different fields.
+4. **Do not rip out the name as a join key to celebrate.** Team names are still
+   the join key across the schedule, results, lineups and grants — the id
+   exists alongside, ready for the migration, and that migration is its own
+   piece of work (see "Team database (decided, not built)").
+
+Worked examples: "Teams have a hidden id" and, for the fuller version including
+lineup rows, "The roster, and why it is not a lineup".
 
 ## Branch rule
 **`main` is the leading/integration branch as of 2026-07-15** (owner
@@ -118,8 +167,22 @@ side.
 
 | commit | what |
 |--------|------|
-| (this) | **Download opens a format menu** instead of parking a picker beside it; **the hamburger was em-sized** so it shrank in the PWA |
-| (this) | **The mobile header menu was stuck open on admin/lineup/score** — hamburger logic moved to tt-common.js, panel CSS scoped to `.has-menu` |
+| (this) | **Teams get a hidden stable id** + coach-facing display/short names; picks now key off `data-team`, not rendered text |
+| (this) | **Header menu at every width**, not just mobile; **Refresh is PWA-only** |
+| (this) | **One "Sign in" replaces the PWA guesswork** — signed-out visitors get a login route in any context; coaches signing in at /admin are routed instead of dead-ended |
+| (this) | **Dark band above the mobile nav** — the carousel was sized from the VISUAL viewport; header menu reordered per owner |
+| (this) | **First password set can also claim a username** — the placeholder name an admin typed was never shown to the person using it |
+| (this) | **Coach links now carry the tournament's icon and a link preview** (`/lineup` proxied + branded); **installed-app name is settable** (`pwaName`/`pwaShortName`) |
+| (this) | **The public header is server-rendered** — name, subtitle, logo and palette now correct in the FIRST paint; colour maths deduplicated into theme-css.js |
+| (this) | **Admin had no Add Subs / Delete Sub / Reorder / Import** — admin.html was missing the whole lineup tools block that lineup.js looks up by id |
+| (this) | **FEATURES.md**: added the Project-winners/watermark section, sharpened Share/Download/Print, lineup required fields, schedule-drift, hamburger scope |
+| `a1224e8` | **Mobile taps never reached the card** — `.mbc-scroll-cap` swallows every one; re-resolved via `elementsFromPoint`. This is what actually made projecting work on a phone |
+| `6dc3f39` | **Refresh in the PWA** — a header Refresh button and pull-to-refresh; the SW update check rides behind the data fetch |
+| `f4bb8c3` | **Project winners did nothing on mobile** — `onProjectTap` matched desktop card classes only; mobile vertical scroll now survives a re-render |
+| `4013354` | **`docs/FEATURES.md`** — authoritative, current feature list for whoever builds the sales site, with an explicit "do not advertise" table (push notifications, Buckets, guest accounts, cross-tournament teams). `sales-site/SALES_SITE_BRIEF.md` now carries a banner saying its §3/§5/§6/§9 are stale and this file wins. **Keep FEATURES.md current when a §10 item ships.** |
+| `8310a42` | **Download opens a format menu** instead of parking a picker beside it; **the hamburger was em-sized** so it shrank in the PWA |
+| `0eec7ea` | **The mobile header menu was stuck open on admin/lineup/score** — hamburger logic moved to tt-common.js, panel CSS scoped to `.has-menu` |
+| `f50108d` | Two dead Cancel buttons in the lineup overlays — shared `dismissOverlay(id, el, e)`; the old handlers guarded `e.target !== overlay`, right for a backdrop click, fatal for a button inside the box |
 | `886b242` | **Share / Download / Print**, open to every visitor — "Save image" becomes a three-action dialog; PNG/JPEG/PDF; sharing moves off Team Path onto the bracket |
 | `8161faf` | **Public "Project winners" + a "Potential Outcome" watermark** on every surface, carried into the exported PNG |
 | `3a82e4f` | **nginx re-resolves the api upstream** — the real fix for the reboot 502 (variable `proxy_pass` + Docker DNS), tested against a real nginx |
@@ -136,6 +199,99 @@ side.
 | `45bcf02` | Schedule analyzer: flag any game timed at or before the game that feeds it |
 
 ### 2026-07-30 in detail
+
+**Refresh in the PWA — a button and a gesture (owner request).** An installed
+PWA has no browser chrome, so there was no reload control at all and the only
+way to force a fetch was backgrounding the app (the `visibilitychange`
+handler). Two entry points now run one action, `refreshNow()`:
+- `#refreshBtn` in `#headerControls`, visible to every visitor, so it collapses
+  into the hamburger on a phone like the rest. `TT_ACTIONS.refreshNow` closes
+  the menu first — otherwise the panel covers the bracket the viewer just asked
+  to see.
+- **Pull-to-refresh**, drawn by us. Native PTR does not exist here: the app's
+  scrollers set `overscroll-behavior` to contain/none on purpose (it stops the
+  carousel bouncing the page) and iOS standalone has never offered it.
+
+**Owner's constraint was explicit — data is primary, no responsiveness hit —
+and it shaped two decisions worth not undoing:**
+1. **The service-worker check runs AFTER the data, fire-and-forget**
+   (`checkForAppUpdate`, called from `refreshNow`'s `finally`). It is never
+   awaited. No message plumbing was needed because `sw.js` already calls
+   `skipWaiting()` on install and `clients.claim()` on activate, so a newer
+   build installs and takes over by itself; the new assets are precached and
+   the next launch is the new version. **Nothing reloads under the viewer** —
+   an auto-reload mid-tournament is worse than being one launch behind.
+2. **Every touch listener is `{passive:true}`**, including the PTR ones. A
+   non-passive `touchmove` on the document makes the browser wait on JS before
+   it may scroll ANY frame, which is exactly the cost that was ruled out. It
+   works without `preventDefault` because a pull only starts when the scroller
+   is already at `scrollTop === 0` — there is nothing left to scroll — and
+   `overscroll-behavior` already suppresses the native bounce.
+
+Other things the gesture has to get right, all of them in `bracket.js`:
+- **It must lose to the carousel's horizontal swipe**, so it decides its axis
+  the same way the carousel does (larger delta wins, 6px to decide) and gives
+  up entirely on an upward pull.
+- **`ptrScroller(el)` walks up for the nearest ancestor that actually
+  scrolls.** The public page has several — the fixed `.mbc-scroll-cap`
+  carousel overlay, each `.view-panel`, the document — so assuming one would
+  arm the pull mid-page.
+- **Disabled while `_bracketEditMode` is on**: dragging a card from the top of
+  a column is not a pull.
+- The indicator is a direct child of `<body>`, for the containing-block reason
+  recorded under the notifications panel below.
+
+**Project winners was inert on mobile — one handler, three wrong selectors.**
+Owner: "works great on desktop, doesn't work at all on mobile." `onProjectTap`
+is delegated on `#bracketRoot`, which renders BOTH layouts, but it was written
+against the desktop card only: `.bc-team` → `.bc` → `.bc-name`. The mobile
+carousel wraps every card in `.mbc-card[data-gid]` holding either
+`.mbc-game-team`/`.mbc-team-name` or `.mbc-champ-team`/`.mbc-champ-name`, so
+`e.target.closest('.bc-team')` returned null and the handler bailed on its
+FIRST line. Not a partial failure — nothing happened at all, which is exactly
+what was reported. All three selectors now carry both shapes
+(`PROJ_TEAM_SEL`/`PROJ_CARD_SEL`/`PROJ_NAME_SEL`).
+
+**The selectors were only half of it — and the other half is a trap that will
+bite anything else made tappable on the mobile bracket.** `.mbc-scroll-cap` is
+a TRANSPARENT `position: fixed` overlay covering the whole carousel. It exists
+so a vertical touch anywhere gets native iOS momentum, and it **cannot be given
+`pointer-events: none`** — that is precisely the property that would stop it
+scrolling. So on a phone *every* tap lands on the overlay (or its spacer) and
+never on the card beneath, and `e.target.closest(...)` finds nothing no matter
+which class names it looks for. Playwright says so out loud if you let it:
+`locator.tap()` fails with "`<div>` from `<div class="mbc-scroll-cap">…</div>`
+subtree intercepts pointer events". `projTargetFor(e)` re-resolves through
+`document.elementsFromPoint(e.clientX, e.clientY)` when the tap started on the
+overlay, and picks the first element in the paint stack that sits in a team
+row. **Test mobile taps with `page.touchscreen.tap(x, y)`, not
+`locator.tap()`** — the latter refuses on the actionability check, which reads
+as a broken test rather than the real bug it is faithfully reporting.
+
+Worth knowing: **the mobile renderer already drew picks.** `mobileRoundCardHTML`
+and `champCardHTML` both compute `cardIsProjected(gid)` and emit `mbc--proj`
+plus the PICK chip, and `bracket.css` has a mobile-specific rule for that chip
+inside `.mbc-game-team`. Somebody built the display half and the input was
+never wired to it — so the fix is only the handler.
+
+Two things that had to come with it, or the feature still would not have felt
+like it worked:
+- **A swipe must not count as a pick.** The carousel drives `scrollLeft` from a
+  `{passive:true}` touchmove, so it never calls `preventDefault` and a
+  horizontal flick still emits a click on whatever card was under the finger.
+  A document-level `_touchDragged` flag (10px slop, set on any touchmove past
+  it, and unconditionally for multi-touch) gates the handler. Desktop never
+  fires touch events, so the flag stays false and nothing changes there.
+- **Vertical scroll now survives a re-render** (`_mbcScrollTop`, beside
+  `_mbcActiveRound`). Every pick calls `renderBracket()`, which rebuilds the
+  carousel; the column was already restored but `sharedScrollTop` is
+  render-local and started at 0, so a pick low in a tall column (ISSA round 2
+  is 14 cards, ~2500px) threw the viewer to the top. It is restored by writing
+  `captureEl.scrollTop`, NOT the mirror variable — `setSpacerForCol` only
+  writes the scroller when it has to clamp, so setting `sharedScrollTop`
+  directly would translate the columns to a position the scroll element does
+  not hold. Letting the passive scroll listener settle both also gets clamping
+  against the new column's height for free.
 
 **Roles.** A per-tournament `admin` grant already IS a Tournament Director:
 full admin on assigned tournaments, none elsewhere, assignable to many. No new
@@ -1618,6 +1774,17 @@ not a backup: this one had been wrong since it was written, and the first
 person to find out was the person who needed it.
 
 ## Session notes / traps worth inheriting (2026-07-30)
+- **`PGUSER=root` needs the role to EXIST.** The documented incantation
+  (`PGUSER=root PGHOST=/var/run/postgresql`) reported all 73 route tests as
+  `SKIP no usable Postgres (role "root" does not exist)` — and still exited 0,
+  which is exactly the false green the Tests section warns about. A fresh
+  container's cluster has no `root` role at all:
+  `su postgres -c "psql -tAc \"CREATE ROLE root SUPERUSER LOGIN CREATEDB\""`
+  then a matching database. After that: 113 pass, **0 skipped**.
+- **`api/node_modules` is not in the container** on a fresh clone — `npm ci` in
+  `api/` first, or the route tests skip with `server did not start`.
+- **Playwright's browser is at `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`**,
+  not the `chromium` symlink dir next to it, which has no binary inside.
 - **The working tree rolled back a THIRD time** (the 2026-07-29 entry covers the
   first two). It happened mid-scan, and the first pass of that scan silently ran
   against the stale tree and reported everything clean. If a check comes back
@@ -1829,6 +1996,20 @@ before the next one starts.
 - Pushing to `main` was explicitly authorised by the owner that day. The
   standing rule in "Branch rule" above still holds: develop on the named
   branch and never push elsewhere without being told to, per session.
+
+## Markup-only changes need an API RESTART, not just a rebuild (2026-07-30)
+The API renders `index.html` per tournament and keeps it in an **in-memory
+map** (`_indexHtmlCache`), invalidated when that tournament's settings are
+written, when the live tournament changes, or on demo restore — **never when
+the file on disk changes**. So a pure-markup change ships, the container has
+the new file, and the old HTML keeps being served until the process restarts.
+
+This cost the owner a round trip on the Share dialog: the format `<select>`
+was gone from `main` and from disk, and still on screen. `docker compose
+restart` fixed it. If markup looks stale after a deploy, restart the API
+before looking for a caching bug in the browser. (`Cache-Control: no-cache`
+is already set on the index routes, so the browser is not usually the
+culprit.)
 
 ## Conventions / gotchas
 - `upcoming` cards use dashed border only — do NOT add `opacity`.
@@ -2341,6 +2522,372 @@ ratio never improves (44px in a 0.8em-padded header is still only 63% of it).
 The mobile header padding was trimmed to 0.45rem instead, which holds the
 header at the height it already had while the control inside grows to ~73%.
 
+## lineup.js has THREE hosts — keep their markup in step (2026-07-30)
+`lineup.js` drives `lineup.html` (the coach's standalone page), the Lineups tab
+inside `admin.html`, and — since the coach panel landed — the Lineups tab
+inside `coach.html`. It finds its controls with
+`document.getElementById`, and every lookup is null-guarded — which is what
+makes a missing element **silent**. `admin.html` was missing Add Subs, Delete
+Sub, Reorder, Import and the import overlay outright, so staff editing a
+lineup from the admin panel simply did not have those features and nothing
+logged an error. Owner report: "Admin users don't have access to add subs to a
+lineup."
+
+When you touch lineup markup, diff the two hosts by id:
+```
+grep -o "getElementById('lineup[A-Za-z]*')" frontend/lineup.js | sort -u \
+  | sed "s/getElementById('//;s/')//" | while read id; do
+      a=$(grep -c "id=\"$id\"" frontend/admin.html)
+      c=$(grep -c "id=\"$id\"" frontend/coach.html)
+      l=$(grep -c "id=\"$id\"" frontend/lineup.html)
+      [ "$a" -lt "$l" ] && echo "$id: admin=$a lineup=$l"
+      [ "$c" -lt "$l" ] && echo "$id: coach=$c lineup=$l"
+    done
+```
+Three ids are standalone-only **by design** and should stay that way:
+`lineupNav` (admin has its own tab bar), and `lineupInvalidTitle` /
+`lineupInvalidBody` (the coach sign-in gate, unreachable when you are already
+signed in as staff). Everything else should exist in both.
+
+## The coach panel (`/coach`) — 2026-07-30
+
+Coaches used to have exactly one screen: `lineup.html`, reached through a magic
+link. `/coach` is their panel — four tabs behind the same access gate `/admin`
+uses. `frontend/coach.html` + `frontend/coach.js`, nginx serves it from disk
+(`location = /coach` → `try_files /coach.html`), and the test proxy maps it too.
+
+Load-bearing details, in the order they will bite you:
+
+- **`id="adminWrap"` is deliberate, not a copy-paste artefact.** `lineup.js`
+  self-initialises with `if (!document.getElementById('adminWrap')) lineupInit();`
+  Reusing the id is what stops it racing the session check; `coach.js` calls
+  `lineupInit()` itself when the Lineups tab is first opened, exactly as
+  `admin.js` does. Rename that id and the Lineups tab initialises twice.
+- **It loads `admin.css`.** The owner asked for a panel "near identical to the
+  admin panel from a UI perspective", so it uses that stylesheet rather than a
+  second description of it — `.admin-tab-bar`, `.admin-tab-panel`, the settings
+  sections and the lineup table all come from there. Restyling `.admin-tab*`
+  restyles both panels. That is the point.
+- **Team is still a stub.** It says what is coming. Roster is real — see below.
+- **Staff are let in.** A TD checking what a coach sees is reasonable; role
+  `team`, `admin` and `results` all reach the panel.
+- **No service worker is registered here on purpose.** `/admin-sw.js` deletes
+  every cache on activate, so registering it from this page would wipe the
+  public app's offline copy for any coach who uses both. The manifest and
+  icons still point at the API (`/manifest.json`, `/tab-icon.png`,
+  `/pwa-icon.png`) so a home-screen add gets the tournament's own artwork —
+  that was the "shared coach links arrive as a stock trophy" bug.
+
+`applyStickyOffsets` moved out of `admin.js` into `tt-common.js` as
+**`ttApplyPanelOffsets()`**, because it was private to admin.js and the coach
+panel threw the moment it tried to show itself. `admin.js` keeps a one-line
+delegate under the old name. It now measures the LAYOUT viewport (see that
+section) rather than `window.innerHeight`. Any panel with a fixed header over a
+sticky `.admin-tab-bar` should call it.
+
+Not built yet: coach-editable team display + short names, and coach-managed
+notification preferences. Adding other coaches uses real accounts via the
+self-chosen-username flow below.
+
+### The roster, and why it is not a lineup
+A **roster** is the squad — everyone on the team, in no particular order. A
+**lineup** is a batting order for one game, drawn from it. Keeping them apart is
+the entire design, and the differences are deliberate, not oversights:
+
+| | Roster | Lineup |
+|---|---|---|
+| Order | none | is the point |
+| Scope | the team | one team in one game |
+| Locks when a game is final | **no** | yes |
+| Storage | `config` domain `rosters` | `lineups` table |
+
+A roster does NOT lock after a result: a squad list is not the record of what
+was played, and a coach fixing a spelling after the last game should not be
+refused. **Nothing blocks a save** except malformed input — see the numbers
+section below, which is the part most likely to be "fixed" back into a bug.
+
+`GET|POST /roster/:teamName`, guarded by `requireLineupAccess`, so the rules
+are the ones coaches already have (own team only; staff see everyone; a team
+link counts as that team). Blank editor rows are dropped on save rather than
+rejected, and an emptied roster is deleted rather than stored as `[]`.
+
+#### Players have a hidden id, and numbers are NOT unique
+The fullest worked example of "EVERY NEW ENTITY GETS A UNIQUE ID" — read that
+rule first; this is what it looks like applied to an entity people edit daily.
+Owner, 2026-07-30: *"some players have different numbers pending what jersey is
+worn"*, and *"players should also get a unique hidden id and modifications to
+players name, and number don't break the app."* Both rules follow from that:
+
+- **A player carries a LIST of numbers** — `jerseys: ['7','21']`, not `jersey`.
+  A home set and an away set rarely agree, and one number per player made a
+  coach choose which half of the season to be wrong about. The editor sends
+  comma- or space-separated text; the server accepts an array or that text.
+  Capped at 6 by truncation, not by an error — a coach pasting junk into the
+  cell should not lose the player.
+- **Two players may share a number.** This was briefly a 400 and that was
+  wrong: A's home #7 can be B's away #7. The roster tab warns (amber tint plus
+  a sentence naming the number) and saves anyway.
+- **Autofill declines to guess.** A number matching exactly one player fills
+  the row; a number matching two fills nothing and claims no id. Picking one
+  would be a guess presented as a fact.
+- **`id` is the identity, `p_<12 hex>`**, same shape and reasoning as team ids:
+  the name and the number are what people type, change and mistype, so neither
+  can be the identity. Minted on first read, and **ids are only honoured if
+  already on that roster** — an unknown, forged or duplicated id mints a fresh
+  one rather than silently adopting an identity.
+- Old `{jersey, name, position}` rosters are **migrated on READ** and written
+  back once, so a tournament mid-event does not lose its squad to a deploy.
+
+A lineup row may carry an optional **`playerId`**. The row's TEXT stays the
+record of what was written on the card that day — it must never change under a
+coach later — while the id keeps the row attached to a real person through a
+rename or a jersey swap. It lives on the `<tr>` as `data-pid`, **not** in a map
+keyed by row index: Reorder and Import both splice the rows array and rebuild,
+so an index-keyed map would quietly reattach every id to the wrong player.
+
+Storage is the `rosters` **config domain** — one JSON blob per tournament,
+`{ teamName: [{jersey,name,position}] }`. **Adding a config domain needs TWO
+edits**: `CONFIG_DOMAINS` in `store.js` *and* the `config_domain_check`
+constraint in `schema.sql` (it appears twice there — the CREATE TABLE and the
+per-boot `ALTER TABLE` refresh). Miss the schema half and it boots fine, then
+500s on the first WRITE — which reads as one broken feature rather than a
+migration you forgot.
+
+The payoff is in `lineup.js`: `loadRosterForTeam()` fetches on team select,
+and typing a jersey number fills in the player. It fires on `change`, not
+`input` — filling per keystroke fights a coach typing `12`, because `#1`
+matches first — and it only ever fills a **blank** name, because overwriting
+something a coach deliberately typed is the kind of help that loses work. A
+403 there is normal and ignored: autofill is a convenience and must never
+disturb the lineup itself.
+
+One more thing worth not reintroducing: transient status text in the coach
+panel goes through `setStatus(id, text, transient)`, which **cancels the
+previous element's clear-timer**. Two saves less than three seconds apart used
+to leave the first one's `setTimeout` to wipe the second one's confirmation, so
+a save that worked looked like a save that did nothing.
+
+## /admin and /coach are PROXIED, not served from disk (2026-07-30)
+Both panels used to be `try_files`d straight off disk, which made them the only
+pages staff and coaches use that never wore the event's own branding — and
+walking from the admin panel to the public page repainted the wordmark in front
+of you. The API now renders both (`buildPanelHtml`, `PANELS`, `panelRoute` in
+server.js) and nginx proxies `/admin`, `/admin.html`, `/coach` and `/coach.html`.
+
+It injects the `<title>`, the tab icon, the logo `src` and the `theme.css`
+link — deliberately **no `og:` tags**: these are login-gated panels, not
+shareable destinations, and a link preview for one is noise at best.
+
+The header title is a SETTING per panel, not the tournament name:
+`adminName` ("Admin Panel Name") and `coachName` ("Coach Panel Name"), both in
+Settings → the pair under Subtitle. The point of that line is telling you WHICH
+panel you are in, so it has to be nameable separately.
+
+Cached in `_panelHtmlCache`, keyed `panel|tid|origin` — note the extra leading
+segment, which is why `invalidateIndexCache` walks it with its own loop rather
+than the shared one. **Markup changes to admin.html/coach.html now need an API
+restart** to be seen, exactly like index.html and lineup.html: `docker compose
+restart api`.
+
+## Shared links: what is branded, and what nginx serves from disk (2026-07-30)
+A coach link is the most-shared URL this product has — the magic link
+redirects to `/lineup` and the coach pastes THAT into the team's group chat.
+It was served flat off disk by nginx, so it carried the stock trophy and **no
+OG tags at all**: the least-branded page we serve was the one strangers were
+most likely to see.
+
+`/lineup` is now PROXIED to the API (nginx `location = /lineup`) and gets the
+same treatment as the bracket shell: tournament title, description, og:image
+pointing at `/pwa-icon.png`, the scoped tab icon, and `/theme.css`. Cached per
+tid in `_lineupHtmlCache`, cleared by the same `invalidateIndexCache(tid)` —
+one invalidation point on purpose, because a second would be forgotten.
+
+**Still served from disk by nginx, and therefore unbranded:** `/admin`,
+`/score`, `/builder`. Branding them means another proxy block each. Deliberate
+for the icons — the admin PWA uses `/icons/admin-*.png` so it is
+distinguishable from the public app on a home screen, and pointing it at the
+tournament icon would break that. If someone wants OG previews on those, add
+the meta tags WITHOUT touching `rel="icon"`.
+
+Changing what nginx proxies is a deploy-config change: it needs a container
+recreate, not just an API restart.
+
+## Installed-app name is settable (2026-07-30)
+`pwaName` / `pwaShortName`. Blank keeps the old behaviour (derive from
+`tournamentName`). The reason it exists: `short_name` is the label under the
+home-screen icon and gets 12 characters, so "Summer Classic 2026" installed as
+"Summer Class". Existing installs update on their own PWA refresh cycle.
+
+## LAYOUT viewport, not window.innerHeight (2026-07-30)
+Owner: "On mobile/pwa I noticed a large black bar above the nav bar that
+covers some of the game cards."
+
+`renderMobileColumns` sized the carousel with
+`window.innerHeight - rootTop - tabsH`. innerHeight is the VISUAL viewport: on
+iOS, and most obviously in an installed PWA with `viewport-fit=cover`, it is
+taller than the layout viewport by the safe-area strip behind the home
+indicator — which the tab bar below already reserves. The carousel therefore
+sized itself past the tab bar, the last card was clipped, and the page
+background showed through as a dark band.
+
+`ttViewportH()` in tt-common.js is now the one measurement
+(`documentElement.clientHeight`), used by the carousel, `applyStickyOffsets`
+and app-h.js — which previously disagreed with each other by exactly that
+inset. **The vh conversions in the desktop bracket maths still use
+innerHeight on purpose**: CSS `vh` on iOS tracks the large viewport, so those
+px-to-vh conversions want the visual one. Don't "fix" them to match.
+
+This cannot be reproduced in headless Chromium, where the two measurements are
+identical — which is also why the change is a no-op on desktop.
+
+## Teams have a hidden id (2026-07-30) — READ BEFORE TOUCHING TEAM NAMES
+Owner: "Let's assign team a unique ID that is hidden. This will serve us best
+in the long run." Right call, and the reason is worth stating plainly. This
+was the first case of what is now a standing rule — see "EVERY NEW ENTITY GETS
+A UNIQUE ID" before adding an entity of your own.
+
+**The team NAME is the join key across the whole product**: the schedule
+stores `t1name`/`t2name`, results record a winner by name, lineups and team
+links are keyed by name, `user_teams.team_name` grants a coach their team.
+That is exactly why a rename was never safe, and why a coach could not be
+allowed to set one.
+
+So `teams.teams[]` is now `{ id, name, displayName?, shortName? }`:
+- `id` (`t_` + 12 hex) is the stable identity that survives a rename. Nothing
+  is migrated onto it yet and nothing needs to be — it anchors the two
+  coach-facing names, so `name` stays immutable while what people SEE becomes
+  editable. Longer term it is what lets a team carry records between events.
+- Backfilled lazily by `ensureTeamIds()` on `GET /teams`, which writes ONLY
+  when something is missing. Ids are minted in `normalizeTeam()` but must be
+  persisted — a minted-and-discarded id would differ on every request.
+- `POST /teams` recovers ids by id, then by name, for rows the client sent
+  without one. **An absent field keeps what is stored; only an explicit empty
+  string clears.** Otherwise the Teams editor (or any older client) would wipe
+  a coach's display name just by saving the roster.
+
+**The trap, and it is a silent one.** `onProjectTap` used to identify a team by
+the card's rendered TEXT. That was fine while the label and the canonical name
+were the same string, and broken the instant a display name existed. Team rows
+now carry `data-team="<canonical>"` and the pick path reads that. **Anything
+else that needs team IDENTITY must read `data-team`, never `textContent`.**
+
+Two label forms in bracket.js: `teamLabel()` (full display name) and
+`teamLabelShort()` (prefers the short one) — cards are fixed-width boxes where
+a long name is ellipsised into uselessness. Both fall back to the canonical
+name, so an unbranded tournament renders exactly as before.
+
+Still to come: coach editing of these names (with the TD override and the
+tournament-wide off switch the owner chose), and the coach panel itself.
+
+## One "Sign in", and why the PWA inference is gone (2026-07-30)
+The public header used to show **Admin** to any signed-out visitor in
+standalone mode. That was not a permission decision, it was a workaround: an
+installed app has no address bar, so a staff member whose session expired had
+no route to a login screen.
+
+**It could never have worked properly.** The page cannot tell which installed
+app launched it. Both clips are just `display-mode: standalone` /
+`navigator.standalone`; nothing carries the manifest or start_url through. So
+the hatch leaked the admin link into the PUBLIC install, where it was wrong
+for everyone who saw it. (On iOS the two installs ARE genuinely distinct —
+Add to Home Screen bakes the current URL and takes that page's
+`apple-touch-icon`, which is why index.html and admin.html produce different
+icons — but that distinction exists only at install time, never at runtime.)
+
+Now: signed out → one **Sign in**; signed in → the panel links by role, and no
+Sign in. `isPwa` survives only for the PWA-home-preference redirect.
+
+Two things had to come with it. The sign-in page leads with **"You don't need
+an account to follow the tournament"** — it is reachable from the public
+header now, so the largest group who will ever see it are spectators who
+should turn around, and that has to be said BEFORE the fields. And a coach
+signing in there is no longer dead-ended with "you do not have access to this
+page": `showCoachBlock` now redirects to the coach side.
+
+## The header menu is EVERY width now (owner, 2026-07-30)
+It was behind `@media (max-width: 1279px)`. The header had grown to Share,
+Project winners, Notifications, theme, Refresh, Edit and a panel link — a row
+of seven chips is no tidier on a laptop than on a phone — so the rules were
+un-nested and apply at all widths. Nothing in them was breakpoint-dependent;
+`updateHeaderMenu()` already decides WHETHER to show the hamburger (two or
+more visible controls), so a page with one control still renders inline.
+
+The old `@media (min-width: 1280px) { .header-menu-btn { display: none } }` is
+gone. If you are looking for the mobile/desktop split, it lives in the bracket
+layout, not here any more.
+
+**Refresh is installed-app only.** It exists solely because a PWA has no
+browser reload button; in a browser it duplicates a control the user already
+has in a better place. `hidden` in the markup, shown by the session handler
+when `isPwa`. Pull-to-refresh is the same action by gesture and stays
+available everywhere.
+
+## Header menu order (owner, 2026-07-30)
+Share, Project winners, Notifications, theme, Refresh, then Coach Panel and
+Admin Panel LAST because they leave the page. DOM order is menu order (flex
+column), so reordering means reordering the markup. The panel links stay
+role-gated; the Admin link additionally shows to a SIGNED-OUT visitor in an
+installed PWA, which is not an oversight — see the comment at that line.
+
+## First password set can also claim a username (2026-07-30)
+Owner: "far too many people create a password and never know their username."
+Exactly right — an admin types a placeholder when creating the account, the
+person sets a password off the link, and the name they were given is never
+shown to them. They can then never sign in again without the link.
+
+So `POST /api/change-password` accepts an optional `username`, applied ONLY
+while `mustChangePassword` is set or no password exists yet. Afterwards it
+403s and points at Account settings. **Coaches (`role: 'team'`) are included
+deliberately** — `/api/change-username` excludes them, but they are precisely
+the people this bites. The rename happens after the password lands, so a
+failure leaves a working account under the old name rather than an
+unreachable one; grants hang off `user_id`, so a rename never orphans them.
+
+Both first-time forms prefill the field with the current name rather than
+leaving it blank: the point is to SHOW people the name they were given before
+asking whether to keep it. Covered by four route tests.
+
+
+`POST /change-username` used to 403 every `team` user, on the reasoning that a
+coach's username was an admin-issued handle that only ever appeared inside a
+magic link. That is no longer true and the block is gone: the coach panel's
+Account tab posts there, and refusing it left a coach able to name themselves
+exactly once — at the moment they are least likely to be thinking about it.
+Renaming is safe because teams hang off the user id and lineups off the team
+name, so neither is keyed by the username.
+
+## The header is SERVER-RENDERED (2026-07-30)
+Navigating admin -> public flashed the stock header — "Tournament Bracket", no
+logo, default gold — before the tournament's own branding appeared, with a
+layout jump as the logo and subtitle arrived. The title and OG tags were
+already injected per tournament in `buildIndexHtml`; the visible header was
+not, so it waited on `/api/settings` and `/api/theme-colors`.
+
+`buildIndexHtml` now also writes the `<h1>`, the subtitle, the logo `src`, and
+a `<link>` to a generated stylesheet. Three things make this work:
+
+- **The colours HAVE to come from a linked stylesheet.** The CSP is
+  `style-src 'self'` with no `'unsafe-inline'`, so an injected `<style>` block
+  or a `style=""` attribute is dropped on the floor. `/theme.css` (and
+  `/t/:slug/theme.css`) is the only CSP-safe way to have the right palette
+  before any JS runs. It must be linked AFTER base.css — the rules are plain
+  `:root` / `body.light` of equal specificity, so order is what decides.
+- **The logo is a URL, not an inlined data URI.** `/logo.png` follows the
+  existing `/pwa-icon.png` pattern. Inlining would put the whole base64
+  payload ahead of first paint on every load.
+- **The derivation is shared.** `frontend/theme-css.js` is dual-environment
+  like settings-defaults.js — the browser loads it as a global, the server
+  `require()`s it. bracket.js and admin.js each had their OWN copy of the
+  hex/HSL light-mode maths; three copies meant the page could legitimately
+  repaint the moment its JS ran. One copy now.
+
+`applyThemeColors` records the logo the server rendered and does not replace it
+with its own identical data URI (same bytes, but the swap re-decodes and can
+blink). A genuinely changed logo no longer matches, so live updates still work.
+
+Cache invalidation was already correct: `/settings` and `/theme-colors` both
+call `invalidateIndexCache(tid)`.
+
 ## The mobile header menu is SHARED (2026-07-30)
 `headerMenuActive` / `closeHeaderMenu` / `toggleHeaderMenu` / `updateHeaderMenu`
 live in **tt-common.js**, not bracket.js. Every page carries the same header,
@@ -2541,11 +3088,21 @@ below. Nothing is unmerged;
    Note the fourth role `buckets` has no name in the new scheme — ask.
    Careful: renaming the Results TAB is a different job from renaming the ROLE
    (`TAB_PATHS`, `TT_TAB_PATHS`, both nginx regexes, the `tt_tab` cookie).
-3. ⬜ **Cross-tournament team database.** DESIGN DECIDED by the owner
+3. ✅ **Team roster** — DONE. See "The roster, and why it is not a lineup".
+4. ⬜ **Coach-editable team names.** Display name + short name, in the coach
+   panel's Team tab. Owner decision: coaches CAN set them by default, the TD
+   can override (setting: `coachTeamNames`). The hidden team `id` already
+   exists to make this safe — read "Teams have a hidden id" first.
+5. ⬜ **Coach notification preferences** in the coach panel's Account tab. The
+   toggle is present and disabled.
+6. ⬜ **Cross-tournament team database.** DESIGN DECIDED by the owner
    2026-07-30, not started. See "Team database (decided, not built)" below.
 
 ### Team database (decided, not built) — 2026-07-30
-Owner decisions, so build to these rather than re-litigating:
+Owner decisions, so build to these rather than re-litigating. This is where
+"EVERY NEW ENTITY GETS A UNIQUE ID" gets its real test — canonical teams,
+seasons and players are all entities, and none of them may be keyed by a name
+someone typed:
 - **Global team, per-event name.** A real `teams` table holds the canonical
   team; `tournament_teams` links each event to it with the display name used
   that event ("some teams use a different name per tournament").
@@ -2573,9 +3130,9 @@ time. No `.env` change is needed for push — `compose.yml` loads the whole
 itself on first boot.
 
 SW cache version lives in `frontend/sw.js` (at the time of writing
-`tournatrak-v3.61`) — **read it there, don't trust this number**, and keep
-the `?v=` stamps in step with it on ALL FIVE HTML files, not just the admin
-pages. Phase 0 evaluation is in `EVALUATION.md`.
+`tournatrak-v3.81`) — **read it there, don't trust this number**, and keep
+the `?v=` stamps in step with it on ALL SIX HTML files (`index`, `admin`,
+`coach`, `lineup`, `score`, `builder`), not just the admin pages. Phase 0 evaluation is in `EVALUATION.md`.
 
 ## Tests
 ```
@@ -2601,6 +3158,40 @@ could not work out a user name: start the cluster and run with
   Needs PG* env vars pointing at a cluster to actually run.
 - `standings.test.js` — the documented tiebreak order.
 - `schedule-health.test.js` — the pre-publish checks behind the health notice.
+
+### Rebuilding the browser harness from nothing (2026-07-30)
+The session container is ephemeral and `/tmp` goes with it — twice now a
+session has come back to find Postgres stopped, `node_modules` gone and every
+Playwright spec deleted. It rebuilds in about five minutes; the order matters
+and each step has one non-obvious trap:
+
+```
+# 1. Postgres. Config lives in /etc, NOT in the data dir, and pg_ctl refuses
+#    to run as root. A stale postmaster.pid survives a container restart.
+rm -f /var/lib/postgresql/16/main/postmaster.pid /var/run/postgresql/.s.PGSQL.5432*
+su postgres -c "/usr/lib/postgresql/16/bin/pg_ctl -D /var/lib/postgresql/16/main \
+  -l /tmp/pg.log -o '-c config_file=/etc/postgresql/16/main/postgresql.conf' start"
+# 2. Deps. The API tests report "server did not start" — meaning a missing
+#    module, not a database problem — until this runs.
+cd api && npm install
+# 3. Playwright. The browsers are ALREADY at /opt/pw-browsers; never run
+#    `playwright install`.
+mkdir -p /tmp/tthb && cd /tmp/tthb && npm init -y \
+  && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm i playwright
+```
+Then a `proxy.js` standing in for nginx (static frontend, but PROXY `/`, the
+tab paths, `/t/`, `/manifest.json`, `/theme.css`, `/logo.png`, `/tab-icon.png`
+and `/pwa-icon.png` to the API — those are server-rendered, and serving them
+off disk tests a page the deployment never sends), plus a seeded API.
+
+Seeding traps, all of which cost time: `POST /schedule` takes the schedule
+**as the body**, keyed by slot id (`R1.L.1`, not `{schedule:[…]}`), times must
+be `YYYY-MM-DDTHH:MM`, and passwords are 8 characters minimum. **The API caches
+users in memory**, so editing `users` in SQL does nothing until you restart it.
+Long-running servers must be started with the Bash tool's background mode — a
+plain `&`, `nohup` or even `setsid` is killed when the tool call returns, and
+the give-away is a log that says "API listening" next to a `curl` that gets
+connection refused.
 
 `routes.test.js` now also covers, in rough order of how easy each is to break
 by accident: cross-tournament coach grants (a tournament admin must get 403

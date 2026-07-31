@@ -2877,3 +2877,49 @@ body.print-palette .bc-proj-chip {
    same class of mistake as the modal it replaced, so it is spelled out: the
    notification page scrolls itself. */
 #view-notify.view-panel.active { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+/* ── Pull-to-refresh ──────────────────────────────────────────────────────
+   The installed PWA has no browser chrome, so there is no reload button and
+   no native pull-to-refresh: the app's scrollers set overscroll-behavior to
+   contain/none (deliberately — it stops the bracket carousel bouncing the
+   page), and iOS standalone has never offered it at all. So this is drawn and
+   driven by us, in bracket.js.
+
+   Deliberately NOT animated by a CSS transition while the finger is down: the
+   indicator is transformed directly from the touchmove handler, which stays
+   passive, so a pull never waits on JS to decide whether the page may scroll.
+   The transition below is switched on only for the release. */
+.ptr-indicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  z-index: 130;             /* above the sticky header (100) and its menu (120) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2em;
+  height: 2.2em;
+  margin-left: -1.1em;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface2);
+  box-shadow: 0 0.15em 0.5em rgba(0, 0, 0, 0.35);
+  color: var(--text-dim);
+  opacity: 0;
+  transform: translateY(-3em);
+  pointer-events: none;     /* never eats a tap meant for the header */
+}
+.ptr-indicator.ptr-armed   { color: var(--gold-lt); border-color: var(--gold); }
+.ptr-indicator.ptr-settle  { transition: transform 0.22s ease, opacity 0.22s ease; }
+.ptr-spinner { width: 1.2em; height: 1.2em; }
+.ptr-indicator.ptr-spin .ptr-spinner { animation: ptrSpin 0.7s linear infinite; }
+@keyframes ptrSpin { to { transform: rotate(360deg); } }
+
+/* The header Refresh button borrows the same spinner while a manual refresh
+   is in flight, so the two entry points read as one action. */
+#refreshBtn.is-refreshing { opacity: 0.65; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ptr-indicator.ptr-spin .ptr-spinner { animation: none; }
+  .ptr-indicator.ptr-settle { transition: none; }
+}

@@ -6,10 +6,10 @@
 <title>Team Lineup</title>
 <link rel="icon" href="/icons/trophy-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.72">
-<link rel="stylesheet" href="/admin.css?v=3.72">
-<link rel="stylesheet" href="/lineup.css?v=3.72">
-<script src="/app-h.js?v=3.72"></script>
+<link rel="stylesheet" href="/base.css?v=3.83">
+<link rel="stylesheet" href="/admin.css?v=3.83">
+<link rel="stylesheet" href="/lineup.css?v=3.83">
+<script src="/app-h.js?v=3.83"></script>
 </head>
 <body>
 
@@ -66,6 +66,14 @@
     <div class="lineup-modal-body">
       <div class="lineup-modal-label" id="coachPwDesc">Optional — lets you sign in with a username and password if you lose your access link.</div>
       <form id="coachPwForm">
+        <!-- Shown and editable, not hidden: a coach who sets a password off a
+             magic link otherwise never learns the username that goes with it,
+             and cannot sign in again without the link. -->
+        <div class="sched-field" id="coachPwUserField">
+          <label>Username</label>
+          <input type="text" id="coachPwUsername" autocomplete="username" maxlength="32" placeholder="2–32 characters">
+          <div class="field-hint">What you'll type to sign in. Keep it or change it now.</div>
+        </div>
         <div class="sched-field">
           <label>New Password</label>
           <input type="password" id="coachPwNew1" autocomplete="new-password" placeholder="At least 8 characters">
@@ -154,9 +162,10 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.72"></script>
-<script src="/tt-common.js?v=3.72"></script>
-<script src="/bracket-data.js?v=3.72"></script>
-<script src="/lineup.js?v=3.72"></script>
+<script src="/settings-defaults.js?v=3.83"></script>
+<script src="/theme-css.js?v=3.83"></script>
+<script src="/tt-common.js?v=3.83"></script>
+<script src="/bracket-data.js?v=3.83"></script>
+<script src="/lineup.js?v=3.83"></script>
 </body>
 </html>

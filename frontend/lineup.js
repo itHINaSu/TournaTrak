@@ -158,7 +158,8 @@ function buildRows(rows, readOnly) {
     } else {
       orderCell = '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>';
     }
-    html += '<tr class="' + rowCls + '"' + (isReorderMode ? ' data-idx="' + i + '"' : '') + '>' + orderCell;
+    html += '<tr class="' + rowCls + '"' + (isReorderMode ? ' data-idx="' + i + '"' : '')
+      + (r.playerId ? ' data-pid="' + esc(r.playerId) + '"' : '') + '>' + orderCell;
     cfg.cols.forEach(function(c, ci) {
       var id = 'lc' + ci + '-' + i;
       if (c.kind === 'pos') {
@@ -182,6 +183,98 @@ function buildRows(rows, readOnly) {
 // rows, applies the taken/free split to the position dropdowns, and makes
 // sure the change hook is attached. Six call sites used to set innerHTML
 // directly, which is six chances to forget one of those steps.
+// ── Roster autofill ────────────────────────────────────────────────────
+// The roster is the squad; this is what makes keeping it worthwhile. Type a
+// jersey number into a lineup row and the player's name (and position, if the
+// row has none yet) fill themselves in.
+//
+// Only ever fills a BLANK name. A coach who has typed something means it —
+// overwriting a deliberate entry from a stale roster would be the kind of
+// help that loses work.
+var _lineupRoster = { team: null, players: [] };
+
+// Which roster player a lineup ROW is lives on the <tr> itself (data-pid),
+// not in a side map keyed by index: Reorder and Import both rebuild the table
+// from getCurrentRows(), splicing the array, and an index-keyed map would
+// quietly reattach every id to the wrong player.
+
+function lineupSetRoster(team, players) {
+  _lineupRoster = { team: team, players: players || [] };
+  renderRosterDatalist();
+}
+
+// A <datalist> gives the name field native autocomplete on every platform,
+// including the phone keyboards coaches actually use.
+function renderRosterDatalist() {
+  var dl = document.getElementById('rosterNames');
+  if (!dl) {
+    dl = document.createElement('datalist');
+    dl.id = 'rosterNames';
+    document.body.appendChild(dl);
+  }
+  dl.innerHTML = _lineupRoster.players.map(function(p) {
+    var js = (p.jerseys || []).map(function(n) { return '#' + n; }).join(' / ');
+    return '<option value="' + esc(p.name || '') + '">' + esc(js) + '</option>';
+  }).join('');
+}
+
+async function loadRosterForTeam(team) {
+  if (!team) { lineupSetRoster(null, []); return; }
+  if (_lineupRoster.team === team) return;         // already have it
+  try {
+    var r = await fetch(lineupApiBase() + '/roster/' + encodeURIComponent(team));
+    // A 403 is normal here (staff viewing a team they do not coach is fine,
+    // but a team link to another team is not) — autofill is a convenience, so
+    // failing to load one must never disturb the lineup itself.
+    var d = r.ok ? await r.json() : { players: [] };
+    lineupSetRoster(team, d.players || []);
+  } catch (e) {
+    lineupSetRoster(team, []);
+  }
+}
+
+// A player may wear several numbers, and two players may share one. Returns
+// EVERY match, so the caller can tell "found them" from "cannot tell which".
+function rosterPlayersByJersey(j) {
+  var key = String(j || '').trim().toLowerCase();
+  if (!key) return [];
+  return _lineupRoster.players.filter(function(p) {
+    return (p.jerseys || []).some(function(n) {
+      return String(n).trim().toLowerCase() === key;
+    });
+  });
+}
+
+// The row a given input belongs to, as an index into the lineup's ids
+// (`lc<col>-<row>`), so the sibling fields can be found without walking DOM.
+function lineupRowIndexOf(el) {
+  var m = /^lc\d+-(\d+)$/.exec((el && el.id) || '');
+  return m ? Number(m[1]) : -1;
+}
+
+function onJerseyEntered(input) {
+  var idx = lineupRowIndexOf(input);
+  if (idx < 0) return;
+  var found = rosterPlayersByJersey(input.value);
+  var tr = input.closest ? input.closest('tr') : null;
+  // Exactly one, or not at all. Two players sharing a number is legal on a
+  // roster, and picking one of them here would be a guess presented as a
+  // fact — the coach types the name and the datalist still helps.
+  if (found.length !== 1) { if (tr) delete tr.dataset.pid; return; }
+  var p = found[0];
+  if (tr && p.id) tr.dataset.pid = p.id;
+  var cfg = lineupConfig();
+  cfg.cols.forEach(function(c, ci) {
+    var el = document.getElementById('lc' + ci + '-' + idx);
+    if (!el || el.disabled) return;
+    if (c.kind === 'text' && c.key === 'name' && !el.value) el.value = p.name || '';
+    if (c.kind === 'pos' && !el.value && p.position) {
+      el.value = p.position;
+      if (el.value === p.position) refreshPosSelects();   // only if it took
+    }
+  });
+}
+
 function renderLineupBody(rows, readOnly) {
   var body = document.getElementById('lineupBody');
   if (!body) return;
@@ -191,6 +284,16 @@ function renderLineupBody(rows, readOnly) {
     body.addEventListener('change', function(e) {
       var t = e.target;
       if (t && t.tagName === 'SELECT' && t.classList.contains('lineup-sel')) onPositionChange(t);
+      // 'change' rather than 'input': filling in on every keystroke fights a
+      // coach typing a two-digit number, because #1 matches before #12 does.
+      if (t && t.classList && t.classList.contains('lineup-inp--num')) onJerseyEntered(t);
+    });
+  }
+  // Point the name inputs at the roster datalist. Done here rather than in
+  // buildRows so the autofill stays entirely inside this section.
+  if (document.getElementById('rosterNames')) {
+    body.querySelectorAll('.lineup-inp--name').forEach(function(el) {
+      el.setAttribute('list', 'rosterNames');
     });
   }
   refreshPosSelects();
@@ -400,6 +503,11 @@ function getCurrentRows() {
       var el = document.getElementById('lc' + ci + '-' + i);
       row[c.key] = (c.kind === 'pos' && isSub) ? 'Sub' : (el ? el.value : '');
     });
+    // Carry the roster player this row came from, so a later rename or
+    // number change does not orphan it. Dropped if the row has been blanked.
+    var tr = document.querySelector('#lineupBody tr:nth-child(' + (i + 1) + ')');
+    var pid = tr && tr.dataset ? tr.dataset.pid : '';
+    if (pid && (row.jersey || row.name)) row.playerId = pid;
     rows.push(row);
   }
   return rows;
@@ -666,6 +774,7 @@ document.addEventListener('DOMContentLoaded', function() {
     teamSel.addEventListener('change', async function() {
       var team = teamSel.value;
       if (!team) return;
+      loadRosterForTeam(team);          // not awaited: autofill must never gate the lineup
       populateGameSelect(team);
       var gameSel = document.getElementById('lineupGameSelect');
       var slotId  = gameSel ? gameSel.value : '';
@@ -727,6 +836,8 @@ async function lineupInit() {
   try {
     var sr      = await fetch(lineupApiBase() + '/session');  // scoped: role/teams are per-tournament
     var session = await sr.json();
+    _coachUsername = session.username || '';
+    _coachHasPassword = !!session.hasPassword;
     document.getElementById('lineupLoading').hidden = true;
 
     if (new URLSearchParams(window.location.search).get('invalid')) {
@@ -820,6 +931,7 @@ async function lineupInit() {
 
     var selectedTeam = (teamSel && teamSel.value) ? teamSel.value : currentTeamName;
     if (selectedTeam) {
+      loadRosterForTeam(selectedTeam);   // not awaited; autofill is a convenience
       populateGameSelect(selectedTeam);
       var gameSel = document.getElementById('lineupGameSelect');
       var slotId  = gameSel ? gameSel.value : '';
@@ -907,7 +1019,18 @@ function setupCoachAccountBtn(hasPassword) {
   if (title) title.textContent = hasPassword ? 'Change Your Password' : 'Set a Password';
 }
 
+// The signed-in coach, so the password form can show them the username they
+// were given rather than assume they know it.
+var _coachUsername = '';
+var _coachHasPassword = false;
+
 function openCoachPw() {
+  var uEl = document.getElementById('coachPwUsername');
+  var uField = document.getElementById('coachPwUserField');
+  if (uEl) uEl.value = _coachUsername;
+  // Only offered while setting the FIRST password — the server refuses a
+  // rename after that and points at Account settings.
+  if (uField) uField.hidden = _coachHasPassword;
   document.getElementById('coachPwNew1').value = '';
   document.getElementById('coachPwNew2').value = '';
   var errEl = document.getElementById('coachPwError');
@@ -959,10 +1082,14 @@ async function saveCoachPw() {
     errEl.hidden = false;
     return;
   }
+  var uEl = document.getElementById('coachPwUsername');
+  var newName = (!_coachHasPassword && uEl) ? uEl.value.trim() : '';
+  var body = { password: p1 };
+  if (newName && newName !== _coachUsername) body.username = newName;
   var r = await fetch(lineupApiBase() + '/change-password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: p1 })
+    body: JSON.stringify(body)
   });
   var data = await r.json().catch(function(){ return {}; });
   if (!r.ok) {
@@ -970,8 +1097,10 @@ async function saveCoachPw() {
     errEl.hidden = false;
     return;
   }
+  if (newName) _coachUsername = newName;
+  _coachHasPassword = true;
   setupCoachAccountBtn(true);
-  errEl.textContent = '✓ Password saved — you can now sign in with your username';
+  errEl.textContent = '✓ Saved — sign in as "' + _coachUsername + '" from now on';
   errEl.style.color = 'var(--win-color)';
   errEl.hidden = false;
   setTimeout(function() { document.getElementById('coachPwOverlay').hidden = true; }, 1600);

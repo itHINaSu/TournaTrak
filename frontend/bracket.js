@@ -45,34 +45,75 @@ var scheduleMode = null; // null = uninitialised; set from settings on first ren
 // raw index/pixel offset, since that's stable across re-renders even if
 // column composition or viewport width changes.
 var _mbcActiveRound = null;
+// Vertical position within that column, preserved across re-renders for the
+// same reason. Projecting a winner re-renders the whole carousel on every
+// pick, and a tall column (ISSA round 2 is 14 cards, ~2500px) would otherwise
+// throw the viewer back to the top each time they tapped one near the bottom.
+// Restored through captureEl.scrollTop so the browser clamps it against the
+// new column's height for free.
+var _mbcScrollTop = 0;
 // esc() comes from tt-common.js
 
 // SETTINGS_DEFAULTS comes from settings-defaults.js; getSetting from tt-common.js
 
 
 
+// ── Team labels ───────────────────────────────────────────────────────
+// The canonical `name` is the join key — the schedule, results, lineups and
+// team links are all keyed by it, which is exactly why it must never change.
+// What people SEE is a separate, editable thing hanging off the team's id.
+//
+// Two forms, because a bracket card and a schedule row have very different
+// amounts of room: teamLabel() is the full display name, teamLabelShort()
+// prefers the short one and is used on cards, which are fixed-width boxes
+// where a long name is ellipsised into uselessness.
+var _teamLabels = {};       // canonical name -> { display, short }
+
+function rebuildTeamLabels() {
+  _teamLabels = {};
+  var list = (_teamsData && _teamsData.teams) || [];
+  list.forEach(function(t) {
+    if (!t || !t.name) return;
+    if (t.displayName || t.shortName) {
+      _teamLabels[t.name] = { display: t.displayName || '', short: t.shortName || '' };
+    }
+  });
+}
+
+function teamLabel(name) {
+  var l = _teamLabels[name];
+  return (l && l.display) || name;
+}
+
+// The CANONICAL name, on the element, for anything that needs team identity
+// rather than a label. Projection matching used to read the displayed text —
+// which was fine while the two were the same string and silently broken the
+// moment a coach set a display name.
+function teamAttr(t) {
+  return (t && t.actual && t.name) ? ' data-team="' + esc(t.name) + '"' : '';
+}
+
+function teamLabelShort(name) {
+  var l = _teamLabels[name];
+  return (l && (l.short || l.display)) || name;
+}
+
 function seedChip(name) {
   var n = _seedMap[name];
   return n ? '<span class="tt-seed">(' + n + ')</span>' : '';
 }
 
-function _hexToHsl(hex) {
-  var r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
-  var max=Math.max(r,g,b), min=Math.min(r,g,b), l=(max+min)/2, s=0, h=0;
-  if (max!==min) { var d=max-min; s=d/(l>0.5?2-max-min:max+min); if(max===r)h=((g-b)/d+(g<b?6:0))/6; else if(max===g)h=((b-r)/d+2)/6; else h=((r-g)/d+4)/6; }
-  return [h*360, s*100, l*100];
-}
-function _hslToHex(h,s,l) {
-  h/=360; s/=100; l/=100;
-  var r,g,b; if(s===0){r=g=b=l;}else{var q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q; function hue(t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;} r=hue(h+1/3);g=hue(h);b=hue(h-1/3);}
-  return '#'+[r,g,b].map(function(x){return Math.round(x*255).toString(16).padStart(2,'0');}).join('');
-}
-function _lightModeColor(hex) {
-  var hsl = _hexToHsl(hex);
-  // Dark mode colors are bright (high L). For light mode, reduce lightness by ~40% for contrast on white.
-  var l = Math.max(10, hsl[2] - 40);
-  return _hslToHex(hsl[0], hsl[1], l);
-}
+// The hex/HSL helpers and the light-mode derivation moved to theme-css.js,
+// which the SERVER also uses to render /theme.css. Two copies would mean the
+// page could repaint the moment its JS ran.
+
+// The logo the SERVER already rendered into <img src="/logo.png"> for the
+// first paint. Recorded on the first apply so the identical image is not
+// immediately replaced by its own data URI — same bytes, but the swap
+// re-decodes and can blink. A later change (an admin edits the logo while this
+// page is open) no longer matches, so it still updates live.
+var _serverLogo = null;
+var _sawFirstTheme = false;
 
 function applyThemeColors() {
   var root = document.documentElement;
@@ -81,8 +122,12 @@ function applyThemeColors() {
   // the server only stores validated png/jpeg/webp data URIs.
   var logoEl = document.getElementById('siteLogo');
   if (logoEl) {
+    if (!_sawFirstTheme) {
+      _sawFirstTheme = true;
+      if (logoEl.getAttribute('src')) _serverLogo = tc.logo || null;
+    }
     if (tc.logo && /^data:image\/(png|jpeg|webp);base64,/.test(tc.logo)) {
-      logoEl.src = tc.logo;
+      if (tc.logo !== _serverLogo) logoEl.src = tc.logo;
       logoEl.hidden = false;
     } else {
       logoEl.removeAttribute('src');
@@ -98,7 +143,7 @@ function applyThemeColors() {
       else root.style.removeProperty(prop);
     });
     if (tc[key]) {
-      var lc = _lightModeColor(tc[key]);
+      var lc = ttLightModeColor(tc[key]);
       darkMap[key].forEach(function(prop) { lightRules.push('  ' + prop + ':' + lc + ';'); });
     }
   });
@@ -576,6 +621,7 @@ async function fetchAll(){
     var _offParsed=JSON.parse(rawTexts[5]); _offsets=(_offParsed&&Array.isArray(_offParsed.entries))?_offParsed:{entries:[]};
     _fieldColors=fc.ok ? await fc.json() : {};
     _teamsData = tmr.ok ? await tmr.json() : { showSeeds: false, teams: [] };
+    rebuildTeamLabels();
     _seedMap = {};
     if (_teamsData.showSeeds && Array.isArray(_teamsData.teams)) {
       // Partial seeding: only the first seedCount teams hold real seeds —
@@ -1302,10 +1348,10 @@ function cardHTML(gid, asChamp){
         ? '<span class="bc-time bc-time-live">'+liveHeaderHTML(gid)+'</span>'
         : (isChampSlot ? '' : '<span class="bc-time">'+esc(bracketTime(g.time))+'</span>'+offHTML))
     +'</div>'
-    +'<div class="bc-team '+c1+'">'+seedChip(t1.name)+'<span class="bc-name">'+esc(t1.name)+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
+    +'<div class="bc-team '+c1+'"'+teamAttr(t1)+'>'+seedChip(t1.name)+'<span class="bc-name">'+esc(teamLabelShort(t1.name))+'</span>'+(r.winner?scoreHTML(r.t1score):liveScoreHTML(gid,1))+'</div>'
     +(g.bye
       ? '<div class="bc-team bye"><span class="bc-bye-label">— BYE —</span>'+projChip+'</div>'
-      : '<div class="bc-team '+c2+'">'+seedChip(t2.name)+'<span class="bc-name">'+esc(t2.name)+'</span>'+projChip+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
+      : '<div class="bc-team '+c2+'"'+teamAttr(t2)+'>'+seedChip(t2.name)+'<span class="bc-name">'+esc(teamLabelShort(t2.name))+'</span>'+projChip+(r.winner?scoreHTML(r.t2score):liveScoreHTML(gid,2))+'</div>');
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1934,16 +1980,75 @@ function updateProjectBar(){
   if (bar) bar.hidden = !(_projectMode || n);
 }
 
+// A pick is a TAP, never the end of a swipe. The mobile carousel drives
+// scrollLeft from a passive touchmove (see renderMobileColumns), so it never
+// calls preventDefault and a horizontal flick still ends in a click on
+// whichever card sat under the finger. Without this gate, swiping between
+// rounds while projecting would silently record picks nobody made. Desktop is
+// unaffected: no touch events fire, so the flag stays false for the life of
+// the page.
+var _touchDragged = false, _touchStartX = 0, _touchStartY = 0;
+var TAP_SLOP_PX = 10;   // the carousel decides its axis at 5px; leave a tap room to be imprecise
+document.addEventListener('touchstart', function(e) {
+  // Pinch/zoom is never a tap.
+  if (e.touches.length !== 1) { _touchDragged = true; return; }
+  _touchStartX = e.touches[0].clientX;
+  _touchStartY = e.touches[0].clientY;
+  _touchDragged = false;
+}, { passive: true });
+document.addEventListener('touchmove', function(e) {
+  if (_touchDragged || !e.touches.length) return;
+  var t = e.touches[0];
+  if (Math.abs(t.clientX - _touchStartX) > TAP_SLOP_PX ||
+      Math.abs(t.clientY - _touchStartY) > TAP_SLOP_PX) _touchDragged = true;
+}, { passive: true });
+
+// Card class names differ between the desktop tree and the mobile carousel,
+// and this handler is delegated on #bracketRoot, which renders both. Desktop
+// cards are .bc / .bc-team / .bc-name; the mobile carousel wraps every card in
+// .mbc-card[data-gid] holding either a round card (.mbc-game-team /
+// .mbc-team-name) or a championship card (.mbc-champ-team / .mbc-champ-name).
+// Matching only the desktop names is what made projecting a no-op on a phone —
+// the first closest() returned null and the handler bailed before doing
+// anything, even though the mobile renderer already draws picks (mbc--proj).
+var PROJ_TEAM_SEL = '.bc-team, .mbc-game-team, .mbc-champ-team';
+var PROJ_CARD_SEL = '.bc, .mbc-card';
+var PROJ_NAME_SEL = '.bc-name, .mbc-team-name, .mbc-champ-name';
+
+// The mobile carousel's scroll surface (.mbc-scroll-cap) is a TRANSPARENT
+// position:fixed overlay covering the whole bracket area. It exists so that a
+// vertical touch anywhere gets native momentum, and it cannot be given
+// pointer-events:none — that is the one property that would stop it
+// scrolling. So on a phone every tap lands on the overlay (or its spacer) and
+// never on the card beneath, and closest() from e.target finds nothing no
+// matter which class names it looks for. Re-resolve through the paint stack at
+// the tap point instead.
+function projTargetFor(e) {
+  var t = e.target;
+  if (!t || !t.closest) return t;
+  if (!t.closest('.mbc-scroll-cap')) return t;
+  if (!document.elementsFromPoint) return t;
+  var stack = document.elementsFromPoint(e.clientX, e.clientY);
+  for (var i = 0; i < stack.length; i++) {
+    if (stack[i].closest && stack[i].closest(PROJ_TEAM_SEL)) return stack[i];
+  }
+  return t;
+}
+
 function onProjectTap(e){
   if (!_projectMode || _bracketEditMode) return;
-  var teamEl = e.target.closest('.bc-team');
+  if (_touchDragged) return;                         // a swipe/scroll, not a pick
+  var tapEl = projTargetFor(e);
+  var teamEl = tapEl.closest(PROJ_TEAM_SEL);
   if (!teamEl) return;
-  var card = e.target.closest('.bc');
+  var card = tapEl.closest(PROJ_CARD_SEL);
   var gid = card && card.getAttribute('data-gid');
   if (!gid || !GAMES[gid] || GAMES[gid].bye) return;
   if (results[gid] && results[gid].winner) return;   // real result — locked
-  var nameEl = teamEl.querySelector('.bc-name');
-  var name = nameEl && nameEl.textContent;
+  // data-team, NOT the rendered text: the card may be showing a coach's
+  // display or short name, while picks are keyed by the canonical name.
+  var nameEl = teamEl.querySelector(PROJ_NAME_SEL);
+  var name = teamEl.getAttribute('data-team') || (nameEl && nameEl.textContent);
   var merged = mergedResults();
   var g = GAMES[gid];
   var p1 = resolveSlot(g.t1, merged), p2 = resolveSlot(g.t2, merged);
@@ -3788,13 +3893,13 @@ function champCardHTML(gid, title) {
     + '</div>'
     + '<div class="mbc-champ-sep"></div>'
     + '<div class="mbc-champ-teams">'
-    +   '<div class="mbc-champ-team ' + c1 + '">'
-    +     '<span class="mbc-champ-name">' + esc(t1.name) + '</span>'
+    +   '<div class="mbc-champ-team ' + c1 + '"' + teamAttr(t1) + '>'
+    +     '<span class="mbc-champ-name">' + esc(teamLabelShort(t1.name)) + '</span>'
     +     (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     +   '</div>'
     +   '<div class="mbc-champ-vs">vs</div>'
-    +   '<div class="mbc-champ-team ' + c2 + '">'
-    +     '<span class="mbc-champ-name">' + esc(t2.name) + '</span>'
+    +   '<div class="mbc-champ-team ' + c2 + '"' + teamAttr(t2) + '>'
+    +     '<span class="mbc-champ-name">' + esc(teamLabelShort(t2.name)) + '</span>'
     +     (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     +   '</div>'
     + '</div>'
@@ -3846,12 +3951,12 @@ function mobileRoundCardHTML(gid) {
             + offHTML
             + '</span>')
     + '</div>'
-    + '<div class="mbc-game-team ' + c1 + '">'
-    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(t1.name) + '</span>'
+    + '<div class="mbc-game-team ' + c1 + '"' + teamAttr(t1) + '>'
+    +   seedChip(t1.name) + '<span class="mbc-team-name">' + esc(teamLabelShort(t1.name)) + '</span>'
     +   (r.winner ? scoreHTML(r.t1score) : liveScoreHTML(gid,1))
     + '</div>'
-    + '<div class="mbc-game-team ' + c2 + '">'
-    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(t2.name) + '</span>'
+    + '<div class="mbc-game-team ' + c2 + '"' + teamAttr(t2) + '>'
+    +   seedChip(t2.name) + '<span class="mbc-team-name">' + esc(teamLabelShort(t2.name)) + '</span>'
     +   projChip
     +   (r.winner ? scoreHTML(r.t2score) : liveScoreHTML(gid,2))
     + '</div>'
@@ -4089,7 +4194,15 @@ function renderMobileBracket(root, dims) {
 function renderMobileColumns(root, cols) {
   var rootTop = Math.max(root.getBoundingClientRect().top, 0);
   var tabsH   = document.getElementById('viewTabs').getBoundingClientRect().height;
-  var viewH   = window.innerHeight - rootTop - tabsH;
+  // ttViewportH(), not window.innerHeight. The carousel is laid out in pixels
+  // inside the normal flow, so it must be measured against the LAYOUT
+  // viewport. innerHeight is the VISUAL one and on iOS — especially in an
+  // installed PWA with viewport-fit=cover — it is taller by the safe-area
+  // strip the tab bar below already reserves. The carousel then sized itself
+  // past the tab bar: the last card was clipped and the page background showed
+  // through as a dark band above the nav. Identical on desktop, where the two
+  // measurements agree.
+  var viewH   = Math.max(ttViewportH() - rootTop - tabsH, 160);
   var winW    = window.innerWidth;
 
   var CARD_H       = Math.max(Math.floor(viewH / 4.5), 80);
@@ -4578,6 +4691,7 @@ function renderMobileColumns(root, cols) {
 
   captureEl.addEventListener('scroll', function() {
     sharedScrollTop = this.scrollTop;
+    _mbcScrollTop = sharedScrollTop;
     syncAllColumns();
   }, { passive: true });
 
@@ -4841,6 +4955,13 @@ function renderMobileColumns(root, cols) {
   // listener re-settles activeIdx/_mbcActiveRound from this same value, so
   // this is a no-op rather than a second jump when there's nothing to restore.
   if (activeIdx > 0) outer.scrollLeft = colStarts[activeIdx];
+  // Same for the vertical position. Written to the SCROLLER, not to
+  // sharedScrollTop: setSpacerForCol only writes captureEl.scrollTop when it
+  // has to clamp, so assigning the mirror directly would leave the columns
+  // translated to a position the scroll element does not actually hold. This
+  // way the passive scroll listener above is what settles both, and an
+  // over-long restore is clamped by the spacer height.
+  if (_mbcScrollTop > 0) captureEl.scrollTop = _mbcScrollTop;
 
   // Jump hook for cross-view navigation (e.g. team path card tap).
   // Snaps the carousel to the game's round column, then sets the shared
@@ -4875,7 +4996,7 @@ function applyStickyOffsets() {
   var sel   = document.querySelector('.selector-row');
   var selH  = sel ? sel.offsetHeight : 0;
   var r = document.documentElement.style;
-  r.setProperty('--app-h',  document.documentElement.clientHeight + 'px');
+  r.setProperty('--app-h',  ttViewportH() + 'px');
   r.setProperty('--hdr-h',  hdrH  + 'px');
   r.setProperty('--bar-h',  barH  + 'px');
   r.setProperty('--tabs-h', tabsH + 'px');
@@ -6442,13 +6563,26 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   var isPwa    = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
   var adminBtn       = document.getElementById('adminPortalBtn');
   var lineupBtn      = document.getElementById('lineupPortalBtn');
+  var signInBtn      = document.getElementById('signInBtn');
   var editBtn        = document.getElementById('bucketEditBtn');
   var bracketEditBtn = document.getElementById('bracketEditBtn');
-  // Signed-out visitors in an installed PWA also get the Admin button —
-  // an admin who tapped "view public bracket" from the admin PWA's login
-  // screen (or whose session expired) needs a way back to sign in; browser
-  // visitors can just navigate to /admin.
-  if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results' || (!_sessionRole && isPwa)));
+  // Signed out: ONE "Sign in", never a panel link. This replaced an inference
+  // that could not work — the page cannot tell which installed app launched
+  // it (both are just display-mode: standalone), so "Admin" was shown to every
+  // signed-out visitor in standalone mode purely so a staff member with an
+  // expired session had a route back. That leaked the admin link into the
+  // public install, where it was wrong for everyone who saw it.
+  //
+  // Signed in: the panel links, by role, and no Sign in. Signing in is what
+  // decides which panel you are offered, rather than the visitor guessing
+  // first and being told afterwards that they picked the wrong door.
+  // Refresh exists ONLY because an installed app has no browser reload button.
+  // In a browser it duplicates a control the user already has, in a better
+  // place, so it is one more thing crowding the menu for no gain.
+  var refreshBtn = document.getElementById('refreshBtn');
+  if (refreshBtn)     refreshBtn.hidden = !isPwa;
+  if (signInBtn)      signInBtn.hidden = !(!_sessionRole);
+  if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
   if (lineupBtn)      lineupBtn.hidden = !((_sessionRole === 'team'));
   if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
   if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));
@@ -6525,8 +6659,147 @@ document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible') fetchAll();
 });
 
+// ── Manual refresh (header button + pull-to-refresh) ──────────────────
+//
+// An installed PWA has no browser chrome, so there is no reload button and no
+// way to force a fetch other than backgrounding the app (which fires the
+// visibilitychange handler above). Both entry points here run the SAME action:
+// data first, app version second.
+var _refreshing = false;
+
+// Fire-and-forget, deliberately never awaited and never on the critical path.
+// sw.js calls skipWaiting() on install and clients.claim() on activate, so a
+// newer build installs and takes over by itself — there is no waiting worker
+// to message, and nothing reloads under the viewer mid-tournament. The new
+// assets land in the cache and the next launch is the new version.
+function checkForAppUpdate() {
+  if (!('serviceWorker' in navigator) || !navigator.serviceWorker.getRegistration) return;
+  try {
+    navigator.serviceWorker.getRegistration().then(function(reg) {
+      if (reg && reg.update) reg.update().catch(function() {});
+    }).catch(function() {});
+  } catch (e) { /* a browser that refuses SW access is not a refresh failure */ }
+}
+
+async function refreshNow(btn) {
+  if (_refreshing) return;
+  _refreshing = true;
+  if (btn) { btn.classList.add('is-refreshing'); btn.disabled = true; }
+  try {
+    // fetchAll() owns the offline banner on both paths, so a failed refresh
+    // already tells the viewer what happened — and keeps the last-good data
+    // on screen rather than blanking the page.
+    await fetchAll();
+  } finally {
+    _refreshing = false;
+    if (btn) { btn.classList.remove('is-refreshing'); btn.disabled = false; }
+    // Only now, with the data already painted.
+    checkForAppUpdate();
+  }
+}
+
+// ── Pull-to-refresh ───────────────────────────────────────────────────
+//
+// Every listener here is {passive:true}. A non-passive touchmove on the
+// document would make the browser wait on JS before it could scroll ANY
+// frame, which is the one thing this must not cost. It works without
+// preventDefault because the pull only ever starts when the scroller is
+// already at its top — there is nothing for the browser to scroll — and the
+// app's overscroll-behavior already suppresses the native bounce.
+var PTR_TRIGGER_PX = 70;    // pull past this and release to refresh
+var PTR_MAX_PX     = 95;    // indicator stops travelling here
+var PTR_RESIST     = 0.5;   // finger travel → indicator travel
+var _ptr = null;
+
+// The nearest ancestor that actually scrolls. The public page has several
+// (the fixed carousel overlay .mbc-scroll-cap, each .view-panel, the document
+// itself), so the gesture has to ask rather than assume.
+function ptrScroller(el) {
+  for (var n = el; n && n !== document.body; n = n.parentElement) {
+    var oy = window.getComputedStyle(n).overflowY;
+    if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight + 1) return n;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
+function ptrEl() { return document.getElementById('ptrIndicator'); }
+
+function ptrDraw(dist, armed) {
+  var el = ptrEl();
+  if (!el) return;
+  el.classList.remove('ptr-settle');
+  el.style.transform = 'translateY(' + (dist - 34) + 'px)';
+  el.style.opacity = Math.min(1, dist / PTR_TRIGGER_PX);
+  el.classList.toggle('ptr-armed', !!armed);
+}
+
+function ptrReset(spinFirst) {
+  var el = ptrEl();
+  if (!el) return;
+  el.classList.add('ptr-settle');
+  if (!spinFirst) el.classList.remove('ptr-spin', 'ptr-armed');
+  el.style.transform = 'translateY(-3em)';
+  el.style.opacity = '0';
+  if (spinFirst) {
+    // Let the settle transition finish before dropping the spin class, or the
+    // icon visibly stops dead while still on screen.
+    setTimeout(function() { el.classList.remove('ptr-spin', 'ptr-armed'); }, 240);
+  }
+}
+
+document.addEventListener('touchstart', function(e) {
+  _ptr = null;
+  if (_refreshing || _bracketEditMode) return;   // a card drag is not a pull
+  if (e.touches.length !== 1) return;
+  var t = e.touches[0];
+  var sc = ptrScroller(e.target);
+  if (!sc || sc.scrollTop > 0) return;           // only from the very top
+  _ptr = { y: t.clientY, x: t.clientX, sc: sc, decided: false, active: false };
+}, { passive: true });
+
+document.addEventListener('touchmove', function(e) {
+  if (!_ptr || !e.touches.length) return;
+  var t  = e.touches[0];
+  var dy = t.clientY - _ptr.y;
+  var dx = t.clientX - _ptr.x;
+  if (!_ptr.decided) {
+    if (Math.abs(dy) < 6 && Math.abs(dx) < 6) return;
+    // Lose to the carousel's horizontal swipe on the same terms it decides:
+    // whichever axis moved further wins, and an upward pull is just a scroll.
+    _ptr.decided = true;
+    _ptr.active  = dy > 0 && Math.abs(dy) > Math.abs(dx);
+    if (!_ptr.active) { _ptr = null; return; }
+  }
+  // The scroller can have moved under the finger (a fast flick that started at
+  // the top and got there before the axis was decided) — give up if so.
+  if (_ptr.sc.scrollTop > 0 || dy <= 0) { ptrReset(false); _ptr = null; return; }
+  var dist = Math.min(dy * PTR_RESIST, PTR_MAX_PX);
+  _ptr.armed = dist >= PTR_TRIGGER_PX;
+  ptrDraw(dist, _ptr.armed);
+}, { passive: true });
+
+function ptrEnd() {
+  if (!_ptr) return;
+  var armed = _ptr.armed;
+  _ptr = null;
+  if (!armed) { ptrReset(false); return; }
+  var el = ptrEl();
+  if (el) { el.classList.add('ptr-spin'); el.classList.remove('ptr-settle'); }
+  refreshNow(null).then(function() { ptrReset(true); }, function() { ptrReset(true); });
+}
+document.addEventListener('touchend', ptrEnd, { passive: true });
+document.addEventListener('touchcancel', function() {
+  if (_ptr) { _ptr = null; ptrReset(false); }
+}, { passive: true });
+
 // ── Delegated actions (see tt-common.js) ──────────────────────────────
 Object.assign(TT_ACTIONS, {
+  refreshNow: function(arg, el) {
+    // Tapped from inside the hamburger on a phone — close it, or the panel
+    // sits over the bracket the viewer just asked to see refreshed.
+    closeHeaderMenu();
+    refreshNow(el);
+  },
   toggleProject: function() {
     // Same rule as the button's visibility, re-checked here: hidden is a UI
     // state, not a permission, and the setting can change under a page that
@@ -6674,7 +6947,7 @@ async function initNotifyButton() {
   } catch (e) { return; }
   if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
   var p = notifyPrefs();
-  btn.textContent = p.on ? 'Notifying' : 'Notify me';
+  btn.textContent = p.on ? 'Notifications on' : 'Notifications';
   btn.hidden = false;
 }
 
@@ -6839,7 +7112,7 @@ async function notifySave() {
     // sending while this panel says notifications are off.
     saveNotifyPrefs(Object.assign({ on: true, endpoint: json.endpoint }, form));
     var btn = document.getElementById('notifyBtn');
-    if (btn) btn.textContent = 'Notifying';
+    if (btn) btn.textContent = 'Notifications on';
     hint.textContent = 'Notifications are on for this device.';
     document.getElementById('notifyOffBtn').hidden = false;
     showToast('Notifications on');
@@ -6871,7 +7144,7 @@ async function notifyTurnOff() {
     if (sub) await sub.unsubscribe().catch(function() {});
     saveNotifyPrefs({ on: false, live: false, final: false, schedule: true, allEvents: false, teams: [] });
     var btn = document.getElementById('notifyBtn');
-    if (btn) btn.textContent = 'Notify me';
+    if (btn) btn.textContent = 'Notifications';
     document.getElementById('notifyOffBtn').hidden = true;
     hint.textContent = 'Notifications are off.';
     showToast('Notifications off');

@@ -18,6 +18,22 @@ const DATA_DIR     = process.env.DATA_DIR     || '/data';
 // read-only /frontend volume mount (same file the pages load).
 // Fails loudly at startup if the mount is missing.
 const { SETTINGS_DEFAULTS, lineupRowIssues, lineupIssueMessage } = require(FRONTEND_DIR + '/settings-defaults.js');
+// Same dual-environment trick, for branding: the browser loads this file as a
+// global and we require() it, so /theme.css below is rendered from the exact
+// derivation the page would have applied — and a branded tournament is branded
+// in its FIRST paint instead of repainting once its JS runs.
+const { ttThemeCss } = require(FRONTEND_DIR + '/theme-css.js');
+// The CSS lengths behind the LOGO_SCALES step names below — mirrors
+// TT_LOGO_SCALES in tt-common.js (the browser's copy). Kept here rather than
+// in theme-css.js because the browser reads the scales directly for its own
+// live updates; this passes them in for the server render.
+const LOGO_SCALE_CSS = {
+  sm: { h: '2.4em', maxw: '6em',   hSm: '2em',   maxwSm: '4.5em' },
+  md: { h: '3.4em', maxw: '8.5em', hSm: '2.8em', maxwSm: '6.5em' },
+  lg: { h: '4.4em', maxw: '11em',  hSm: '3.4em', maxwSm: '8em'   },
+  xl: { h: '5.6em', maxw: '14em',  hSm: '4em',   maxwSm: '9.5em' },
+};
+const LOGO_SCALE_CSS_DEFAULT = 'md';
 
 // Roles grantable per tournament. 'superadmin' is a global account role
 // (users.role) and is never granted per tournament.
@@ -116,11 +132,26 @@ function escHtml(s) {
 // demo-mode restore (invalidateIndexCache() with no argument).
 const _indexHtmlCache = new Map();   // tid -> html string
 
+// Also clears the lineup shell, which is built from the same settings and
+// theme colours. Two caches, one invalidation point — a second entry point
+// would eventually be forgotten by one of the callers.
 function invalidateIndexCache(tid) {
-  if (tid === undefined) return _indexHtmlCache.clear();
+  if (tid === undefined) {
+    _indexHtmlCache.clear();
+    _lineupHtmlCache.clear();
+    _panelHtmlCache.clear();
+    return;
+  }
   // Keys are `tid|origin` — drop every origin variant for this tournament.
-  for (const key of _indexHtmlCache.keys()) {
-    if (key === tid || String(key).startsWith(tid + '|')) _indexHtmlCache.delete(key);
+  for (const cache of [_indexHtmlCache, _lineupHtmlCache]) {
+    for (const key of cache.keys()) {
+      if (key === tid || String(key).startsWith(tid + '|')) cache.delete(key);
+    }
+  }
+  // The panel cache prefixes the panel name, so its keys are `panel|tid|origin`.
+  for (const key of _panelHtmlCache.keys()) {
+    const parts = String(key).split('|');
+    if (parts[1] === String(tid)) _panelHtmlCache.delete(key);
   }
 }
 
@@ -183,6 +214,34 @@ async function buildIndexHtml(tid, origin) {
     ogImage ? `  <meta name="twitter:card" content="summary">` : '',
   ].filter(Boolean).join('\n');
   html = html.replace('</head>', `${meta}\n</head>`);
+
+  // ── Render the visible header, not just the tab title ────────────────
+  // Without this the page paints the stock "Tournament Bracket" wordmark, no
+  // logo and the default palette, then swaps to the tournament's branding the
+  // moment /api/settings and /api/theme-colors land — a visible flash, and a
+  // layout jump as the logo and subtitle appear. Everything below is already
+  // in memory here, so the served HTML can just be correct.
+  const scoped = tid === store.tid ? '' : await store.tournamentById(tid)
+    .then(t => (t ? '/t/' + encodeURIComponent(t.slug) : ''));
+  html = html.replace(/(<h1 id="siteName"[^>]*>)[^<]*(<\/h1>)/,
+    `$1${ogTitle}$2`);
+  // The subtitle keeps its zero-width space + hidden visibility when empty:
+  // that is what stops the header changing height once the JS runs.
+  html = html.replace(/(<div id="siteSubtitle"[^>]*>)[^<]*(<\/div>)/,
+    desc ? `$1${desc}$2` : '$1&#8203;$2');
+  if (!desc) {
+    html = html.replace('<div id="siteSubtitle" class="site-subtitle"',
+      '<div id="siteSubtitle" class="site-subtitle u-invisible"');
+  }
+  // Only un-hide the logo when there IS one — an empty <img> would reserve
+  // space for a broken image on every unbranded tournament.
+  if (tcAny && /^data:image\/(png|jpeg|webp);base64,/.test(tcAny.logo || '')) {
+    html = html.replace(/<img id="siteLogo" class="site-logo" alt="" hidden/,
+      `<img id="siteLogo" class="site-logo" alt="" src="${scoped}/logo.png"`);
+  }
+  // Branding stylesheet, last in <head> so it outranks base.css.
+  html = html.replace('</head>',
+    `  <link rel="stylesheet" href="${scoped}/theme.css">\n</head>`);
   return html;
 }
 
@@ -535,7 +594,7 @@ api.post('/change-password', ah(async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: 'Authentication required' });
   }
-  const { password } = req.body || {};
+  const { password, username } = req.body || {};
   if (typeof password !== 'string' || password.length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
   }
@@ -543,12 +602,38 @@ api.post('/change-password', ah(async (req, res) => {
   if (Buffer.byteLength(password, 'utf8') > 72) {
     return res.status(400).json({ error: 'Password too long (max 72 characters)' });
   }
+  // Setting a password for the first time is the ONE moment a user can also
+  // name themselves. The username an admin typed when creating the account is
+  // a placeholder for their own reference — people set a password off a link
+  // and never learn the name that goes with it, then cannot sign in again.
+  // Coaches included: they are exactly the people this happens to.
+  const firstTime = !!req.user.mustChangePassword || !req.user.passwordHash;
+  let rename = null;
+  if (typeof username === 'string' && username.trim() && username.trim() !== req.user.username) {
+    if (!firstTime) {
+      return res.status(403).json({ error: 'Use Account settings to change your username' });
+    }
+    rename = username.trim();
+    if (!USERNAME_RE.test(rename)) {
+      return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
+    }
+    if (await store.findUser(rename)) {
+      return res.status(409).json({ error: 'Username already taken' });
+    }
+  }
   try {
     const hash = await bcrypt.hash(password, 12);
     const updated = await store.updateUser(req.user.username, {
       passwordHash: hash, mustChangePassword: false, setupToken: null,
     });
     if (!updated) return res.status(404).json({ error: 'User not found' });
+    // Rename AFTER the password lands: grants hang off user_id, so the rename
+    // is safe, but doing it second means a failure here leaves a working
+    // account under the old name rather than an account nobody can reach.
+    if (rename) {
+      await store.updateUser(req.user.username, { username: rename });
+      req.session.username = rename;
+    }
     // First-boot recovery file: once any password change succeeds, the
     // generated initial admin password is stale — remove the plaintext.
     try { fs.unlinkSync((process.env.SECRETS_DIR || '/run/tt-secrets') + '/initial_admin_password'); } catch (e) {}
@@ -561,7 +646,13 @@ api.post('/change-password', ah(async (req, res) => {
 
 api.post('/change-username', ah(async (req, res) => {
   if (!req.user) return res.status(401).json({ error: 'Authentication required' });
-  if (req.user.role === 'team') return res.status(403).json({ error: 'Team users cannot change username' });
+  // Team users used to be blocked here, back when their username was an
+  // admin-issued handle (ph14409) that only ever appeared inside a magic
+  // link. They now get an account tab and already choose a username when
+  // they first set a password, so refusing every LATER change was the
+  // inconsistent half: it let a coach name themselves once and never again.
+  // Renaming is safe — teams hang off the user id, and lineups off the team
+  // name, so neither is keyed by this.
   const { username } = req.body || {};
   if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
     return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
@@ -1784,9 +1875,37 @@ api.post('/settings', requireAdmin, ah(async (req, res) => {
 }));
 
 // ── Teams / seeding endpoints ────────────────────────────────────────
-// The teams domain holds { showSeeds: bool, teams: [{ name }] }.
+// The teams domain holds
+//   { showSeeds: bool, teams: [{ id, name, displayName?, shortName? }] }.
 // When nothing is saved yet the list is auto-derived from the schedule's
 // fixed team names so the Teams tab is always populated.
+//
+// ── Why teams have a hidden id ───────────────────────────────────────
+// The NAME is still the key everywhere else in the product — the schedule
+// stores t1name/t2name, results record a winner by name, lineups and team
+// links are keyed by name. That is exactly the problem: it makes a rename a
+// data migration, which is why a coach could never be trusted to set one.
+//
+// The id is the stable identity a team keeps across a rename. Nothing is
+// migrated onto it yet and nothing needs to be: today it anchors the
+// display/short names below, so `name` stays the immutable join key while the
+// thing PEOPLE see becomes editable. Longer term it is what lets a team carry
+// records between tournaments. Hidden from the UI on purpose — it is a
+// database fact, not something a TD should have to think about.
+const TEAM_ID_RE = /^t_[0-9a-f]{12}$/;
+function newTeamId() { return 't_' + crypto.randomBytes(6).toString('hex'); }
+
+// Coach-facing names. Length caps are display constraints, not storage ones:
+// a bracket card is a fixed-width box and a 60-character "display name" would
+// simply be ellipsised into uselessness.
+const TEAM_DISPLAY_MAX = 40;
+const TEAM_SHORT_MAX   = 12;
+function cleanTeamLabel(v, max) {
+  if (typeof v !== 'string') return '';
+  // Collapse whitespace so a name cannot be padded to fake indentation, and
+  // strip control characters that would break a single-line card.
+  return v.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
 
 async function teamsFromSchedule(tid) {
   const sched = await store.get(tid, 'schedule');
@@ -1809,6 +1928,30 @@ async function teamsFromSchedule(tid) {
 // keep their order; new schedule teams are appended; teams no longer in the
 // schedule drop. When the schedule has no fixed team names yet, fall back to
 // the saved list so a manually-curated roster isn't wiped.
+// One team record, with an id guaranteed. Ids are minted here but only
+// PERSISTED by ensureTeamIds() below — a freshly minted id that is never
+// written would differ on every request, which is worse than having none.
+function normalizeTeam(t) {
+  const out = { id: TEAM_ID_RE.test(t.id || '') ? t.id : newTeamId(), name: t.name };
+  const d = cleanTeamLabel(t.displayName, TEAM_DISPLAY_MAX);
+  const sh = cleanTeamLabel(t.shortName, TEAM_SHORT_MAX);
+  if (d)  out.displayName = d;
+  if (sh) out.shortName = sh;
+  return out;
+}
+
+// One-time backfill for tournaments created before ids existed. Writes only
+// when something is actually missing, so it costs one query per request after
+// the first and never churns the row.
+async function ensureTeamIds(tid) {
+  const { data, teams } = await rosterFor(tid);
+  const saved = Array.isArray(data.teams) ? data.teams : [];
+  const missing = teams.some(t => !TEAM_ID_RE.test((saved.find(s => s && s.name === t.name) || {}).id || ''));
+  if (!missing && saved.length === teams.length) return teams;
+  await store.put(tid, 'teams', { ...data, teams });
+  return teams;
+}
+
 async function rosterFor(tid) {
   const data = await store.get(tid, 'teams');
   const saved = Array.isArray(data.teams) ? data.teams : [];
@@ -1821,10 +1964,10 @@ async function rosterFor(tid) {
   saved.forEach(t => {
     if (t && t.name && schedSet.has(t.name) && !savedSet.has(t.name)) {
       savedSet.add(t.name);
-      kept.push({ name: t.name });
+      kept.push(normalizeTeam(t));
     }
   });
-  const appended = fromSched.filter(name => !savedSet.has(name)).map(name => ({ name }));
+  const appended = fromSched.filter(name => !savedSet.has(name)).map(name => normalizeTeam({ name }));
   return { data, teams: kept.concat(appended) };
 }
 
@@ -1832,6 +1975,7 @@ api.get('/teams', ah(async (req, res) => {
   // Same staleness rule as /settings: generate rewrites the seed display,
   // so this must revalidate rather than ride the browser's heuristic cache.
   res.setHeader('Cache-Control', 'no-cache');
+  await ensureTeamIds(req.tid);              // one-time backfill for old data
   const { data, teams } = await rosterFor(req.tid);
 
   // seedCount: with partial seeding only the first N teams hold real seeds —
@@ -1844,13 +1988,33 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
   const { showSeeds, teams } = req.body || {};
   if (!Array.isArray(teams)) return res.status(400).json({ error: 'teams must be an array' });
   if (teams.length > 200) return res.status(400).json({ error: 'too many teams (max 200)' });
+  const prev = await store.get(req.tid, 'teams');
+  // Ids must SURVIVE an edit. The editor posts the whole list back, so an id
+  // that isn't echoed has to be recovered from what is already stored —
+  // matched by id first, then by name for a row the client sent without one.
+  // Losing an id here would silently detach a team from its coach-set names.
+  const prevTeams = Array.isArray(prev && prev.teams) ? prev.teams : [];
+  const byId = new Map(prevTeams.filter(t => t && t.id).map(t => [t.id, t]));
+  const byName = new Map(prevTeams.filter(t => t && t.name).map(t => [t.name, t]));
   const clean = [];
+  const seenIds = new Set();
   for (const t of teams) {
     const name = String((t && t.name) || '').trim().slice(0, 100);
     if (!name) return res.status(400).json({ error: 'team name cannot be blank' });
-    clean.push({ name });
+    const prior = (t && t.id && byId.get(t.id)) || byName.get(name) || {};
+    const rec = normalizeTeam({
+      id: (t && t.id) || prior.id,
+      name,
+      // An explicitly-sent empty string CLEARS; an absent field keeps what was
+      // stored, so a client that doesn't know about these fields cannot wipe
+      // them just by saving the team list.
+      displayName: t && 'displayName' in t ? t.displayName : prior.displayName,
+      shortName:   t && 'shortName'   in t ? t.shortName   : prior.shortName,
+    });
+    if (seenIds.has(rec.id)) rec.id = newTeamId();   // never emit a duplicate
+    seenIds.add(rec.id);
+    clean.push(rec);
   }
-  const prev = await store.get(req.tid, 'teams');
   // Lineup links are keyed by team name, so a rename or a removal would leave
   // a working credential pointing at a team that no longer exists. Drop those
   // rather than let them linger — and report which, so the TD finds out from a
@@ -2052,13 +2216,22 @@ api.post('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, 
     const issues = lineupRowIssues(rows, settings);
     if (issues.length) return res.status(400).json({ error: lineupIssueMessage(issues) });
   }
-  const clean = rows.slice(0, 20).map(r => ({
-    jersey:   String(r.jersey   || '').slice(0, 8),
-    name:     String(r.name     || '').slice(0, 64),
-    position: String(r.position || '').slice(0, 12),
-    // 4th column for custom lineup layouts; unused by the built-in presets.
-    extra:    String(r.extra    || '').slice(0, 32),
-  }));
+  const clean = rows.slice(0, 20).map(r => {
+    const out = {
+      jersey:   String(r.jersey   || '').slice(0, 8),
+      name:     String(r.name     || '').slice(0, 64),
+      position: String(r.position || '').slice(0, 12),
+      // 4th column for custom lineup layouts; unused by the built-in presets.
+      extra:    String(r.extra    || '').slice(0, 32),
+    };
+    // Which roster player this row IS, when it came from one. The text stays
+    // the record of what was written on the card that day — it must not
+    // change under a coach later — while the id keeps the row attached to a
+    // real person through a rename or a jersey swap. Optional by design: a
+    // row typed by hand, or for a guest who is not on the roster, has none.
+    if (PLAYER_ID_RE.test(r.playerId || '')) out.playerId = r.playerId;
+    return out;
+  });
   const lineups = await store.get(req.tid, 'lineups');
   if (!lineups[slotId]) lineups[slotId] = {};
   const isFirst = !lineups[slotId][teamName];
@@ -2083,6 +2256,129 @@ api.post('/lineups/game/:slotId/:teamName', requireLineupAccess, ah(async (req, 
       });
     })().catch(err => console.error('lineup push failed:', err && err.message));
   }
+}));
+
+// ── Roster endpoints ──────────────────────────────────────────────────
+// A roster is the SQUAD — everyone on the team, in no particular order. A
+// lineup is a batting order for one game, drawn from it. Keeping them apart
+// is the whole point: a coach types their players once here, and the lineup
+// table fills itself in from the jersey number afterwards.
+//
+// Guarded by requireLineupAccess, so the rules are the ones coaches already
+// have: your own team only, staff see everyone, and a team link counts as
+// that team. Unlike a lineup a roster has no per-game lock — a squad list is
+// not the record of what was played, and a coach fixing a spelling after the
+// last game should not be refused.
+const ROSTER_MAX = 40;
+const JERSEYS_MAX = 6;          // numbers one player may carry
+
+// ── Player identity ───────────────────────────────────────────────────
+// The same reasoning as team ids: the NAME and the NUMBER are what people
+// type, change and mistype, so neither can be the identity. A player gets a
+// hidden id at creation and keeps it through every rename and number change,
+// which is what lets a saved lineup still point at a real person after a
+// coach fixes a spelling or a squad swaps jersey sets mid-season.
+const PLAYER_ID_RE = /^p_[0-9a-f]{12}$/;
+function newPlayerId() { return 'p_' + crypto.randomBytes(6).toString('hex'); }
+
+// One player, several numbers. Owner: "some players have different numbers
+// pending what jersey is worn" — a home set and an away set rarely agree, and
+// forcing one number per player made a coach choose which half of the season
+// to be wrong about. Numbers are therefore NOT unique across a roster either:
+// player A's home #7 is perfectly able to be player B's away #7.
+function cleanJerseys(v) {
+  var list;
+  if (Array.isArray(v)) list = v;
+  // A single string is the editor's format (and the old one-number shape):
+  // split on commas or whitespace so "7, 21" and "7 21" both work.
+  else if (typeof v === 'string') list = v.split(/[,\s]+/);
+  else list = [];
+  const seen = new Set();
+  const out = [];
+  for (const raw of list) {
+    const j = String(raw == null ? '' : raw)
+      .replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 8);
+    if (!j) continue;
+    const k = j.toLowerCase();
+    // Within ONE player a repeat is just a typo — dedupe silently rather
+    // than making someone hunt for it.
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(j);
+    if (out.length >= JERSEYS_MAX) break;
+  }
+  return out;
+}
+
+function normalizePlayer(p) {
+  // `jersey` (singular) is the pre-multi-number shape. Read it so rosters
+  // saved before this change keep working, and so a client that still sends
+  // it is understood rather than silently losing the number.
+  const jerseys = cleanJerseys(
+    p.jerseys !== undefined && p.jerseys !== null ? p.jerseys : p.jersey);
+  return {
+    id: PLAYER_ID_RE.test(p.id || '') ? p.id : newPlayerId(),
+    name: String(p.name || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 64),
+    jerseys,
+    position: String(p.position || '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 12),
+  };
+}
+
+// Read side: migrate whatever is stored into the current shape, and persist
+// the minted ids once so an id is stable from the first read onward. Writing
+// only when something actually changed keeps this from churning the row on
+// every request.
+async function playerRosterFor(tid, teamName) {
+  const rosters = await store.get(tid, 'rosters');
+  const stored = Array.isArray(rosters[teamName]) ? rosters[teamName] : [];
+  if (!stored.length) return [];
+  const players = stored.map(normalizePlayer);
+  const changed = JSON.stringify(players) !== JSON.stringify(stored);
+  if (changed) {
+    rosters[teamName] = players;
+    await store.put(tid, 'rosters', rosters);
+  }
+  return players;
+}
+
+api.get('/roster/:teamName', requireLineupAccess, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache');
+  res.json({ players: await playerRosterFor(req.tid, req.params.teamName) });
+}));
+
+api.post('/roster/:teamName', requireLineupAccess, ah(async (req, res) => {
+  const { teamName } = req.params;
+  if (teamName.length > 100) return res.status(400).json({ error: 'teamName too long' });
+  const { players } = req.body || {};
+  if (!Array.isArray(players)) return res.status(400).json({ error: 'players must be an array' });
+  if (players.length > ROSTER_MAX) {
+    return res.status(400).json({ error: `Maximum ${ROSTER_MAX} players` });
+  }
+
+  const existing = await playerRosterFor(req.tid, teamName);
+  const byId = new Map(existing.map(p => [p.id, p]));
+  const usedIds = new Set();
+
+  // Drop blank rows rather than rejecting them: the editor always renders a
+  // few empty rows to type into, and making a coach clear them before saving
+  // would be a rule invented by the form rather than by the sport.
+  const clean = [];
+  for (const raw of players) {
+    const p = normalizePlayer(raw || {});
+    if (!p.jerseys.length && !p.name) continue;
+    // Keep the id the client sent ONLY if it names a player already on this
+    // roster. Anything else — a stale id, an id copied from another team, a
+    // guess — gets a fresh one rather than silently adopting an identity.
+    if (!byId.has(p.id) || usedIds.has(p.id)) p.id = newPlayerId();
+    usedIds.add(p.id);
+    clean.push(p);
+  }
+
+  const rosters = await store.get(req.tid, 'rosters');
+  if (clean.length) rosters[teamName] = clean;
+  else delete rosters[teamName];          // an emptied roster is an absent one
+  await store.put(req.tid, 'rosters', rosters);
+  res.json({ ok: true, players: clean });
 }));
 
 // ── Bucket challenge endpoints ────────────────────────────────────────
@@ -2200,13 +2496,157 @@ app.get(['/t/:slug', ...TAB_PATHS.map(t => `/t/:slug/${t}`)], ah(async (req, res
   }
 }));
 
-app.get(['/lineup', '/lineup.html'], (req, res) => {
+// ── Lineup page, branded ──────────────────────────────────────────────
+// A coach link is the most-shared URL this product has: the magic link
+// redirects here and the coach pastes THIS into the team's group chat. Served
+// as a flat file it carried the stock trophy and no preview at all — the least
+// branded page we serve was the one most likely to be seen by strangers.
+// Cached per tid like the bracket shell, and invalidated by the same hooks.
+const _lineupHtmlCache = new Map();
+
+async function buildLineupHtml(tid, origin) {
+  const s     = Object.assign({}, SETTINGS_DEFAULTS, await store.get(tid, 'settings'));
+  const tname = escHtml(s.tournamentName || SETTINGS_DEFAULTS.tournamentName);
+  const tc    = await store.get(tid, 'theme_colors') || {};
+  const t     = tid === store.tid ? null : await store.tournamentById(tid);
+  const scoped = t ? '/t/' + encodeURIComponent(t.slug) : '';
+  let html = fs.readFileSync(FRONTEND_DIR + '/lineup.html', 'utf8');
+
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>Lineup · ${tname}</title>`);
+  if (tc.favicon) {
+    html = html.replace(/<link rel="icon" href="[^"]*"[^>]*>/,
+      `<link rel="icon" href="${scoped}/tab-icon.png" type="image/png">`);
+  }
+  // Home-screen icon when a coach adds the lineup page itself.
+  if (tc.icon && tid === store.tid) {
+    html = html.replace('</head>',
+      '  <link rel="apple-touch-icon" href="/pwa-icon.png">\n</head>');
+  }
+  const ogImage = origin
+    ? origin + (tc.icon && tid === store.tid ? '/pwa-icon.png' : '/icons/trophy-512.png')
+    : '';
+  const desc = 'Set your team’s batting lineup for ' + tname + '.';
+  const meta = [
+    `  <meta property="og:title" content="Lineup · ${tname}">`,
+    `  <meta property="og:type" content="website">`,
+    `  <meta property="og:description" content="${escHtml(desc)}">`,
+    `  <meta name="description" content="${escHtml(desc)}">`,
+    ogImage ? `  <meta property="og:image" content="${escHtml(ogImage)}">` : '',
+    ogImage ? `  <meta name="twitter:card" content="summary">` : '',
+  ].filter(Boolean).join('\n');
+  html = html.replace('</head>', `${meta}\n</head>`);
+  // Same branding stylesheet the bracket uses, so a coach opening the link
+  // sees the tournament's colours immediately rather than the stock palette.
+  html = html.replace('</head>',
+    `  <link rel="stylesheet" href="${scoped}/theme.css">\n</head>`);
+  return html;
+}
+
+// ── Staff panels (/admin, /coach), branded ────────────────────────────
+// Both used to be flat files, which meant the two pages staff and coaches
+// live in were the only ones that never wore the tournament's own logo — and
+// on the way from the admin panel to the public page you saw the stock
+// wordmark repaint into the real one. Everything needed is already in memory
+// when the request arrives, so the served HTML can just be correct.
+//
+// These carry NO og: tags on purpose. They are not shareable destinations;
+// a link preview for a login-gated panel is noise at best, and at worst it
+// leaks a tournament's branding into a chat that was never shown the event.
+const _panelHtmlCache = new Map();
+
+const PANELS = {
+  admin: { file: 'admin.html', nameId: 'adminSiteName', logoId: 'adminSiteLogo', setting: 'adminName' },
+  coach: { file: 'coach.html', nameId: 'coachSiteName', logoId: 'coachSiteLogo', setting: 'coachName' },
+};
+
+async function buildPanelHtml(panel, tid, origin) {
+  const p     = PANELS[panel];
+  const s     = Object.assign({}, SETTINGS_DEFAULTS, await store.get(tid, 'settings'));
+  const tname = escHtml(s.tournamentName || SETTINGS_DEFAULTS.tournamentName);
+  // The header title is a SETTING, not the tournament name: staff asked for
+  // "Admin Panel"/"Coach Panel" to be renameable independently, because the
+  // point of that line is telling you which of the two you are looking at.
+  const hname = escHtml(s[p.setting] || SETTINGS_DEFAULTS[p.setting]);
+  const tc    = await store.get(tid, 'theme_colors') || {};
+  const t     = tid === store.tid ? null : await store.tournamentById(tid);
+  const scoped = t ? '/t/' + encodeURIComponent(t.slug) : '';
+  let html = fs.readFileSync(FRONTEND_DIR + '/' + p.file, 'utf8');
+
+  html = html.replace(/<title>[^<]*<\/title>/, `<title>${hname} · ${tname}</title>`);
+  if (tc.favicon) {
+    html = html.replace(/<link rel="icon" href="[^"]*"[^>]*>/,
+      `<link rel="icon" href="${scoped}/tab-icon.png" type="image/png">`);
+  }
+  // The visible header: name first, then the logo — and only un-hide the
+  // logo when there IS one, or every unbranded tournament reserves space
+  // for a broken image.
+  html = html.replace(new RegExp(`(<h1 id="${p.nameId}"[^>]*>)[^<]*(</h1>)`), `$1${hname}$2`);
+  if (/^data:image\/(png|jpeg|webp);base64,/.test(tc.logo || '')) {
+    html = html.replace(new RegExp(`<img id="${p.logoId}" class="site-logo" alt="" hidden`),
+      `<img id="${p.logoId}" class="site-logo" alt="" src="${scoped}/logo.png"`);
+  }
+  // Branding stylesheet last in <head> so it outranks base.css.
+  html = html.replace('</head>',
+    `  <link rel="stylesheet" href="${scoped}/theme.css">\n</head>`);
+  return html;
+}
+
+function panelRoute(panel) {
+  return ah(async (req, res) => {
+    // ?t=<slug> scopes the panel to a tournament the way /lineup does; an
+    // unknown slug falls back to the live one rather than 404ing, because
+    // the page renders its own signed-out state either way.
+    let tid = store.tid;
+    const slug = typeof req.query.t === 'string' ? req.query.t : '';
+    if (slug) {
+      const t = await store.tournamentBySlug(slug);
+      if (t) tid = t.id;
+    }
+    const proto  = req.get('x-forwarded-proto') || req.protocol || 'http';
+    const origin = proto + '://' + req.get('host');
+    const key = panel + '|' + tid + '|' + origin;
+    try {
+      if (!_panelHtmlCache.has(key)) {
+        _panelHtmlCache.set(key, await buildPanelHtml(panel, tid, origin));
+      }
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.send(_panelHtmlCache.get(key));
+    } catch (err) {
+      console.error('Error serving ' + panel + ' panel:', err);
+      res.status(500).send('Server error');
+    }
+  });
+}
+
+app.get(['/admin', '/admin.html'], panelRoute('admin'));
+app.get(['/coach', '/coach.html'], panelRoute('coach'));
+
+app.get(['/lineup', '/lineup.html'], ah(async (req, res) => {
+  // The magic link redirects to /lineup?t=<slug> for a non-live tournament;
+  // an unknown or absent slug falls back to the live one rather than 404ing,
+  // because this page also has to render its own "link invalid" state.
+  let tid = store.tid;
+  const slug = typeof req.query.t === 'string' ? req.query.t : '';
+  if (slug) {
+    const t = await store.tournamentBySlug(slug);
+    if (t) tid = t.id;
+  }
+  const proto  = req.get('x-forwarded-proto') || req.protocol || 'http';
+  const origin = proto + '://' + req.get('host');
+  const key = tid + '|' + origin;
   try {
-    res.sendFile(FRONTEND_DIR + '/lineup.html');
+    if (!_lineupHtmlCache.has(key)) {
+      _lineupHtmlCache.set(key, await buildLineupHtml(tid, origin));
+    }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.send(_lineupHtmlCache.get(key));
   } catch (err) {
+    console.error('Error serving lineup:', err);
     res.status(500).send('Server error');
   }
-});
+}));
 
 // ── PWA branding (default tournament) ─────────────────────────────────
 // The public PWA installs against start_url '/', i.e. the default
@@ -2241,17 +2681,50 @@ async function sendTabIcon(tid, res) {
 app.get('/tab-icon.png', ah(async (req, res) => sendTabIcon(store.tid, res)));
 app.get('/t/:slug/tab-icon.png', resolveSlug, ah(async (req, res) => sendTabIcon(req.tid, res)));
 
+// Header logo as a real image rather than a data URI inlined into the HTML.
+// Inlining would put the whole base64 payload in front of first paint on every
+// page load; a URL lets the browser fetch it in parallel, and the served HTML
+// already reserves the space via --logo-h, so nothing jumps.
+async function sendLogo(tid, res) {
+  const tc = await store.get(tid, 'theme_colors') || {};
+  res.setHeader('Cache-Control', 'no-cache');
+  const m = /^data:image\/(png|jpeg|webp);base64,(.+)$/.exec(tc.logo || '');
+  if (!m) return res.status(404).end();
+  res.setHeader('Content-Type', 'image/' + m[1]);
+  res.send(Buffer.from(m[2], 'base64'));
+}
+app.get('/logo.png', ah(async (req, res) => sendLogo(store.tid, res)));
+app.get('/t/:slug/logo.png', resolveSlug, ah(async (req, res) => sendLogo(req.tid, res)));
+
+// Per-tournament branding as a stylesheet. This exists because the CSP is
+// `style-src 'self'` with no 'unsafe-inline' — an injected <style> block or a
+// style="" attribute would simply be dropped, so a linked sheet is the only
+// way to have the right palette before any JS runs. Linked AFTER base.css so
+// its equal-specificity :root / body.light rules win on order.
+async function sendThemeCss(tid, res) {
+  const tc = await store.get(tid, 'theme_colors') || {};
+  res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.send(ttThemeCss(tc, LOGO_SCALE_CSS, LOGO_SCALE_CSS_DEFAULT));
+}
+app.get('/theme.css', ah(async (req, res) => sendThemeCss(store.tid, res)));
+app.get('/t/:slug/theme.css', resolveSlug, ah(async (req, res) => sendThemeCss(req.tid, res)));
+
 app.get('/manifest.json', ah(async (req, res) => {
   const manifest = JSON.parse(fs.readFileSync(FRONTEND_DIR + '/manifest.json', 'utf8'));
   const [tc, s] = await Promise.all([
     store.get(store.tid, 'theme_colors'),
     store.get(store.tid, 'settings'),
   ]);
-  const name = (s && s.tournamentName || '').trim();
-  if (name) {
-    manifest.name = name.slice(0, 45);
-    manifest.short_name = name.slice(0, 12);
-  }
+  // pwaName / pwaShortName win when set; otherwise fall back to the tournament
+  // name, truncated as before. The override exists because that truncation is
+  // blunt: short_name is the label under the home-screen icon and gets 12
+  // characters, so "Summer Classic 2026" installed as "Summer Class". A TD can
+  // now just say "Summer '26".
+  const name  = ((s && s.pwaName) || (s && s.tournamentName) || '').trim();
+  const short = ((s && s.pwaShortName) || name).trim();
+  if (name)  manifest.name = name.slice(0, 45);
+  if (short) manifest.short_name = short.slice(0, 12);
   if (tc && tc.icon) {
     // Declare the icon's REAL pixel size so browsers' declared-vs-actual
     // checks pass. No 'maskable': Android's mask would zoom-crop a tile

@@ -1,5 +1,13 @@
 # TournaTrak — Product & Marketing Brief
 
+> ⚠️ **Read `docs/FEATURES.md` first.** This brief is still correct on
+> *positioning* — tone, page structure, screenshots, CTAs, branding — but it was
+> written against an older version of the product, and **§3 (features), §5
+> (screenshots), §6 (FAQ) and §9 (guardrails) are out of date**: the app is no
+> longer double-elimination-only, multi-tournament hosting and clean URLs now
+> ship, and the Bucket Challenge is being retired. `docs/FEATURES.md` is the
+> authoritative list of what exists today, and it wins wherever the two disagree.
+
 > **Purpose of this file:** Hand this to a fresh chat to build a *promotional /
 > "sales" website* for TournaTrak. The goal is a public page you can send people
 > to in order to promote the product — highlights, screenshots, and use cases.
@@ -81,8 +89,6 @@ Group these into sections/cards on the site. Each has a benefit-first framing.
 - **Run many tournaments at once** — each event gets its own clean URL
   (`/t/your-event`); tournament directors create and run their own events and
   switch between them from one admin.
-- **Push notifications** — admins and scorekeepers can opt in to be notified
-  the instant a coach submits a lineup, no need to keep checking back.
 
 ### Share and follow
 - **Share, download, or print the bracket** — any visitor, not just staff, can
@@ -156,15 +162,18 @@ new chat should leave labeled placeholder slots until real images are provided.
 | 8 | Light vs dark theme side-by-side | "Looks great day or night." |
 | 9 | Share/Download/Print dialog on the bracket | "Save it, print it, or send it — one tap." |
 | 10 | Admin tournament switcher (multiple events) | "Run every one of your events from one place." |
-| 11 | Notification opt-in / bell for a lineup submission | "Know the moment a lineup lands." |
 
-**Not yet captured as of 2026-07-31** — rows 9–11 still need fresh screenshots
-once a demo tournament has these features exercised (Share/Download/Print,
-the multi-tournament switcher, and push notifications all shipped after the
-first screenshot pass). Attempted 2026-07-31 in-session; blocked because this
-sandbox's Docker can't pull `nginx:alpine`/`postgres:16-alpine` (egress policy
-blocks the registry CDN) — needs a session with real Docker access, or a
-manual capture on the deploy host.
+**Not yet captured as of 2026-07-31** — rows 9–10 still need fresh screenshots
+once a demo tournament has these features exercised (Share/Download/Print and
+the multi-tournament switcher both shipped after the first screenshot pass).
+Attempted 2026-07-31 in-session; blocked because this sandbox's Docker can't
+pull `nginx:alpine`/`postgres:16-alpine` (egress policy blocks the registry
+CDN) — needs a session with real Docker access, or a manual capture on the
+deploy host.
+
+**Do not add a push-notification screenshot.** `docs/FEATURES.md` §11: it's
+tabled as buggy and explicitly not to be advertised on the public site. A row
+for it was here and got pulled during the 2026-07-31 merge to main.
 
 **Gallery order is mobile-first (2026-07-31):** the grid leads with every
 mobile-\* shot, then the desktop-\* ones, with a lead line ("On your phone

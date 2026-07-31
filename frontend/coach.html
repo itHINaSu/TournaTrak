@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Coach Panel</title>
+<!-- Branding comes from the API, not from disk. Adding this page to a home
+     screen bakes in THIS url and the icon THIS page declares at add time, and
+     /tab-icon.png + /pwa-icon.png are both proxied to the API, which serves
+     the tournament's own artwork. Pointing them at a static /icons/ file is
+     exactly what made shared coach links turn up wearing the stock trophy.
+     No service worker is registered here on purpose: /admin-sw.js deletes
+     every cache on activate, so registering it from this page would wipe the
+     public app's offline copy for any coach who uses both. -->
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0f1410" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f0f4f1" media="(prefers-color-scheme: light)">
+<link rel="icon" href="/tab-icon.png" type="image/png">
+<link rel="apple-touch-icon" href="/pwa-icon.png">
+<link rel="stylesheet" href="/fonts.css">
+<!-- Same three sheets the admin panel loads, in the same order. The owner
+     asked for a panel "near identical to the admin panel from a UI
+     perspective", and the honest way to get that is to use its stylesheet
+     rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
+     lineup table all come from here already. -->
+<link rel="stylesheet" href="/base.css?v=3.83">
+<link rel="stylesheet" href="/admin.css?v=3.83">
+<link rel="stylesheet" href="/lineup.css?v=3.83">
+<script src="/app-h.js?v=3.83"></script>
+</head>
+<body>
+
+<!-- Signed-out / wrong-role state. A coach reaching this page without a
+     session is sent to the one Sign in; this is only the brief window before
+     the session check answers, plus the "you are signed in as someone who has
+     no team here" case, which a redirect could not explain. -->
+<div class="login-overlay" id="coachGate">
+  <div class="login-box">
+    <div class="login-title" id="coachGateTitle">Coach Panel</div>
+    <div class="login-desc" id="coachGateText">Checking your access…</div>
+    <div id="coachGateActions" hidden>
+      <a class="sched-save-btn login-btn" id="coachGateSignIn" href="/admin">Sign In</a>
+      <a class="login-public-link" href="/">← Back to the bracket</a>
+    </div>
+  </div>
+</div>
+
+<header class="site-header" id="siteHeader">
+  <img id="coachSiteLogo" class="site-logo" alt="" hidden>
+  <div class="header-name-block">
+    <h1 id="coachSiteName">Coach Panel</h1>
+    <div id="coachTeamLine" class="site-subtitle"></div>
+  </div>
+  <button class="header-menu-btn" id="headerMenuBtn" data-action="toggleHeaderMenu"
+          aria-label="Menu" aria-expanded="false" aria-controls="headerControls" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
+    </svg>
+  </button>
+  <div class="header-controls" id="headerControls">
+    <a href="/" class="admin-public-btn">← Bracket</a>
+    <button class="admin-public-btn" id="coachLogoutBtn" data-action="coachLogout">Sign Out</button>
+    <button class="theme-toggle" id="themeToggle">☀ Light</button>
+  </div>
+</header>
+
+<!-- id="adminWrap" is load-bearing, not a copy-paste artefact: lineup.js
+     self-initialises unless that element exists (`if
+     (!document.getElementById('adminWrap')) lineupInit();`). Reusing the id
+     hands us the same control admin.js has — we call lineupInit() ourselves
+     when the Lineups tab is first opened, instead of it racing the gate. -->
+<div class="admin-wrap" id="adminWrap" hidden>
+
+  <div class="admin-tab-bar">
+    <div class="admin-tab active" data-tab="lineups">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/>
+        <circle cx="5" cy="6" r="1" fill="currentColor"/><circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="5" cy="18" r="1" fill="currentColor"/>
+      </svg>
+      <span class="tab-label">Lineups</span>
+    </div>
+    <div class="admin-tab" data-tab="roster">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="9" cy="7" r="3"/><circle cx="17" cy="8" r="2.5"/>
+        <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M17 14c2.2.5 4 2.5 4 5"/>
+      </svg>
+      <span class="tab-label">Roster</span>
+    </div>
+    <div class="admin-tab" data-tab="team">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 21V8l8-5 8 5v13"/><path d="M9 21v-6h6v6"/>
+      </svg>
+      <span class="tab-label">Team</span>
+    </div>
+    <div class="admin-tab" data-tab="account">
+      <svg class="tab-icon tab-icon--gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>
+      </svg>
+      <span class="tab-label">Account</span>
+    </div>
+  </div>
+
+  <!-- ── LINEUPS ──────────────────────────────────────────────────────
+       Every id below is one lineup.js looks up. It drives this panel and the
+       standalone coach page from the same source, so the two hosts must stay
+       in step — see the id-diff one-liner in HANDOFF. -->
+  <div class="admin-tab-panel active" id="tab-lineups">
+    <div id="lineupLoading" class="lineup-state">
+      <div class="lineup-state-body">Loading…</div>
+    </div>
+    <div id="lineupInvalid" hidden class="lineup-state">
+      <div class="lineup-state-icon">🔗</div>
+      <div class="lineup-state-title">Access Error</div>
+      <div class="lineup-state-body">Could not load lineup data.</div>
+    </div>
+    <div id="lineupContent" hidden class="lineup-wrap">
+      <div class="lineup-team-header">
+        <div class="lineup-team-label">Team</div>
+        <div id="lineupTeamName" class="lineup-team-name"></div>
+      </div>
+      <div id="lineupSelectorsRow" class="lineup-selectors-row" hidden>
+        <div class="lineup-game-info lineup-sel-half" id="lineupTeamHalf">
+          <select id="lineupTeamSel" class="lineup-game-sel"></select>
+        </div>
+        <div class="lineup-game-info lineup-sel-half" id="lineupGameInfo">
+          <span class="lineup-game-sel-placeholder" id="lineupGamePlaceholder">Select a team first</span>
+          <select id="lineupGameSelect" class="lineup-game-sel" hidden></select>
+        </div>
+      </div>
+      <div id="lineupReadOnlyBadge" hidden class="lineup-readonly-badge">
+        View Only — Game Complete
+      </div>
+      <div id="lineupNoGame" hidden class="lineup-no-game">
+        No upcoming games scheduled for your team.
+      </div>
+      <div id="lineupImportOverlay" class="lineup-modal-overlay" hidden data-action="closeImport">
+        <div class="lineup-modal">
+          <div class="lineup-modal-title">Import Lineup</div>
+          <div class="lineup-modal-body">
+            <div class="lineup-modal-label">Copy lineup from:</div>
+            <select id="lineupImportSel" class="lineup-modal-sel"></select>
+          </div>
+          <div class="lineup-modal-footer">
+            <button class="lineup-tool-btn" data-action="confirmImport">Import</button>
+            <button class="lineup-tool-btn lineup-tool-btn--cancel" data-action="closeImport">Cancel</button>
+          </div>
+        </div>
+      </div>
+      <div class="lineup-form-wrap">
+        <div class="lineup-tools" id="lineupTools" hidden>
+          <button class="lineup-tool-btn lineup-tool-btn--import" id="lineupImportBtn" data-action="openImport">Import Lineup</button>
+          <button class="lineup-tool-btn lineup-tool-btn--right lineup-tool-btn--reorder" id="lineupReorderBtn" data-action="toggleReorder">Reorder</button>
+        </div>
+        <table class="lineup-table">
+          <thead>
+            <tr id="lineupHead">
+              <th class="lineup-th lineup-th--order"></th>
+              <th class="lineup-th lineup-th--num">#</th>
+              <th class="lineup-th lineup-th--name">Player Name</th>
+              <th class="lineup-th lineup-th--pos">Position</th>
+            </tr>
+          </thead>
+          <tbody id="lineupBody"></tbody>
+        </table>
+        <div class="lineup-actions">
+          <button class="lineup-submit-btn" id="lineupSubmitBtn" data-action="submitLineup">Save Lineup</button>
+          <button class="lineup-sub-add-btn" id="lineupAddSubBtn" data-action="addSubRow" hidden>Add Subs</button>
+          <button class="lineup-sub-del-btn" id="lineupDelSubBtn" data-action="deleteSubRow" hidden>Delete Sub</button>
+          <span class="lineup-status" id="lineupStatus"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROSTER ───────────────────────────────────────────────────────
+       The squad, in no particular order — the pool a lineup is drawn FROM.
+       A lineup is a batting order for one game; this is just "who is on the
+       team", which is why it has no order column and no game selector. -->
+  <div class="admin-tab-panel" id="tab-roster">
+    <div class="admin-subtitle">Everyone on your team. A lineup is a batting order for one game — this is the squad it gets picked from, so order doesn't matter here. Type a player's number into a lineup and their name fills itself in. A player can have more than one number — separate them with commas.</div>
+    <div class="lineup-wrap" id="rosterWrap">
+      <div class="lineup-state" id="rosterLoading">
+        <div class="lineup-state-body">Loading…</div>
+      </div>
+      <div id="rosterContent" hidden>
+        <!-- Team picker, shown only to staff (a coach has one team, and a
+             selector with a single option is furniture). -->
+        <div id="rosterTeamRow" class="lineup-selectors-row" hidden>
+          <div class="lineup-game-info" id="rosterTeamHalf">
+            <select id="rosterTeamSel" class="lineup-game-sel"></select>
+          </div>
+        </div>
+        <div class="lineup-form-wrap">
+          <table class="lineup-table">
+            <thead>
+              <tr>
+                <th class="lineup-th lineup-th--nums">Number(s)</th>
+                <th class="lineup-th lineup-th--name">Player Name</th>
+                <th class="lineup-th lineup-th--pos">Position</th>
+                <th class="lineup-th lineup-th--order"></th>
+              </tr>
+            </thead>
+            <tbody id="rosterBody"></tbody>
+          </table>
+          <!-- Sharing a number between two players is ALLOWED (home and away
+               sets rarely agree) — this only warns that a lineup cannot
+               autofill from an ambiguous number. -->
+          <div class="roster-dup-note" id="rosterDupNote" hidden></div>
+          <div class="lineup-actions">
+            <button class="lineup-submit-btn" id="rosterSaveBtn" data-action="saveRoster">Save Roster</button>
+            <button class="lineup-sub-add-btn" id="rosterAddBtn" data-action="addRosterRow">Add Player</button>
+            <span class="lineup-status" id="rosterStatus"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── TEAM ─────────────────────────────────────────────────────────
+       Team-facing settings. The display/short names land here, gated on the
+       tournament's coachTeamNames setting (owner: public, TD can override). -->
+  <div class="admin-tab-panel" id="tab-team">
+    <div class="admin-subtitle">How your team appears to everyone following the tournament.</div>
+    <div class="settings-section">
+      <div class="settings-section-hdr">Team Name</div>
+      <div class="collapsible-body">
+        <div class="lineup-state">
+          <div class="lineup-state-body" id="teamTabPlaceholder">Coming next: set the name shown on the bracket, and a short version for narrow cards.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ACCOUNT ──────────────────────────────────────────────────────-->
+  <div class="admin-tab-panel" id="tab-account">
+    <div class="settings-section">
+      <div class="settings-section-hdr">Your Account</div>
+      <div class="collapsible-body">
+        <div class="settings-field">
+          <label>Signed in as</label>
+          <div class="admin-subtitle" id="coachAccountUser">—</div>
+        </div>
+        <div class="settings-field">
+          <label>Username</label>
+          <input type="text" id="coachSetUsername" autocomplete="username" maxlength="32" placeholder="2–32 characters">
+        </div>
+        <div class="settings-save-row">
+          <button class="sched-save-btn" data-action="saveCoachUsername">Save Username</button>
+          <span class="lineup-status" id="coachUsernameStatus"></span>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-hdr">Password</div>
+      <div class="collapsible-body">
+        <div class="settings-field">
+          <label>New Password</label>
+          <input type="password" id="coachSetPass1" autocomplete="new-password" placeholder="At least 8 characters">
+        </div>
+        <div class="settings-field">
+          <label>Confirm Password</label>
+          <input type="password" id="coachSetPass2" autocomplete="new-password" placeholder="Confirm password">
+        </div>
+        <div class="settings-save-row">
+          <button class="sched-save-btn" data-action="saveCoachPassword">Save Password</button>
+          <span class="lineup-status" id="coachPasswordStatus"></span>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <div class="settings-section-hdr">Notifications</div>
+      <div class="collapsible-body">
+        <div class="settings-field settings-field--toggle">
+          <label>Email me when my lineup is due</label>
+          <input type="checkbox" id="coachNotifyLineups" disabled>
+        </div>
+        <div class="field-hint" id="coachNotifyHint">Notification settings are coming next.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/settings-defaults.js?v=3.83"></script>
+<script src="/theme-css.js?v=3.83"></script>
+<script src="/tt-common.js?v=3.83"></script>
+<script src="/bracket-data.js?v=3.83"></script>
+<script src="/lineup.js?v=3.83"></script>
+<script src="/coach.js?v=3.83"></script>
+</body>
+</html>

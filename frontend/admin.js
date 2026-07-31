@@ -8,6 +8,9 @@ var _teamLinks = {};      // team name -> { token, createdAt }, from /api/team-l
 var _teamLinkOpen = null; // team name whose link panel is expanded, if any
 var currentRole = null;
 var currentTeamName = null;
+// Held alongside role/team so the first-login form can rename and the panel
+// can reopen under the new name without reading it back out of the DOM.
+var currentUsername = null;
 var _bucketTeams = [];
 
 // ── Multi-tournament scoping ───────────────────────────────────────────
@@ -1541,18 +1544,13 @@ function resetIOSZoom() {
   }, 60);
 }
 
-function applyStickyOffsets() {
-  var hdr    = document.getElementById('siteHeader');
-  var tabBar = document.querySelector('.admin-tab-bar');
-  var r      = document.documentElement.style;
-  r.setProperty('--app-h',          window.innerHeight + 'px');
-  r.setProperty('--hdr-h',          (hdr    ? hdr.offsetHeight    : 52) + 'px');
-  r.setProperty('--admin-tabbar-h', (tabBar ? tabBar.offsetHeight : 50) + 'px');
-  r.setProperty('--tabs-h',         (tabBar ? tabBar.offsetHeight : 50) + 'px');
-}
+// Now shared with the coach panel — see ttApplyPanelOffsets in tt-common.js.
+// The name is kept because this file calls it from a dozen places.
+function applyStickyOffsets() { ttApplyPanelOffsets(); }
 
 function showAdmin(username, role, teamName) {
   resetIOSZoom();
+  if (username) currentUsername = username;
   if (role !== undefined) currentRole = role;
   if (teamName !== undefined) currentTeamName = teamName;
   document.getElementById('loginOverlay').hidden = true;
@@ -1718,6 +1716,11 @@ async function doSetup(e) {
   btn.disabled = false;
 }
 
+// A coach who signs in here is not lost — they are just at the wrong door.
+// This used to be a dead end: "you do not have access to this page", with
+// nothing to do about it and no address bar in an installed app. There is one
+// Sign in entry for everyone now, so landing a coach on the coach side is the
+// entire job of this branch.
 function showCoachBlock(username) {
   document.getElementById('loginOverlay').hidden = false;
   document.getElementById('setupOverlay').hidden = true;
@@ -1728,8 +1731,14 @@ function showCoachBlock(username) {
   var blockText = document.getElementById('coachBlockText');
   var loginForm = document.getElementById('loginForm');
   if (loginForm) loginForm.hidden = true;
-  if (blockText) blockText.textContent = 'You are signed in as ' + (username || 'coach') + ' and do not have access to this page.';
+  if (blockText) {
+    blockText.textContent = 'Signed in as ' + (username || 'coach')
+      + ' — taking you to the coach panel…';
+  }
   if (blockMsg)  blockMsg.hidden = false;
+  // Brief pause so the message is readable rather than a flash of a screen
+  // they never asked for.
+  setTimeout(function() { window.location.replace('/coach'); }, 900);
 }
 
 function showChangePassword() {
@@ -1741,6 +1750,10 @@ function showChangePassword() {
   document.getElementById('cpError').hidden = true;
   document.getElementById('cpNewPass1').value = '';
   document.getElementById('cpNewPass2').value = '';
+  // Prefilled, not blank: the point is to SHOW people the name they were given
+  // before asking whether they want to keep it.
+  var uEl = document.getElementById('cpUsername');
+  if (uEl) uEl.value = (currentUsername || '');
 }
 
 async function doLogin(e) {
@@ -1784,7 +1797,7 @@ async function doLogout() {
 
 // Shared helper: validates, POSTs to /api/change-password, calls onSuccess or
 // writes error to errEl. Returns true on success.
-async function submitPasswordChange(p1, p2, errEl, onSuccess) {
+async function submitPasswordChange(p1, p2, errEl, onSuccess, username) {
   errEl.hidden = true;
   if (p1.length < 8) {
     errEl.textContent = 'Password must be at least 8 characters';
@@ -1796,10 +1809,14 @@ async function submitPasswordChange(p1, p2, errEl, onSuccess) {
     errEl.hidden = false;
     return false;
   }
+  var body = { password: p1 };
+  // Only the first-time form sends this; the server rejects it afterwards and
+  // points at Account settings.
+  if (username) body.username = username;
   var r = await apiFetch('/api/change-password', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: p1 })
+    body: JSON.stringify(body)
   });
   if (!r) return false;
   if (!r.ok) {
@@ -1817,13 +1834,17 @@ async function doFirstLoginPasswordChange(e) {
   if (e) e.preventDefault();
   var btn = document.getElementById('cpBtn');
   btn.disabled = true;
+  var uEl = document.getElementById('cpUsername');
+  var newName = uEl ? uEl.value.trim() : '';
   var ok = await submitPasswordChange(
     document.getElementById('cpNewPass1').value,
     document.getElementById('cpNewPass2').value,
     document.getElementById('cpError'),
     function() {
-      showAdmin(document.getElementById('accountUsername').textContent, currentRole, currentTeamName);
-    }
+      if (newName) currentUsername = newName;
+      showAdmin(currentUsername, currentRole, currentTeamName);
+    },
+    newName
   );
   if (!ok) btn.disabled = false;
 }
@@ -3145,22 +3166,9 @@ function removeFavicon() {
 // ── Theme & field color management ─────────────────────────────────────
 var FIELD_DEFAULT_COLORS = ['#0d9488', '#ea580c', '#7c3aed', '#db2777', '#4a90d9'];
 
-// ── Color utilities (mirrored from bracket.js) ─────────────────────────────
-function _hexToHsl(hex) {
-  var r=parseInt(hex.slice(1,3),16)/255, g=parseInt(hex.slice(3,5),16)/255, b=parseInt(hex.slice(5,7),16)/255;
-  var max=Math.max(r,g,b), min=Math.min(r,g,b), l=(max+min)/2, s=0, h=0;
-  if (max!==min) { var d=max-min; s=d/(l>0.5?2-max-min:max+min); if(max===r)h=((g-b)/d+(g<b?6:0))/6; else if(max===g)h=((b-r)/d+2)/6; else h=((r-g)/d+4)/6; }
-  return [h*360, s*100, l*100];
-}
-function _hslToHex(h,s,l) {
-  h/=360; s/=100; l/=100;
-  var r,g,b; if(s===0){r=g=b=l;}else{var q=l<0.5?l*(1+s):l+s-l*s,p=2*l-q; function hue(t){if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p;} r=hue(h+1/3);g=hue(h);b=hue(h-1/3);}
-  return '#'+[r,g,b].map(function(x){return Math.round(x*255).toString(16).padStart(2,'0');}).join('');
-}
-function _lightModeColor(hex) {
-  var hsl = _hexToHsl(hex);
-  return _hslToHex(hsl[0], hsl[1], Math.max(10, hsl[2] - 40));
-}
+// Colour utilities live in theme-css.js — shared with bracket.js AND with the
+// server, which renders the same values into /theme.css. Three copies of the
+// same HSL maths was two too many.
 function applyThemeColors() {
   var root = document.documentElement;
   var tc = _themeColors;
@@ -3189,7 +3197,7 @@ function applyThemeColors() {
       else root.style.removeProperty(prop);
     });
     if (tc[key]) {
-      var lc = _lightModeColor(tc[key]);
+      var lc = ttLightModeColor(tc[key]);
       darkMap[key].forEach(function(prop) { lightRules.push('  ' + prop + ':' + lc + ';'); });
     }
   });
