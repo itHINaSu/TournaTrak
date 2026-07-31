@@ -51,6 +51,7 @@
 .lineup-tools {
   display: flex;
   justify-content: space-between;
+  gap: 0.6em;
   margin-bottom: 0.75em;
 }
 .lineup-tool-btn {
@@ -197,6 +198,15 @@
   padding: 0.4em 0.3em;
   width: 2rem;
 }
+/* The delete cell holds only .roster-del, which already carries its own
+   horizontal padding (0.5rem, a comfortable tap target) — stacking the
+   TD's padding on top of that left no room in the 2rem column, so the
+   button overflowed its own cell by a few px and widened the whole table
+   past its container, forcing a spurious horizontal scrollbar on desktop
+   (owner, 2026-08-02: "don't know why the scroll bar exists on the bottom.
+   This is the roster tab"). Zero the TD's horizontal padding here instead
+   of widening the column — the button was never cramped, just double-padded. */
+.lineup-td-order--del { padding-left: 0; padding-right: 0; }
 .lineup-order {
   font-family: 'Oswald', sans-serif;
   font-size: var(--text-xs);

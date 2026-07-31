@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.12">
-<link rel="stylesheet" href="/admin.css?v=4.12">
-<link rel="stylesheet" href="/lineup.css?v=4.12">
-<link rel="stylesheet" href="/builder.css?v=4.12">
-<link rel="stylesheet" href="/score.css?v=4.12">
-<script src="/app-h.js?v=4.12"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.013">
+<link rel="stylesheet" href="/admin.css?v=4.08.013">
+<link rel="stylesheet" href="/lineup.css?v=4.08.013">
+<link rel="stylesheet" href="/builder.css?v=4.08.013">
+<link rel="stylesheet" href="/score.css?v=4.08.013">
+<script src="/app-h.js?v=4.08.013"></script>
 </head>
 <body>
 
@@ -190,6 +190,12 @@
        now lives in the persistent cluster above instead. -->
   <div class="header-controls" id="headerControls">
     <select class="styled admin-tournament-switcher" id="tournamentSwitcher" data-action-change="switchTournament" hidden title="Active tournament"></select>
+    <!-- INSTALLED APP ONLY (hidden by default, shown once session/isPwa is
+         known). Same control as the public bracket's #refreshBtn (owner,
+         2026-08-02: "the refresh button should be available in coach and
+         admin panel also") — an installed admin panel has no browser reload
+         button either. -->
+    <button class="admin-public-btn" id="refreshBtn" hidden data-action="refreshNow" title="Reload the latest data">Refresh</button>
     <a href="/" class="admin-public-btn" id="viewPublicLink">← Bracket</a>
     <!-- Staff who also coach a team (a TD whose own kid plays, a scorekeeper
          who runs a team) need both panels — coaching and admin/results access
@@ -198,6 +204,15 @@
     <a href="/coach" class="admin-public-btn" id="coachPanelLink" hidden>Coach Panel →</a>
   </div>
 </header>
+
+<!-- Pull-to-refresh indicator. A direct child of <body> and position:fixed,
+     same reasoning as the public bracket page: an ancestor with a
+     transform/filter/contain re-anchors a fixed element. -->
+<div class="ptr-indicator" id="ptrIndicator" aria-hidden="true">
+  <svg class="ptr-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+    <path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v4h-4"/>
+  </svg>
+</div>
 
 <div class="admin-wrap" id="adminWrap" hidden>
 
@@ -995,15 +1010,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.12"></script>
-<script src="/theme-css.js?v=4.12"></script>
-<script src="/tt-common.js?v=4.12"></script>
-<script src="/bracket-data.js?v=4.12"></script>
-<script src="/admin.js?v=4.12"></script>
-<script src="/lineup.js?v=4.12"></script>
-<script src="/score.js?v=4.12"></script>
-<script src="/builder-form.js?v=4.12"></script>
-<script src="/builder.js?v=4.12"></script>
-<script src="/sw-register.js?v=4.12" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.013"></script>
+<script src="/theme-css.js?v=4.08.013"></script>
+<script src="/tt-common.js?v=4.08.013"></script>
+<script src="/bracket-data.js?v=4.08.013"></script>
+<script src="/admin.js?v=4.08.013"></script>
+<script src="/lineup.js?v=4.08.013"></script>
+<script src="/score.js?v=4.08.013"></script>
+<script src="/builder-form.js?v=4.08.013"></script>
+<script src="/builder.js?v=4.08.013"></script>
+<script src="/sw-register.js?v=4.08.013" data-sw="/admin-sw.js"></script>
 </body>
 </html>

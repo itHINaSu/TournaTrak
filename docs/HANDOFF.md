@@ -64,6 +64,30 @@ What "current" means, concretely:
 - prune what is now false. Deleting a stale paragraph is as valuable as adding
   a true one.
 
+## Version stamp format: major.mm.xxx (owner directive, 2026-08-02)
+The `?v=` query string on every asset link/script tag in all six HTML files
+(`index.html`, `admin.html`, `coach.html`, `lineup.html`, `score.html`,
+`builder.html`) and `sw.js`'s `CACHE` constant follow a fixed three-part
+scheme — **not semver**, and not the flat `major.xx` two-part counter used
+earlier in this session (that ran `4.06` → `4.12` before this rule landed):
+
+- **`major`** — bump ONLY when the owner explicitly says so, after a very
+  significant upgrade. Never bump this on your own judgment.
+- **`mm`** — the current CALENDAR MONTH, two digits (`08` for August). Not a
+  semantic "minor version" counter — literally the month.
+- **`xxx`** — three-digit build counter, incremented by one on every landed
+  change within that calendar month (every version bump this session has been
+  one of these). Assumed (not yet confirmed by the owner) to reset to `000`
+  at the start of a new calendar month — revisit if that turns out wrong.
+
+The two-part → three-part changeover point: `4.12` (old scheme) became
+`4.08.013` (new scheme) — the owner's call was to preserve the running build
+count into `xxx` rather than reset it to `000`, with `mm` inserted fresh as
+the actual month. Bump ALL SEVEN files together on every frontend asset
+change, same as before — the version-drift risk this convention exists to
+prevent (a stale cached asset silently serving old code) doesn't care which
+half of the number scheme is in use.
+
 ## EVERY NEW ENTITY GETS A UNIQUE ID (owner directive, 2026-07-30)
 **Anything that is a *thing* in this product — a team, a player, a game, a
 season, a venue, whatever comes next — is created with a hidden, generated
@@ -3744,6 +3768,96 @@ covered it. Verified with Playwright at a 390px viewport: logging in and
 navigating straight to `/admin?tab=settings` (no click involved) opens
 `#settingsSidebar` immediately, and a tap outside it closes it.
 
+## Refresh (button + pull-to-refresh) extended to admin and coach panels (owner, 2026-08-02)
+Owner: *"The refresh button should be available in coach and admin panel
+also."* Confirmed first that it already worked and was already animated on
+the public bracket page (since 2026-07-30, `#refreshBtn` + `#ptrIndicator` +
+`ptrSpin` keyframes) — the gap was that it only existed there. `admin.html`/
+`coach.html` don't load `bracket.js` at all (only `bracket-data.js`, the
+schema/model, not the rendering+gesture file), so there was nothing to reuse
+without moving it.
+
+Moved the shared parts out of `bracket.js` into `tt-common.js` (loaded by
+all three panels already) as `ttSetupRefresh(reloadFn)`: the spin/settle
+animation wiring, the touch gesture (`ptrScroller`/`ptrDraw`/`ptrReset`/
+`ptrEnd`, all unchanged from the original), and the fire-and-forget
+`ttCheckForAppUpdate()`. Each page passes its OWN "go reload the data"
+function — the one thing that's genuinely different per page:
+- `bracket.js`: `ttSetupRefresh(fetchAll)` — its existing `fetchAll`, same
+  as before the move, just called through the shared wrapper now.
+- `admin.js`: `ttSetupRefresh(fetchAll)` too, called from `showAdmin()`
+  alongside the existing `refreshBtn.hidden = !ttIsPwa()` gating (new
+  `ttIsPwa()` helper in tt-common.js, same `matchMedia('(display-mode:
+  standalone)')` check bracket.js's init block already did).
+- `coach.js`: no single "reload the current tab's data" entry point exists
+  there — each tab (Lineups/Roster/Team) lazy-inits its own DOM listeners on
+  first open (`lineupInit()`, `initRosterTab()`, `initTeamTab()`), and
+  re-running any of those to "refresh" would double-bind them. Passed
+  `function(){ location.reload(); return new Promise(function(){}); }`
+  instead — a full reload is the safe equivalent of the browser's own
+  reload button an installed app doesn't have, with no risk of listener
+  duplication. The never-resolving promise is deliberate: the page is
+  navigating away, so `ttRefreshNow`'s `finally` block (which would otherwise
+  clear the spin class and check for an app update) never needs to run.
+
+`.ptr-indicator`/`.ptr-spinner`/`@keyframes ptrSpin`/`#refreshBtn.is-
+refreshing` moved from `bracket.css` to `base.css` for the same reason —
+admin/coach don't load bracket.css. Markup added: `#refreshBtn` in
+`headerControls` (admin: after the tournament switcher, before ← Bracket —
+coach: after Sign Out, before ← Bracket — both "context action for this
+page" category, same as the Header menu order note's placement of Sign Out)
+and `#ptrIndicator` as a body-level child on both `admin.html`/`coach.html`.
+
+Verified against the demo: `#refreshBtn`/`#ptrIndicator` exist on both pages;
+force-showing and clicking `#refreshBtn` on admin fires the same 10 scoped
+`/api/t/main/...` requests `fetchAll()` always made; simulating an armed
+pull (`window._ptr = {armed:true}; ptrEnd();`) spins the indicator
+immediately and settles it ~600ms later on admin, and reloads the page on
+coach (`framenavigated` fired). No regressions to the original bracket.js
+behavior — it's the exact same functions, just relocated and parameterized.
+
+## Roster: a scroll bar for 4px of unwanted overflow (owner, 2026-08-02) — regression fix
+Owner: *"Don't know why the scroll bar exists on the bottom. This is the
+roster tab."* `.lineup-form-wrap { overflow-x: auto; }` was showing a
+horizontal scrollbar on desktop even though nothing visible was cut off.
+Measured `#tab-roster .lineup-table`'s `scrollWidth` vs `clientWidth`
+directly: exactly 4px of overflow, and the delete-column's `.roster-del`
+button's own `getBoundingClientRect()` extended past its `<td>`'s right edge
+by the same ~3.5px.
+
+Root cause: `.lineup-td-order` (shared by the leading row-number cell and,
+via the `--del` modifier, the trailing delete-button cell) carries
+`padding: 0.4em 0.3em`. The delete cell's ONLY content, `.roster-del`,
+already has its own comfortable tap-target padding (`0.35rem 0.5rem`) — so
+inside a fixed 2rem column, the TD's padding and the button's padding were
+BOTH claiming space, leaving less room than the button actually needed and
+pushing it past the cell boundary. Table cells don't clip overflowing
+children by default, so that overflow widened `.lineup-table`'s own
+`scrollWidth` past its container, which is what triggered the scrollbar.
+
+Fix: `.lineup-td-order--del { padding-left: 0; padding-right: 0; }` — removes
+the redundant TD padding rather than widening the column (the button was
+never cramped, just double-padded). Scoped to the modifier class only, so
+the row-number cell (which also uses `.lineup-td-order` but never gets the
+`--del` modifier) is untouched. Verified: `scrollWidth`/`clientWidth`
+overflow is 0 on `.lineup-form-wrap` and `.lineup-table` after the fix,
+across all five roster columns; the ✕ button still renders and still
+excludes itself from the layout under `@media (pointer:coarse)` exactly as
+before.
+
+## Lineup toolbar: Import/Clear had no gap (owner, 2026-08-02) — regression fix
+Owner: *"Need some spacing around the clear button."* `.lineup-tools {
+display:flex; justify-content:space-between; }` had no explicit `gap`. With
+three buttons (Import, Clear, Reorder) and Reorder carrying
+`.lineup-tool-btn--right { margin-left:auto; }`, the auto margin ate ALL the
+flex container's free space for itself — auto margins are satisfied before
+`justify-content` distributes anything — leaving zero space for
+`space-between` to put between Import and Clear, so they rendered flush
+against each other. Added `gap: 0.6em` to `.lineup-tools`, which guarantees
+a minimum gap between every pair of items regardless of how the auto-margin/
+space-between interaction plays out. Verified with a screenshot at a 390px
+viewport — all three buttons now have visible breathing room.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an
@@ -3800,13 +3914,14 @@ flex column, so reordering means reordering the markup, not touching JS):
   since they're mutually exclusive states), minus a link to this page
   (there isn't one) — then **Dark Mode last, always**.
 - **`admin.html`:** tournament switcher (a utility control, not a
-  destination — stays first), **← Bracket**, **Coach Panel** (only if this
+  destination — stays first), **Refresh** (added 2026-08-02, installed-app-
+  only like the public page's), **← Bracket**, **Coach Panel** (only if this
   account has a team grant), **Dark Mode last**. No Admin Panel link — this
   IS admin panel.
 - **`coach.html`:** Sign Out (a context action tied to being on this page,
-  same category as Refresh above — stays first), **← Bracket**, **Admin
-  Panel** (only for admin/results roles), **Dark Mode last**. No Coach
-  Panel link — this IS coach panel.
+  same category as Refresh — stays first), **Refresh** (added 2026-08-02,
+  same rule), **← Bracket**, **Admin Panel** (only for admin/results roles),
+  **Dark Mode last**. No Coach Panel link — this IS coach panel.
 
 The general rule those three follow — owner: **"Bracket, Coach, Admin
 whatever a user has access to, all buttons except the page they're on"** —
