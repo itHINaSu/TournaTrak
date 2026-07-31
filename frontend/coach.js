@@ -11,6 +11,15 @@
 
 var _coachSession = null;
 
+// Tells lineup.js which host it's in. Staff (admin/results) keep their full
+// editing privileges here — skip the required-field check, edit any unplayed
+// game, not just the next one — but the TEAM LIST is scoped to what THIS
+// account actually coaches, the same as a real coach sees. Owner: "that
+// lineup tab should only have access to the assigned team(s) lineups in the
+// coaches panel." An admin poking around /coach is still an admin, just
+// looking at their own team(s) here instead of every team.
+window._lineupCoachPanelHost = true;
+
 function coachApiBase() {
   // Same tournament scoping the lineup page uses: ?t=<slug> follows a coach to
   // the tournament their grant is in, and the default tournament needs none.
@@ -41,6 +50,10 @@ function showCoachPanel(session) {
   if (userEl) userEl.textContent = session.username || '—';
   var unameEl = document.getElementById('coachSetUsername');
   if (unameEl) unameEl.value = session.username || '';
+  // Staff who reach the coach panel — coaching a team themselves, or just
+  // checking what a coach sees — need a way back to the admin panel too.
+  var adminLinkEl = document.getElementById('adminPanelLink');
+  if (adminLinkEl) adminLinkEl.hidden = !(session.role === 'admin' || session.role === 'results');
   updateHeaderMenu();
 }
 

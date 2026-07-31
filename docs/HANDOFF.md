@@ -2609,6 +2609,14 @@ Three ids are standalone-only **by design** and should stay that way:
 `lineupInvalidBody` (the coach sign-in gate, unreachable when you are already
 signed in as staff). Everything else should exist in both.
 
+The three hosts also now BEHAVE differently for the same staff account, on
+purpose: `window._lineupCoachPanelHost` (set by `coach.js`, absent in the
+other two) narrows the coach panel's team picker to what that account
+actually coaches, while leaving every other admin privilege (editing power,
+skipped validation) untouched. See "Coach panel Lineups tab: staff now see
+only their OWN team(s)" below for the full reasoning — worth reading before
+adding a fourth host or a fourth admin-gated behavior to this file.
+
 ## The coach panel (`/coach`) — 2026-07-30
 
 Coaches used to have exactly one screen: `lineup.html`, reached through a magic
@@ -2980,6 +2988,103 @@ that's the literal contract the header menu is built on. Watch for shared
 test-fixture pollution here: `loginAdmin()`'s account picks up a real team
 grant from the team-link-claim tests earlier in the file, so "an admin with
 no team" needs a freshly created account, not the shared one.
+
+### Follow-up, same day: the reverse link, team-scoped lineups, and a plain-text theme toggle (2026-07-31)
+Three more owner requests landed on top of the above in the same session.
+
+**The reverse link.** *"If in admin panel with coach access coach panel
+should appear in that menu too"* — already true by the time it was asked
+(the section above covers it); re-verified after the other two changes below
+in case anything nearby broke it. It didn't.
+
+**`#adminPanelLink` — the coach panel's own hamburger had no way back to
+`/admin`.** Owner: *"the admin panel should appear in the hamburger menu if
+an admin/coach combo is in the coach panel tab."* Added to `coach.html`'s
+`#headerControls`, last position, same convention as everywhere else. Shown
+in `coach.js`'s `showCoachPanel(session)` for `session.role === 'admin' ||
+'results'` — that function already runs with a fresh, authoritative session
+object every time the panel opens (it's the direct response from
+`initCoachPanel()`'s own `/session` fetch, not a cached field), so this one
+does NOT have the login-response staleness trap the admin-panel-side link
+has. Unscoped (`href="/admin"`, no `?t=`) — `admin.js` resolves its active
+tournament from `localStorage` (`getAdminSlug()`), not a URL param, so a
+query string here would do nothing; matches how the coach panel's existing
+"← Bracket" link is *also* unscoped.
+
+**Coach panel Lineups tab: staff now see only their OWN team(s), not every
+team.** Owner: *"If an admin with lineup permissions enters the coaches
+panel, that lineup tab should only have access to the assigned team(s)
+lineups in the coaches panel."* Before this, `lineup.js` decided the team
+picker's contents from `isAdmin` alone (`session.role === 'admin' ||
+'results'`) — true regardless of which of its three hosts it was running in
+(see "lineup.js has THREE hosts"), so a staff member landed on `/admin`'s
+Lineups tab and `/coach`'s Lineups tab and got the SAME "every team in the
+schedule" dropdown both times. `coach.js` now sets `window
+._lineupCoachPanelHost = true` (a top-level statement, so it's set before
+ANY of the three `lineupInit()` call sites in `coach.js` can run); `lineup.js`
+reads it into a NEW, narrower flag — `teamListUnrestricted = isAdmin &&
+!window._lineupCoachPanelHost` — and uses THAT (not `isAdmin`) for exactly
+three things: which teams populate `#lineupTeamSel`, the "All Teams" header
+text, and whether the team-picker half of the row is worth showing.
+
+**`isAdmin` itself is UNCHANGED**, deliberately — staff keep every other
+admin privilege inside the coach panel: `isSlotEditable()` still lets them
+edit ANY unplayed game for whichever team they select, not just the next one
+in order, and `submitLineup()` still skips the required-field check that
+applies to a real coach. Only the TEAM LIST is scoped down; editing power
+once a team is picked is not. Do not "simplify" this by just flipping
+`isAdmin` itself based on host — that was tried first here and it silently
+started enforcing the required-field check and the next-game-only rule on
+staff too, which nobody asked for and which broke the "TD fills in what a
+coach phoned through" workflow this whole area exists for.
+
+**This is a FRONTEND-ONLY restriction — nothing changed server-side.**
+`requireLineupAccess` in server.js still lets any admin/results account read
+or write ANY team's lineup; that was true before this change and is still
+true after it. The coach panel simply doesn't OFFER the other teams in its
+own dropdown. If someone ever needs this enforced as an actual access
+boundary (not just what the coach panel's UI offers), that's server-side
+work this change does not do.
+
+Verified with `demo` (admin) granted only Northside Eagles: `/coach`'s
+Lineups tab shows exactly `["Northside Eagles"]` in the picker and the team
+header reads "Northside Eagles", not "All Teams"; the SAME account's
+`/admin` Lineups tab, same login, still lists all 8 scheduled teams and
+still says "All Teams" — confirms the scoping is genuinely host-keyed, not
+account-keyed. `coach_lopez` (pure coach, no staff role) unaffected — still
+sees just their own team, exactly as before this change (nothing here alters
+behavior for role `team`, since `teamListUnrestricted` was already `false`
+for that role regardless of host).
+
+**The theme toggle is text now, not an icon**, and uses the same
+`.admin-public-btn` class as every other header button — CSS class swapped
+in all five HTML files' `#themeToggle`, the now-empty `.theme-toggle` rule
+deleted from `base.css` (including its own `pointer: coarse` touch-target
+override, now redundant with `.admin-public-btn`'s). Owner: *"modify the
+dark/light mode button so it matches the theme and style of the other
+buttons in the menu. Use text and not an image. I know previously I said one
+thing, but things change."* The "previously" is real and still in the repo's
+own history: a comment right above this code explicitly justified icon-only
+(`☀`/`🌙`) because *"a text label reading 'Light'/'Dark' was ambiguous
+(current state vs switch-to target)."* That ambiguity is still real — don't
+just slap "Light"/"Dark" back on and call it done. The label now names the
+mode TAPPING GETS YOU, not the current one (`'Dark Mode'` while light,
+`'Light Mode'` while dark), which resolves the same ambiguity the icon used
+to resolve, in text, and reads the same way the other destination-style
+menu items already do (`'Coach Panel →'`, `'Sign in'`). Toggle logic itself
+(the `applyLight()` IIFE in `tt-common.js`) is otherwise unchanged.
+
+Testing note for whoever touches any of these three next: **the browser
+harness's `/`, `/admin` and `/coach` HTML is API-rendered and cached**
+(`_indexHtmlCache` / `_panelHtmlCache` — see "`/admin` and `/coach` are
+PROXIED"). Editing the HTML/CSS files on disk while `docs/agent-demo/setup.sh`'s
+API process is already running changes NOTHING until it restarts — this cost
+real time here: the JS-driven half of the theme-toggle change (its text)
+updated live because `.js` files are served fresh off disk by the harness's
+proxy, while the HTML-driven half (its CSS class) silently kept serving the
+OLD markup until the API was killed and restarted against the same
+database. If a change to any `.html` file "isn't showing up" in the demo,
+restart the API before you start doubting the edit.
 
 ## First password set can also claim a username (2026-07-30)
 Owner: "far too many people create a password and never know their username."

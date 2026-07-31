@@ -200,21 +200,10 @@ body {
      height. --logo-h-sm is the same scale one notch down. */
   .site-logo { height: var(--logo-h-sm, 2.8em); max-width: var(--logo-maxw-sm, 6.5em); }
 }
-.theme-toggle {
-  background: none;
-  border: 0.07em solid var(--border);
-  border-radius: 2em;
-  padding: 0.35em 0.9em;
-  cursor: pointer;
-  font-size: 0.82rem;
-  color: var(--text-dim);
-  min-height: 2.5em;
-  touch-action: manipulation;
-}
-.theme-toggle:hover,
-.theme-toggle:active { color: var(--text); }
-
-/* Cross-app toggle button (admin ↔ public) — shared by all pages */
+/* Cross-app toggle button (admin ↔ public) — shared by all pages. The theme
+   toggle uses this too now (owner, 2026-07-31: match the other menu
+   buttons, text not an icon) — its own .theme-toggle rules are gone, not
+   just unused; nothing references that class anymore. */
 .admin-public-btn {
   font-family: 'Oswald', sans-serif;
   font-size: var(--btn-font-size);
@@ -291,7 +280,6 @@ select:focus-visible,
 
 /* ── Touch target sizing (coarse pointer = touchscreen) ── */
 @media (pointer: coarse) {
-  .theme-toggle    { min-height: 2.75rem; min-width: 2.75rem; }
   .admin-public-btn { min-height: 2.75rem; }
 }
 
