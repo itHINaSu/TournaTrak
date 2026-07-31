@@ -3669,8 +3669,8 @@ identically to "the team picked grey," not "nothing's picked yet."
 Added a `.color-swatch` wrapper (`admin.css`) around just the `<input
 type="color">` — not the whole `<label>`, so the X doesn't smear across the
 field's text/button too — with a `.color-swatch--unset` modifier that draws
-a red X as two rotated `::before`/`::after` bars using `var(--lose-color)`.
-Applied everywhere a team color swatch exists:
+a red X using `var(--lose-color)`. Applied everywhere a team color swatch
+exists:
 - **Coach Team tab** (`coach.html`/`coach.js`): all 4 swatches (primary,
   secondary, text, outline). `teamTabSyncColor()` already runs on every
   load/change/clear, so it's the one place that toggles the class — same
@@ -3687,6 +3687,20 @@ Verified via Playwright: fresh coach Team tab shows all 4 swatches red-X'd
 `input` event clears the X, clicking its Clear button restores it; admin's
 Teams editor shows the X on every seeded team's primary/secondary swatch
 (same reason — the demo seed doesn't set team colors).
+
+**Follow-up correction, same day:** the first pass drew the X as two bars
+rotated `±45deg` via `::before`/`::after`. Owner: *"That red x looks like
+shit. It should go from corner to corner in the selector box and should not
+extend past the edges of the box."* A fixed 45° rotation only lands on the
+actual corners when the box is square — none of these swatches are (3rem ×
+2.4rem, 2.2rem × 1.8rem) — so the bars either fell short of the corners or
+overshot the edges depending on aspect ratio. Replaced both pseudo-elements
+with a single `::after` using two stacked `linear-gradient(to top
+right/bottom right, ...)` layers instead: those keywords compute the true
+corner-to-corner angle from the box's own rendered aspect ratio, and a
+background layer is clipped to the element by definition, so it can never
+extend past the edges. Re-verified with a zoomed screenshot of the coach
+Team tab's two color swatches — the X now meets all four corners exactly.
 
 ## Settings sidebar now auto-opens on a direct/deep-link entry, not just a click (owner, 2026-08-02)
 Owner: *"When entering the admin panel from another page, if coming to the

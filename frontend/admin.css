@@ -1298,25 +1298,27 @@ input[type="time"]:focus {
 }
 /* Wraps just the <input type="color">, sized to it via inline-block content
    sizing (owner, 2026-08-02: "if a team hasn't selected a color... place a
-   small red x through the box to indicate a selection hasn't been made") —
-   the X is two rotated bars, not a real 'x' glyph, so it scales with the
-   swatch instead of needing its own font-size tuned per usage. Sits on both
-   the coach Team tab's swatches (.team-tab-color-field) and admin's Teams
-   editor (.team-ed-color-field), which share this CSS file. */
+   small red x through the box to indicate a selection hasn't been made" —
+   then, on a first pass using rotate(45deg) bars: "it should go from corner
+   to corner in the selector box and should not extend past the edges").
+   A fixed-angle rotated bar only lines up with the actual corners when the
+   box happens to be square, and every swatch here isn't (3rem x 2.4rem,
+   2.2rem x 1.8rem) — linear-gradient's "to top right"/"to bottom right"
+   keywords compute the TRUE corner-to-corner angle from the box's own
+   rendered aspect ratio, and a background layer is clipped to the box by
+   definition, so the line can never overshoot it. Sits on both the coach
+   Team tab's swatches (.team-tab-color-field) and admin's Teams editor
+   (.team-ed-color-field), which share this CSS file. */
 .color-swatch { position: relative; display: inline-block; line-height: 0; }
-.color-swatch--unset::before,
 .color-swatch--unset::after {
   content: '';
   position: absolute;
-  left: 12%;
-  right: 12%;
-  top: calc(50% - 0.06em);
-  height: 0.12em;
-  background: var(--lose-color);
+  inset: 0;
   pointer-events: none;
+  background:
+    linear-gradient(to top right, transparent calc(50% - 1px), var(--lose-color) calc(50% - 1px), var(--lose-color) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(to bottom right, transparent calc(50% - 1px), var(--lose-color) calc(50% - 1px), var(--lose-color) calc(50% + 1px), transparent calc(50% + 1px));
 }
-.color-swatch--unset::before { transform: rotate(45deg); }
-.color-swatch--unset::after  { transform: rotate(-45deg); }
 .team-tab-style-row { display: flex; gap: 1em; margin-bottom: 0.6em; }
 .team-tab-style-opt {
   display: flex;
