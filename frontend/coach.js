@@ -580,20 +580,35 @@ function teamTabPatternScaleValue() {
   var el = document.getElementById('teamTabPatternScale');
   return el ? Number(el.value) : 28;
 }
+function teamTabGradientBalanceValue() {
+  var el = document.getElementById('teamTabGradientBalance');
+  return el ? Number(el.value) : 50;
+}
 // Each slider only means something for its own style(s) — hide the rest so
 // they don't look like controls that do nothing (owner, 2026-08-02: "for
 // stripes the width of the stripes, and the spacing between stripes should
-// be modifiable").
+// be modifiable" / "Any thing with a line of any kind needs line(s) width
+// plus spacing" / "add a slider for the gradient on top of the angle").
+// Stripe width and pattern scale are RELABELED per style rather than given
+// separate honeycomb-only sliders — "Line width"/"Hex size" for honeycomb,
+// "Stripe width"/"Pattern size" for stripes — since they're the same two
+// underlying fields (brandStripeWidth/brandPatternScale) either way.
 function teamTabSyncStyleRow() {
   var style = teamTabStyleValue();
   var angleRow = document.getElementById('teamTabAngleRow');
-  if (angleRow) angleRow.hidden = (style === 'solid' || style === 'chevron' || style === 'dots');
+  if (angleRow) angleRow.hidden = (style !== 'gradient' && style !== 'stripes');
+  var balanceRow = document.getElementById('teamTabGradientBalanceRow');
+  if (balanceRow) balanceRow.hidden = style !== 'gradient';
   var stripeWidthRow = document.getElementById('teamTabStripeWidthRow');
   var stripeGapRow = document.getElementById('teamTabStripeGapRow');
-  if (stripeWidthRow) stripeWidthRow.hidden = style !== 'stripes';
+  if (stripeWidthRow) stripeWidthRow.hidden = (style !== 'stripes' && style !== 'honeycomb');
   if (stripeGapRow) stripeGapRow.hidden = style !== 'stripes';
+  var widthLabel = document.getElementById('teamTabStripeWidthLabel');
+  if (widthLabel) widthLabel.textContent = style === 'honeycomb' ? 'Line width' : 'Stripe width';
   var scaleRow = document.getElementById('teamTabPatternScaleRow');
-  if (scaleRow) scaleRow.hidden = (style !== 'chevron' && style !== 'dots');
+  if (scaleRow) scaleRow.hidden = style !== 'honeycomb';
+  var scaleLabel = document.getElementById('teamTabPatternScaleLabel');
+  if (scaleLabel) scaleLabel.textContent = style === 'honeycomb' ? 'Hex size' : 'Pattern size';
   teamTabUpdatePreview();
 }
 
@@ -611,7 +626,8 @@ function teamTabUpdatePreview() {
   if (!hasAnything) return;
   banner.style.cssText = teamBrandBannerCss(primary, secondary,
     teamTabStyleValue(), teamTabAngleValue(), _teamTabColors.brandTextColor, _teamTabColors.brandNameOutlineColor,
-    { stripeWidth: teamTabStripeWidthValue(), stripeGap: teamTabStripeGapValue(), patternScale: teamTabPatternScaleValue() });
+    { stripeWidth: teamTabStripeWidthValue(), stripeGap: teamTabStripeGapValue(), patternScale: teamTabPatternScaleValue(),
+      gradientBalance: teamTabGradientBalanceValue() });
   if (logoImg) {
     if (logo) { logoImg.src = logo; logoImg.hidden = false; }
     else { logoImg.removeAttribute('src'); logoImg.hidden = true; }
@@ -659,6 +675,8 @@ async function loadTeamTab(team) {
   if (stripeGapEl) stripeGapEl.value = (rec && typeof rec.brandStripeGap === 'number') ? rec.brandStripeGap : 14;
   var scaleEl = document.getElementById('teamTabPatternScale');
   if (scaleEl) scaleEl.value = (rec && typeof rec.brandPatternScale === 'number') ? rec.brandPatternScale : 28;
+  var balanceEl = document.getElementById('teamTabGradientBalance');
+  if (balanceEl) balanceEl.value = (rec && typeof rec.brandGradientBalance === 'number') ? rec.brandGradientBalance : 50;
   teamTabSyncStyleRow();
   // Staff viewing the coach panel (checking what a coach sees, or coaching
   // themselves) are never locked out — only a genuine coach session is.
@@ -719,6 +737,7 @@ async function saveTeamProfile() {
   body.brandStripeWidth = teamTabStripeWidthValue();
   body.brandStripeGap = teamTabStripeGapValue();
   body.brandPatternScale = teamTabPatternScaleValue();
+  body.brandGradientBalance = teamTabGradientBalanceValue();
   var r = await fetch(coachApiBase() + '/team-profile/' + encodeURIComponent(_teamTabTeam), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -753,6 +772,8 @@ async function saveTeamProfile() {
     if (stripeGapEl) stripeGapEl.value = typeof data.team.brandStripeGap === 'number' ? data.team.brandStripeGap : 14;
     var scaleEl = document.getElementById('teamTabPatternScale');
     if (scaleEl) scaleEl.value = typeof data.team.brandPatternScale === 'number' ? data.team.brandPatternScale : 28;
+    var balanceEl = document.getElementById('teamTabGradientBalance');
+    if (balanceEl) balanceEl.value = typeof data.team.brandGradientBalance === 'number' ? data.team.brandGradientBalance : 50;
     teamTabSyncStyleRow();
   }
 }
@@ -802,6 +823,8 @@ async function initTeamTab() {
   if (stripeGapEl) stripeGapEl.addEventListener('input', teamTabUpdatePreview);
   var scaleEl = document.getElementById('teamTabPatternScale');
   if (scaleEl) scaleEl.addEventListener('input', teamTabUpdatePreview);
+  var balanceEl = document.getElementById('teamTabGradientBalance');
+  if (balanceEl) balanceEl.addEventListener('input', teamTabUpdatePreview);
   var displayEl = document.getElementById('teamTabDisplay');
   if (displayEl) displayEl.addEventListener('input', teamTabUpdatePreview);
   await loadTeamTab(teams[0] || null);

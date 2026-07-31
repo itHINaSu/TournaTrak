@@ -780,6 +780,52 @@ function ttApplyLogoScale(scale) {
 // setting it on the banner reaches .team-brand-name without a second
 // selector; the fixed width keeps this "add an outline", not a second
 // tunable nobody asked for.
+// Flat-top hexagon honeycomb, built as a tileable inline SVG (not a CSS
+// gradient hack) — owner, 2026-08-02: "The dots and chevron are exactly what
+// i wanted to avoid, how about a concrete texture, a honeycomb option?" A
+// stroked hex path is exact and trivially parameterized by line width + hex
+// size, where the CSS-gradient "Hexagons" recipe this replaced (six
+// overlapping linear-gradients, a pattern commonly circulated in CSS
+// galleries) proved fragile — it rendered as a diamond/herringbone weave,
+// not hexagons, when actually tested — and still would have needed the same
+// width/spacing controls bolted on afterward.
+//
+// Geometry: a flat-top hex of side `s` has width 2s, height sqrt(3)*s.
+// Centers in the same row are 1.5s apart; rows are sqrt(3)*s apart, with
+// alternating columns offset by half that. The smallest rectangle that tiles
+// seamlessly under plain translation is (3s) x (sqrt(3)*s) — two hex centers
+// wide, one row tall. Hexagons are drawn over a wider/taller virtual area
+// (columns -1..3, rows -1..2) so every hex whose edges could cross that
+// tile's boundary still draws its full outline — SVG doesn't clip drawing by
+// default, and the outer <svg> width/height crops the rest to exactly one
+// repeat unit. Verified by rendering before wiring in (a standalone prototype
+// tiled seamlessly on the first real attempt, unlike the gradient version).
+function ttHexPoints(cx, cy, s) {
+  var pts = [];
+  for (var i = 0; i < 6; i++) {
+    var angle = Math.PI / 180 * (60 * i);
+    pts.push((cx + s * Math.cos(angle)).toFixed(2) + ',' + (cy + s * Math.sin(angle)).toFixed(2));
+  }
+  return pts.join(' ');
+}
+function ttHoneycombBg(primary, secondary, hexSize, lineWidth) {
+  var s = hexSize, tileW = 3 * s, tileH = Math.sqrt(3) * s;
+  var rowH = tileH, colW = 1.5 * s;
+  var polys = [];
+  for (var col = -1; col <= 3; col++) {
+    var cx = col * colW;
+    var colOffset = (((col % 2) + 2) % 2) === 1 ? rowH / 2 : 0;
+    for (var row = -1; row <= 2; row++) {
+      polys.push('<polygon points="' + ttHexPoints(cx, row * rowH + colOffset, s) + '"/>');
+    }
+  }
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + tileW + '" height="' + tileH + '" viewBox="0 0 ' + tileW + ' ' + tileH + '">'
+    + '<rect width="100%" height="100%" fill="' + secondary + '"/>'
+    + '<g fill="none" stroke="' + primary + '" stroke-width="' + lineWidth + '">' + polys.join('') + '</g></svg>';
+  var uri = 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  return 'background-image: url("' + uri + '"); background-repeat: repeat; background-size: ' + tileW + 'px ' + tileH + 'px;';
+}
+
 function teamBrandBannerCss(primary, secondary, style, angle, textColor, outlineColor, extra) {
   var p = primary || secondary || '#4a4a4a';
   var s = secondary || primary || '#4a4a4a';
@@ -788,47 +834,25 @@ function teamBrandBannerCss(primary, secondary, style, angle, textColor, outline
   var stripeW = (typeof e.stripeWidth === 'number' && e.stripeWidth > 0) ? e.stripeWidth : 14;
   var stripeG = (typeof e.stripeGap === 'number' && e.stripeGap > 0) ? e.stripeGap : 14;
   var scale   = (typeof e.patternScale === 'number' && e.patternScale > 0) ? e.patternScale : 28;
+  // "one side, center, other side" (owner, 2026-08-02) — a CSS gradient
+  // color HINT between the two stops, not a stop position: 50 (default) is
+  // the neutral midpoint (identical to no hint at all, today's behavior);
+  // lower shifts the 50/50 blend earlier (toward primary), higher shifts it
+  // later (toward secondary) — the whole span still runs edge to edge.
+  var balance = (typeof e.gradientBalance === 'number' && e.gradientBalance >= 0 && e.gradientBalance <= 100) ? e.gradientBalance : 50;
   var css;
   if (style === 'solid') {
     css = 'background: ' + p + ';';
   } else if (style === 'stripes') {
     css = 'background: repeating-linear-gradient(' + a + 'deg, ' + p + ' 0, ' + p + ' ' + stripeW + 'px, '
       + s + ' ' + stripeW + 'px, ' + s + ' ' + (stripeW + stripeG) + 'px);';
-  } else if (style === 'chevron') {
-    // Classic four-corner-wedge zigzag: each gradient paints a hard-edged
-    // triangular wedge into ONE corner of its tile (a two-stop gradient
-    // that goes straight from color to transparent at the same 25% offset,
-    // no soft band), and the four corners/angles interlock into a
-    // herringbone "V" when tiled — this exact recipe is a well-known CSS
-    // pattern, not derived from scratch. Angle isn't tunable here (a
-    // chevron only reads correctly at these four angles); patternScale
-    // controls how big each zigzag repeat is.
-    //
-    // Per-layer position/size ("pos/size" after each gradient) is only
-    // valid inside the full `background` SHORTHAND — an earlier version
-    // wrote it into `background-image` alone, which is invalid CSS and
-    // silently drops the WHOLE declaration; every chevron rendered as a
-    // flat solid color with no pattern, caught only by rendering a test
-    // page rather than trusting the code by eye. A second attempt fixed
-    // the shorthand but used soft 25%-75% bands with two angles instead of
-    // four hard corners, which fully self-overlapped into another solid
-    // block — worth recording so a future edit doesn't repeat either one.
-    var half = scale / 2;
-    css = 'background: '
-      + 'linear-gradient(135deg, ' + p + ' 25%, transparent 25%) -' + half + 'px 0/' + scale + 'px ' + scale + 'px,'
-      + 'linear-gradient(225deg, ' + p + ' 25%, transparent 25%) -' + half + 'px 0/' + scale + 'px ' + scale + 'px,'
-      + 'linear-gradient(315deg, ' + p + ' 25%, transparent 25%) 0 0/' + scale + 'px ' + scale + 'px,'
-      + 'linear-gradient(45deg, ' + p + ' 25%, transparent 25%) 0 0/' + scale + 'px ' + scale + 'px,'
-      + s + ';';
-  } else if (style === 'dots') {
-    // A halftone/polka dot grid — patternScale is the grid pitch, so a
-    // small scale reads as tight halftone dots and a large one as bold
-    // sport-ball-style spots.
-    css = 'background-color: ' + s + '; '
-      + 'background-image: radial-gradient(circle, ' + p + ' 38%, transparent 40%); '
-      + 'background-size: ' + scale + 'px ' + scale + 'px;';
+  } else if (style === 'honeycomb') {
+    // patternScale doubles as the hex "size" (side length) here — same
+    // slider the old chevron/dots patterns used for their own repeat scale,
+    // so no new UI concept is needed, just a relabel per style.
+    css = ttHoneycombBg(p, s, scale, stripeW);
   } else {
-    css = 'background: linear-gradient(' + a + 'deg, ' + p + ' 0%, ' + s + ' 100%);';
+    css = 'background: linear-gradient(' + a + 'deg, ' + p + ' 0%, ' + balance + '%, ' + s + ' 100%);';
   }
   if (textColor) css += ' color: ' + textColor + ';';
   // Was -webkit-text-stroke, which paints CENTERED on the glyph's own

@@ -104,6 +104,7 @@ function rebuildTeamLabels() {
         brandStripeWidth: typeof t.brandStripeWidth === 'number' ? t.brandStripeWidth : null,
         brandStripeGap: typeof t.brandStripeGap === 'number' ? t.brandStripeGap : null,
         brandPatternScale: typeof t.brandPatternScale === 'number' ? t.brandPatternScale : null,
+        brandGradientBalance: typeof t.brandGradientBalance === 'number' ? t.brandGradientBalance : null,
         brandTextColor: t.brandTextColor || null,
         brandNameOutlineColor: t.brandNameOutlineColor || null,
       };
@@ -6141,7 +6142,8 @@ function renderTeamViewInner(realResults){
           var css = branded
             ? teamBrandBannerCss(brand.primaryColor, brand.secondaryColor,
                 brand.brandStyle, brand.brandAngle, brand.brandTextColor, brand.brandNameOutlineColor,
-                { stripeWidth: brand.brandStripeWidth, stripeGap: brand.brandStripeGap, patternScale: brand.brandPatternScale })
+                { stripeWidth: brand.brandStripeWidth, stripeGap: brand.brandStripeGap, patternScale: brand.brandPatternScale,
+                  gradientBalance: brand.brandGradientBalance })
             : '';
           return '<button class="team-chip' + (elim ? ' elim' : '') + (branded ? ' team-chip--branded' : '') + '"'
             + (css ? ' data-css="' + esc(css) + '"' : '')
@@ -6197,7 +6199,8 @@ function renderTeamViewInner(realResults){
     html += '<div class="team-brand-banner" data-css="'
       + esc(teamBrandBannerCss(brand.primaryColor, brand.secondaryColor,
           brand.brandStyle, brand.brandAngle, brand.brandTextColor, brand.brandNameOutlineColor,
-          { stripeWidth: brand.brandStripeWidth, stripeGap: brand.brandStripeGap, patternScale: brand.brandPatternScale })) + '">'
+          { stripeWidth: brand.brandStripeWidth, stripeGap: brand.brandStripeGap, patternScale: brand.brandPatternScale,
+            gradientBalance: brand.brandGradientBalance })) + '">'
       + '<span class="team-brand-name">' + esc(teamLabel(team)) + '</span>'
       + (brand.logoUrl ? '<img class="team-brand-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
       + '</div>';

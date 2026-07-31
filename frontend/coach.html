@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=4.08.020">
-<link rel="stylesheet" href="/admin.css?v=4.08.020">
-<link rel="stylesheet" href="/lineup.css?v=4.08.020">
-<script src="/app-h.js?v=4.08.020"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.021">
+<link rel="stylesheet" href="/admin.css?v=4.08.021">
+<link rel="stylesheet" href="/lineup.css?v=4.08.021">
+<script src="/app-h.js?v=4.08.021"></script>
 </head>
 <body>
 
@@ -414,32 +414,35 @@
                 <span>Stripes</span>
               </label>
               <label class="team-tab-style-opt">
-                <input type="radio" name="teamTabBrandStyle" value="chevron" id="teamTabStyleChevron">
-                <span>Chevron</span>
-              </label>
-              <label class="team-tab-style-opt">
-                <input type="radio" name="teamTabBrandStyle" value="dots" id="teamTabStyleDots">
-                <span>Dots</span>
+                <input type="radio" name="teamTabBrandStyle" value="honeycomb" id="teamTabStyleHoneycomb">
+                <span>Honeycomb</span>
               </label>
             </div>
             <div class="team-tab-angle-row" id="teamTabAngleRow">
               <label for="teamTabAngle">Angle</label>
               <input type="range" id="teamTabAngle" min="0" max="359" step="15" value="135">
             </div>
-            <!-- Stripes only (owner, 2026-08-02: "for stripes the width of
-                 the stripes, and the spacing between stripes should be
-                 modifiable"). -->
+            <!-- Gradient only (owner, 2026-08-02: "add a slider for the
+                 gradient on top of the angle (one side, center, other
+                 side)") — where the 50/50 primary/secondary blend point sits
+                 along the span, not the direction (that's the angle above). -->
+            <div class="team-tab-angle-row" id="teamTabGradientBalanceRow" hidden>
+              <label for="teamTabGradientBalance">Color balance</label>
+              <input type="range" id="teamTabGradientBalance" min="0" max="100" step="5" value="50">
+            </div>
+            <!-- Stripes/Honeycomb (owner, 2026-08-02: "Any thing with a line
+                 of any kind needs line(s) width plus spacing") — relabeled
+                 per style in teamTabSyncStyleRow(). -->
             <div class="team-tab-angle-row" id="teamTabStripeWidthRow" hidden>
-              <label for="teamTabStripeWidth">Stripe width</label>
+              <label for="teamTabStripeWidth" id="teamTabStripeWidthLabel">Stripe width</label>
               <input type="range" id="teamTabStripeWidth" min="2" max="80" step="1" value="14">
             </div>
             <div class="team-tab-angle-row" id="teamTabStripeGapRow" hidden>
               <label for="teamTabStripeGap">Stripe spacing</label>
               <input type="range" id="teamTabStripeGap" min="2" max="80" step="1" value="14">
             </div>
-            <!-- Chevron/Dots only — one size control tunes the whole repeat. -->
             <div class="team-tab-angle-row" id="teamTabPatternScaleRow" hidden>
-              <label for="teamTabPatternScale">Pattern size</label>
+              <label for="teamTabPatternScale" id="teamTabPatternScaleLabel">Pattern size</label>
               <input type="range" id="teamTabPatternScale" min="8" max="120" step="2" value="28">
             </div>
           </div>
@@ -520,11 +523,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.020"></script>
-<script src="/theme-css.js?v=4.08.020"></script>
-<script src="/tt-common.js?v=4.08.020"></script>
-<script src="/bracket-data.js?v=4.08.020"></script>
-<script src="/lineup.js?v=4.08.020"></script>
-<script src="/coach.js?v=4.08.020"></script>
+<script src="/settings-defaults.js?v=4.08.021"></script>
+<script src="/theme-css.js?v=4.08.021"></script>
+<script src="/tt-common.js?v=4.08.021"></script>
+<script src="/bracket-data.js?v=4.08.021"></script>
+<script src="/lineup.js?v=4.08.021"></script>
+<script src="/coach.js?v=4.08.021"></script>
 </body>
 </html>

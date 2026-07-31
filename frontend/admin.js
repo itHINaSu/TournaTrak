@@ -4671,16 +4671,29 @@ function teamsDetailPatternScaleValue() {
   var el = document.getElementById('teamsDetailPatternScale');
   return el ? Number(el.value) : 28;
 }
+function teamsDetailGradientBalanceValue() {
+  var el = document.getElementById('teamsDetailGradientBalance');
+  return el ? Number(el.value) : 50;
+}
+// Mirrors coach.js's teamTabSyncStyleRow — see that comment for why
+// stripe-width/pattern-scale get relabeled per style instead of separate
+// honeycomb-only sliders.
 function teamsDetailSyncStyleRow() {
   var style = teamsDetailStyleValue();
   var angleRow = document.getElementById('teamsDetailAngleRow');
-  if (angleRow) angleRow.hidden = (style === 'solid' || style === 'chevron' || style === 'dots');
+  if (angleRow) angleRow.hidden = (style !== 'gradient' && style !== 'stripes');
+  var balanceRow = document.getElementById('teamsDetailGradientBalanceRow');
+  if (balanceRow) balanceRow.hidden = style !== 'gradient';
   var stripeWidthRow = document.getElementById('teamsDetailStripeWidthRow');
   var stripeGapRow = document.getElementById('teamsDetailStripeGapRow');
-  if (stripeWidthRow) stripeWidthRow.hidden = style !== 'stripes';
+  if (stripeWidthRow) stripeWidthRow.hidden = (style !== 'stripes' && style !== 'honeycomb');
   if (stripeGapRow) stripeGapRow.hidden = style !== 'stripes';
+  var widthLabel = document.getElementById('teamsDetailStripeWidthLabel');
+  if (widthLabel) widthLabel.textContent = style === 'honeycomb' ? 'Line width' : 'Stripe width';
   var scaleRow = document.getElementById('teamsDetailPatternScaleRow');
-  if (scaleRow) scaleRow.hidden = (style !== 'chevron' && style !== 'dots');
+  if (scaleRow) scaleRow.hidden = style !== 'honeycomb';
+  var scaleLabel = document.getElementById('teamsDetailPatternScaleLabel');
+  if (scaleLabel) scaleLabel.textContent = style === 'honeycomb' ? 'Hex size' : 'Pattern size';
   teamsDetailUpdatePreview();
 }
 
@@ -4695,7 +4708,8 @@ function teamsDetailUpdatePreview() {
   if (!hasAnything) return;
   banner.style.cssText = teamBrandBannerCss(primary, secondary,
     teamsDetailStyleValue(), teamsDetailAngleValue(), _teamsDetailColors.brandTextColor, _teamsDetailColors.brandNameOutlineColor,
-    { stripeWidth: teamsDetailStripeWidthValue(), stripeGap: teamsDetailStripeGapValue(), patternScale: teamsDetailPatternScaleValue() });
+    { stripeWidth: teamsDetailStripeWidthValue(), stripeGap: teamsDetailStripeGapValue(), patternScale: teamsDetailPatternScaleValue(),
+      gradientBalance: teamsDetailGradientBalanceValue() });
   if (logoImg) {
     if (logo) { logoImg.src = logo; logoImg.hidden = false; }
     else { logoImg.removeAttribute('src'); logoImg.hidden = true; }
@@ -4745,6 +4759,8 @@ function openTeamDetail(idx) {
   if (stripeGapEl) stripeGapEl.value = typeof team.brandStripeGap === 'number' ? team.brandStripeGap : 14;
   var scaleEl = document.getElementById('teamsDetailPatternScale');
   if (scaleEl) scaleEl.value = typeof team.brandPatternScale === 'number' ? team.brandPatternScale : 28;
+  var balanceEl = document.getElementById('teamsDetailGradientBalance');
+  if (balanceEl) balanceEl.value = typeof team.brandGradientBalance === 'number' ? team.brandGradientBalance : 50;
   teamsDetailSyncStyleRow();
   var lockedEl = document.getElementById('teamsDetailLockedNote');
   if (lockedEl) lockedEl.hidden = !team.locked;
@@ -4789,6 +4805,7 @@ async function saveTeamsDetail() {
   body.brandStripeWidth = teamsDetailStripeWidthValue();
   body.brandStripeGap = teamsDetailStripeGapValue();
   body.brandPatternScale = teamsDetailPatternScaleValue();
+  body.brandGradientBalance = teamsDetailGradientBalanceValue();
   try {
     var r = await apiFetch('/api/team-profile/' + encodeURIComponent(team.name), {
       method: 'PUT',
@@ -4859,6 +4876,8 @@ function removeTeamsDetailLogo() {
   if (stripeGapEl) stripeGapEl.addEventListener('input', teamsDetailUpdatePreview);
   var scaleEl = document.getElementById('teamsDetailPatternScale');
   if (scaleEl) scaleEl.addEventListener('input', teamsDetailUpdatePreview);
+  var balanceEl = document.getElementById('teamsDetailGradientBalance');
+  if (balanceEl) balanceEl.addEventListener('input', teamsDetailUpdatePreview);
 })();
 
 Object.assign(TT_ACTIONS, {

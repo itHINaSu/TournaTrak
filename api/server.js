@@ -1537,15 +1537,27 @@ function validHexColor(v) {
 // "allow the user to adjust the gradient, select a solid color instead, or
 // choose a different pattern". Angle only matters for 'gradient'/'stripes';
 // 'solid' ignores it and secondaryColor.
-// chevron/dots added (owner, 2026-08-02: "Textures that are more sporty than
-// 90s graphic editors" — a small, deliberately-picked set of CSS-gradient-
-// only patterns, not a big swatch grid).
-const BRAND_STYLES = ['gradient', 'solid', 'stripes', 'chevron', 'dots'];
+// chevron/dots tried and rejected (owner, 2026-08-02: "The dots and chevron
+// are exactly what i wanted to avoid, how about a concrete texture, a
+// honeycomb option?") — honeycomb is a genuine hex-tiled SVG line pattern
+// (ttHoneycombBg in tt-common.js), not a CSS-gradient approximation.
+const BRAND_STYLES = ['gradient', 'solid', 'stripes', 'honeycomb'];
 // px ranges for the pattern-tuning sliders — generous enough to go from a
 // tight pinstripe to a bold block, but bounded so a stray huge number can't
-// blow the banner up or render an invisible hairline pattern.
+// blow the banner up or render an invisible hairline pattern. Reused as-is
+// for honeycomb's own line-width (brandStripeWidth) and hex-size/spacing
+// (brandPatternScale) — "Any thing with a line of any kind needs line(s)
+// width plus spacing" (owner, 2026-08-02) applies the same to every
+// line-based style, not just stripes.
 const BRAND_STRIPE_PX_MIN = 2, BRAND_STRIPE_PX_MAX = 80;
 const BRAND_PATTERN_SCALE_MIN = 8, BRAND_PATTERN_SCALE_MAX = 120;
+// Gradient color-stop balance (owner, 2026-08-02: "add a slider for the
+// gradient on top of the angle (one side, center, other side)") — a CSS
+// gradient color HINT percentage between the primary/secondary stops, not a
+// stop position itself: 50 (default) is the neutral case (identical to no
+// hint, today's behavior), lower shifts the 50/50 blend point toward the
+// primary side, higher toward the secondary side.
+const BRAND_GRADIENT_BALANCE_MIN = 0, BRAND_GRADIENT_BALANCE_MAX = 100;
 
 api.get('/theme-colors', ah(async (req, res) => {
   // Response varies by role (heavy fields are editor-only) — no shared caches.
@@ -2012,6 +2024,10 @@ function normalizeTeam(t) {
     const sc = Number(t.brandPatternScale);
     if (Number.isFinite(sc) && sc >= BRAND_PATTERN_SCALE_MIN && sc <= BRAND_PATTERN_SCALE_MAX) out.brandPatternScale = Math.round(sc);
   }
+  if (t.brandGradientBalance !== '' && t.brandGradientBalance != null) {
+    const b = Number(t.brandGradientBalance);
+    if (Number.isFinite(b) && b >= BRAND_GRADIENT_BALANCE_MIN && b <= BRAND_GRADIENT_BALANCE_MAX) out.brandGradientBalance = Math.round(b);
+  }
   if (validHexColor(t.brandTextColor)) out.brandTextColor = t.brandTextColor.toLowerCase();
   if (validHexColor(t.brandNameOutlineColor)) out.brandNameOutlineColor = t.brandNameOutlineColor.toLowerCase();
   // Freezes a coach out of PUT /team-profile for this team (name/short
@@ -2099,6 +2115,7 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
       brandStripeWidth:  t && 'brandStripeWidth'  in t ? t.brandStripeWidth  : prior.brandStripeWidth,
       brandStripeGap:    t && 'brandStripeGap'    in t ? t.brandStripeGap    : prior.brandStripeGap,
       brandPatternScale: t && 'brandPatternScale' in t ? t.brandPatternScale : prior.brandPatternScale,
+      brandGradientBalance: t && 'brandGradientBalance' in t ? t.brandGradientBalance : prior.brandGradientBalance,
       brandTextColor: t && 'brandTextColor' in t ? t.brandTextColor : prior.brandTextColor,
       brandNameOutlineColor: t && 'brandNameOutlineColor' in t ? t.brandNameOutlineColor : prior.brandNameOutlineColor,
       locked:         t && 'locked'         in t ? !!t.locked       : !!prior.locked,
@@ -2149,6 +2166,7 @@ api.put('/team-profile/:teamName', requireLineupAccess, ah(async (req, res) => {
     brandStripeWidth:  'brandStripeWidth'  in body ? body.brandStripeWidth  : current.brandStripeWidth,
     brandStripeGap:    'brandStripeGap'    in body ? body.brandStripeGap    : current.brandStripeGap,
     brandPatternScale: 'brandPatternScale' in body ? body.brandPatternScale : current.brandPatternScale,
+    brandGradientBalance: 'brandGradientBalance' in body ? body.brandGradientBalance : current.brandGradientBalance,
     brandTextColor: 'brandTextColor' in body ? body.brandTextColor : current.brandTextColor,
     brandNameOutlineColor: 'brandNameOutlineColor' in body ? body.brandNameOutlineColor : current.brandNameOutlineColor,
     locked: current.locked,
