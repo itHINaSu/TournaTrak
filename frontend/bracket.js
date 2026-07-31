@@ -4322,7 +4322,8 @@ function renderMobileBracket(root, dims) {
         flat = flat.concat(wave);
       });
     }
-    cols.push({ round: round, label: 'Round ' + bucket.idx, baseLabel: 'Round ' + bucket.idx, gids: flat, divs: divs });
+    cols.push({ round: round, label: 'Round ' + bucket.idx, baseLabel: 'Round ' + bucket.idx,
+                baseIdx: bucket.idx, gids: flat, divs: divs });
   });
 
   // Championship columns keep their own round keys and labels.
@@ -4392,6 +4393,52 @@ function renderMobileBracket(root, dims) {
       ],
     });
   })();
+
+  // ── Re-check the fold rule AFTER the Finals extraction ───────────────
+  // A round is bucketed across BOTH sides (losers round N sits with winners
+  // round N), so a losers round that is purely winner+loser can be carried
+  // into its own column by the winners game sharing its round number — and
+  // then that winners game is the WB Final, which the pass above just pulled
+  // out into the Finals column. What is left behind is a column of games
+  // that never earned one.
+  //
+  // This is exactly the live 22-team case (owner, 2026-08-02): LB Round 5
+  // (`SF3.R`, winner+loser) shares bucket 5 with WB Round 5 — the WB Final,
+  // winner+winner — so the initial fold test passes on the bucket, and after
+  // the WB Final is promoted the two LB games sit alone under a "Round 5"
+  // header. Note this is shape-specific, not universal: at 16 and 32 teams
+  // that same LB Round 5 IS winner+winner and genuinely does earn its column,
+  // which is why the generated demo brackets disagreed with the report until
+  // a 22-team bracket was built to match. Re-running the rule here, against
+  // each column's FINAL contents, settles all three shapes with one test.
+  for (var ci = cols.length - 1; ci >= 1; ci--) {
+    var fcol = cols[ci], fprev = cols[ci - 1];
+    var special = function(c) { return c.round === 'CHAMP' || c.round === 'CHAMP2' || c.round === 'FINALS'; };
+    if (special(fcol) || special(fprev) || !fcol.gids.length) continue;
+    var earnsColumn = fcol.gids.some(function(gid) {
+      var gm = GAMES[gid];
+      return !!(gm && gm.t1 && gm.t1.type === 'winner' && gm.t1.slot
+                   && gm.t2 && gm.t2.type === 'winner' && gm.t2.slot);
+    });
+    if (earnsColumn) continue;
+    var base = fprev.gids.length;
+    // Carry this column's own dividers across, re-based. The one at idx 0 (if
+    // any) becomes the fold marker and gains roundNum so the header rebuild
+    // below names the round; if there wasn't one, add it.
+    var ownDivs = (fcol.divs || []).slice();
+    if (!ownDivs.some(function(d) { return d.idx === 0; })) {
+      ownDivs.unshift({ idx: 0, label: fcol.baseLabel || fcol.label, type: 'absorbed' });
+    }
+    ownDivs.forEach(function(d) {
+      fprev.divs.push(Object.assign({}, d, {
+        idx: d.idx + base,
+        type: d.idx === 0 ? 'absorbed' : d.type,
+        roundNum: d.idx === 0 ? (fcol.baseIdx != null ? fcol.baseIdx : true) : d.roundNum,
+      }));
+    });
+    fcol.gids.forEach(function(gid) { fprev.gids.push(gid); });
+    cols.splice(ci, 1);
+  }
 
   // Rebuild every non-championship column's header label from what's
   // ACTUALLY left in it now that the parity pass above may have pulled a
