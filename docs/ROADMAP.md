@@ -136,9 +136,74 @@ these**; several imply a lot of surface area.
 - **Public registration / team management** — teams sign up, admin approves.
 - **Notifications** — push or SMS when a team's next game posts or goes live.
 - **Historical tournament archive** — past tournaments browsable by year.
-- **Stats layer** — runs/hits/errors per game; standings across tournaments.
+- **Stats layer** — see §5 below; the live-scorebook idea now covers this with
+  a real design instead of a one-line bullet.
 - **Multi-sport** — `periodLabel` is already configurable; extend for quarters,
   sets, periods.
+
+---
+
+## 5. Sport selector + live scorebook (baseball/softball) — scoping only
+
+Owner idea, worked through 2026-07-31. **Not started, no schema decided
+final.** Recorded here so the design survives between sessions; per this
+repo's own convention for big items (see T1 in `PENDING.md`), write the plan
+before touching code.
+
+**Phase 0 — Sport selector.** Not a free-text swap of `periodLabel` — `sport`
+becomes a setting that flips FEATURE FLAGS (has-innings, roster/lineup
+positions, detailed live tracker), the same way lineups are already the one
+sport-aware corner of this app. Open call: does picking a sport override an
+existing custom `periodLabel`, default it only when unset, or stay fully
+independent of it (existing tournaments already have hand-typed values).
+
+**Phase 1 — Live detail screen.** Diamond, bases, outs, ball/strike count,
+current + on-deck batter (sourced from the existing lineup batting order — no
+new roster work needed). Reachable by tapping a live game card, which today
+does nothing (everything is inline on the schedule/bracket list). Gated to
+`sport IN (baseball, softball)`.
+
+**Phase 2 — Settings.** Toggle lands in the existing `admin.html` "Live
+Scoring" settings section (currently just the `periodLabel` field), visible
+only once sport is baseball/softball.
+
+**Phase 3 — Play-by-play event log → scorebook.** The scorekeeper enters
+plate-appearance results instead of hand-toggling bases/outs; the log doubles
+as the source for a generated, printable scorebook page — the scorebook is
+NOT a separate entry pass, it's rendered from what Phase 3 captures live.
+
+Outcome taxonomy settled 2026-07-31, split because the two tiers behave
+differently:
+- **Plate-appearance events** (tied to the batter): walk, HBP, strikeout
+  (looking / swinging), hit (1B/2B/3B/HR), error (+ fielder), fielder's
+  choice, sacrifice fly, sacrifice bunt, and outs. An out is not one type —
+  it's an ORDERED fielder-position sequence with 1 or 2 outs attached, so
+  "F9", "L8", "6-3" and the double play "6-4-3" are all the same shape
+  (sequence length + out count), not separate enum values.
+- **Base-running events** (not tied to a new batter, can happen mid at-bat):
+  stolen base, caught stealing, pickoff, wild pitch, passed ball, balk.
+
+Bases/outs/score are DERIVED by replaying the event log, not hand-toggled —
+this is also where "undo last play" falls out for free, matching the
+one-step-undo pattern already used elsewhere in this codebase
+(`snapshotForUndo`).
+
+**Still open:**
+- Runner advancement on a batted ball can't be auto-derived (a single may
+  score a runner from 2nd or hold them at 3rd depending on the throw) — needs
+  a per-occupied-base prompt after the batter's result is picked, not an
+  auto-advance-one-base rule. This is the one real unsolved UX problem, not a
+  data-modeling one.
+- How much of the base-running tier ships in v1 vs later — real scorebook
+  value, but a second axis of complexity on top of the plate-appearance
+  taxonomy.
+- Batting order must continue across innings (not reset to the leadoff hitter
+  each inning) — a lineup-pointer detail, easy to get wrong if not modeled
+  explicitly.
+
+**Data model:** append-only `live_events` (or similarly named table), not a
+wider `live` row — decided now so Phase 1's bases/outs/count doesn't need a
+migration when Phase 3 lands on top of it.
 
 ---
 
