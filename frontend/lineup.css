@@ -521,6 +521,13 @@
      while typing (owner, 2026-08-02: "remove the x ... on mobile and pwa").
      Desktop (mouse/trackpad, pointer:fine) keeps the ✕, now confirmed too. */
   .roster-del { display: none; }
+  /* The cell the ✕ sits in collapses too, not just the button — otherwise
+     it's a dead reserved column and Name/Position stay narrower on touch
+     than the Lineup tab's own columns for no reason anyone can see there
+     (owner, 2026-08-02: "it's like you're still leaving room for the
+     delete button... the look should be identical from one tab to the
+     next" — Lineup never had this trailing column to begin with). */
+  .lineup-td-order--del, .lineup-th--order--del { display: none; }
 }
 
 /* Swipe-armed feedback (coach.js wireRosterRowSwipe): past the delete

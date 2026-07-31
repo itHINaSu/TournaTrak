@@ -973,8 +973,12 @@ input[type="time"]:focus {
     min-height: 0;
   }
 
-  /* Lineup tab manages its own padding via .lineup-wrap */
-  #tab-lineups.active { padding: 0; }
+  /* Lineup AND Roster both manage their own padding via .lineup-wrap —
+     Roster was missing from this carve-out, so it got THAT padding on top
+     of .admin-tab-panel.active's generic 1em, narrowing its table for no
+     reason Lineup shared (owner, 2026-08-02: "the look should be identical
+     from one tab to the next"). */
+  #tab-lineups.active, #tab-roster.active { padding: 0; }
 
   .results-mode-bar,
   .sched-action-row--top {

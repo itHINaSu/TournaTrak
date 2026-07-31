@@ -224,7 +224,13 @@ function renderRoster() {
           ? '<select class="lineup-sel" id="rp-' + i + '">' + opts + '</select>'
           : '<input type="text" class="lineup-inp" id="rp-' + i + '" maxlength="12" value="' + esc(r.position || '') + '">')
       + '</td>'
-      + '<td class="lineup-td-order">'
+      // --del: on touch (@media pointer:coarse) the \u2715 inside is hidden in
+      // favor of swipe-to-delete, and this whole cell collapses too \u2014 Name/
+      // Position reclaim the space instead of leaving a dead gap where an
+      // invisible button used to be (owner, 2026-08-02: "it's like you're
+      // still leaving room for the delete button... the look should be
+      // identical from one tab to the next" \u2014 Lineup never had this column).
+      + '<td class="lineup-td-order lineup-td-order--del">'
       +   '<button class="roster-del" data-action="deleteRosterRow" data-arg="' + i + '" '
       +     'aria-label="Remove player" title="Remove player">\u2715</button>'
       + '</td>'

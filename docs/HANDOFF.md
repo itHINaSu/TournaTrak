@@ -3466,6 +3466,47 @@ count" exactly like Lineup's own column never special-cases blank rows
 either), delete buttons still present on all 12 rows, and the #/name/
 position widths were unaffected. Full API suite (140 tests) still passes.
 
+## Roster on touch: a genuine double-padding bug, not a table-column one (owner, 2026-08-02)
+Owner, with a screenshot: *"You can see how the roster panel looks
+different than the lineup panel right?... it's like you're still leaving
+room for the delete button once you get down into player numbers, names,
+and positions the look should be identical from one tab to the next."*
+
+First fix (this same message, first pass): collapsed the trailing delete
+`<td>`/`<th>` entirely on touch — new `.lineup-td-order--del` /
+`.lineup-th--order--del` classes, `display: none` under `@media
+(pointer: coarse)` alongside the existing `.roster-del { display: none }`
+rule, instead of just hiding the ✕ button inside an otherwise-full-width
+cell. That was real (the cell WAS reserving ~2em for nothing on touch), but
+measuring after the fix still showed Roster's Name column ~29px narrower
+than Lineup's, table-width to table-width — not a column-proportion
+problem at all.
+
+Traced it by walking the DOM chain from `#rosterBody`/`#lineupBody` up to
+`#adminWrap`, comparing `getBoundingClientRect().width` at every level.
+`#rosterWrap`/`#lineupContent` (both `.lineup-wrap`) matched exactly; the
+drop happened one level further in, at `#rosterContent` — a plain, class-
+less div that should have no business narrowing anything. Root cause:
+`admin.css`'s mobile/PWA-shell rule gives EVERY `.admin-tab-panel.active`
+`padding: 1em`, with a carve-out — `#tab-lineups.active { padding: 0; }` —
+for the one tab whose content (`.lineup-wrap`) already brings its own
+padding. Roster ALSO uses `.lineup-wrap` (has since the roster/lineup CSS
+unification earlier this session) but was never added to that carve-out,
+so it was getting BOTH paddings stacked: the generic 1em from the tab
+panel AND `.lineup-wrap`'s own 1em, each side — a real, pre-existing bug
+this session's CSS unification exposed rather than caused, since Roster
+only started sharing `.lineup-wrap` recently.
+
+Fixed: `#tab-lineups.active, #tab-roster.active { padding: 0; }`.
+
+Verified against the demo (390px, touch emulation): Roster's num/name/pos
+now measure 56px/194px/81px — identical to Lineup's, table-width to
+table-width, not just proportionally close. Screenshot confirms the two
+tabs are visually indistinguishable in layout. Desktop (pointer:fine, ✕
+still shown) keeps a small, expected width difference — Roster genuinely
+has one more functional column there than Lineup does. Full API suite
+(140 tests) still passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an
