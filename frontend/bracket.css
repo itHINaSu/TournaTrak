@@ -2551,10 +2551,12 @@ body.print-palette .bc-proj-chip {
   align-items: flex-start;
   /* min-content keeps the columns at their computed width instead of letting
      flex squeeze them when the bracket is wider than the viewport; the
-     wrapper below then scrolls horizontally. Left by default (owner,
-     2026-08-01: "by default brackets should be left justified") — same
-     reasoning as .bcc-stack below, just the other layout's container. */
-  justify-content: flex-start;
+     wrapper below then scrolls horizontally. Centered on screen — left-by-
+     default is a SHARE/print setting only (shareOpts() in bracket.js), applied
+     to this same class name but inside paintFlights()'s own isolated render
+     frame, never to the live page (owner, 2026-08-02: "left justified... was
+     supposed to be for share only... not the actual live desktop view"). */
+  justify-content: center;
   width: 97vw;
   min-width: min-content;
   margin: 0 auto;
@@ -2590,10 +2592,10 @@ body.print-palette .bc-proj-chip {
 .bcc-stack {
   display: flex;
   align-items: center;      /* championship centred across both rows */
-  /* Left by default (owner, 2026-08-01: "by default brackets should be left
-     justified"). The share dialog overrides this inline per its own
-     alignment choice — see paintFlights() in bracket.js. */
-  justify-content: flex-start;
+  /* Centered on screen — same reasoning as .bcc-outerflex above: the
+     left-by-default alignment is a share/print-only setting, applied inside
+     paintFlights()'s isolated render frame, not to this live-page class. */
+  justify-content: center;
   width: 97vw;
   min-width: min-content;   /* scroll instead of squeezing the columns */
   margin: 0 auto;

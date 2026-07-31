@@ -3115,6 +3115,32 @@ live preview banner updates — confirming the shared tt-common.js modal works
 identically from both pages' markup copies. No console errors either run.
 Full API suite (140 tests) still passes.
 
+## "Brackets default left" was never meant to reach the live page (owner, 2026-08-02) — regression fix
+Owner, after the above landed: *"My bracket is left justified. That was
+supposed to be for share only... it is narrow in the normal view. The width
+was only supposed to be modified for printing. Not the actual live desktop
+view."* Bisected to "Theme toggle back to a persistent icon; Share guards
+off-tab; brackets default left" (`7f266e8`): that change set
+`.bcc-outerflex`/`.bcc-stack`'s base `justify-content` in bracket.css
+straight to `flex-start`, which is the LIVE page's own class, not a
+share-only copy — so every on-screen bracket (not just shared/printed
+images) started hugging the left edge, with the empty space on the right
+reading as the bracket having gotten narrower even though its own width was
+untouched.
+
+The share/print path already had its own independent alignment mechanism
+and never needed the base CSS changed: `paintFlights()` in bracket.js runs
+inside a hidden, fully separate render iframe (`withRenderFrame`) and sets
+`stack.style.justifyContent` there by inline style, per the share dialog's
+chosen alignment (`shareOpts().align`, defaulting to `'left'`) — completely
+decoupled from the visible page's DOM. So the fix is just reverting
+`.bcc-outerflex` and `.bcc-stack` in bracket.css back to
+`justify-content: center`; share/print keep defaulting to left via the
+existing inline override, live view goes back to centered. Confirmed via
+Playwright against the demo: `getComputedStyle(.bcc-outerflex).justifyContent`
+reads `center` again on the public Bracket tab, and `shareOpts().align`'s
+`'left'` default in bracket.js is untouched.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an
