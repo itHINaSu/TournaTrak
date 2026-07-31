@@ -2468,6 +2468,37 @@ under `/demo/` isn't guaranteed — acceptable since the demo resets every 30
 minutes anyway and the bar is "works while online," not full PWA offline
 support.
 
+**2026-07-31: gallery mobile-first, PWA install instructions, demo PWA
+disabled.** Three asks, one still blocked:
+- **Screenshots for Share/Download/Print, the multi-tournament switcher, and
+  the notification panel — NOT captured.** Tried in-session; same Docker
+  registry block as above (`nginx:alpine`/`postgres:16-alpine` can't be
+  pulled here). Needs a session with real Docker access, or a manual capture
+  on the deploy host. `SALES_SITE_BRIEF.md` §5 has the row-9–11 detail.
+- **Gallery reordered mobile-first** — every `mobile-*` shot now leads,
+  `desktop-*` after, with a "`On your phone first`" lead line. Picked up two
+  previously-unused assets to round out the mobile block:
+  `mobile-teampath-{light,dark}.png` and `mobile-admin-{light,dark}.png`
+  (were sitting in `screenshots/` unreferenced since a much earlier capture
+  pass — not fresh, but real).
+- **New "Install as an app" section** (`#install` in `index.html`, between
+  the gallery and FAQ) with iOS Safari and Android Chrome steps side by
+  side. Explicitly says the live demo skips this — see below.
+- **The demo no longer offers a PWA install, on purpose.** Added to
+  `sales-site/nginx.conf`'s `/demo/` location: `sub_filter 'rel="manifest"'
+  'rel="manifest-disabled"';` (fails every browser's installability check
+  outright) and `sub_filter 'data-sw="' 'data-tt-disabled-sw="';` (renamed
+  from a `/demo/`-prefixing rule — sw-register.js's `dataset.sw` lookup then
+  finds nothing, so no service worker registration is even attempted, on
+  top of the manifest already being disqualified). Real deployments are
+  untouched; this only fires on the `/demo/`-proxied response body. Verified
+  the same way as the rest of the `/demo/` rewrite work: real `frontend/`
+  files through a locally-installed nginx (no Docker), confirming
+  `rel="manifest-disabled"` and `data-tt-disabled-sw="..."` land on
+  `index.html`, `admin.html`, and `builder.html` (the three pages that
+  register a service worker), and re-ran the full HTML/JS/CSS sweep from
+  the original `/demo/` work to confirm nothing regressed.
+
 ## Current state
 `main` at the top of the 2026-07-30 list in "Outstanding work" holds everything
 below. Nothing is unmerged;

@@ -99,11 +99,21 @@ Group these into sections/cards on the site. Each has a benefit-first framing.
 
 ### Works like an app, without being one
 - **Installable web app (PWA)** — visitors can add it to their home screen and
-  it opens full-screen like a native app.
+  it opens full-screen like a native app. The site has a dedicated "Install"
+  section with iOS (Safari: Share → Add to Home Screen) and Android (Chrome:
+  ⋮ menu → Add to Home screen / Install app) steps — see index.html #install.
 - **No app store, no download friction** — it's just a link.
 - **Resilient on flaky tournament-field Wi-Fi/cell** — designed to keep working
   and serve fresh data when the connection is spotty.
 - **Lightweight** — no heavy backend, runs cheaply.
+
+**The live demo deliberately does NOT offer this.** `sales-site/nginx.conf`'s
+`/demo/` location strips `rel="manifest"` and renames the service worker's
+`data-sw` attribute so no browser ever considers it installable — it's a
+sandbox that resets on a timer (see compose.demo.yml), and an install icon
+pointing at throwaway data would just confuse whoever taps it later. Real
+tournament deployments are unaffected; this only fires on responses proxied
+through /demo/.
 
 ---
 
@@ -148,10 +158,19 @@ new chat should leave labeled placeholder slots until real images are provided.
 | 10 | Admin tournament switcher (multiple events) | "Run every one of your events from one place." |
 | 11 | Notification opt-in / bell for a lineup submission | "Know the moment a lineup lands." |
 
-**Not yet captured as of 2026-07-30** — rows 9–11 need fresh screenshots once a
-demo tournament has these features exercised (Share/Download/Print, the
-multi-tournament switcher, and push notifications all shipped after the first
-screenshot pass).
+**Not yet captured as of 2026-07-31** — rows 9–11 still need fresh screenshots
+once a demo tournament has these features exercised (Share/Download/Print,
+the multi-tournament switcher, and push notifications all shipped after the
+first screenshot pass). Attempted 2026-07-31 in-session; blocked because this
+sandbox's Docker can't pull `nginx:alpine`/`postgres:16-alpine` (egress policy
+blocks the registry CDN) — needs a session with real Docker access, or a
+manual capture on the deploy host.
+
+**Gallery order is mobile-first (2026-07-31):** the grid leads with every
+mobile-\* shot, then the desktop-\* ones, with a lead line ("On your phone
+first...") calling it out — matches the product's actual core pitch. Rows
+9–11 above are still gaps; when captured, add the mobile version to the front
+of the mobile block, not just a desktop one at the back.
 
 > Note for the builder: use responsive, framed device mockups (phone frame for
 > mobile shots, browser frame for desktop). Keep image alt text descriptive.
