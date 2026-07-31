@@ -3685,6 +3685,51 @@ accent 24%, var(--surface))` in `renderStandingsViewInner()`'s `rowCss`
 against the demo — visibly more present without reading as a different
 design.
 
+## Settings > Teams: click into a team for a "coach panel" of its branding (owner, 2026-08-02)
+Owner: *"I asked to not have the settings > teams have all the options on one
+page. Allow TDs to click into a team an get a 'coach panel' in setting >
+teams for the selected team."* Before this, every team's full profile
+(display name, short name, logo, primary/secondary colors) rendered inline
+for EVERY team simultaneously in one long scrolling list — and it was
+missing brandStyle/brandAngle/brandTextColor/brandNameOutlineColor
+entirely (the coach panel's Team tab had all four; admin's Teams editor had
+none of them).
+
+Split `sp-teams` into two views (`admin.html`): `#teamsListView` (unchanged
+reorder/rename/lock/lineup-link controls, now with a compact one-line row
+per team plus an **Edit →** button) and `#teamsDetailView` (hidden until a
+team is opened), which **reuses the exact same markup/CSS classes as the
+Coach Panel's own Team tab** (`.team-tab-colors`, `.team-tab-color-field`,
+`.team-tab-style-row`, `.team-brand-banner` live preview, etc. — all already
+in `admin.css`/`base.css` since coach.html loads the former and both load the
+latter). New `admin.js` state: `_teamsDetailIdx` (which team, or `null` for
+list view), `_teamsDetailColors`/`_teamsDetailLogo` (same null/''/hex
+buffering convention as coach.js's `_teamTabColors`/`_teamTabLogo`).
+`openTeamDetail(idx)` reads straight off the already-loaded
+`_teamsData.teams` (no extra fetch — admin already has the full list, unlike
+the coach page which only knows its own team and has to fetch `/teams`
+itself); `saveTeamsDetail()` saves via the SAME endpoint coach.js uses,
+`PUT /team-profile/:teamName`, targeting whichever team's detail is open —
+confirmed `requireLineupAccess` already lets any staff role (admin/results/
+superadmin) touch any team name, not just one they're assigned to, so no
+server change was needed.
+
+Removed the now-fully-replaced `teamProfileRow()`/`wireTeamProfileRow()`
+functions (the old inline-every-team block) rather than leaving them as
+dead code. `Locked` moved from that old block into the primary list row
+(a quick per-team toggle without opening detail); Display Name/Short Name/
+Logo/Colors/Style moved into the detail view only — `saveTeams()` (the
+list's bulk "Save" button) no longer touches any of those fields, just
+name/order/showSeeds, since they're saved per-team now.
+
+Verified against the demo: list view renders one line per team with a
+working Edit button; clicking it shows that team's current branding
+(including a correctly-clipped, corner-to-corner red-X on any unset color —
+same CSS as everywhere else, confirmed via a direct DOM query for the active
+stylesheet rule, not just a screenshot); setting a color + banner style
+live-updates the preview banner; Save round-trips (`✓ Saved`) and persists;
+Back returns to the list without a full page reload.
+
 ## Team Path's own team-picker buttons wear the team's colors too (owner, 2026-08-02)
 Owner: *"If a team hasn't been selected yet in team path, use their gradient
 for the selection buttons."* Before now, `teamBrandBannerCss()` (the

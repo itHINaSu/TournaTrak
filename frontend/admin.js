@@ -4493,18 +4493,36 @@ function renderTeamsEditor() {
       '<span class="team-ed-handle" aria-hidden="true">&#8942;</span>' +
       (showS ? '<span class="team-ed-seed">(' + (i + 1) + ')</span>' : '') +
       '<input type="text" class="team-ed-name" data-idx="' + i + '" value="' + esc(t.name) + '" maxlength="100" aria-label="Team name">' +
+      '<label class="team-ed-lock">' +
+        '<input type="checkbox" class="team-ed-locked" data-idx="' + i + '" ' + (t.locked ? 'checked' : '') + '>' +
+        '<span>Locked</span>' +
+      '</label>' +
       '<button type="button" class="team-ed-link' + (hasLink ? ' team-ed-link--on' : '') + '"' +
         ' data-team="' + esc(t.name) + '" aria-expanded="' + (open ? 'true' : 'false') +
         '" aria-label="Lineup link for ' + esc(t.name) + (hasLink ? ' (active)' : ' (none yet)') + '"' +
         ' title="Lineup link">&#128279;</button>' +
+      '<button type="button" class="admin-edit-btn team-ed-edit" data-idx="' + i + '" title="Edit branding">Edit →</button>' +
       '<button type="button" class="team-ed-up" data-idx="' + i + '" aria-label="Move up" ' + (i === 0 ? 'disabled' : '') + '">↑</button>' +
       '<button type="button" class="team-ed-down" data-idx="' + i + '" aria-label="Move down" ' + (i === teams.length - 1 ? 'disabled' : '') + '">↓</button>' +
       (open ? teamLinkPanel(t.name) : '') +
-      teamProfileRow(t, i) +
     '</div>';
   }).join('');
 
-  wireTeamProfileRow(list);
+  // Row-level controls that used to live in the now-removed teamProfileRow()
+  // second line (owner, 2026-08-02: click into a team instead of everything
+  // inline) — Locked stays here for a quick toggle without opening the detail
+  // view; a click starting a drag would fire it accidentally otherwise.
+  list.querySelectorAll('.team-ed-locked').forEach(function(chk) {
+    chk.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    chk.addEventListener('change', function() {
+      var i = parseInt(chk.dataset.idx, 10);
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { locked: chk.checked });
+    });
+  });
+  list.querySelectorAll('.team-ed-edit').forEach(function(btn) {
+    btn.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+    btn.addEventListener('click', function() { openTeamDetail(parseInt(btn.dataset.idx, 10)); });
+  });
 
   // Link panel: expand/collapse, and its own buttons.
   list.querySelectorAll('.team-ed-link').forEach(function(b) {
@@ -4551,123 +4569,242 @@ function renderTeamsEditor() {
   wireTeamsDragAndDrop(list);
 }
 
-// Second line under a team's row: the same displayName/shortName/logo a
-// coach can set for themselves from the Coach Panel's Team tab, plus the
-// admin-only Lock. Kept OFF the drag-handle row itself so dragging to
-// reorder still works with one finger/click on the handle.
-function teamProfileRow(t, i) {
-  var logo = t.logo || '';
-  var pc = t.primaryColor || '', sc = t.secondaryColor || '';
-  return '<div class="team-ed-row2" data-idx="' + i + '">' +
-    '<label class="team-ed-field">' +
-      '<span>Display name</span>' +
-      '<input type="text" class="team-ed-display" data-idx="' + i + '" value="' + esc(t.displayName || '') + '" maxlength="40" placeholder="' + esc(t.name) + '">' +
-    '</label>' +
-    '<label class="team-ed-field">' +
-      '<span>Short name</span>' +
-      '<input type="text" class="team-ed-short" data-idx="' + i + '" value="' + esc(t.shortName || '') + '" maxlength="12" placeholder="Optional">' +
-    '</label>' +
-    '<div class="team-ed-logo">' +
-      '<img class="team-ed-logo-preview" data-idx="' + i + '"' + (logo ? ' src="' + esc(logo) + '"' : ' hidden') + ' alt="">' +
-      '<input type="file" class="team-ed-logo-input" data-idx="' + i + '" accept="image/png,image/jpeg,image/webp" aria-label="Logo for ' + esc(t.name) + '">' +
-      '<button type="button" class="team-ed-logo-remove" data-idx="' + i + '" ' + (logo ? '' : 'hidden ') + '>Remove</button>' +
-    '</div>' +
-    '<div class="team-ed-colors">' +
-      '<label class="team-ed-color-field">' +
-        '<span>Primary</span>' +
-        '<span class="color-swatch' + (pc ? '' : ' color-swatch--unset') + '">' +
-          '<input type="color" class="team-ed-color-primary" data-idx="' + i + '" value="' + esc(pc || '#4a4a4a') + '" aria-label="Primary color for ' + esc(t.name) + '">' +
-        '</span>' +
-        '<button type="button" class="team-ed-color-clear" data-idx="' + i + '" data-which="primaryColor" ' + (pc ? '' : 'hidden ') + '>Clear</button>' +
-      '</label>' +
-      '<label class="team-ed-color-field">' +
-        '<span>Secondary</span>' +
-        '<span class="color-swatch' + (sc ? '' : ' color-swatch--unset') + '">' +
-          '<input type="color" class="team-ed-color-secondary" data-idx="' + i + '" value="' + esc(sc || '#4a4a4a') + '" aria-label="Secondary color for ' + esc(t.name) + '">' +
-        '</span>' +
-        '<button type="button" class="team-ed-color-clear" data-idx="' + i + '" data-which="secondaryColor" ' + (sc ? '' : 'hidden ') + '>Clear</button>' +
-      '</label>' +
-    '</div>' +
-    '<label class="team-ed-lock">' +
-      '<input type="checkbox" class="team-ed-locked" data-idx="' + i + '" ' + (t.locked ? 'checked' : '') + '>' +
-      '<span>Locked</span>' +
-    '</label>' +
-  '</div>';
+// ── Per-team detail view ────────────────────────────────────────────────
+// Same fields/behavior as the Coach Panel's own Team tab (coach.js
+// teamTab*), just scoped to WHATEVER team a TD clicked into rather than
+// "the signed-in coach's own team" — owner, 2026-08-02: "allow TDs to click
+// into a team and get a 'coach panel' in settings > teams for the selected
+// team". null = index into _teamsData.teams currently open; null = list view.
+var _teamsDetailIdx = null;
+var _teamsDetailLogo = null;   // data URI = has one; '' = remove on save; null = unchanged
+var TEAMS_DETAIL_COLOR_UNSET = '#4a4a4a';
+var _teamsDetailColors = {
+  primaryColor: null, secondaryColor: null, brandTextColor: null, brandNameOutlineColor: null,
+};
+var TEAMS_DETAIL_COLOR_IDS = {
+  primaryColor:          { input: 'teamsDetailPrimaryColor',   clear: 'teamsDetailPrimaryColorClear' },
+  secondaryColor:        { input: 'teamsDetailSecondaryColor', clear: 'teamsDetailSecondaryColorClear' },
+  brandTextColor:        { input: 'teamsDetailTextColor',      clear: 'teamsDetailTextColorClear' },
+  brandNameOutlineColor: { input: 'teamsDetailOutlineColor',   clear: 'teamsDetailOutlineColorClear' },
+};
+
+function teamsDetailStatus(text, isError) {
+  var el = document.getElementById('teamsDetailStatus');
+  if (!el) return;
+  el.textContent = text;
+  el.style.color = isError ? 'var(--lose-color)' : '';
 }
 
-function wireTeamProfileRow(list) {
-  // Every control here sits inside the draggable row — without stopping
-  // propagation, clicking into a text field or the checkbox starts a drag
-  // instead of focusing it (same fix the lineup-link URL field already
-  // needed, above).
-  list.querySelectorAll('.team-ed-row2 input').forEach(function(el) {
-    el.addEventListener('mousedown', function(e) { e.stopPropagation(); });
-  });
-  list.querySelectorAll('.team-ed-display').forEach(function(inp) {
-    inp.addEventListener('change', function() {
-      var i = parseInt(inp.dataset.idx, 10);
-      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { displayName: inp.value.trim() });
-    });
-  });
-  list.querySelectorAll('.team-ed-short').forEach(function(inp) {
-    inp.addEventListener('change', function() {
-      var i = parseInt(inp.dataset.idx, 10);
-      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { shortName: inp.value.trim() });
-    });
-  });
-  list.querySelectorAll('.team-ed-locked').forEach(function(chk) {
-    chk.addEventListener('change', function() {
-      var i = parseInt(chk.dataset.idx, 10);
-      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { locked: chk.checked });
-    });
-  });
-  list.querySelectorAll('.team-ed-logo-input').forEach(function(inp) {
-    inp.addEventListener('change', function() {
-      var i = parseInt(inp.dataset.idx, 10);
-      var f = inp.files && inp.files[0];
-      if (!f) return;
-      ttReadTeamLogoFile(f, function(uri) {
-        _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { logo: uri });
-        renderTeamsEditor();
-        showToast('Logo ready — press Save to apply');
-      }, function(msg) { showToast(msg, true); inp.value = ''; });
-    });
-  });
-  list.querySelectorAll('.team-ed-logo-remove').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var i = parseInt(btn.dataset.idx, 10);
-      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { logo: '' });
-      renderTeamsEditor();
-      showToast('Logo will be removed on Save');
-    });
-  });
-  list.querySelectorAll('.team-ed-color-primary').forEach(function(inp) {
-    inp.addEventListener('input', function() {
-      var i = parseInt(inp.dataset.idx, 10);
-      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { primaryColor: inp.value });
-      var clear = list.querySelector('.team-ed-color-clear[data-idx="' + i + '"][data-which="primaryColor"]');
-      if (clear) clear.hidden = false;
-      if (inp.parentElement) inp.parentElement.classList.remove('color-swatch--unset');
-    });
-  });
-  list.querySelectorAll('.team-ed-color-secondary').forEach(function(inp) {
-    inp.addEventListener('input', function() {
-      var i = parseInt(inp.dataset.idx, 10);
-      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { secondaryColor: inp.value });
-      var clear = list.querySelector('.team-ed-color-clear[data-idx="' + i + '"][data-which="secondaryColor"]');
-      if (clear) clear.hidden = false;
-      if (inp.parentElement) inp.parentElement.classList.remove('color-swatch--unset');
-    });
-  });
-  list.querySelectorAll('.team-ed-color-clear').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      var i = parseInt(btn.dataset.idx, 10), which = btn.dataset.which;
-      var patch = {}; patch[which] = '';
-      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], patch);
-      renderTeamsEditor();
-    });
-  });
+function teamsDetailSyncLogo() {
+  var img = document.getElementById('teamsDetailLogoPreview');
+  var rm  = document.getElementById('teamsDetailLogoRemoveBtn');
+  if (img && rm) {
+    if (_teamsDetailLogo) { img.src = _teamsDetailLogo; img.hidden = false; rm.hidden = false; }
+    else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
+  }
+  teamsDetailUpdatePreview();
 }
+
+function teamsDetailSyncColor(which) {
+  var ids = TEAMS_DETAIL_COLOR_IDS[which];
+  if (!ids) return;
+  var inp = document.getElementById(ids.input);
+  var clear = document.getElementById(ids.clear);
+  var v = _teamsDetailColors[which];
+  if (inp) inp.value = v || TEAMS_DETAIL_COLOR_UNSET;
+  if (clear) clear.hidden = !v;
+  if (inp && inp.parentElement) inp.parentElement.classList.toggle('color-swatch--unset', !v);
+  teamsDetailUpdatePreview();
+}
+
+function clearTeamsDetailColor(which) {
+  _teamsDetailColors[which] = '';
+  teamsDetailSyncColor(which);
+  var label = which === 'brandTextColor' ? 'Text color' : which === 'brandNameOutlineColor' ? 'Outline' : 'Color';
+  showToast(label + ' will be removed on Save');
+}
+
+function teamsDetailStyleValue() {
+  var el = document.querySelector('input[name="teamsDetailBrandStyle"]:checked');
+  return (el && el.value) || 'gradient';
+}
+function teamsDetailAngleValue() {
+  var el = document.getElementById('teamsDetailAngle');
+  return el ? Number(el.value) : 135;
+}
+function teamsDetailSyncStyleRow() {
+  var row = document.getElementById('teamsDetailAngleRow');
+  if (row) row.hidden = teamsDetailStyleValue() === 'solid';
+  teamsDetailUpdatePreview();
+}
+
+function teamsDetailUpdatePreview() {
+  var banner = document.getElementById('teamsDetailPreview');
+  if (!banner) return;
+  var logoImg = document.getElementById('teamsDetailPreviewLogo');
+  var nameEl = document.getElementById('teamsDetailPreviewName');
+  var logo = _teamsDetailLogo, primary = _teamsDetailColors.primaryColor, secondary = _teamsDetailColors.secondaryColor;
+  var hasAnything = !!logo || !!primary || !!secondary;
+  banner.hidden = !hasAnything;
+  if (!hasAnything) return;
+  banner.style.cssText = teamBrandBannerCss(primary, secondary,
+    teamsDetailStyleValue(), teamsDetailAngleValue(), _teamsDetailColors.brandTextColor, _teamsDetailColors.brandNameOutlineColor);
+  if (logoImg) {
+    if (logo) { logoImg.src = logo; logoImg.hidden = false; }
+    else { logoImg.removeAttribute('src'); logoImg.hidden = true; }
+  }
+  if (nameEl) {
+    var displayEl = document.getElementById('teamsDetailDisplay');
+    var team = _teamsData.teams[_teamsDetailIdx];
+    nameEl.textContent = (displayEl && displayEl.value.trim()) || (team && team.name) || '';
+  }
+}
+
+// Opens the detail view for _teamsData.teams[idx] — reads straight off the
+// already-loaded team list (no extra fetch needed, unlike coach.js's
+// loadTeamTab which has to fetch /teams itself since a coach page never
+// loads the full roster editor).
+function openTeamDetail(idx) {
+  var team = _teamsData.teams[idx];
+  if (!team) return;
+  _teamsDetailIdx = idx;
+  _teamsDetailLogo = team.logo || null;
+  _teamsDetailColors = {
+    primaryColor: team.primaryColor || '',
+    secondaryColor: team.secondaryColor || '',
+    brandTextColor: team.brandTextColor || '',
+    brandNameOutlineColor: team.brandNameOutlineColor || '',
+  };
+  teamsDetailStatus('');
+  document.getElementById('teamsListView').hidden = true;
+  document.getElementById('teamsDetailView').hidden = false;
+  document.getElementById('teamsDetailHeading').textContent = team.name;
+  document.getElementById('teamsDetailDisplay').value = team.displayName || '';
+  document.getElementById('teamsDetailShort').value = team.shortName || '';
+  teamsDetailSyncLogo();
+  teamsDetailSyncColor('primaryColor');
+  teamsDetailSyncColor('secondaryColor');
+  teamsDetailSyncColor('brandTextColor');
+  teamsDetailSyncColor('brandNameOutlineColor');
+  var styleVal = team.brandStyle || 'gradient';
+  var styleEl = document.getElementById('teamsDetailStyle'
+    + styleVal.charAt(0).toUpperCase() + styleVal.slice(1)) || document.getElementById('teamsDetailStyleGradient');
+  if (styleEl) styleEl.checked = true;
+  var angleEl = document.getElementById('teamsDetailAngle');
+  if (angleEl) angleEl.value = typeof team.brandAngle === 'number' ? team.brandAngle : 135;
+  teamsDetailSyncStyleRow();
+  var lockedEl = document.getElementById('teamsDetailLockedNote');
+  if (lockedEl) lockedEl.hidden = !team.locked;
+}
+
+function closeTeamDetail() {
+  _teamsDetailIdx = null;
+  document.getElementById('teamsDetailView').hidden = true;
+  document.getElementById('teamsListView').hidden = false;
+}
+
+async function saveTeamsDetail() {
+  teamsDetailStatus('');
+  var team = _teamsData.teams[_teamsDetailIdx];
+  if (!team) return;
+  var btn = document.getElementById('teamsDetailSaveBtn');
+  if (btn) btn.disabled = true;
+  var body = {
+    displayName: document.getElementById('teamsDetailDisplay').value.trim(),
+    shortName:   document.getElementById('teamsDetailShort').value.trim(),
+  };
+  if (_teamsDetailLogo !== null) body.logo = _teamsDetailLogo;
+  var primaryEl = document.getElementById('teamsDetailPrimaryColor');
+  var secondaryEl = document.getElementById('teamsDetailSecondaryColor');
+  if (_teamsDetailColors.primaryColor !== null) {
+    body.primaryColor = _teamsDetailColors.primaryColor === '' ? '' : (primaryEl ? primaryEl.value : _teamsDetailColors.primaryColor);
+  }
+  if (_teamsDetailColors.secondaryColor !== null) {
+    body.secondaryColor = _teamsDetailColors.secondaryColor === '' ? '' : (secondaryEl ? secondaryEl.value : _teamsDetailColors.secondaryColor);
+  }
+  var textColorEl = document.getElementById('teamsDetailTextColor');
+  if (_teamsDetailColors.brandTextColor !== null) {
+    body.brandTextColor = _teamsDetailColors.brandTextColor === '' ? '' : (textColorEl ? textColorEl.value : _teamsDetailColors.brandTextColor);
+  }
+  var outlineColorEl = document.getElementById('teamsDetailOutlineColor');
+  if (_teamsDetailColors.brandNameOutlineColor !== null) {
+    body.brandNameOutlineColor = _teamsDetailColors.brandNameOutlineColor === '' ? ''
+      : (outlineColorEl ? outlineColorEl.value : _teamsDetailColors.brandNameOutlineColor);
+  }
+  body.brandStyle = teamsDetailStyleValue();
+  body.brandAngle = teamsDetailAngleValue();
+  try {
+    var r = await apiFetch('/api/team-profile/' + encodeURIComponent(team.name), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    var data = r ? await r.json().catch(function() { return {}; }) : {};
+    if (!r || !r.ok) { teamsDetailStatus(data.error || 'Could not save', true); return; }
+    // Merge the server's response back into the already-loaded list so the
+    // list view (and a re-open of this same team) reflects the save without
+    // a full refetch.
+    if (data.team) _teamsData.teams[_teamsDetailIdx] = data.team;
+    teamsDetailStatus('✓ Saved');
+    showToast('Team profile saved');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+function pickTeamsDetailLogo(el) {
+  var f = el.files && el.files[0];
+  if (!f) return;
+  ttReadTeamLogoFile(f, function(uri) {
+    _teamsDetailLogo = uri;
+    teamsDetailSyncLogo();
+    showToast('Logo ready — press Save to apply');
+  }, function(msg) { showToast(msg, true); el.value = ''; });
+}
+
+function removeTeamsDetailLogo() {
+  _teamsDetailLogo = '';
+  teamsDetailSyncLogo();
+  showToast('Logo will be removed on Save');
+}
+
+// One-time wiring for the detail view's own controls (not per-team — the
+// same DOM nodes are reused across every openTeamDetail() call).
+(function wireTeamsDetailOnce() {
+  var fileInput = document.getElementById('teamsDetailLogoInput');
+  if (fileInput) fileInput.addEventListener('change', function() { pickTeamsDetailLogo(fileInput); });
+  var primaryEl = document.getElementById('teamsDetailPrimaryColor');
+  if (primaryEl) primaryEl.addEventListener('input', function() {
+    _teamsDetailColors.primaryColor = primaryEl.value;
+    teamsDetailSyncColor('primaryColor');
+  });
+  var secondaryEl = document.getElementById('teamsDetailSecondaryColor');
+  if (secondaryEl) secondaryEl.addEventListener('input', function() {
+    _teamsDetailColors.secondaryColor = secondaryEl.value;
+    teamsDetailSyncColor('secondaryColor');
+  });
+  var textColorEl = document.getElementById('teamsDetailTextColor');
+  if (textColorEl) textColorEl.addEventListener('input', function() {
+    _teamsDetailColors.brandTextColor = textColorEl.value;
+    teamsDetailSyncColor('brandTextColor');
+  });
+  var outlineColorEl = document.getElementById('teamsDetailOutlineColor');
+  if (outlineColorEl) outlineColorEl.addEventListener('input', function() {
+    _teamsDetailColors.brandNameOutlineColor = outlineColorEl.value;
+    teamsDetailSyncColor('brandNameOutlineColor');
+  });
+  var styleRow = document.getElementById('teamsDetailStyleRow');
+  if (styleRow) styleRow.addEventListener('change', teamsDetailSyncStyleRow);
+  var angleEl = document.getElementById('teamsDetailAngle');
+  if (angleEl) angleEl.addEventListener('input', teamsDetailUpdatePreview);
+})();
+
+Object.assign(TT_ACTIONS, {
+  closeTeamDetail: function() { closeTeamDetail(); },
+  saveTeamsDetail: function() { saveTeamsDetail(); },
+  removeTeamsDetailLogo: function() { removeTeamsDetailLogo(); },
+  clearTeamsDetailColor: function(which) { clearTeamsDetailColor(which); },
+});
 
 function teamLinkUrl(token) {
   return window.location.origin + '/api/team-link/' + token;
@@ -4799,19 +4936,13 @@ async function saveTeams() {
 
   // Commit any in-progress name edits — merged onto the existing record, not
   // a replacement (see the 'change' handler above for why that matters now).
+  // Display name / short name / colors / branding are no longer edited here —
+  // they live in the per-team detail view now, saved separately via
+  // saveTeamsDetail() (PUT /team-profile/:teamName).
   document.querySelectorAll('.team-ed-name').forEach(function(inp) {
     var i = parseInt(inp.dataset.idx, 10);
     var v = inp.value.trim();
     if (v && _teamsData.teams[i]) _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { name: v });
-  });
-  // Commit any in-progress display name / short name edits the same way.
-  document.querySelectorAll('.team-ed-display').forEach(function(inp) {
-    var i = parseInt(inp.dataset.idx, 10);
-    if (_teamsData.teams[i]) _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { displayName: inp.value.trim() });
-  });
-  document.querySelectorAll('.team-ed-short').forEach(function(inp) {
-    var i = parseInt(inp.dataset.idx, 10);
-    if (_teamsData.teams[i]) _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { shortName: inp.value.trim() });
   });
 
   _teamsData.showSeeds = chk ? chk.checked : false;

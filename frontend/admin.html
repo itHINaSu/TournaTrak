@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.013">
-<link rel="stylesheet" href="/admin.css?v=4.08.013">
-<link rel="stylesheet" href="/lineup.css?v=4.08.013">
-<link rel="stylesheet" href="/builder.css?v=4.08.013">
-<link rel="stylesheet" href="/score.css?v=4.08.013">
-<script src="/app-h.js?v=4.08.013"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.014">
+<link rel="stylesheet" href="/admin.css?v=4.08.014">
+<link rel="stylesheet" href="/lineup.css?v=4.08.014">
+<link rel="stylesheet" href="/builder.css?v=4.08.014">
+<link rel="stylesheet" href="/score.css?v=4.08.014">
+<script src="/app-h.js?v=4.08.014"></script>
 </head>
 <body>
 
@@ -912,20 +912,114 @@
           </div>
         </div>
 
-        <!-- ── Teams panel (moved here from Schedule > Teams, owner 2026-08-02) ── -->
+        <!-- ── Teams panel (moved here from Schedule > Teams, owner 2026-08-02;
+             split into a list + per-team detail view, owner 2026-08-02: "allow
+             TDs to click into a team and get a 'coach panel' in settings > teams
+             for the selected team") ── -->
         <div class="settings-panel" id="sp-teams">
-          <div class="admin-subtitle">All teams from the current schedule. Drag to reorder (the list order is the seed order when seeding is on). Edit a name to rename it everywhere. Display name, short name and logo are the same fields a coach can set for their own team from the Coach Panel's Team tab — lock a team to freeze those out.</div>
-          <div class="settings-field settings-field--toggle">
-            <label>Show seed numbers on the bracket</label>
-            <input type="checkbox" id="teams-showSeeds">
-            <div class="field-hint">Displays <span class="u-dim-70">(1)</span> before team names on bracket cards. Only meaningful when teams are ordered intentionally.</div>
+          <div id="teamsListView">
+            <div class="admin-subtitle">All teams from the current schedule. Drag to reorder (the list order is the seed order when seeding is on). Click a team to edit its branding — display name, short name, logo, colors and banner style, the same fields a coach can set for their own team from the Coach Panel's Team tab. Lock a team to freeze those out.</div>
+            <div class="settings-field settings-field--toggle">
+              <label>Show seed numbers on the bracket</label>
+              <input type="checkbox" id="teams-showSeeds">
+              <div class="field-hint">Displays <span class="u-dim-70">(1)</span> before team names on bracket cards. Only meaningful when teams are ordered intentionally.</div>
+            </div>
+            <div id="teamsEditorWrap">
+              <div id="teamsEditorList" class="teams-editor-list"></div>
+            </div>
+            <div class="settings-save-row">
+              <button class="sched-save-btn" id="teamsSaveBtn" data-action="saveTeams">Save</button>
+              <span class="sched-status" id="teamsSaveStatus"></span>
+            </div>
           </div>
-          <div id="teamsEditorWrap">
-            <div id="teamsEditorList" class="teams-editor-list"></div>
-          </div>
-          <div class="settings-save-row">
-            <button class="sched-save-btn" id="teamsSaveBtn" data-action="saveTeams">Save</button>
-            <span class="sched-status" id="teamsSaveStatus"></span>
+
+          <!-- Per-team detail — same markup/CSS classes as the coach panel's
+               own Team tab (frontend/coach.html), so it looks and behaves
+               identically; teamsDetail* ids in admin.js drive it against
+               whichever team was clicked into rather than "the signed-in
+               coach's own team". -->
+          <div id="teamsDetailView" hidden>
+            <button type="button" class="admin-clear-btn teams-detail-back" data-action="closeTeamDetail">← Teams</button>
+            <div class="admin-subtitle" id="teamsDetailHeading"></div>
+            <div class="team-brand-banner" id="teamsDetailPreview" hidden>
+              <span class="team-brand-name" id="teamsDetailPreviewName"></span>
+              <img class="team-brand-logo" id="teamsDetailPreviewLogo" alt="" hidden>
+            </div>
+            <div class="settings-field" id="teamsDetailLockedNote" hidden>
+              <div class="field-hint">Locked — a coach can't change these until you unlock the team in the list view.</div>
+            </div>
+            <div class="settings-field">
+              <label>Display Name <span class="field-label-hint">(shown on the bracket)</span></label>
+              <input type="text" id="teamsDetailDisplay" maxlength="40" placeholder="Same as team name">
+            </div>
+            <div class="settings-field">
+              <label>Short Name <span class="field-label-hint">(narrow cards, 12 characters)</span></label>
+              <input type="text" id="teamsDetailShort" maxlength="12" placeholder="Optional">
+            </div>
+            <div class="settings-field">
+              <label>Team Logo <span class="field-label-hint">(PNG/JPEG/WebP, max 48 KB)</span></label>
+              <div class="logo-picker-row">
+                <img id="teamsDetailLogoPreview" class="team-tab-logo-preview" alt="" hidden>
+                <input type="file" id="teamsDetailLogoInput" accept="image/png,image/jpeg,image/webp">
+                <button type="button" class="admin-clear-btn" id="teamsDetailLogoRemoveBtn" data-action="removeTeamsDetailLogo" hidden>Remove</button>
+              </div>
+              <div class="field-hint">Shown on Team Path and Standings.</div>
+            </div>
+            <div class="settings-field">
+              <label>Team Colors <span class="field-label-hint">(shown on Team Path and Standings)</span></label>
+              <div class="team-tab-colors">
+                <label class="team-tab-color-field">
+                  <span>Primary</span>
+                  <span class="color-swatch"><input type="color" id="teamsDetailPrimaryColor" value="#4a4a4a"></span>
+                  <button type="button" class="admin-clear-btn" id="teamsDetailPrimaryColorClear" data-action="clearTeamsDetailColor" data-arg="primaryColor" hidden>Clear</button>
+                </label>
+                <label class="team-tab-color-field">
+                  <span>Secondary</span>
+                  <span class="color-swatch"><input type="color" id="teamsDetailSecondaryColor" value="#4a4a4a"></span>
+                  <button type="button" class="admin-clear-btn" id="teamsDetailSecondaryColorClear" data-action="clearTeamsDetailColor" data-arg="secondaryColor" hidden>Clear</button>
+                </label>
+              </div>
+            </div>
+            <div class="settings-field">
+              <label>Banner Style</label>
+              <div class="team-tab-style-row" id="teamsDetailStyleRow">
+                <label class="team-tab-style-opt">
+                  <input type="radio" name="teamsDetailBrandStyle" value="gradient" id="teamsDetailStyleGradient">
+                  <span>Gradient</span>
+                </label>
+                <label class="team-tab-style-opt">
+                  <input type="radio" name="teamsDetailBrandStyle" value="solid" id="teamsDetailStyleSolid">
+                  <span>Solid</span>
+                </label>
+                <label class="team-tab-style-opt">
+                  <input type="radio" name="teamsDetailBrandStyle" value="stripes" id="teamsDetailStyleStripes">
+                  <span>Stripes</span>
+                </label>
+              </div>
+              <div class="team-tab-angle-row" id="teamsDetailAngleRow">
+                <label for="teamsDetailAngle">Angle</label>
+                <input type="range" id="teamsDetailAngle" min="0" max="359" step="15" value="135">
+              </div>
+            </div>
+            <div class="settings-field">
+              <label>Team Name Color <span class="field-label-hint">(against the banner)</span></label>
+              <div class="team-tab-colors">
+                <label class="team-tab-color-field">
+                  <span>Text</span>
+                  <span class="color-swatch"><input type="color" id="teamsDetailTextColor" value="#ffffff"></span>
+                  <button type="button" class="admin-clear-btn" id="teamsDetailTextColorClear" data-action="clearTeamsDetailColor" data-arg="brandTextColor" hidden>Auto</button>
+                </label>
+                <label class="team-tab-color-field">
+                  <span>Outline</span>
+                  <span class="color-swatch"><input type="color" id="teamsDetailOutlineColor" value="#000000"></span>
+                  <button type="button" class="admin-clear-btn" id="teamsDetailOutlineColorClear" data-action="clearTeamsDetailColor" data-arg="brandNameOutlineColor" hidden>None</button>
+                </label>
+              </div>
+            </div>
+            <div class="settings-save-row">
+              <button class="sched-save-btn" id="teamsDetailSaveBtn" data-action="saveTeamsDetail">Save</button>
+              <span class="sched-status" id="teamsDetailStatus"></span>
+            </div>
           </div>
         </div>
 
@@ -1010,15 +1104,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.08.013"></script>
-<script src="/theme-css.js?v=4.08.013"></script>
-<script src="/tt-common.js?v=4.08.013"></script>
-<script src="/bracket-data.js?v=4.08.013"></script>
-<script src="/admin.js?v=4.08.013"></script>
-<script src="/lineup.js?v=4.08.013"></script>
-<script src="/score.js?v=4.08.013"></script>
-<script src="/builder-form.js?v=4.08.013"></script>
-<script src="/builder.js?v=4.08.013"></script>
-<script src="/sw-register.js?v=4.08.013" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.014"></script>
+<script src="/theme-css.js?v=4.08.014"></script>
+<script src="/tt-common.js?v=4.08.014"></script>
+<script src="/bracket-data.js?v=4.08.014"></script>
+<script src="/admin.js?v=4.08.014"></script>
+<script src="/lineup.js?v=4.08.014"></script>
+<script src="/score.js?v=4.08.014"></script>
+<script src="/builder-form.js?v=4.08.014"></script>
+<script src="/builder.js?v=4.08.014"></script>
+<script src="/sw-register.js?v=4.08.014" data-sw="/admin-sw.js"></script>
 </body>
 </html>

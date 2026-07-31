@@ -1376,8 +1376,18 @@ input[type="time"]:focus {
   font-size: 0.78rem;
   color: var(--text-dim);
   cursor: pointer;
-  margin-left: auto;
+  flex: none;
+  /* margin-left:auto no longer does anything useful here — .team-ed-name's
+     own flex:1 already claims all free space in the row before this runs
+     (owner, 2026-08-02: moved from teamProfileRow's now-removed second line
+     into the primary row, alongside Edit/link/reorder, for the click-into-a-
+     team restructure) — left off rather than carried over as dead styling. */
 }
+/* Opens the per-team detail view — same small-text-button look as the
+   lineup-link panel's own buttons (.admin-edit-btn), just pinned to not
+   shrink in a row that also has a flex:1 name field. */
+.team-ed-edit { flex: none; }
+.teams-detail-back { margin-bottom: 0.6em; }
 
 
 /* Builder embedded in schedule tab — fill the full panel width */
