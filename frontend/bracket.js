@@ -75,13 +75,23 @@ var _teamLabels = {};       // canonical name -> { display, short }
 // team that actually SET something, so a plain tournament with no branding
 // costs nothing extra to render.
 var _teamBranding = {};
+// canonical name -> true, for EVERY rostered team (branded or not). Used to
+// tell a real team name from an unresolved slot's placeholder label.
+var _teamNames = {};
 
 function rebuildTeamLabels() {
   _teamLabels = {};
   _teamBranding = {};
+  _teamNames = {};
   var list = (_teamsData && _teamsData.teams) || [];
   list.forEach(function(t) {
     if (!t || !t.name) return;
+    // Every rostered team, branded or not. _teamLabels only holds teams that
+    // set a display/short name, so it cannot answer "is this string a real
+    // team?" — and shortNameAttr()'s auto-abbreviation MUST NOT fire on an
+    // unresolved slot's placeholder text ("Loser of Game 11" would abbreviate
+    // to a meaningless "Loser of").
+    _teamNames[t.name] = true;
     if (t.displayName || t.shortName) {
       _teamLabels[t.name] = { display: t.displayName || '', short: t.shortName || '' };
     }
@@ -147,6 +157,27 @@ function teamAttr(t) {
 function shortNameAttr(name) {
   var l = _teamLabels[name];
   var s = l && l.short;
+  // Guarded to REAL teams. Card slots that haven't resolved yet are rendered
+  // from placeholder text ("Loser of Game 11", "Winner of Team 4 / Team 13"),
+  // and running the abbreviation rule over those produces a confidently wrong
+  // "Loser of" / "Winner of" — measured on a live 22-team bracket, 62 of 82
+  // mobile cards, before this guard existed.
+  if (!s && _teamNames[name]) {
+    // No custom short name saved — fall back to the default abbreviation
+    // rule (owner, 2026-08-02: "If a team hasn't defined their own short
+    // name follow the default short name rule"), so a clipped name always
+    // has SOMETHING to swap to rather than only teams that thought to set
+    // one. Abbreviates the DISPLAYED label, not the canonical name: a team
+    // whose display name is "Southside Slowpitch Sluggers" should shorten
+    // that, not the "Team 1" it is keyed by.
+    //
+    // Only emitted when it actually differs — shortName() returns names of
+    // 14 characters or fewer unchanged, and a data-short identical to the
+    // text already rendered is a no-op attribute on every card in the tree.
+    var full = teamLabel(name);
+    var auto = shortName(full);
+    if (auto && auto !== full) s = auto;
+  }
   return s ? ' data-short="' + esc(s) + '"' : '';
 }
 

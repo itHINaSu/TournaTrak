@@ -235,7 +235,14 @@ function slotLabel(teamSlot) {
 // Names of 14 chars or fewer pass through whole regardless of word count
 // ("Hall of Fame" stays intact); longer ones keep at most 2 words
 // (e.g. "High Point Roofing" → "High Point").
-// Never call this when displaying a single team name on its own.
+// ALSO the "default short name rule" (owner, 2026-08-02) that
+// shortNameAttr() in bracket.js falls back to for a single team name that
+// has no custom short name saved and is being CLIPPED on a card. That is a
+// sanctioned second use and supersedes the older "never call this for a
+// single team name on its own" note that stood here — the constraint it was
+// protecting (don't silently abbreviate a name that fits) is now enforced at
+// the call site instead, by fitTeamCardNames() only swapping in the short
+// form once the full one is measured to overflow.
 function shortName(name) {
   if (!name) return '';
   var s = name.trim().split('/')[0].trim(); // drop everything from "/" onward
