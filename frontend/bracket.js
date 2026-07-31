@@ -6590,7 +6590,13 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   if (refreshBtn)     refreshBtn.hidden = !isPwa;
   if (signInBtn)      signInBtn.hidden = !(!_sessionRole);
   if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
-  if (lineupBtn)      lineupBtn.hidden = !((_sessionRole === 'team'));
+  // Coach Panel is offered by TEAM ASSIGNMENT, not by role — coaching a team
+  // and being staff are independent facts. session.teams is populated for
+  // anyone with a team grant regardless of role ("staff may also coach — a TD
+  // whose own kid plays should not need a second login"), so an admin
+  // assigned to a team needs both panel links, not a choice between them.
+  var coachesATeam = !!(sess.teams && sess.teams.length);
+  if (lineupBtn)      lineupBtn.hidden = !coachesATeam;
   if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
   if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));
   syncProjectBtn();

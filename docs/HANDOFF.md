@@ -2928,6 +2928,59 @@ column), so reordering means reordering the markup. The panel links stay
 role-gated; the Admin link additionally shows to a SIGNED-OUT visitor in an
 installed PWA, which is not an oversight — see the comment at that line.
 
+## Coach Panel visibility is a TEAM GRANT, not a role (2026-07-31)
+Owner report: **"If an admin is assigned to a team, they need the coaches
+panel in addition to the admin panel, currently that is not in the hamburger
+menu."** Coaching a team and holding a staff role are independent facts —
+`POST /users/:username/teams` has let staff pick up a team grant for a while
+("a TD whose own kid is on a team should not need a second account", and
+`/coach`'s own access gate already lets any staff in) — but the public
+page's header menu still decided the Coach Panel link's visibility from
+`session.role === 'team'` alone, so an admin who also coaches never saw it.
+Fixed on the public page (`bracket.js`, the init block that sets
+`adminBtn`/`lineupBtn`/`signInBtn` hidden state): the link now shows on
+`session.teams.length > 0`, independent of role. A pure coach (`role:
+'team'`) still always has `teams.length > 0`, so this is a strict widening,
+not a behaviour change for the existing case.
+
+**`/admin` had no Coach Panel link AT ALL**, in its own hamburger — the only
+way there was back out to the public page first. Added `#coachPanelLink` to
+`admin.html`'s `#headerControls` (last, same "destination leaves the page"
+convention as the public menu), scoped by `?t=<slug>` — NOT a `/t/:slug/`
+path segment, because `/coach` isn't proxied per-slug like the public bracket
+pages are; it reads the tournament from a query param the same way `/lineup`
+magic links and `coach.js`'s own `coachApiBase()` already do.
+
+**The trap, if you touch this again**: `POST /api/login`'s response does
+**not** include `teamName` (only `role`, which is all `doLogin()` needs to
+decide staff-panel vs. `showCoachBlock()` redirect) — so setting the link's
+visibility once, synchronously, inside `showAdmin()` from whatever
+`currentTeamName` happens to hold at that instant is CORRECT after a page
+reload (`checkSession()` already populated it from a fresh `/api/session`)
+but WRONG immediately after a fresh login through the form (`currentTeamName`
+is still `null` at that point, one call behind). The fix mirrors how
+`currentRole` already handles exactly this staleness: `showAdmin()` sets an
+initial guess, and `loadTournamentContext()` — which unconditionally fetches
+a fresh `/api/session` on every path into the panel, login included — issues
+the authoritative correction once real data lands. Do not "simplify" this
+back down to a single synchronous check in `showAdmin()`; that is the bug.
+
+Verified with a real account switch, not just the two role checks in
+isolation: `demo` (role `admin`) granted `Northside Eagles` via `POST
+/users/demo/teams` — link appears in both hamburgers, `href` on the admin
+panel's copy resolves to `/coach?t=main`, and clicking it actually lands on
+`/coach` showing "Northside Eagles". `scorer` (results, no team) — link
+stays hidden. `coach_lopez` (pure `team` role) — still bounced straight to
+`/coach` from the admin login form exactly as before, and still sees the
+link on the public page (regression check on the role→teams.length change).
+API-level coverage in `routes.test.js`, describe `'/session reports team
+assignment independently of role'` — deliberately checks the STAFF ACCOUNT'S
+OWN `/session` response, not the admin's view of it via `/users`, since
+that's the literal contract the header menu is built on. Watch for shared
+test-fixture pollution here: `loginAdmin()`'s account picks up a real team
+grant from the team-link-claim tests earlier in the file, so "an admin with
+no team" needs a freshly created account, not the shared one.
+
 ## First password set can also claim a username (2026-07-30)
 Owner: "far too many people create a password and never know their username."
 Exactly right — an admin types a placeholder when creating the account, the

@@ -1563,6 +1563,11 @@ function showAdmin(username, role, teamName) {
   if (unEl) unEl.textContent = username || 'admin';
   var pwaHomeEl = document.getElementById('set-pwaHome');
   if (pwaHomeEl) { try { pwaHomeEl.value = localStorage.getItem('ttPwaHome') || 'admin'; } catch(e) {} }
+  // A team assignment is independent of role — an admin or scorekeeper who
+  // also coaches a team needs a way to that panel too, not just the one
+  // their staff role opens by default.
+  var coachLinkEl = document.getElementById('coachPanelLink');
+  if (coachLinkEl) coachLinkEl.hidden = !currentTeamName;
   applyRoleRestrictions(currentRole);
   var roleEl = document.getElementById('newUserRole');
   if (roleEl) {
@@ -1595,6 +1600,18 @@ async function loadTournamentContext() {
     applyRoleRestrictions(currentRole);
   }
 
+  // Authoritative team assignment. POST /login doesn't return teamName (it
+  // only needs role, to decide staff-panel vs coach-redirect), so a login via
+  // the form leaves currentTeamName stale until this fresh /api/session
+  // fetch corrects it — this is that correction. showAdmin() already set an
+  // initial guess from whatever was known at the time (right on a reload,
+  // wrong on a fresh login), same as it does for currentRole above.
+  if (data && data.teamName !== currentTeamName) {
+    currentTeamName = data.teamName || null;
+    var coachLinkEl = document.getElementById('coachPanelLink');
+    if (coachLinkEl) coachLinkEl.hidden = !currentTeamName;
+  }
+
   var navT = document.getElementById('navTournaments');
   if (navT) navT.hidden = !(_isSuperadmin);
   renderTournamentSwitcher();
@@ -1621,6 +1638,7 @@ function renderTournamentSwitcher() {
   // Show the switcher only when there's a real choice.
   sel.hidden = !(opts.length > 1);
   updateViewPublicLink();
+  updateCoachPanelLink();
   // The switcher is a header control, so its visibility decides whether there
   // are enough of them to be worth a hamburger.
   updateHeaderMenu();
@@ -1634,10 +1652,21 @@ function updateViewPublicLink() {
   link.href = slug ? '/t/' + encodeURIComponent(slug) : '/';
 }
 
+// Coach Panel is scoped by query param (?t=<slug>), not a path segment like
+// the public bracket pages — matching how coach.js and the /lineup magic
+// links already read the active tournament.
+function updateCoachPanelLink() {
+  var link = document.getElementById('coachPanelLink');
+  if (!link) return;
+  var slug = getAdminSlug();
+  link.href = slug ? '/coach?t=' + encodeURIComponent(slug) : '/coach';
+}
+
 // Switcher change handler: remember the choice and reload all scoped data.
 function switchTournament(slug) {
   setAdminSlug(slug || null);
   updateViewPublicLink();
+  updateCoachPanelLink();
   // Grants can differ per tournament — a TD may be admin on one event and only
   // a scorekeeper on another — so the panel's privilege level has to follow the
   // switch, not stay on whatever the previous tournament allowed.

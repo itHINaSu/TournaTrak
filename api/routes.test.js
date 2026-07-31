@@ -1597,6 +1597,68 @@ describe('cross-tournament coach grants', () => {
   });
 });
 
+describe('/session reports team assignment independently of role', () => {
+  // The frontend contract behind the header menu's "Coach Panel" link: it
+  // decides visibility purely from session.teams, not from session.role, so
+  // this is the response shape that decision is built on. Owner report: "If
+  // an admin is assigned to a team, they need the coaches panel in addition
+  // to the admin panel, currently that is not in the hamburger menu."
+  rtest('an admin who also coaches sees the team on their OWN session', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    // Create-and-claim through the normal setup-link flow, so this reads the
+    // ACCOUNT's own session — the header menu never sees the admin's view of
+    // another user (already covered by "the users list reports…" above),
+    // only what /session says about the browser it's running in.
+    const made = await a.post('/api/users', { username: 'td-coaches-too', role: 'results' });
+    assert.equal(made.status, 200);
+    assert.equal((await a.post('/api/users/td-coaches-too/teams', { teamName: 'Alpha' })).status, 200);
+
+    const c = agent();
+    assert.equal((await c.req('GET', '/api/setup-password/' + made.json.setupToken,
+      undefined, { manual: true })).status, 302);
+    assert.equal((await c.post('/api/change-password', { password: 'coacheetoopass1' })).status, 200);
+
+    const sess = (await c.get('/api/session')).json;
+    assert.equal(sess.role, 'results', 'staff role unchanged by coaching a team');
+    assert.deepEqual(sess.teams, ['Alpha'], 'the coached team is on the session');
+    assert.equal(sess.teamName, 'Alpha');
+  });
+
+  rtest('a plain admin with no team grant reports an empty teams list', async () => {
+    // A fresh account, not the shared loginAdmin() fixture — that one picks
+    // up team grants from OTHER tests earlier in this file (the team-link
+    // claim tests give it 'Alpha'), so it cannot stand in for "never
+    // assigned a team" by the time this runs.
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const made = await a.post('/api/users', { username: 'plain-admin', role: 'admin' });
+    assert.equal(made.status, 200);
+    const c = agent();
+    assert.equal((await c.req('GET', '/api/setup-password/' + made.json.setupToken,
+      undefined, { manual: true })).status, 302);
+    assert.equal((await c.post('/api/change-password', { password: 'plainadminpass1' })).status, 200);
+
+    const sess = (await c.get('/api/session')).json;
+    assert.equal(sess.role, 'admin');
+    assert.deepEqual(sess.teams, [], 'no grant, no team — the menu link must stay hidden');
+    assert.equal(sess.teamName, null);
+  });
+
+  rtest('a pure coach still reports their team under role team', async () => {
+    const a = await loginAdmin();
+    await a.post('/api/schedule', MINI);
+    const made = await a.post('/api/users', { username: 'pure-coach', role: 'team', teamName: 'Beta' });
+    assert.equal(made.status, 200);
+    const c = agent();
+    assert.equal((await c.req('GET', '/api/team-access/' + made.json.accessToken,
+      undefined, { manual: true })).status, 302);
+    const sess = (await c.get('/api/session')).json;
+    assert.equal(sess.role, 'team');
+    assert.deepEqual(sess.teams, ['Beta']);
+  });
+});
+
 // ── Push notifications ────────────────────────────────────────────────
 // The delivery itself needs a real push service, so what is asserted here is
 // everything up to the wire: who may reach these routes, that a subscription

@@ -156,6 +156,13 @@
     <select class="styled admin-tournament-switcher" id="tournamentSwitcher" data-action-change="switchTournament" hidden title="Active tournament"></select>
     <a href="/" class="admin-public-btn" id="viewPublicLink">← Bracket</a>
     <button class="theme-toggle" id="themeToggle">☀ Light</button>
+    <!-- Staff who also coach a team (a TD whose own kid plays, a scorekeeper
+         who runs a team) need both panels — coaching and admin/results access
+         are independent facts, not alternatives. Hidden by default; shown in
+         showAdmin() only when the signed-in account has a team assigned.
+         Last, like the public page's panel links: a destination that leaves
+         this page belongs at the end of a menu of actions. -->
+    <a href="/coach" class="admin-public-btn" id="coachPanelLink" hidden>Coach Panel →</a>
   </div>
 </header>
 
