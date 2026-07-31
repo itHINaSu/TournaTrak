@@ -252,7 +252,12 @@
    team logos... height should be the determining factor for sizing") —
    there's room to the row's right for a wide badge to run, so only
    max-width bounds it (matching the crop modal's own aspect-ratio cap). */
-.std-team-logo { height: 3rem; width: auto; max-width: 9rem; object-fit: contain; border-radius: var(--radius-xs); flex-shrink: 0; }
+/* Sized to fit within the row's own text-driven height, never the other way
+   around (owner, 2026-08-02: "logos shouldn't expand the height of a
+   card... should expand/shrink based on the card height") — .std-row's
+   height comes entirely from .std-main's two-line name+meta stack plus
+   padding, and this stays comfortably under that (see .std-main below). */
+.std-team-logo { height: 3.25rem; width: auto; max-width: 9.75rem; object-fit: contain; border-radius: var(--radius-xs); flex-shrink: 0; }
 .std-rank {
   font-family: 'Oswald', sans-serif;
   font-size: var(--text-lg);
@@ -262,7 +267,13 @@
   text-align: center;
   flex-shrink: 0;
 }
-.std-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15em; }
+/* NOT flex:1 — sized to its own name/meta content (shrinking only if the row
+   is too narrow for name+logo+figures together) rather than stretching to
+   fill the row. flex:1 here is what put the logo at the row's far edge
+   instead of right after the visible name (owner, 2026-08-02: "logos just to
+   the right of the team name, not right aligned") — .std-figures' own
+   margin-left:auto is what still pins the record/diff to the right edge. */
+.std-main { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.15em; }
 .std-team {
   font-family: 'Oswald', sans-serif;
   font-size: 0.95rem;
@@ -272,6 +283,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
 }
 /* Runs for / against — secondary, so they read as detail under the name
    rather than competing with the record. */
@@ -1156,6 +1168,11 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
 .round-team-name.lost { color: var(--lose-color); }
 /* ── Team view ── */
 .team-panel { max-width: 65em; margin: 0 auto; padding: 0 1em 1.5em; }
+/* Team Path only (owner, 2026-08-02: "padding above the team header below
+   the site header") — the branded banner sat flush against the selector row
+   above it with no breathing room; Standings' own #standingsOut keeps the
+   shared rule's 0 top padding since its rows don't need the same gap. */
+#view-teampath .team-panel { padding-top: 1em; }
 .team-no-games { padding: 1em; color: var(--text-mute); font-style: italic; }
 
 /* Cards in the team panel show a lose-destination sidebar on the right */

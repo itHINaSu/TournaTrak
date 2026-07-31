@@ -1066,6 +1066,11 @@ var _tlCropDone = null;   // function(finalDataUri) — set per-open, cleared on
 // handle to grow both dimensions together, same feel as the old fixed-square
 // modal, for a team that wants an icon-style badge instead.
 var _tlCropMode = 'rect';
+// Invert toggle (owner, 2026-08-02: "add an option in the crop panel to
+// invert the colors of a logo. Many teams have a single color logo
+// (light/dark)") — a live CSS filter on the preview so it's WYSIWYG, applied
+// for real via canvas ctx.filter at bake time in ttCropApply.
+var _tlInvert = false;
 
 // Default crop: contain the whole image, letterboxed to the nearest aspect
 // ratio this modal allows, rather than forced to a square — a source image
@@ -1099,20 +1104,82 @@ function tlDrawCropped(ctx, img, rect, outW, outH) {
   ctx.drawImage(img, -rect.x * k, -rect.y * k, img.width * k, img.height * k);
 }
 
+// Finds the source image's actual artwork bounds — ignoring transparent
+// pixels, and, for a flattened (fully opaque) image, pixels close to the
+// sampled corner/background color — so "Center Content" can re-centre a
+// free-resized crop over the logo itself rather than the image's raw pixel
+// bounds (owner, 2026-08-02: "if a team free crops, I want a button to
+// center content within the defined space"). Sampled on a grid, not every
+// pixel — content bounds don't need sub-pixel precision, and a full scan of
+// a multi-megapixel upload would be slow. Returns null if nothing reads as
+// distinct from the background (a blank/solid image).
+function tlContentBounds(img) {
+  var w = img.naturalWidth, h = img.naturalHeight;
+  var canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  var ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  var data;
+  try { data = ctx.getImageData(0, 0, w, h).data; }
+  catch (e) { return null; }   // tainted canvas — caller falls back to plain center
+  var corners = [[0, 0], [w - 1, 0], [0, h - 1], [w - 1, h - 1]];
+  var bg = [0, 0, 0], bgCount = 0;
+  corners.forEach(function (c) {
+    var i = (c[1] * w + c[0]) * 4;
+    if (data[i + 3] > 10) { bg[0] += data[i]; bg[1] += data[i + 1]; bg[2] += data[i + 2]; bgCount++; }
+  });
+  if (bgCount) { bg[0] /= bgCount; bg[1] /= bgCount; bg[2] /= bgCount; }
+  var THRESH = 24;
+  var minX = w, minY = h, maxX = -1, maxY = -1;
+  var stepX = Math.max(1, Math.floor(w / 300));
+  var stepY = Math.max(1, Math.floor(h / 300));
+  for (var y = 0; y < h; y += stepY) {
+    for (var x = 0; x < w; x += stepX) {
+      var i = (y * w + x) * 4;
+      var a = data[i + 3];
+      var isContent;
+      if (a <= 10) isContent = false;
+      else if (bgCount) {
+        var dr = data[i] - bg[0], dg = data[i + 1] - bg[1], db = data[i + 2] - bg[2];
+        isContent = (dr * dr + dg * dg + db * db) > THRESH * THRESH;
+      } else isContent = true;
+      if (isContent) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return null;
+  return { x: minX, y: minY, w: (maxX - minX) || 1, h: (maxY - minY) || 1 };
+}
+
 function ttOpenLogoCropModal(srcUri, onDone) {
   var overlay = document.getElementById('teamLogoCropOverlay');
   var img = document.getElementById('teamLogoCropImg');
   if (!overlay || !img) { onDone(srcUri); return; }  // no modal in this page's markup — skip cropping
   _tlCrop = null;
   _tlCropMode = 'rect';
+  _tlInvert = false;
   _tlCropDone = onDone;
   overlay.hidden = false;
+  img.style.filter = '';
   ttSyncCropShapeButtons();
+  ttSyncCropInvertButton();
   img.onload = function () {
     if (!_tlCrop) _tlCrop = tlDefaultCrop(img.naturalWidth, img.naturalHeight, _tlCropMode);
     ttDrawCropBox();
   };
   img.src = srcUri;
+}
+function ttSyncCropInvertButton() {
+  var btn = document.getElementById('teamLogoCropInvertBtn');
+  if (btn) btn.classList.toggle('is-active', _tlInvert);
+}
+function ttCropToggleInvert() {
+  _tlInvert = !_tlInvert;
+  var img = document.getElementById('teamLogoCropImg');
+  if (img) img.style.filter = _tlInvert ? 'invert(1)' : '';
+  ttSyncCropInvertButton();
 }
 function ttSyncCropShapeButtons() {
   var sq = document.getElementById('teamLogoCropShapeSquare');
@@ -1141,6 +1208,23 @@ function ttCropCenter() {
   var img = document.getElementById('teamLogoCropImg');
   if (!img || !img.naturalWidth || !_tlCrop) return;
   _tlCrop = { x: 0.5, y: 0.5, rw: _tlCrop.rw, rh: _tlCrop.rh };
+  ttDrawCropBox();
+}
+// Same idea as ttCropCenter, but centres over the DETECTED ARTWORK instead
+// of the raw image bounds — for a team that free-cropped to some rectangle
+// and now wants the logo itself centred inside it, without the box's own
+// size changing (owner, 2026-08-02: "if a team free crops, I want a button
+// to center content within the defined space").
+function ttCropCenterContent() {
+  var img = document.getElementById('teamLogoCropImg');
+  if (!img || !img.naturalWidth || !_tlCrop) return;
+  var b = tlContentBounds(img);
+  if (!b) { ttCropCenter(); return; }   // nothing distinct from the background — plain center
+  _tlCrop = {
+    x: (b.x + b.w / 2) / img.naturalWidth,
+    y: (b.y + b.h / 2) / img.naturalHeight,
+    rw: _tlCrop.rw, rh: _tlCrop.rh,
+  };
   ttDrawCropBox();
 }
 function ttDrawCropBox() {
@@ -1221,7 +1305,12 @@ function ttCropApply() {
   var outW = Math.max(1, Math.round(outH * (rect.w / rect.h)));
   var canvas = document.createElement('canvas');
   canvas.width = outW; canvas.height = outH;
-  tlDrawCropped(canvas.getContext('2d'), img, rect, outW, outH);
+  var ctx = canvas.getContext('2d');
+  // Bakes the SAME effect the live preview's CSS filter showed, so what a
+  // team saw while positioning the crop is exactly what gets saved (owner,
+  // 2026-08-02: invert for a single-color light/dark logo).
+  if (_tlInvert) ctx.filter = 'invert(1)';
+  tlDrawCropped(ctx, img, rect, outW, outH);
   var out = canvas.toDataURL('image/webp', 0.9);
   if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/png');
   cb(out);
@@ -1236,6 +1325,8 @@ TT_ACTIONS.ttCropCancel  = function () { ttCropCancel(); };
 TT_ACTIONS.ttCropReset   = function () { ttCropReset(); };
 TT_ACTIONS.ttCropSetMode = function (mode) { ttCropSetMode(mode); };
 TT_ACTIONS.ttCropCenter  = function () { ttCropCenter(); };
+TT_ACTIONS.ttCropCenterContent = function () { ttCropCenterContent(); };
+TT_ACTIONS.ttCropToggleInvert  = function () { ttCropToggleInvert(); };
 
 document.addEventListener('DOMContentLoaded', function () {
   var boxEl  = document.getElementById('teamLogoCropBox');

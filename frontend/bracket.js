@@ -5365,10 +5365,6 @@ function renderStandingsViewInner() {
     html += '<div class="std-row' + (r.gp ? '' : ' std-row--unplayed') + (accent ? ' std-row--branded' : '') + '"'
       + (rowCss ? ' data-css="' + esc(rowCss) + '"' : '') + '>'
       + '<span class="std-rank">' + (r.gp ? (i + 1) : '—') + '</span>'
-      // Logo AFTER the name in DOM order, same reasoning as the Team Path
-      // banner (owner, 2026-08-02: "move logos to the right of team names")
-      // — the name gets its full run of space rather than sharing a line
-      // with a fixed-width image ahead of it.
       + '<span class="std-main">'
       +   '<span class="std-team">' + seedChip(r.name) + esc(r.name) + '</span>'
       +   '<span class="std-meta">'
@@ -5376,6 +5372,14 @@ function renderStandingsViewInner() {
       +     '<span class="std-stat"><b>' + r.ra + '</b> RA</span>'
       +   '</span>'
       + '</span>'
+      // Logo AFTER .std-main, but .std-main no longer flex:1 (see bracket.css)
+      // so it sizes to its own name/meta text instead of stretching to fill
+      // the row — that's what lets the logo sit right after the visible name
+      // rather than at the row's far edge (owner, 2026-08-02: "logos just to
+      // the right of the team name, not right aligned"). Sized in CSS to fit
+      // within the row's own text-driven height rather than the other way
+      // around (owner, 2026-08-02: "logos shouldn't expand the height of a
+      // card... should expand/shrink based on the card height").
       + (standingsLogosOk && brand && brand.logoUrl ? '<img class="std-team-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
       + '<span class="std-figures">'
       +   '<span class="std-record">' + r.w + '<span class="std-record-sep">–</span>' + r.l + '</span>'

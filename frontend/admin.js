@@ -4598,11 +4598,24 @@ function teamsDetailStatus(text, isError) {
 function teamsDetailSyncLogo() {
   var img = document.getElementById('teamsDetailLogoPreview');
   var rm  = document.getElementById('teamsDetailLogoRemoveBtn');
+  var rc  = document.getElementById('teamsDetailLogoRecropBtn');
   if (img && rm) {
-    if (_teamsDetailLogo) { img.src = _teamsDetailLogo; img.hidden = false; rm.hidden = false; }
-    else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
+    if (_teamsDetailLogo) { img.src = _teamsDetailLogo; img.hidden = false; rm.hidden = false; if (rc) rc.hidden = false; }
+    else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; if (rc) rc.hidden = true; }
   }
   teamsDetailUpdatePreview();
+}
+
+// Mirrors coach.js's recropTeamTabLogo — re-opens the crop modal on whatever
+// logo is already set (freshly picked or already saved) instead of requiring
+// a re-upload (owner, 2026-08-02: "Teams should be able to modify the crop
+// after an image has already been saved").
+function recropTeamsDetailLogo() {
+  if (!_teamsDetailLogo) return;
+  ttOpenLogoCropModal(_teamsDetailLogo, function (uri) {
+    _teamsDetailLogo = uri;
+    teamsDetailSyncLogo();
+  });
 }
 
 function teamsDetailSyncColor(which) {
@@ -4852,6 +4865,7 @@ Object.assign(TT_ACTIONS, {
   closeTeamDetail: function() { closeTeamDetail(); },
   saveTeamsDetail: function() { saveTeamsDetail(); },
   removeTeamsDetailLogo: function() { removeTeamsDetailLogo(); },
+  recropTeamsDetailLogo: function() { recropTeamsDetailLogo(); },
   clearTeamsDetailColor: function(which) { clearTeamsDetailColor(which); },
   swapTeamsDetailColors: function(which) { teamsDetailSwapColors(which); },
 });

@@ -480,11 +480,26 @@ var _teamTabLogo = null;   // data URI = has one; '' = remove on save; null = un
 function teamTabSyncLogo() {
   var img = document.getElementById('teamTabLogoPreview');
   var rm  = document.getElementById('teamTabLogoRemoveBtn');
+  var rc  = document.getElementById('teamTabLogoRecropBtn');
   if (img && rm) {
-    if (_teamTabLogo) { img.src = _teamTabLogo; img.hidden = false; rm.hidden = false; }
-    else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
+    if (_teamTabLogo) { img.src = _teamTabLogo; img.hidden = false; rm.hidden = false; if (rc) rc.hidden = false; }
+    else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; if (rc) rc.hidden = true; }
   }
   teamTabUpdatePreview();
+}
+
+// Re-opens the crop modal on whatever's already set — a fresh pick this
+// session or the logo already saved on the team — rather than requiring a
+// re-upload just to adjust the crop (owner, 2026-08-02: "Teams should be able
+// to modify the crop after an image has already been saved"). _teamTabLogo is
+// always a usable data URI either way (loadTeamTab reads it straight off
+// GET /teams' rec.logo), so this needs no separate "original" to keep around.
+function recropTeamTabLogo() {
+  if (!_teamTabLogo) return;
+  ttOpenLogoCropModal(_teamTabLogo, function (uri) {
+    _teamTabLogo = uri;
+    teamTabSyncLogo();
+  });
 }
 
 // Shown on Team Path and the Standings tab (owner, 2026-08-02) once saved;
@@ -1131,6 +1146,7 @@ Object.assign(TT_ACTIONS, {
   sortRoster:        function (arg) { sortRoster(arg); },
   saveTeamProfile:   function () { saveTeamProfile(); },
   removeTeamTabLogo: function () { removeTeamTabLogo(); },
+  recropTeamTabLogo: function () { recropTeamTabLogo(); },
   clearTeamTabColor: function (arg) { clearTeamTabColor(arg); },
   swapTeamTabColors: function (arg) { teamTabSwapColors(arg); },
   openCoachShare:       function () { openCoachShare(); },

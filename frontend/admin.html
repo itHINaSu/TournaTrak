@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.019">
-<link rel="stylesheet" href="/admin.css?v=4.08.019">
-<link rel="stylesheet" href="/lineup.css?v=4.08.019">
-<link rel="stylesheet" href="/builder.css?v=4.08.019">
-<link rel="stylesheet" href="/score.css?v=4.08.019">
-<script src="/app-h.js?v=4.08.019"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.020">
+<link rel="stylesheet" href="/admin.css?v=4.08.020">
+<link rel="stylesheet" href="/lineup.css?v=4.08.020">
+<link rel="stylesheet" href="/builder.css?v=4.08.020">
+<link rel="stylesheet" href="/score.css?v=4.08.020">
+<script src="/app-h.js?v=4.08.020"></script>
 </head>
 <body>
 
@@ -153,7 +153,9 @@
           <button type="button" class="icon-crop-shape-btn" id="teamLogoCropShapeRect" data-action="ttCropSetMode" data-arg="rect">Rectangle</button>
         </div>
         <div class="icon-crop-actions">
+          <button type="button" class="icon-crop-shape-btn" id="teamLogoCropInvertBtn" data-action="ttCropToggleInvert">Invert Colors</button>
           <button type="button" class="admin-clear-btn" data-action="ttCropCenter">Center</button>
+          <button type="button" class="admin-clear-btn" data-action="ttCropCenterContent">Center Content</button>
           <button type="button" class="admin-clear-btn" data-action="ttCropReset">Reset crop</button>
         </div>
       </div>
@@ -982,6 +984,7 @@
               <div class="logo-picker-row">
                 <img id="teamsDetailLogoPreview" class="team-tab-logo-preview" alt="" hidden>
                 <input type="file" id="teamsDetailLogoInput" accept="image/png,image/jpeg,image/webp">
+                <button type="button" class="admin-edit-btn" id="teamsDetailLogoRecropBtn" data-action="recropTeamsDetailLogo" hidden>Recrop</button>
                 <button type="button" class="admin-clear-btn" id="teamsDetailLogoRemoveBtn" data-action="removeTeamsDetailLogo" hidden>Remove</button>
               </div>
               <div class="field-hint">Shown on Team Path and Standings.</div>
@@ -1147,15 +1150,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.08.019"></script>
-<script src="/theme-css.js?v=4.08.019"></script>
-<script src="/tt-common.js?v=4.08.019"></script>
-<script src="/bracket-data.js?v=4.08.019"></script>
-<script src="/admin.js?v=4.08.019"></script>
-<script src="/lineup.js?v=4.08.019"></script>
-<script src="/score.js?v=4.08.019"></script>
-<script src="/builder-form.js?v=4.08.019"></script>
-<script src="/builder.js?v=4.08.019"></script>
-<script src="/sw-register.js?v=4.08.019" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.020"></script>
+<script src="/theme-css.js?v=4.08.020"></script>
+<script src="/tt-common.js?v=4.08.020"></script>
+<script src="/bracket-data.js?v=4.08.020"></script>
+<script src="/admin.js?v=4.08.020"></script>
+<script src="/lineup.js?v=4.08.020"></script>
+<script src="/score.js?v=4.08.020"></script>
+<script src="/builder-form.js?v=4.08.020"></script>
+<script src="/builder.js?v=4.08.020"></script>
+<script src="/sw-register.js?v=4.08.020" data-sw="/admin-sw.js"></script>
 </body>
 </html>
