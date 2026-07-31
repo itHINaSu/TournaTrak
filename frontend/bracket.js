@@ -4313,12 +4313,25 @@ function renderMobileBracket(root, dims) {
 
   // ── Championship-row parity with desktop ─────────────────────────────
   // Owner rule: the losers-bracket final must ALWAYS sit in line with the
-  // winners final and the championship card. On desktop the three share the
-  // championship row; here the equivalent is one column reading WB final →
-  // title card → LB final. When CHAMP is fed by one WB game and one LB game
-  // (any double-elim shape), pull both finals out of their round columns
-  // into the championship column. Single-elim (two WB feeders) is left
-  // alone. titleGid marks which card keeps the big champ treatment.
+  // winners final, immediately before the championship card. When CHAMP is
+  // fed by one WB game and one LB game (any double-elim shape), pull both
+  // finals out of their round columns into a DEDICATED "Finals" column,
+  // inserted immediately before the Championship column — not merged into
+  // it. Single-elim (two WB feeders) is left alone.
+  //
+  // Owner, 2026-08-02, correcting an earlier version of this that merged all
+  // three cards into ONE column (WB final → title card → LB final stacked
+  // vertically): "The WB final and LB final should be positioned in the
+  // column to indicate which games feed them... WB Final and LB Final feed
+  // championship, those games should be in the same 'round' and immediately
+  // left of the championship card indicating they feed that card." A
+  // stacked single column can't read as "immediately left of" anything —
+  // that phrase names an adjacent COLUMN on the swipe axis, which a shared
+  // column can't represent. A normal (non-champCol) column also means the
+  // Finals cards pick up the same converge-from-feeders animation every
+  // other round already has swiping in from its own left neighbour —
+  // previously suppressed for these two specifically because champCol()
+  // excludes the whole merged column from that logic.
   (function() {
     var champIdx = -1;
     cols.forEach(function(c, i) { if (c.round === 'CHAMP') champIdx = i; });
@@ -4347,15 +4360,16 @@ function renderMobileBracket(root, dims) {
     cols = cols.filter(function(col) { return col.gids.length; });
     champIdx = -1;
     cols.forEach(function(c, i) { if (c.round === 'CHAMP') champIdx = i; });
-    cols[champIdx].gids = [pulled[0], champGid, pulled[1]];
-    cols[champIdx].titleGid = champGid;
-    // Name both finals. Three unlabelled cards in one column don't say which
-    // bracket each came from, which is the whole point of pulling them here:
-    // the winners final and the losers final feed the title game.
-    cols[champIdx].divs = [
-      { idx: 0, label: (getSetting('leftLabel') || 'Winners') + ' Final' },
-      { idx: 2, label: (getSetting('rightLabel') || 'Losers') + ' Final' },
-    ];
+    // Champ column keeps its original single gid untouched (champGid was
+    // never in `pulled`, so nothing above ever removed it) — just insert the
+    // new Finals column right before it.
+    cols.splice(champIdx, 0, {
+      round: 'FINALS', label: 'Finals', gids: pulled,
+      divs: [
+        { idx: 0, label: (getSetting('leftLabel') || 'Winners') + ' Final' },
+        { idx: 1, label: (getSetting('rightLabel') || 'Losers') + ' Final' },
+      ],
+    });
   })();
 
   // Rebuild every non-championship column's header label from what's
