@@ -1296,6 +1296,27 @@ input[type="time"]:focus {
   background: none;
   cursor: pointer;
 }
+/* Wraps just the <input type="color">, sized to it via inline-block content
+   sizing (owner, 2026-08-02: "if a team hasn't selected a color... place a
+   small red x through the box to indicate a selection hasn't been made") —
+   the X is two rotated bars, not a real 'x' glyph, so it scales with the
+   swatch instead of needing its own font-size tuned per usage. Sits on both
+   the coach Team tab's swatches (.team-tab-color-field) and admin's Teams
+   editor (.team-ed-color-field), which share this CSS file. */
+.color-swatch { position: relative; display: inline-block; line-height: 0; }
+.color-swatch--unset::before,
+.color-swatch--unset::after {
+  content: '';
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  top: calc(50% - 0.06em);
+  height: 0.12em;
+  background: var(--lose-color);
+  pointer-events: none;
+}
+.color-swatch--unset::before { transform: rotate(45deg); }
+.color-swatch--unset::after  { transform: rotate(-45deg); }
 .team-tab-style-row { display: flex; gap: 1em; margin-bottom: 0.6em; }
 .team-tab-style-opt {
   display: flex;

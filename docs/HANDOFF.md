@@ -3620,6 +3620,37 @@ same `rgb(232,237,233)` as every other row; rank and 0-0 record stay
 visibly muted. Screenshot confirms. Full API suite (140 tests) still
 passes.
 
+## Unset team colors get a red X through the swatch (owner, 2026-08-02)
+Owner: *"If a team hasn't selected a color (primary, secondary, text,
+outline) place a small red x through the box to indicate a selection hasn't
+been made."* A `<input type="color">` always shows SOME color — the
+existing "unset" convention (`null`/`''` in `_teamTabColors` /
+`primaryColor`/`secondaryColor` on the team record) already falls back to a
+neutral grey (`TEAM_TAB_COLOR_UNSET = '#4a4a4a'`), but a grey swatch reads
+identically to "the team picked grey," not "nothing's picked yet."
+
+Added a `.color-swatch` wrapper (`admin.css`) around just the `<input
+type="color">` — not the whole `<label>`, so the X doesn't smear across the
+field's text/button too — with a `.color-swatch--unset` modifier that draws
+a red X as two rotated `::before`/`::after` bars using `var(--lose-color)`.
+Applied everywhere a team color swatch exists:
+- **Coach Team tab** (`coach.html`/`coach.js`): all 4 swatches (primary,
+  secondary, text, outline). `teamTabSyncColor()` already runs on every
+  load/change/clear, so it's the one place that toggles the class — same
+  falsy check (`!v`) already used for hiding the Clear button.
+- **Admin Settings → Teams editor** (`admin.js` `renderTeamsEditor()`): the 2
+  swatches it currently has (primary, secondary — it doesn't have text/
+  outline fields yet, see the parked "Team branding style picker (admin
+  side)" item). Computed at render time from `pc`/`sc`, and kept in sync on
+  `input` (removes the class) without a full re-render; the Clear button
+  already re-renders, which recomputes it fresh.
+
+Verified via Playwright: fresh coach Team tab shows all 4 swatches red-X'd
+(no team colors seeded yet); setting `#teamTabPrimaryColor` via a synthetic
+`input` event clears the X, clicking its Clear button restores it; admin's
+Teams editor shows the X on every seeded team's primary/secondary swatch
+(same reason — the demo seed doesn't set team colors).
+
 ## Settings sidebar now auto-opens on a direct/deep-link entry, not just a click (owner, 2026-08-02)
 Owner: *"When entering the admin panel from another page, if coming to the
 settings tab the hamburger menu for the admin settings should be opened by

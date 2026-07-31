@@ -500,6 +500,7 @@ function teamTabSyncColor(which) {
   var v = _teamTabColors[which];
   if (inp) inp.value = v || TEAM_TAB_COLOR_UNSET;
   if (clear) clear.hidden = !v;
+  if (inp && inp.parentElement) inp.parentElement.classList.toggle('color-swatch--unset', !v);
   teamTabUpdatePreview();
 }
 

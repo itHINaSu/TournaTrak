@@ -4569,12 +4569,16 @@ function teamProfileRow(t, i) {
     '<div class="team-ed-colors">' +
       '<label class="team-ed-color-field">' +
         '<span>Primary</span>' +
-        '<input type="color" class="team-ed-color-primary" data-idx="' + i + '" value="' + esc(pc || '#4a4a4a') + '" aria-label="Primary color for ' + esc(t.name) + '">' +
+        '<span class="color-swatch' + (pc ? '' : ' color-swatch--unset') + '">' +
+          '<input type="color" class="team-ed-color-primary" data-idx="' + i + '" value="' + esc(pc || '#4a4a4a') + '" aria-label="Primary color for ' + esc(t.name) + '">' +
+        '</span>' +
         '<button type="button" class="team-ed-color-clear" data-idx="' + i + '" data-which="primaryColor" ' + (pc ? '' : 'hidden ') + '>Clear</button>' +
       '</label>' +
       '<label class="team-ed-color-field">' +
         '<span>Secondary</span>' +
-        '<input type="color" class="team-ed-color-secondary" data-idx="' + i + '" value="' + esc(sc || '#4a4a4a') + '" aria-label="Secondary color for ' + esc(t.name) + '">' +
+        '<span class="color-swatch' + (sc ? '' : ' color-swatch--unset') + '">' +
+          '<input type="color" class="team-ed-color-secondary" data-idx="' + i + '" value="' + esc(sc || '#4a4a4a') + '" aria-label="Secondary color for ' + esc(t.name) + '">' +
+        '</span>' +
         '<button type="button" class="team-ed-color-clear" data-idx="' + i + '" data-which="secondaryColor" ' + (sc ? '' : 'hidden ') + '>Clear</button>' +
       '</label>' +
     '</div>' +
@@ -4637,6 +4641,7 @@ function wireTeamProfileRow(list) {
       _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { primaryColor: inp.value });
       var clear = list.querySelector('.team-ed-color-clear[data-idx="' + i + '"][data-which="primaryColor"]');
       if (clear) clear.hidden = false;
+      if (inp.parentElement) inp.parentElement.classList.remove('color-swatch--unset');
     });
   });
   list.querySelectorAll('.team-ed-color-secondary').forEach(function(inp) {
@@ -4645,6 +4650,7 @@ function wireTeamProfileRow(list) {
       _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { secondaryColor: inp.value });
       var clear = list.querySelector('.team-ed-color-clear[data-idx="' + i + '"][data-which="secondaryColor"]');
       if (clear) clear.hidden = false;
+      if (inp.parentElement) inp.parentElement.classList.remove('color-swatch--unset');
     });
   });
   list.querySelectorAll('.team-ed-color-clear').forEach(function(btn) {
