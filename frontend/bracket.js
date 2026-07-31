@@ -3181,10 +3181,23 @@ function setShareTarget(target) {
   var title = document.getElementById('shareTitle');
   if (title) title.textContent = 'Share ' + SHARE_TARGET_LABELS[target];
 }
+// Defaults the theme radio to whatever the visitor is actually looking at
+// (owner, 2026-08-02: "User should still have option for light, dark, print
+// for colors on all share options. Default to whatever the current view is
+// (light/dark)") — Print stays a manual opt-in either way, same as before;
+// only which of Light/Dark starts checked changes. Runs once per open, same
+// as setShareTarget(), so a visitor's own pick during this session isn't
+// clobbered by re-opening Share on the same view.
+function syncShareThemeToCurrent() {
+  var isLight = document.body.classList.contains('light');
+  var el = document.querySelector('input[name="shareTheme"][value="' + (isLight ? 'light' : 'dark') + '"]');
+  if (el) el.checked = true;
+}
 function openShareImageNow() {
   var ov = document.getElementById('shareOverlay');
   if (!ov) return;
   ov.hidden = false;
+  syncShareThemeToCurrent();
   updateShareScopeRow();
   refreshShareImage();
 }
