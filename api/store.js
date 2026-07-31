@@ -796,6 +796,22 @@ async function publicPushAll(tid) {
   return r.rows;
 }
 
+// Diagnostic only, called when a real trigger matches zero subscribers — a
+// tournament_id mismatch (a subscription filed under a DIFFERENT tournament
+// than the one that just fired) is otherwise invisible: the route already
+// responded, and nothing on the sending or receiving end knows why (owner,
+// 2026-08-02, on a fresh Start Live and a changed delay notice both
+// delivering nothing despite a working test push, which does not filter by
+// tournament_id at all). Returns every public row's tournament_id and
+// notify_* flags so the log line can show whether the row exists at all, and
+// under which tid, rather than just "0 matched".
+async function publicPushDebugRows() {
+  const r = await pool.query(
+    `SELECT tournament_id, notify_live, notify_final, notify_schedule
+       FROM push_subscriptions WHERE user_id IS NULL`);
+  return r.rows;
+}
+
 // One subscription row by endpoint, for the self-test send. Any browser that
 // holds the endpoint already holds the subscription, so this leaks nothing it
 // did not already have.
@@ -818,7 +834,7 @@ module.exports = {
   getMeta, setMeta,
   addPushSubscription, deletePushSubscription, detachStaffPushSubscription,
   pushSubscriptionsFor, pushSubscriptionCount, pushSubscriptionByEndpoint,
-  savePublicPushSubscription, publicPushTargets, publicPushAll,
+  savePublicPushSubscription, publicPushTargets, publicPushAll, publicPushDebugRows,
   createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
   grantRole, revokeRole,
   hashToken, hashTokenIfRaw,

@@ -3608,10 +3608,34 @@ async function slotTeams(tid, slot) {
 
 // Fire-and-forget notification to spectators. Never awaited by a route: a push
 // service having a bad day must not slow down or fail a scorekeeper's save.
+// Logs, on a zero-match trigger, what tournament_id(s) public rows actually
+// exist under — the one piece of information that turns "nothing happened"
+// into "the subscription is filed under tid=3 but this fired for tid=7".
+function logZeroPushTargets(label, tid) {
+  store.publicPushDebugRows().then(rows => {
+    if (!rows.length) { console.log('[push] ' + label + ' tid=' + tid + ' — 0 public subscriptions exist at all'); return; }
+    const byTid = {};
+    rows.forEach(r => { byTid[r.tournament_id] = (byTid[r.tournament_id] || 0) + 1; });
+    console.log('[push] ' + label + ' tid=' + tid + ' matched 0 — existing public rows by tournament_id:', byTid);
+  }).catch(() => {});
+}
+
+// Fire-and-forget notification to spectators. Never awaited by a route: a push
+// service having a bad day must not slow down or fail a scorekeeper's save.
 function notifyPublic(tid, kind, teams, payload) {
   if (!PUSH_READY) return;
   store.publicPushTargets(tid, kind, teams)
-    .then(rows => deliverPush(rows, payload))
+    .then(rows => {
+      // A trigger that finds no one is invisible everywhere else — the route
+      // that fired it already responded, and a scorekeeper watching their own
+      // phone has no way to tell "no one wants this" from "the tournament_id
+      // this row is filed under doesn't match the one this event fired for"
+      // (owner, 2026-08-02: subscribed and tested Start Live on a fresh game,
+      // got nothing). Only fires on a real transition (live) or a changed
+      // notice (schedule/final), never per-tap, so this is cheap to always run.
+      if (!rows.length) logZeroPushTargets('public "' + kind + '" for', tid);
+      return deliverPush(rows, payload);
+    })
     .catch(err => console.error('public push (' + kind + ') failed:', err && err.message));
 }
 
@@ -3621,7 +3645,10 @@ function notifyPublic(tid, kind, teams, payload) {
 function notifyPublicAll(tid, payload) {
   if (!PUSH_READY) return;
   store.publicPushAll(tid)
-    .then(rows => deliverPush(rows, payload))
+    .then(rows => {
+      if (!rows.length) logZeroPushTargets('public notice for', tid);
+      return deliverPush(rows, payload);
+    })
     .catch(err => console.error('public push (notice) failed:', err && err.message));
 }
 
