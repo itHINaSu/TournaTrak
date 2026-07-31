@@ -1281,6 +1281,18 @@ input[type="time"]:focus {
   background: none;
   cursor: pointer;
 }
+.team-tab-style-row { display: flex; gap: 1em; margin-bottom: 0.6em; }
+.team-tab-style-opt {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.team-tab-angle-row { display: flex; align-items: center; gap: 0.6em; }
+.team-tab-angle-row label { font-size: 0.72rem; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.05em; }
+.team-tab-angle-row input[type="range"] { flex: 1; max-width: 16em; }
 .team-ed-logo-input { font-size: 0.72rem; max-width: 11em; color: var(--text-mute); }
 .team-ed-logo-remove {
   font-size: 0.72rem;

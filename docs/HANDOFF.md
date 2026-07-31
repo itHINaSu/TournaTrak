@@ -3159,6 +3159,73 @@ Playwright against the demo: `getComputedStyle(.bcc-outerflex).justifyContent`
 reads `center` again on the public Bracket tab, and `shareOpts().align`'s
 `'left'` default in bracket.js is untouched.
 
+## Roster: single number, resized columns, confirmed/swipe delete; team banner style + text color (owner, 2026-08-02)
+Owner, in one message: *"Remove the x to remove players from the roster in
+the coach panel on mobile and pwa, offer a swipe to delete option with
+confirmation, add the confirmation to desktop too. Make the # smaller, only
+accept one number (they can change for one jersey in the lineup tab) make
+[the] name slot bigger (about 1/2) and then the number and position should
+each be about 1/4."* Plus, on team branding: *"show a gradient preview for
+standings and team path and allow the user to adjust the gradient, select a
+solid color instead, or choose a different pattern"* and *"Coaches should
+also be able to select the color of the team name against the gradient."*
+
+**Roster column widths** — `.lineup-th--num`/`.lineup-td-num` and
+`.lineup-th--pos`/`.lineup-td-pos` now `width: 25%` each,
+`.lineup-th--name`/`.lineup-td-name` `50%`. Owner note: "roster should
+functionally reuse the lineup css" — these are the SAME classes the Lineup
+tab's own table uses, so this one change covers both by design rather than
+adding roster-only overrides. Removed the narrow-viewport `.lineup-td-num`
+fixed-width override (`3.5em`); percentage widths already scale.
+
+**Roster: one jersey number** — the roster input is no longer a
+comma-separated list (`jerseysToText`/`jerseysFromText` removed); it shows
+and writes only `jerseys[0]`. The backend still stores an array (unchanged,
+still caps at 6 via `cleanJerseys`) — a per-game exception is meant to be
+handled in the lineup tab instead, per the owner's parenthetical.
+
+**Delete confirmation + swipe** — `deleteRosterRow` is now async and calls
+`ttConfirm` before removing anything with actual data (still skips the
+confirm for an untouched blank row — nothing to lose, and it would make
+"+ Add Player" then a change of mind annoying). On touch (`@media
+(pointer: coarse)`) the ✕ (`.roster-del`) is hidden entirely;
+`wireRosterRowSwipe` in coach.js adds a left-only swipe gesture per row
+(clamped translateX, `.roster-row--armed` red tint past a 45px threshold)
+that calls the SAME `deleteRosterRow` past a 70px release threshold — swipe
+only changes how the row is picked, the confirm-and-skip-blank-rows rule is
+shared with the desktop ✕ path, not duplicated.
+
+**Team banner style** — new team fields `brandStyle`
+('gradient'|'solid'|'stripes', server whitelist `BRAND_STYLES`),
+`brandAngle` (0-359), `brandTextColor` (hex, overrides the banner's default
+white). `teamBrandBannerCss()` (tt-common.js) branches on style: solid is a
+flat fill (ignores secondary/angle), stripes is a `repeating-linear-gradient`
+striped pattern, gradient is the original two-stop linear gradient — all at
+the chosen angle. Wired into the coach Team tab (radio buttons + a range
+slider for angle, hidden under 'solid'; a text-color swatch with an "Auto"
+clear button reusing the existing primary/secondary color-clear pattern) and
+into the Team Path banner (bracket.js). Standings' branded-row treatment
+(a lighter border+wash accent, not the full banner) was deliberately left
+alone — it was never built from `teamBrandBannerCss` and a 3-way style
+switch doesn't map cleanly onto a single-color wash, so this is scoped to
+the two surfaces that actually render the banner.
+
+Verified with Playwright against the demo (coach panel, logged in as
+`coach_lopez`): roster name/number column width ratio ~2:1 as expected,
+jersey input capped to a single value (maxlength 8, no comma splitting),
+the desktop ✕ shows a confirm dialog before removing a filled row, and all
+three banner styles (gradient/solid/stripes) render with the correct CSS
+background plus the angle row hiding under solid and the text color override
+applying. Full API suite (140 tests) still passes.
+
+**Not done in this pass** (queued, see task list): Settings > Teams (admin)
+still shows every team's full editor inline rather than a click-to-open
+per-team detail view; the same style/angle/text-color controls need adding
+there too. The Lineup tab overhaul (pre-populate position from roster,
+exclude already-placed players within the same lineup, tap-a-filled-slot
+opens a picker instead of the keyboard, an Add Player option, a Clear
+Lineup button) hasn't been started.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an
@@ -4269,6 +4336,24 @@ reading first.
   subagents (cold starts re-read context); delegate to a cheaper-model
   subagent only when a task is big AND separable.
 - When usage is near a limit or the user asks to wrap up: pause, commit, push, regenerate this `HANDOFF.md`.
+- **Don't kill the demo API/web processes reflexively** (owner directive,
+  2026-08-02). Only restart when the change actually needs it —
+  server.js and the API-rendered HTML shells (`/`, `/admin`, `/coach`,
+  `/lineup`) are cached in-process and need a restart; plain `.js`/`.css`
+  changes are read fresh from disk on the next request and need nothing. If
+  a server from an earlier turn is still up and the edit doesn't require a
+  restart, leave it running — `pkill` + respawn on every edit burns a turn
+  and risks the known transient "exit 144" flake (see agent-demo/README.md)
+  for no reason.
+- **Testing depth should match the change, not be maxed out by default**
+  (owner directive, 2026-08-02: "less in-depth testing for general feature
+  requests. Check code, simple test, but doing a deep test everytime is
+  killing usage"). For an ordinary feature request: read the code, reason
+  through correctness, run a syntax check, and do ONE targeted functional
+  check — not a full Playwright sweep, not repeated re-verification passes.
+  Reserve the deeper multi-scenario testing for changes that are large,
+  genuinely risky, or are themselves bug reports where reproducing the
+  failure is the point.
 
 ## Git
 - **PUSH BEFORE TESTING, THEN PUSH AGAIN AFTER** (owner directive,

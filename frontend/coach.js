@@ -186,16 +186,12 @@ function rosterPosOptions(selected) {
   }).join('');
 }
 
-// One player may wear several numbers, so the cell holds a LIST. Comma is the
-// separator people reach for; whitespace is accepted too because a phone
-// keyboard makes commas a trip to the symbol layer.
-function jerseysToText(js) {
-  return (js || []).join(', ');
-}
-function jerseysFromText(t) {
-  return String(t || '').split(/[,\s]+/).filter(Boolean);
-}
-
+// The roster keeps ONE number per player — a per-game exception (a
+// different number for one lineup) is handled in the lineup tab, not here
+// (owner, 2026-08-02: "only accept one number [in the roster] (they can
+// change for one jersey in the lineup tab)"). The backend still stores an
+// array (other paths, e.g. an import, may still carry several); this only
+// ever shows/writes the first entry.
 function renderRoster() {
   var body = document.getElementById('rosterBody');
   if (!body) return;
@@ -205,13 +201,14 @@ function renderRoster() {
     var r = _rosterRows[i] || {};
     var opts = rosterPosOptions(r.position);
     var mine = r.jerseys || [];
+    var single = mine.length ? String(mine[0]) : '';
     var clash = mine.some(function (j) { return dup[String(j).toLowerCase()]; });
     html += '<tr class="lineup-row">'
       + '<td class="lineup-td-num">'
       +   '<input type="text" class="lineup-inp lineup-inp--num roster-jerseys'
       +     (clash ? ' roster-jerseys--dup' : '') + '" id="rj-' + i + '" '
       +     (clash ? 'title="Another player also wears this number — a lineup will not autofill from it" ' : '')
-      +     'maxlength="40" placeholder="7, 21" value="' + esc(jerseysToText(mine)) + '">'
+      +     'maxlength="8" placeholder="7" value="' + esc(single) + '">'
       + '</td>'
       + '<td class="lineup-td-name">'
       +   '<input type="text" class="lineup-inp lineup-inp--name" id="rn-' + i + '" '
@@ -231,6 +228,44 @@ function renderRoster() {
   body.innerHTML = html;
   updateRosterDupNote();
   updateRosterCount();
+  var trs = body.querySelectorAll('tr.lineup-row');
+  for (var ti = 0; ti < trs.length; ti++) wireRosterRowSwipe(trs[ti], ti);
+}
+
+// Touch-only left swipe to delete, replacing the ✕ button on a phone/PWA
+// where it's an easy accidental tap (owner, 2026-08-02: "remove the x to
+// remove players from the roster in the coach panel on mobile and pwa,
+// offer a swipe to delete option with confirmation"). Routes through
+// deleteRosterRow so the same confirm-and-skip-blank-rows rule applies —
+// swiping just replaces HOW the row is picked, not what happens next.
+// Touch events never fire from a mouse, so this is a no-op on desktop; the
+// ✕ stays the only affordance there (see .roster-del's media query).
+function wireRosterRowSwipe(tr, idx) {
+  var x0 = null, y0 = null, dx = 0;
+  tr.addEventListener('touchstart', function (e) {
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0;
+    tr.style.transition = '';
+  }, { passive: true });
+  tr.addEventListener('touchmove', function (e) {
+    if (x0 === null) return;
+    var ndx = e.touches[0].clientX - x0;
+    // A vertical scroll that drifts sideways isn't a swipe — let it scroll.
+    if (Math.abs(e.touches[0].clientY - y0) > Math.abs(ndx)) {
+      x0 = null; tr.style.transform = ''; tr.classList.remove('roster-row--armed');
+      return;
+    }
+    dx = Math.max(-100, Math.min(0, ndx));   // left-only, clamped
+    tr.style.transform = 'translateX(' + dx + 'px)';
+    tr.classList.toggle('roster-row--armed', dx < -45);
+  }, { passive: true });
+  tr.addEventListener('touchend', function () {
+    if (x0 === null) return;
+    x0 = null;
+    tr.style.transition = 'transform 0.18s ease';
+    tr.style.transform = '';
+    tr.classList.remove('roster-row--armed');
+    if (dx < -70) deleteRosterRow(idx);
+  });
 }
 
 // Left of the Save/Add Player actions (owner, 2026-08-02: "add a player
@@ -284,7 +319,7 @@ function harvestRoster() {
       // save into "delete this player, create a new one who happens to look
       // the same", which is exactly what the id exists to prevent.
       id:       prev.id,
-      jerseys:  j ? jerseysFromText(j.value) : (prev.jerseys || []),
+      jerseys:  j ? (j.value.trim() ? [j.value.trim()] : []) : (prev.jerseys || []),
       name:     n ? n.value : '',
       position: p ? p.value : '',
     };
@@ -333,9 +368,21 @@ function addRosterRow() {
   if (el) el.focus();
 }
 
-function deleteRosterRow(idx) {
+// Confirmed on every path now, desktop click included (owner, 2026-08-02:
+// "add the confirmation to desktop too") — except a still-blank typing row,
+// which has nothing to lose and would just make "+ Add Player" followed by
+// a change of mind annoying.
+async function deleteRosterRow(idx) {
+  idx = Number(idx);
+  var row = _rosterRows[idx];
+  if (row && !isBlankRosterRow(row)) {
+    var label = (row.name || '').trim() || ('#' + (row.jerseys && row.jerseys[0] || '?'));
+    var ok = await ttConfirm('Remove ' + label + ' from the roster?',
+      { okLabel: 'Remove', cancelLabel: 'Cancel' });
+    if (!ok) return;
+  }
   harvestRoster();
-  _rosterRows.splice(Number(idx), 1);
+  _rosterRows.splice(idx, 1);
   if (!_rosterRows.length) _rosterRows.push({ jerseys: [], name: '', position: '' });
   renderRoster();
 }
@@ -427,11 +474,18 @@ function teamTabSyncLogo() {
 // swatch falls back to a neutral grey when unset rather than showing a
 // color that was never actually chosen.
 var TEAM_TAB_COLOR_UNSET = '#4a4a4a';
-var _teamTabColors = { primaryColor: null, secondaryColor: null };
+var _teamTabColors = { primaryColor: null, secondaryColor: null, brandTextColor: null };
+var TEAM_TAB_COLOR_IDS = {
+  primaryColor:   { input: 'teamTabPrimaryColor',   clear: 'teamTabPrimaryColorClear' },
+  secondaryColor: { input: 'teamTabSecondaryColor', clear: 'teamTabSecondaryColorClear' },
+  brandTextColor: { input: 'teamTabTextColor',      clear: 'teamTabTextColorClear' },
+};
 
 function teamTabSyncColor(which) {
-  var inp = document.getElementById(which === 'primaryColor' ? 'teamTabPrimaryColor' : 'teamTabSecondaryColor');
-  var clear = document.getElementById(which === 'primaryColor' ? 'teamTabPrimaryColorClear' : 'teamTabSecondaryColorClear');
+  var ids = TEAM_TAB_COLOR_IDS[which];
+  if (!ids) return;
+  var inp = document.getElementById(ids.input);
+  var clear = document.getElementById(ids.clear);
   var v = _teamTabColors[which];
   if (inp) inp.value = v || TEAM_TAB_COLOR_UNSET;
   if (clear) clear.hidden = !v;
@@ -441,7 +495,29 @@ function teamTabSyncColor(which) {
 function clearTeamTabColor(which) {
   _teamTabColors[which] = '';
   teamTabSyncColor(which);
-  showToast('Color will be removed on Save');
+  showToast((which === 'brandTextColor' ? 'Text color' : 'Color') + ' will be removed on Save');
+}
+
+// Banner style/angle have no "unset" state worth tracking separately —
+// unlike a color swatch, a radio is always showing SOME choice and the
+// slider always has SOME position, so both are just read straight off the
+// DOM at preview/save time rather than buffered (owner, 2026-08-02: "allow
+// the user to adjust the gradient, select a solid color instead, or choose
+// a different pattern").
+function teamTabStyleValue() {
+  var el = document.querySelector('input[name="teamTabBrandStyle"]:checked');
+  return (el && el.value) || 'gradient';
+}
+function teamTabAngleValue() {
+  var el = document.getElementById('teamTabAngle');
+  return el ? Number(el.value) : 135;
+}
+// Angle only means anything for gradient/stripes — hide it under solid so
+// it doesn't look like a control that does nothing.
+function teamTabSyncStyleRow() {
+  var row = document.getElementById('teamTabAngleRow');
+  if (row) row.hidden = teamTabStyleValue() === 'solid';
+  teamTabUpdatePreview();
 }
 
 // Live preview of the banner Team Path shows once this is actually saved —
@@ -456,7 +532,8 @@ function teamTabUpdatePreview() {
   var hasAnything = !!logo || !!primary || !!secondary;
   banner.hidden = !hasAnything;
   if (!hasAnything) return;
-  banner.style.cssText = teamBrandBannerCss(primary, secondary);
+  banner.style.cssText = teamBrandBannerCss(primary, secondary,
+    teamTabStyleValue(), teamTabAngleValue(), _teamTabColors.brandTextColor);
   if (logoImg) {
     if (logo) { logoImg.src = logo; logoImg.hidden = false; }
     else { logoImg.removeAttribute('src'); logoImg.hidden = true; }
@@ -471,7 +548,7 @@ async function loadTeamTab(team) {
   setStatus('teamTabStatus', '');
   _teamTabTeam = team;
   _teamTabLogo = null;
-  _teamTabColors = { primaryColor: null, secondaryColor: null };
+  _teamTabColors = { primaryColor: null, secondaryColor: null, brandTextColor: null };
   var lockedEl = document.getElementById('teamTabLocked');
   var formEl   = document.getElementById('teamTabForm');
   if (!team) { lockedEl.hidden = true; formEl.hidden = true; return; }
@@ -484,8 +561,17 @@ async function loadTeamTab(team) {
   teamTabSyncLogo();
   _teamTabColors.primaryColor   = (rec && rec.primaryColor)   || '';
   _teamTabColors.secondaryColor = (rec && rec.secondaryColor) || '';
+  _teamTabColors.brandTextColor = (rec && rec.brandTextColor) || '';
   teamTabSyncColor('primaryColor');
   teamTabSyncColor('secondaryColor');
+  teamTabSyncColor('brandTextColor');
+  var styleVal = (rec && rec.brandStyle) || 'gradient';
+  var styleEl = document.getElementById('teamTabStyle'
+    + styleVal.charAt(0).toUpperCase() + styleVal.slice(1)) || document.getElementById('teamTabStyleGradient');
+  if (styleEl) styleEl.checked = true;
+  var angleEl = document.getElementById('teamTabAngle');
+  if (angleEl) angleEl.value = (rec && typeof rec.brandAngle === 'number') ? rec.brandAngle : 135;
+  teamTabSyncStyleRow();
   // Staff viewing the coach panel (checking what a coach sees, or coaching
   // themselves) are never locked out — only a genuine coach session is.
   var staffViewing = _coachSession && (_coachSession.role === 'admin' || _coachSession.role === 'results');
@@ -531,6 +617,12 @@ async function saveTeamProfile() {
   if (_teamTabColors.secondaryColor !== null) {
     body.secondaryColor = _teamTabColors.secondaryColor === '' ? '' : (secondaryEl ? secondaryEl.value : _teamTabColors.secondaryColor);
   }
+  var textColorEl = document.getElementById('teamTabTextColor');
+  if (_teamTabColors.brandTextColor !== null) {
+    body.brandTextColor = _teamTabColors.brandTextColor === '' ? '' : (textColorEl ? textColorEl.value : _teamTabColors.brandTextColor);
+  }
+  body.brandStyle = teamTabStyleValue();
+  body.brandAngle = teamTabAngleValue();
   var r = await fetch(coachApiBase() + '/team-profile/' + encodeURIComponent(_teamTabTeam), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -547,8 +639,17 @@ async function saveTeamProfile() {
     teamTabSyncLogo();
     _teamTabColors.primaryColor   = data.team.primaryColor   || '';
     _teamTabColors.secondaryColor = data.team.secondaryColor || '';
+    _teamTabColors.brandTextColor = data.team.brandTextColor || '';
     teamTabSyncColor('primaryColor');
     teamTabSyncColor('secondaryColor');
+    teamTabSyncColor('brandTextColor');
+    var styleVal = data.team.brandStyle || 'gradient';
+    var styleEl = document.getElementById('teamTabStyle'
+      + styleVal.charAt(0).toUpperCase() + styleVal.slice(1)) || document.getElementById('teamTabStyleGradient');
+    if (styleEl) styleEl.checked = true;
+    var angleEl = document.getElementById('teamTabAngle');
+    if (angleEl) angleEl.value = typeof data.team.brandAngle === 'number' ? data.team.brandAngle : 135;
+    teamTabSyncStyleRow();
   }
 }
 
@@ -577,6 +678,15 @@ async function initTeamTab() {
     _teamTabColors.secondaryColor = secondaryEl.value;
     teamTabSyncColor('secondaryColor');
   });
+  var textColorEl = document.getElementById('teamTabTextColor');
+  if (textColorEl) textColorEl.addEventListener('input', function () {
+    _teamTabColors.brandTextColor = textColorEl.value;
+    teamTabSyncColor('brandTextColor');
+  });
+  var styleRow = document.getElementById('teamTabStyleRow');
+  if (styleRow) styleRow.addEventListener('change', teamTabSyncStyleRow);
+  var angleEl = document.getElementById('teamTabAngle');
+  if (angleEl) angleEl.addEventListener('input', teamTabUpdatePreview);
   var displayEl = document.getElementById('teamTabDisplay');
   if (displayEl) displayEl.addEventListener('input', teamTabUpdatePreview);
   await loadTeamTab(teams[0] || null);

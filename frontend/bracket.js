@@ -89,6 +89,9 @@ function rebuildTeamLabels() {
         logoUrl: (t.logo && t.id) ? teamLogoUrl(t.id) : null,
         primaryColor: t.primaryColor || null,
         secondaryColor: t.secondaryColor || null,
+        brandStyle: t.brandStyle || 'gradient',
+        brandAngle: typeof t.brandAngle === 'number' ? t.brandAngle : null,
+        brandTextColor: t.brandTextColor || null,
       };
     }
   });
@@ -6219,7 +6222,8 @@ function renderTeamViewInner(realResults){
   var brand = teamBrandingFor(team);
   if (brand && (brand.logoUrl || brand.primaryColor || brand.secondaryColor)) {
     html += '<div class="team-brand-banner" data-css="'
-      + esc(teamBrandBannerCss(brand.primaryColor, brand.secondaryColor)) + '">'
+      + esc(teamBrandBannerCss(brand.primaryColor, brand.secondaryColor,
+          brand.brandStyle, brand.brandAngle, brand.brandTextColor)) + '">'
       + (brand.logoUrl ? '<img class="team-brand-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
       + '<span class="team-brand-name">' + esc(teamLabel(team)) + '</span>'
       + '</div>';

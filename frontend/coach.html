@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=3.93">
-<link rel="stylesheet" href="/admin.css?v=3.93">
-<link rel="stylesheet" href="/lineup.css?v=3.93">
-<script src="/app-h.js?v=3.93"></script>
+<link rel="stylesheet" href="/base.css?v=3.94">
+<link rel="stylesheet" href="/admin.css?v=3.94">
+<link rel="stylesheet" href="/lineup.css?v=3.94">
+<script src="/app-h.js?v=3.94"></script>
 </head>
 <body>
 
@@ -246,7 +246,7 @@
           <table class="lineup-table">
             <thead>
               <tr>
-                <th class="lineup-th lineup-th--nums">Number(s)</th>
+                <th class="lineup-th lineup-th--nums">#</th>
                 <th class="lineup-th lineup-th--name">Player Name</th>
                 <th class="lineup-th lineup-th--pos">Position</th>
                 <th class="lineup-th lineup-th--order"></th>
@@ -337,6 +337,37 @@
               </label>
             </div>
           </div>
+          <div class="settings-field">
+            <label>Banner Style</label>
+            <div class="team-tab-style-row" id="teamTabStyleRow">
+              <label class="team-tab-style-opt">
+                <input type="radio" name="teamTabBrandStyle" value="gradient" id="teamTabStyleGradient">
+                <span>Gradient</span>
+              </label>
+              <label class="team-tab-style-opt">
+                <input type="radio" name="teamTabBrandStyle" value="solid" id="teamTabStyleSolid">
+                <span>Solid</span>
+              </label>
+              <label class="team-tab-style-opt">
+                <input type="radio" name="teamTabBrandStyle" value="stripes" id="teamTabStyleStripes">
+                <span>Stripes</span>
+              </label>
+            </div>
+            <div class="team-tab-angle-row" id="teamTabAngleRow">
+              <label for="teamTabAngle">Angle</label>
+              <input type="range" id="teamTabAngle" min="0" max="359" step="15" value="135">
+            </div>
+          </div>
+          <div class="settings-field">
+            <label>Team Name Color <span class="field-label-hint">(against the banner)</span></label>
+            <div class="team-tab-colors">
+              <label class="team-tab-color-field">
+                <span>Text</span>
+                <input type="color" id="teamTabTextColor" value="#ffffff">
+                <button type="button" class="admin-clear-btn" id="teamTabTextColorClear" data-action="clearTeamTabColor" data-arg="brandTextColor" hidden>Auto</button>
+              </label>
+            </div>
+          </div>
           <div class="settings-save-row">
             <button class="sched-save-btn" id="teamTabSaveBtn" data-action="saveTeamProfile">Save</button>
             <span class="sched-status" id="teamTabStatus"></span>
@@ -398,11 +429,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.93"></script>
-<script src="/theme-css.js?v=3.93"></script>
-<script src="/tt-common.js?v=3.93"></script>
-<script src="/bracket-data.js?v=3.93"></script>
-<script src="/lineup.js?v=3.93"></script>
-<script src="/coach.js?v=3.93"></script>
+<script src="/settings-defaults.js?v=3.94"></script>
+<script src="/theme-css.js?v=3.94"></script>
+<script src="/tt-common.js?v=3.94"></script>
+<script src="/bracket-data.js?v=3.94"></script>
+<script src="/lineup.js?v=3.94"></script>
+<script src="/coach.js?v=3.94"></script>
 </body>
 </html>

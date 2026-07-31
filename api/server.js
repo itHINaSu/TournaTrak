@@ -1533,6 +1533,11 @@ function validLogoDataUri(v, maxChars, pngOnly) {
 function validHexColor(v) {
   return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 }
+// A team's branded banner (Team Path, coach preview) — owner, 2026-08-02:
+// "allow the user to adjust the gradient, select a solid color instead, or
+// choose a different pattern". Angle only matters for 'gradient'/'stripes';
+// 'solid' ignores it and secondaryColor.
+const BRAND_STYLES = ['gradient', 'solid', 'stripes'];
 
 api.get('/theme-colors', ah(async (req, res) => {
   // Response varies by role (heavy fields are editor-only) — no shared caches.
@@ -1972,6 +1977,15 @@ function normalizeTeam(t) {
   // These will be used later."
   if (validHexColor(t.primaryColor))   out.primaryColor   = t.primaryColor.toLowerCase();
   if (validHexColor(t.secondaryColor)) out.secondaryColor = t.secondaryColor.toLowerCase();
+  if (BRAND_STYLES.includes(t.brandStyle)) out.brandStyle = t.brandStyle;
+  // '' / null / undefined all mean "not set, use the default angle" — only a
+  // real number in range is written, so clearing back to default doesn't
+  // require its own sentinel.
+  if (t.brandAngle !== '' && t.brandAngle != null) {
+    const angle = Number(t.brandAngle);
+    if (Number.isFinite(angle) && angle >= 0 && angle < 360) out.brandAngle = Math.round(angle);
+  }
+  if (validHexColor(t.brandTextColor)) out.brandTextColor = t.brandTextColor.toLowerCase();
   // Freezes a coach out of PUT /team-profile for this team (name/short
   // name/logo/colors) once staff have set it — an admin still edits freely
   // via POST /teams, which never checks its own lock.
@@ -2052,6 +2066,9 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
       logo:           t && 'logo'           in t ? t.logo           : prior.logo,
       primaryColor:   t && 'primaryColor'   in t ? t.primaryColor   : prior.primaryColor,
       secondaryColor: t && 'secondaryColor' in t ? t.secondaryColor : prior.secondaryColor,
+      brandStyle:     t && 'brandStyle'     in t ? t.brandStyle     : prior.brandStyle,
+      brandAngle:     t && 'brandAngle'     in t ? t.brandAngle     : prior.brandAngle,
+      brandTextColor: t && 'brandTextColor' in t ? t.brandTextColor : prior.brandTextColor,
       locked:         t && 'locked'         in t ? !!t.locked       : !!prior.locked,
     });
     if (seenIds.has(rec.id)) rec.id = newTeamId();   // never emit a duplicate
@@ -2095,6 +2112,9 @@ api.put('/team-profile/:teamName', requireLineupAccess, ah(async (req, res) => {
     logo:           'logo'           in body ? body.logo           : current.logo,
     primaryColor:   'primaryColor'   in body ? body.primaryColor   : current.primaryColor,
     secondaryColor: 'secondaryColor' in body ? body.secondaryColor : current.secondaryColor,
+    brandStyle:     'brandStyle'     in body ? body.brandStyle     : current.brandStyle,
+    brandAngle:     'brandAngle'     in body ? body.brandAngle     : current.brandAngle,
+    brandTextColor: 'brandTextColor' in body ? body.brandTextColor : current.brandTextColor,
     locked: current.locked,
   });
   const clean = teams.slice();

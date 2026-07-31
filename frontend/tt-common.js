@@ -454,16 +454,36 @@ function ttApplyLogoScale(scale) {
   root.style.setProperty('--logo-maxw-sm', s.maxwSm);
 }
 
-// Gradient background for .team-brand-banner (base.css), from a team's own
-// primaryColor/secondaryColor — server-validated hex only (/^#[0-9a-f]{6}$/i,
-// see validHexColor in api/server.js), so this is safe to drop straight into
-// a data-css string with no further escaping. Falls back to a neutral grey
-// when a team has set only one color, or neither (the banner still shows
-// for a logo-only team).
-function teamBrandBannerCss(primary, secondary) {
+// Background (plus optional text color) for .team-brand-banner (base.css),
+// from a team's own branding fields — all server-validated (hex colors:
+// /^#[0-9a-f]{6}$/i; style: one of BRAND_STYLES; angle: 0-359, see
+// validHexColor/BRAND_STYLES in api/server.js), so this is safe to drop
+// straight into a data-css string with no further escaping. Falls back to a
+// neutral grey when a team has set only one color, or neither (the banner
+// still shows for a logo-only team).
+//
+// style: 'gradient' (default) | 'solid' | 'stripes' — a coach can pick a
+// solid fill or a striped pattern instead of the gradient, and (for
+// gradient/stripes) the angle it runs at (owner, 2026-08-02: "allow the
+// user to adjust the gradient, select a solid color instead, or choose a
+// different pattern"). textColor overrides the banner's default white
+// (.team-brand-banner already carries a text-shadow for legibility against
+// ANY background, so this is an opt-in override, not a requirement).
+function teamBrandBannerCss(primary, secondary, style, angle, textColor) {
   var p = primary || secondary || '#4a4a4a';
   var s = secondary || primary || '#4a4a4a';
-  return 'background: linear-gradient(135deg, ' + p + ' 0%, ' + s + ' 100%);';
+  var a = (typeof angle === 'number' && angle >= 0 && angle < 360) ? angle : 135;
+  var css;
+  if (style === 'solid') {
+    css = 'background: ' + p + ';';
+  } else if (style === 'stripes') {
+    css = 'background: repeating-linear-gradient(' + a + 'deg, ' + p + ' 0, ' + p + ' 14px, '
+      + s + ' 14px, ' + s + ' 28px);';
+  } else {
+    css = 'background: linear-gradient(' + a + 'deg, ' + p + ' 0%, ' + s + ' 100%);';
+  }
+  if (textColor) css += ' color: ' + textColor + ';';
+  return css;
 }
 
 // ── data-css: CSP-safe dynamic styling for generated markup ─────────────
