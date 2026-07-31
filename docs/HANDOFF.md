@@ -3940,6 +3940,39 @@ this fix and the bracket looks like every game finished, that's why —
 `POST /api/live` (game in body, not the path) against the running instance
 fixes it without a reseed.
 
+**2026-07-31: `sub_filter "'/'" "'/demo/'";` was corrupting dates, not just
+rewriting navigation.** `sales-site/nginx.conf`'s `/demo/` proxy had three
+"bare-root reference" rules — `"'/'"`, `'"/"'`, and `` '`/`' `` — meant to
+catch `window.location` fallbacks. `sub_filter` is literal text substitution
+with zero code awareness, so `"'/'"` also matched the exact 3-character token
+`'/'.`  everywhere it appears in served JS, including date formatting
+(`bracket-data.js`/`bracket.js`: `month + '/' + day`), name-truncation
+(`bracket-data.js`: `.split('/')[0]`), and base64url decoding (`admin.js`/
+`bracket.js`: `.replace(/_/g, '/')`). Reported as "7/15" rendering as
+"7/demo/15" on the demo. Fixed by deleting all three broad rules and
+replacing them with two narrow ones matched against the exact surrounding
+text of the only genuine cases (`admin.js`'s `: '/';` slug-link ternary and
+the shared `.href = '/';` "go home" redirect in `admin.js`/`coach.js`); the
+double-quote and backtick variants had no genuine case at all — the one real
+`href="/"` (`builder-form.js`) was already covered by the separate, correctly
+narrow `href="/` rule. **Lesson for any future `sub_filter` addition to this
+file: never target a bare quoted `/` — grep every match across `frontend/*.js`
+first and confirm each one is an intended navigation site, not date/split/
+decode logic that happens to contain the same three characters.**
+
+**2026-07-31: demo login screen never actually showed the demo credentials.**
+`compose.demo.yml`'s header comment has said since it was written that
+`demo`/`demo` are "printed on the sales site / login screen" — but nothing
+ever did that printing; it was aspirational, not implemented. Added a
+`sub_filter` rule anchored on the login overlay's unique prose ("issued from
+here.") in `frontend/admin.html` to append the demo credentials sentence,
+scoped to the `/demo/` proxy only — real deployments' login screens are
+untouched. Verified with the same local-nginx-plus-static-file-stand-in
+harness as the rest of this file's `sub_filter` work (see the 2026-07-30
+entry above); `docker compose config` re-checked clean for both the
+sales-site-included and standalone `-f sales-site/demo/compose.demo.yml`
+invocations.
+
 `routes.test.js` now also covers, in rough order of how easy each is to break
 by accident: cross-tournament coach grants (a tournament admin must get 403
 from all three superadmin routes while their own scoped route still returns
