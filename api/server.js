@@ -1377,7 +1377,21 @@ function teamRows(schedule, results) {
   const bd = require(FRONTEND_DIR + '/bracket-data.js');
   bd.applySchedule(schedule);
   const teams = {}, h2h = {};
-  const seen = (nm) => (teams[nm] = teams[nm] || { name: nm, w: 0, l: 0, rf: 0, ra: 0 });
+  const seen = (nm) => (teams[nm] = teams[nm] || { name: nm, w: 0, l: 0, rf: 0, ra: 0, tier: 'open' });
+  // Same tier-drop tracking allTeamStandings() does in bracket.js, and for
+  // the same reason: rankStandings ranks a team still alive in Open above
+  // one that has dropped to A/B regardless of record, so this export can't
+  // disagree with what the public standings tab shows. A separate pass over
+  // every A/B game, not gated on that game's own result — a team is already
+  // "dropped" the moment it's resolved into a lower-tier slot.
+  for (const [sid, g] of Object.entries(bd.GAMES)) {
+    if (g.bye || !g.tier) continue;
+    for (const sd of [g.t1, g.t2]) {
+      const nm = bd.resolveSlot(sd, results);
+      if (!nm) continue;
+      if (g.tier === 'B' || seen(nm).tier === 'open') seen(nm).tier = g.tier;
+    }
+  }
   for (const [sid, g] of Object.entries(bd.GAMES)) {
     // Byes are skipped. In an elimination bracket a bye is not a win — the
     // team just advances — and counting it as one would inflate the record

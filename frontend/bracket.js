@@ -5280,12 +5280,29 @@ function standingsGroups() {
 function allTeamStandings() {
   var teams = {}, h2h = {};
   function seen(nm) {
-    if (!teams[nm]) teams[nm] = { name: nm, w: 0, l: 0, rf: 0, ra: 0, gp: 0 };
+    if (!teams[nm]) teams[nm] = { name: nm, w: 0, l: 0, rf: 0, ra: 0, gp: 0, tier: 'open' };
     return teams[nm];
   }
   // Every team in the tournament appears, even before it has played — a
   // standings table that hides half the field on day one is useless.
   (typeof getScheduleTeams === 'function' ? getScheduleTeams() : []).forEach(seen);
+
+  // Which tier a team has DROPPED TO, independent of whether that tier's own
+  // games are finished — a team resolved into an A-tier slot has already
+  // fallen out of Open even before playing its A game. A separate pass over
+  // every A/B game (not just played ones, and not gated on GAMES[sid]'s own
+  // result) so this never depends on the tier game itself being complete.
+  Object.keys(GAMES).forEach(function(sid) {
+    var g = GAMES[sid];
+    if (g.bye || !g.tier) return;
+    [g.t1, g.t2].forEach(function(sd) {
+      var nm = resolveSlot(sd, results);
+      if (!nm) return;
+      // B is a drop from A is a drop from Open — always take the LOWER tier
+      // ever reached, never move a team back up.
+      if (g.tier === 'B' || seen(nm).tier === 'open') seen(nm).tier = g.tier;
+    });
+  });
 
   Object.keys(GAMES).forEach(function(sid) {
     var g = GAMES[sid], r = results[sid];

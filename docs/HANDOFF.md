@@ -3254,6 +3254,40 @@ scope-dependent, which is exactly why "print a single small bracket looks
 fine, print 'all brackets on one image' or a deep/narrow bracket doesn't"
 went unnoticed until the owner hit a tall one.
 
+## Standings: tier beats record (owner, 2026-08-02)
+Owner: *"a team that has fallen to a consolation bracket should not be
+ranked higher than a team that is in a bracket above them. If a team loses
+two games to exit the open then wins out their record could be 7-2 which
+would rank them higher than a team that went 5-0 and is still in the
+open."*
+
+`rankStandings()` (bracket-data.js) — the ONE tiebreak function both the
+public standings tab (`allTeamStandings()` in bracket.js) and the
+`teams.csv` export (`teamRows()` in api/server.js) call, kept as one
+function specifically so the two never disagree — sorted by record first,
+with no notion of which bracket a team currently belongs to. Now sorts by
+`row.tier` FIRST (open beats A beats B, `STANDINGS_TIER_RANK`), record only
+breaks ties WITHIN a tier. A row with no `tier` field defaults to rank 0,
+so this is a complete no-op for `standingsGroups()` (the pool/round-robin
+table), which has no tiers at all and never sets one.
+
+**Tier is the LOWEST tier a team has ever been resolved into, whether or
+not that tier's own games are finished yet** — a team is "dropped" the
+moment it's slotted into an A/B game, not once it's lost one. Both
+`allTeamStandings()` and `teamRows()` got the same new pass over every
+A/B-tier game (`GAMES[sid].tier`), resolving `t1`/`t2` via `resolveSlot()`
+regardless of whether THAT game has a result — deliberately NOT reusing the
+existing played-games loop below it, which is gated on the game's own
+result and would miss a team that dropped but hasn't played its A game yet.
+`g.tier === 'B' || currentTier === 'open'` is the "only ever move a team
+DOWN a tier, never back up" rule — B always wins, A only overwrites the
+'open' default.
+
+Verified with `rankStandings()` directly (no browser needed): a 1-1 `open`
+row and a 7-2 `A` row — the 1-1 Open team ranks first, exactly the owner's
+example. Existing standings.test.js (140 tests total) still passes
+unchanged, confirming the no-tier case is untouched.
+
 ## Coach Panel visibility is a TEAM GRANT, not a role (2026-07-31)
 Owner report: **"If an admin is assigned to a team, they need the coaches
 panel in addition to the admin panel, currently that is not in the hamburger

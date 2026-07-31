@@ -368,17 +368,34 @@ function applySchedule(schedule) {
 var STANDINGS_TIEBREAKS = 'Ties broken by: head-to-head record, then head-to-head run '
   + 'differential, then overall run differential, then fewest runs allowed, then runs scored.';
 
+// A team still alive in Open always outranks one that has dropped to A, which
+// always outranks one that has dropped to B — regardless of record. Owner:
+// "a team that has fallen to a consolation bracket should not be ranked
+// higher than a team that is in a bracket above them. If a team loses two
+// games to exit the open then wins out their record could be 7-2 which
+// would rank them higher than a team that went 5-0 and is still in the
+// open." `row.tier` is the LOWEST tier a team has ever played a game in
+// ('open' unless they've dropped) — set by whichever caller builds the row
+// (allTeamStandings in bracket.js, teamRows in api/server.js); rows with no
+// `tier` field default to 0, so this is a no-op for the pool/round-robin
+// tables (standingsGroups), which have no tiers at all.
+var STANDINGS_TIER_RANK = { open: 0, A: 1, B: 2 };
+function standingsTierOf(r) { return STANDINGS_TIER_RANK[r.tier] || 0; }
+
 function rankStandings(rows, h2h) {
-  // Group by identical record first — everything below only applies inside
-  // one of these groups.
+  // Group by tier first, then identical record — everything below only
+  // applies inside one of these groups.
   var sorted = rows.slice().sort(function (a, b) {
+    var ta = standingsTierOf(a), tb = standingsTierOf(b);
+    if (ta !== tb) return ta - tb;
     if (b.w !== a.w) return b.w - a.w;
     return a.l - b.l;
   });
   var out = [];
   for (var i = 0; i < sorted.length;) {
     var j = i;
-    while (j < sorted.length && sorted[j].w === sorted[i].w && sorted[j].l === sorted[i].l) j++;
+    while (j < sorted.length && standingsTierOf(sorted[j]) === standingsTierOf(sorted[i])
+           && sorted[j].w === sorted[i].w && sorted[j].l === sorted[i].l) j++;
     var tied = sorted.slice(i, j);
     if (tied.length > 1) {
       var names = tied.map(function (r) { return r.name; });
