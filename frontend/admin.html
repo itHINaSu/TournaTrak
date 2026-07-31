@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.025">
-<link rel="stylesheet" href="/admin.css?v=4.08.025">
-<link rel="stylesheet" href="/lineup.css?v=4.08.025">
-<link rel="stylesheet" href="/builder.css?v=4.08.025">
-<link rel="stylesheet" href="/score.css?v=4.08.025">
-<script src="/app-h.js?v=4.08.025"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.026">
+<link rel="stylesheet" href="/admin.css?v=4.08.026">
+<link rel="stylesheet" href="/lineup.css?v=4.08.026">
+<link rel="stylesheet" href="/builder.css?v=4.08.026">
+<link rel="stylesheet" href="/score.css?v=4.08.026">
+<script src="/app-h.js?v=4.08.026"></script>
 </head>
 <body>
 
@@ -1016,11 +1016,13 @@
                   <input type="radio" name="teamsDetailBrandStyle" value="solid" id="teamsDetailStyleSolid">
                   <span>Solid</span>
                 </label>
-                <label class="team-tab-style-opt">
+                <!-- Hidden for now, not removed — see the matching comment
+                     in coach.html's Team tab (owner, 2026-08-02). -->
+                <label class="team-tab-style-opt" hidden>
                   <input type="radio" name="teamsDetailBrandStyle" value="stripes" id="teamsDetailStyleStripes">
                   <span>Stripes</span>
                 </label>
-                <label class="team-tab-style-opt">
+                <label class="team-tab-style-opt" hidden>
                   <input type="radio" name="teamsDetailBrandStyle" value="honeycomb" id="teamsDetailStyleHoneycomb">
                   <span>Honeycomb</span>
                 </label>
@@ -1150,15 +1152,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.08.025"></script>
-<script src="/theme-css.js?v=4.08.025"></script>
-<script src="/tt-common.js?v=4.08.025"></script>
-<script src="/bracket-data.js?v=4.08.025"></script>
-<script src="/admin.js?v=4.08.025"></script>
-<script src="/lineup.js?v=4.08.025"></script>
-<script src="/score.js?v=4.08.025"></script>
-<script src="/builder-form.js?v=4.08.025"></script>
-<script src="/builder.js?v=4.08.025"></script>
-<script src="/sw-register.js?v=4.08.025" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.026"></script>
+<script src="/theme-css.js?v=4.08.026"></script>
+<script src="/tt-common.js?v=4.08.026"></script>
+<script src="/bracket-data.js?v=4.08.026"></script>
+<script src="/admin.js?v=4.08.026"></script>
+<script src="/lineup.js?v=4.08.026"></script>
+<script src="/score.js?v=4.08.026"></script>
+<script src="/builder-form.js?v=4.08.026"></script>
+<script src="/builder.js?v=4.08.026"></script>
+<script src="/sw-register.js?v=4.08.026" data-sw="/admin-sw.js"></script>
 </body>
 </html>

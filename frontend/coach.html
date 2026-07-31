@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=4.08.025">
-<link rel="stylesheet" href="/admin.css?v=4.08.025">
-<link rel="stylesheet" href="/lineup.css?v=4.08.025">
-<script src="/app-h.js?v=4.08.025"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.026">
+<link rel="stylesheet" href="/admin.css?v=4.08.026">
+<link rel="stylesheet" href="/lineup.css?v=4.08.026">
+<script src="/app-h.js?v=4.08.026"></script>
 </head>
 <body>
 
@@ -409,11 +409,19 @@
                 <input type="radio" name="teamTabBrandStyle" value="solid" id="teamTabStyleSolid">
                 <span>Solid</span>
               </label>
-              <label class="team-tab-style-opt">
+              <!-- Hidden for now, not removed (owner, 2026-08-02: "hide the
+                   option for anything other than solid or gradient for team
+                   colors... Don't remove the code, I just can't find the
+                   option to make those changes globally") — no admin-wide
+                   toggle exists yet to gate these two specifically, so the
+                   quick fix is hiding the picker options themselves. The
+                   underlying style/sliders/rendering all still work; a team
+                   that already has one of these saved keeps rendering it. -->
+              <label class="team-tab-style-opt" hidden>
                 <input type="radio" name="teamTabBrandStyle" value="stripes" id="teamTabStyleStripes">
                 <span>Stripes</span>
               </label>
-              <label class="team-tab-style-opt">
+              <label class="team-tab-style-opt" hidden>
                 <input type="radio" name="teamTabBrandStyle" value="honeycomb" id="teamTabStyleHoneycomb">
                 <span>Honeycomb</span>
               </label>
@@ -523,11 +531,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.025"></script>
-<script src="/theme-css.js?v=4.08.025"></script>
-<script src="/tt-common.js?v=4.08.025"></script>
-<script src="/bracket-data.js?v=4.08.025"></script>
-<script src="/lineup.js?v=4.08.025"></script>
-<script src="/coach.js?v=4.08.025"></script>
+<script src="/settings-defaults.js?v=4.08.026"></script>
+<script src="/theme-css.js?v=4.08.026"></script>
+<script src="/tt-common.js?v=4.08.026"></script>
+<script src="/bracket-data.js?v=4.08.026"></script>
+<script src="/lineup.js?v=4.08.026"></script>
+<script src="/coach.js?v=4.08.026"></script>
 </body>
 </html>
