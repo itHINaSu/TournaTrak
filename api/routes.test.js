@@ -1889,3 +1889,141 @@ describe('push notifications', () => {
     await c.post('/api/push/public-unsubscribe', { endpoint: PUB('anon4').endpoint });
   });
 });
+
+// ── Demo mode ───────────────────────────────────────────────────────────
+// A separate server instance, own DB, own port: DEMO_MODE changes boot
+// behavior (seed restore, the cleanup interval) in ways the main suite above
+// deliberately runs WITHOUT (DEMO_MODE: '' in adminEnv), so it needs its own
+// process rather than a flag flipped on the shared one.
+describe('demo mode', () => {
+  const DEMO_DB = 'tt_demotest_' + process.pid;
+  const DEMO_SEED_DIR = path.join(__dirname, '..', 'sales-site', 'demo', 'demo-seed');
+  let demoServer = null, demoBase = '', demoSkip = '';
+
+  before(async () => {
+    try {
+      const c = await adminClient();
+      try { await c.query(`CREATE DATABASE ${DEMO_DB}`); } finally { await c.end(); }
+    } catch (err) {
+      demoSkip = 'no usable Postgres (' + err.message.split('\n')[0] + ')';
+      return;
+    }
+    const port = 13000 + (process.pid % 2000);
+    demoServer = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+      env: adminEnv({
+        PORT: String(port), PGDATABASE: DEMO_DB,
+        DEMO_MODE: 'true', DEMO_SEED_DIR, DEMO_RESET_MINUTES: '30', DEMO_PROVISION_TTL_MINUTES: '30',
+      }),
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    demoBase = 'http://127.0.0.1:' + port;
+    const started = await new Promise((resolve) => {
+      let out = '';
+      const t = setTimeout(() => resolve(false), 30000);
+      demoServer.stdout.on('data', (d) => {
+        out += d;
+        if (out.includes('API listening')) { clearTimeout(t); resolve(true); }
+      });
+      demoServer.stderr.on('data', (d) => { out += d; });
+      demoServer.on('exit', () => { clearTimeout(t); resolve(false); });
+    });
+    if (!started) {
+      demoSkip = 'demo server did not start';
+      if (demoServer) demoServer.kill('SIGKILL');
+      demoServer = null;
+    }
+  });
+
+  after(async () => {
+    if (demoServer) { demoServer.kill('SIGKILL'); await new Promise(r => demoServer.on('exit', r)); }
+    try {
+      const c = await adminClient();
+      try { await c.query(`DROP DATABASE IF EXISTS ${DEMO_DB} WITH (FORCE)`); } finally { await c.end(); }
+    } catch { /* scratch DB never created */ }
+  });
+
+  function demoAgent() {
+    const jar = {};
+    return {
+      async req(method, url, body) {
+        const headers = {};
+        const cookie = Object.entries(jar).map(([k, v]) => k + '=' + v).join('; ');
+        if (cookie) headers.cookie = cookie;
+        if (body !== undefined) headers['content-type'] = 'application/json';
+        const res = await fetch(demoBase + url, {
+          method, headers, body: body === undefined ? undefined : JSON.stringify(body),
+        });
+        for (const sc of res.headers.getSetCookie?.() || []) {
+          const [pair] = sc.split(';');
+          const i = pair.indexOf('=');
+          jar[pair.slice(0, i)] = pair.slice(i + 1);
+        }
+        let json = null;
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('json')) { try { json = await res.json(); } catch { /* empty body */ } }
+        return { status: res.status, json };
+      },
+      get(u) { return this.req('GET', u); },
+      post(u, b) { return this.req('POST', u, b); },
+      del(u) { return this.req('DELETE', u); },
+    };
+  }
+
+  function dtest(name, fn) {
+    test(name, async (t) => {
+      if (demoSkip) return t.skip(demoSkip);
+      await fn(t);
+    });
+  }
+
+  dtest('a fresh visitor is provisioned their own tournament, scoped as admin only there', async () => {
+    const v = demoAgent();
+    const provisioned = await v.post('/api/demo/provision');
+    assert.equal(provisioned.status, 200);
+    assert.equal(provisioned.json.ok, true);
+
+    const sess = (await v.get('/api/session')).json;
+    assert.equal(sess.authenticated, true);
+    assert.equal(sess.superadmin, false, 'a visitor must never be superadmin');
+    assert.equal(sess.demoMode, true);
+    assert.equal(sess.tournaments.length, 1, 'a visitor is granted exactly one tournament');
+    assert.equal(sess.tournaments[0].role, 'admin');
+    assert.equal(sess.tournaments[0].isLive, false, 'a provisioned tournament can never be the live one');
+  });
+
+  dtest('a visitor cannot read the default tournament they were not granted', async () => {
+    const v = demoAgent();
+    await v.post('/api/demo/provision');
+    const r = await v.get('/api/users');   // legacy /api mount = the default tournament
+    assert.equal(r.status, 403);
+  });
+
+  dtest('a visitor cannot delete any tournament, including their own — not superadmin', async () => {
+    const v = demoAgent();
+    await v.post('/api/demo/provision');
+    const slug = (await v.get('/api/session')).json.tournaments[0].slug;
+    const r = await v.del('/api/tournaments/' + slug);
+    assert.equal(r.status, 403);
+  });
+
+  dtest('two visitors land in different tournaments and cannot touch each other', async () => {
+    const a = demoAgent();
+    const b = demoAgent();
+    await a.post('/api/demo/provision');
+    await b.post('/api/demo/provision');
+    const sessA = (await a.get('/api/session')).json;
+    const sessB = (await b.get('/api/session')).json;
+    assert.notEqual(sessA.tournaments[0].slug, sessB.tournaments[0].slug);
+
+    // B tries to delete A's account, scoped to A's own tournament.
+    const r = await b.del('/api/t/' + sessA.tournaments[0].slug + '/users/' + sessA.username);
+    assert.equal(r.status, 403);
+  });
+
+  // Uses rtest, not dtest — this checks the MAIN suite's server (DEMO_MODE:
+  // '', see adminEnv up top), not this describe block's own demoServer.
+  rtest('POST /api/demo/provision does not exist outside demo mode', async () => {
+    const r = await fetch(base + '/api/demo/provision', { method: 'POST' });
+    assert.equal(r.status, 404);
+  });
+});

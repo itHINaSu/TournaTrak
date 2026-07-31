@@ -998,7 +998,7 @@ async function doCoachLogin(e) {
   try {
     // Login is tournament-agnostic; after the reload lineupInit follows the
     // team grant to the right tournament (the redirect in its gate check).
-    var r = await fetch('/api/login', {
+    var r = await fetch(TT_PAGE_PREFIX + '/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: user, password: pass })

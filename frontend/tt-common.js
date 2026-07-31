@@ -41,7 +41,8 @@ function getSetting(key) {
 }
 
 // ── Multi-tournament path routing (public bracket page) ────────────────
-// URL scheme:
+// URL scheme, underneath whatever reverse-proxy prefix the app is served at
+// (see TT_PREFIX below):
 //   /                                   → default tournament, saved/default tab
 //   /bracket|schedule|teampath|buckets  → default tournament, explicit tab
 //   /t/:slug                            → tournament, saved/default tab
@@ -50,32 +51,68 @@ function getSetting(key) {
 // URLs) so existing bookmarks/links/QR codes keep working unchanged.
 var TT_TAB_PATHS = ['bracket', 'schedule', 'teampath', 'buckets', 'standings'];
 
+// A reverse proxy (the sales site's /demo/, so far) can serve this app under
+// a path prefix the app itself knows nothing about — window.location.pathname
+// includes it, but nothing here was written expecting it. Rather than hardcode
+// a prefix, find where THIS app's own routing starts (the 't' segment, or a
+// bare tab name) and treat everything before it as an opaque prefix to carry
+// along on any path this page builds. Empty at a normal deployment root.
 function parseTtPath(pathname) {
   var parts = (pathname || window.location.pathname).replace(/^\/|\/$/g, '').split('/').filter(Boolean);
-  var slug = null, tab = null;
-  if (parts[0] === 't' && parts[1]) {
-    slug = parts[1];
-    if (parts[2] && TT_TAB_PATHS.indexOf(parts[2]) !== -1) tab = parts[2];
-  } else if (parts[0] && TT_TAB_PATHS.indexOf(parts[0]) !== -1) {
-    tab = parts[0];
+  var slug = null, tab = null, prefixParts = parts;
+  var i = parts.indexOf('t');
+  if (i !== -1 && parts[i + 1]) {
+    slug = parts[i + 1];
+    prefixParts = parts.slice(0, i);
+    if (parts[i + 2] && TT_TAB_PATHS.indexOf(parts[i + 2]) !== -1) tab = parts[i + 2];
+  } else if (parts.length && TT_TAB_PATHS.indexOf(parts[parts.length - 1]) !== -1) {
+    tab = parts[parts.length - 1];
+    prefixParts = parts.slice(0, -1);
   }
-  return { slug: slug, tab: tab };
+  return { slug: slug, tab: tab, prefix: prefixParts.length ? '/' + prefixParts.join('/') : '' };
 }
 
-var TT_ROUTE = parseTtPath();
-var TT_SLUG  = TT_ROUTE.slug;
+var TT_ROUTE  = parseTtPath();
+var TT_SLUG   = TT_ROUTE.slug;
+var TT_PREFIX = TT_ROUTE.prefix;
 
 // Prefix for all /api calls on the public page — scoped to TT_SLUG when set,
-// otherwise the legacy default-tournament mount.
+// otherwise the legacy default-tournament mount. No TT_PREFIX here: the
+// literal '/api'/'/api/t/' strings this returns are rewritten server-side by
+// the demo reverse proxy's sub_filter (see sales-site/nginx.conf), same as
+// every other hardcoded /api literal in this codebase — adding TT_PREFIX
+// on top would double it under /demo/.
 function apiBase() {
   return TT_SLUG ? '/api/t/' + encodeURIComponent(TT_SLUG) : '/api';
 }
 
 // Path for switching to `tab` while staying in the current tournament scope.
+// TT_PREFIX IS needed here: this concatenates a bare '/' + tab, which a
+// reverse proxy's sub_filter cannot safely target (that exact text also
+// occurs in unrelated code — see the nginx.conf comment on this), so the
+// prefix has to be restored client-side instead.
 function ttTabPath(tab) {
   var prefix = TT_SLUG ? '/t/' + encodeURIComponent(TT_SLUG) : '';
-  return prefix + '/' + (tab || 'bracket');
+  return TT_PREFIX + prefix + '/' + (tab || 'bracket');
 }
+
+// ── Fixed-path pages (admin/builder/coach/lineup/score) ─────────────────
+// Unlike the public bracket page's /t/:slug scheme above, these pages always
+// sit at one exact, known path segment — but a reverse proxy (the sales
+// site's /demo/) can still put an unknown prefix in front of it. Strip the
+// known trailing segment from the current path; whatever's left is the
+// prefix to prepend to any absolute API path one of these pages builds by
+// hand (fetch('/api/session') and similar — see admin.js/builder.js/
+// lineup.js) instead of through apiBase()/adminApiBase().
+var TT_FIXED_PAGES = ['admin', 'builder', 'coach', 'lineup', 'score'];
+function fixedPagePrefix() {
+  var parts = window.location.pathname.replace(/^\/|\/$/g, '').split('/').filter(Boolean);
+  var last = parts[parts.length - 1];
+  if (!last || TT_FIXED_PAGES.indexOf(last) === -1) return '';
+  var rest = parts.slice(0, -1);
+  return rest.length ? '/' + rest.join('/') : '';
+}
+var TT_PAGE_PREFIX = fixedPagePrefix();
 
 // Toast: transient status message. Pages carry <div class="toast" id="toast">;
 // no-ops on pages without one. Second arg true → error styling (.toast.error).

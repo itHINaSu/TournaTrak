@@ -448,11 +448,48 @@ async function setUserTeams(username, tid, teams) {
 }
 
 // Write-whole replacement of ALL users, granting each non-superadmin their
-// base role (and teams) on `tid`. Used only by the one-time legacy import and
-// the demo-mode seed restore — both single-tournament by construction.
+// base role (and teams) on `tid`. Used only by the one-time legacy import —
+// safe there because that import runs once, before any other account exists.
 async function replaceUsers(users, tid = defaultTid) {
   await _withTransaction(async client => {
     await client.query('DELETE FROM users');   // cascades user_roles + user_teams
+    for (const u of users) {
+      const r = await client.query(
+        `INSERT INTO users (username, password_hash, role, must_change_password, setup_token, access_token, team_name)
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [u.username, u.passwordHash ?? null, u.role, !!u.mustChangePassword,
+         u.setupToken ?? null, u.accessToken ?? null, u.teamName ?? null]);
+      if (u.role !== 'superadmin') {
+        await client.query(
+          'INSERT INTO user_roles (user_id, tournament_id, role) VALUES ($1, $2, $3)',
+          [r.rows[0].id, tid, u.role]);
+      }
+      const teams = u.teams || (u.teamName ? [u.teamName] : []);
+      for (let i = 0; i < teams.length; i++) {
+        await client.query(
+          'INSERT INTO user_teams (user_id, tournament_id, team_name, ord) VALUES ($1, $2, $3, $4)',
+          [r.rows[0].id, tid, teams[i], i]);
+      }
+    }
+  });
+  _invalidateUsers();
+}
+
+// Replace ONLY the named seed accounts, scoped to `tid` — unlike replaceUsers,
+// does not touch the users table at large. For the demo-mode periodic reset,
+// which now coexists with other tournaments' accounts (visitor-provisioned
+// sandboxes — see provisionDemoTournament in server.js): a blanket
+// `DELETE FROM users` there would delete every visitor's account out from
+// under their live session on every reset tick, not just reseed the one
+// tournament it's meant to. Deleting by username first (rather than
+// upserting) mirrors replaceUsers' write-whole intent — a seed user removed
+// from users.json disappears on the next reset instead of lingering.
+async function replaceUsersForTid(users, tid) {
+  await _withTransaction(async client => {
+    const usernames = users.map(u => u.username);
+    if (usernames.length) {
+      await client.query('DELETE FROM users WHERE username = ANY($1)', [usernames]);
+    }
     for (const u of users) {
       const r = await client.query(
         `INSERT INTO users (username, password_hash, role, must_change_password, setup_token, access_token, team_name)
@@ -482,9 +519,10 @@ async function replaceUsers(users, tid = defaultTid) {
 
 async function listTournaments() {
   if (!cache.has('tournaments')) {
-    const r = await pool.query('SELECT id, slug, name, is_public, is_default FROM tournaments ORDER BY id');
+    const r = await pool.query('SELECT id, slug, name, is_public, is_default, created_at FROM tournaments ORDER BY id');
     _setCache('tournaments', r.rows.map(t => ({
       id: t.id, slug: t.slug, name: t.name, isPublic: t.is_public, isDefault: t.is_default,
+      createdAt: t.created_at,
     })));
   }
   return structuredClone(cache.get('tournaments').data);
@@ -810,7 +848,7 @@ module.exports = {
   addPushSubscription, deletePushSubscription, detachStaffPushSubscription,
   pushSubscriptionsFor, pushSubscriptionCount,
   savePublicPushSubscription, publicPushTargets, publicPushAll,
-  createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
+  createUser, deleteUser, updateUser, setUserTeams, replaceUsers, replaceUsersForTid,
   grantRole, revokeRole,
   hashToken, hashTokenIfRaw,
   listTournaments, tournamentBySlug, tournamentById, createTournament, updateTournament, deleteTournament,

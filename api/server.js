@@ -314,6 +314,38 @@ function loginRateLimit(req, res, next) {
   next();
 }
 
+// A separate counter for POST /demo/provision (below) — every request there
+// "succeeds" (it never checks a password), so loginRateLimit's failure-only
+// counting would never actually throttle it. Caps how many sandbox
+// tournaments one IP can spin up rather than how many times it can guess a
+// password.
+const provisionAttempts = new Map();
+const PROVISION_WINDOW_MS = 60 * 60 * 1000;
+const PROVISION_MAX = 5;
+setInterval(function pruneProvisionAttempts() {
+  const cutoff = Date.now() - PROVISION_WINDOW_MS;
+  for (const [ip, entry] of provisionAttempts) {
+    if (entry.windowStart < cutoff) provisionAttempts.delete(ip);
+  }
+}, PROVISION_WINDOW_MS).unref();
+function provisionRateLimit(req, res, next) {
+  const ip = req.ip;
+  const now = Date.now();
+  const entry = provisionAttempts.get(ip) || { count: 0, windowStart: now };
+  if (now - entry.windowStart > PROVISION_WINDOW_MS) {
+    entry.count = 0;
+    entry.windowStart = now;
+  }
+  if (entry.count >= PROVISION_MAX) {
+    const retryAfter = Math.ceil((entry.windowStart + PROVISION_WINDOW_MS - now) / 1000);
+    res.setHeader('Retry-After', retryAfter);
+    return res.status(429).json({ error: 'Too many demo tournaments from this address. Try again later.' });
+  }
+  entry.count++;
+  provisionAttempts.set(ip, entry);
+  next();
+}
+
 // Sessions — stored in the Postgres sessions table so they persist across
 // container restarts. The session holds ONLY the username; role, teams, and
 // mustChangePassword are resolved live per request (so a role change or
@@ -442,6 +474,7 @@ api.get('/session', ah(async (req, res) => {
         authenticated: true, mustChangePassword: false,
         username: null, role: 'team', teamName: req.teamLink.team,
         teams: [req.teamLink.team], viaTeamLink: true, setupRequired: false,
+        demoMode: DEMO_MODE,
       });
     }
     // No session AND no users at all → the admin page shows the "create
@@ -450,7 +483,7 @@ api.get('/session', ah(async (req, res) => {
     return res.json({
       authenticated: false, mustChangePassword: false,
       username: null, role: null, teamName: null, teams: [],
-      setupRequired,
+      setupRequired, demoMode: DEMO_MODE,
     });
   }
   const eff   = roleFor(req);
@@ -483,7 +516,22 @@ api.get('/session', ah(async (req, res) => {
     // access on its own — it is a note that the lineup page should OFFER to
     // add the team, and POST /team-link/claim is where anything is granted.
     pendingTeamClaim:   await pendingClaimFor(req),
+    demoMode:           DEMO_MODE,
   });
+}));
+
+// Demo-only: give a visitor their own sandbox tournament instead of the
+// shared showcase one, so exploring the admin panel can't step on anyone
+// else's changes (see provisionDemoTournament, defined near the rest of the
+// demo-mode machinery below). 404s outside DEMO_MODE — this route does not
+// exist in a real deployment. Public: a fresh visitor has no session yet,
+// which is the whole point.
+api.post('/demo/provision', provisionRateLimit, ah(async (req, res) => {
+  if (!DEMO_MODE) return res.status(404).json({ error: 'Not found' });
+  const { username } = await provisionDemoTournament();
+  startSession(req, { username },
+    () => res.json({ ok: true }),
+    () => res.status(500).json({ error: 'Session error' }));
 }));
 
 // Describes the parked team claim for the lineup page, or null. Re-checks the
@@ -2853,6 +2901,11 @@ process.on('unhandledRejection', (reason) => {
 const DEMO_MODE          = process.env.DEMO_MODE === 'true';
 const DEMO_SEED_DIR      = process.env.DEMO_SEED_DIR || '/seed';
 const DEMO_RESET_MINUTES = parseInt(process.env.DEMO_RESET_MINUTES, 10) || 30;
+// Lifetime of a visitor-provisioned sandbox tournament (see
+// provisionDemoTournament / cleanupProvisionedDemoTournaments below) —
+// separate from DEMO_RESET_MINUTES because it ages from EACH tournament's own
+// created_at, not from one shared clock.
+const DEMO_PROVISION_TTL_MINUTES = parseInt(process.env.DEMO_PROVISION_TTL_MINUTES, 10) || 30;
 
 // Seed file → store domain (users.json is handled separately).
 const SEED_DOMAINS = {
@@ -2868,16 +2921,22 @@ const SEED_DOMAINS = {
   'lineups.json':      'lineups',
 };
 
-async function restoreDemoSeed() {
+// Loads every seed domain EXCEPT users.json into `tid`. Shared by the
+// default tournament's periodic reset and by provisionDemoTournament below —
+// a fresh visitor sandbox should look exactly like the reset showcase does,
+// minus the seed accounts (a visitor gets their own, single-tournament TD
+// account instead; see provisionDemoTournament).
+async function seedTournamentDomains(tid) {
   let files;
   try {
-    files = fs.readdirSync(DEMO_SEED_DIR).filter(f => f.endsWith('.json'));
+    files = fs.readdirSync(DEMO_SEED_DIR).filter(f => f.endsWith('.json') && f !== 'users.json');
   } catch (e) {
     console.error('Demo seed dir unreadable (' + DEMO_SEED_DIR + '): ' + e.message);
-    return;
+    return 0;
   }
   let restored = 0;
   for (const f of files) {
+    if (!SEED_DOMAINS[f]) continue;   // unknown seed file (e.g. sessions.json) — skip
     let data;
     try {
       data = JSON.parse(fs.readFileSync(DEMO_SEED_DIR + '/' + f, 'utf8'));
@@ -2886,26 +2945,89 @@ async function restoreDemoSeed() {
       continue;
     }
     try {
-      if (f === 'users.json') {
-        // Seed files may carry v2-style cleartext tokens — hash on the way in.
-        const seedUsers = (Array.isArray(data.users) ? data.users : []).map(u => ({
-          ...u,
-          accessToken: store.hashTokenIfRaw(u.accessToken),
-          setupToken:  store.hashTokenIfRaw(u.setupToken),
-        }));
-        await store.replaceUsers(seedUsers);
-      } else if (SEED_DOMAINS[f]) {
-        await store.put(store.tid, SEED_DOMAINS[f], data);
-      } else {
-        continue;   // unknown seed file (e.g. sessions.json) — skip
-      }
+      await store.put(tid, SEED_DOMAINS[f], data);
       restored++;
     } catch (e) {
-      console.error('Demo restore failed for ' + f + ': ' + e.message);
+      console.error('Demo restore failed for ' + f + ' (tid ' + tid + '): ' + e.message);
     }
+  }
+  return restored;
+}
+
+async function restoreDemoSeed() {
+  const restored = await seedTournamentDomains(store.tid);
+  try {
+    const raw = fs.readFileSync(DEMO_SEED_DIR + '/users.json', 'utf8');
+    const data = JSON.parse(raw);
+    // Seed files may carry v2-style cleartext tokens — hash on the way in.
+    const seedUsers = (Array.isArray(data.users) ? data.users : []).map(u => ({
+      ...u,
+      accessToken: store.hashTokenIfRaw(u.accessToken),
+      setupToken:  store.hashTokenIfRaw(u.setupToken),
+    }));
+    // Scoped to just these usernames — NOT store.replaceUsers, which wipes
+    // the whole users table and would delete every visitor-provisioned
+    // tournament's account (see provisionDemoTournament) on every reset tick.
+    await store.replaceUsersForTid(seedUsers, store.tid);
+  } catch (e) {
+    console.error('Demo seed users.json unreadable: ' + e.message);
   }
   invalidateIndexCache();   // seeded settings may have changed the index HTML
   console.log('Demo data restored from seed (' + restored + ' files)');
+}
+
+// A visitor who wants to poke at the admin panel without disturbing the
+// shared showcase tournament (or every OTHER visitor's sandbox) gets their
+// own: a fresh tournament seeded with the same demo data, and one throwaway
+// account granted 'admin' (Tournament Director) on THAT tournament ONLY —
+// never superadmin, never a grant anywhere else. That single-tournament
+// scoping is what actually keeps visitors apart: every user-management and
+// tournament-deletion route already checks the caller's grant against
+// req.tid, so an account with no grant on any other tournament 403s out of
+// touching one, with no new authorization code required here.
+// createTournament never sets is_default, so this can never become the
+// tournament served at / (see the comment on POST /tournaments).
+async function provisionDemoTournament() {
+  let slug, tid;
+  for (let attempt = 0; ; attempt++) {
+    slug = 'v-' + crypto.randomBytes(5).toString('hex');
+    if (!(await store.tournamentBySlug(slug))) break;
+    if (attempt >= 4) throw new Error('could not find a free demo slug');
+  }
+  await store.createTournament({ slug, name: 'My Demo Tournament', isPublic: false });
+  const t = await store.tournamentBySlug(slug);
+  tid = t.id;
+  await seedTournamentDomains(tid);
+  let username;
+  for (let attempt = 0; ; attempt++) {
+    username = 'visitor-' + crypto.randomBytes(4).toString('hex');
+    if (!(await store.findUser(username))) break;
+    if (attempt >= 4) throw new Error('could not find a free visitor username');
+  }
+  await store.createUser({ username, role: 'admin', mustChangePassword: false }, tid);
+  return { slug, username };
+}
+
+// Deletes any visitor-provisioned tournament (see provisionDemoTournament)
+// older than DEMO_PROVISION_TTL_MINUTES, and the now-orphaned account that
+// went with it. Never touches the seeded showcase tournament (isDefault) —
+// that one keeps resetting on its own schedule in restoreDemoSeed. Mirrors
+// DELETE /users/:username's revoke-then-delete-if-orphaned order exactly,
+// rather than assuming a provisioned account has no other grants.
+async function cleanupProvisionedDemoTournaments() {
+  const cutoff = Date.now() - DEMO_PROVISION_TTL_MINUTES * 60 * 1000;
+  const tournaments = await store.listTournaments();
+  for (const t of tournaments) {
+    if (t.isDefault) continue;
+    if (new Date(t.createdAt).getTime() >= cutoff) continue;
+    const grantees = (await store.allUsers()).filter(u => u.role !== 'superadmin' && u.roles[t.id]);
+    for (const u of grantees) {
+      const remaining = await store.revokeRole(u.username, t.id);
+      if (remaining === 0) await store.deleteUser(u.username);
+    }
+    await store.deleteTournament(t.slug);
+    console.log('Demo: expired visitor tournament ' + t.slug);
+  }
 }
 
 // ── Web Push ──────────────────────────────────────────────────────────
@@ -3154,9 +3276,13 @@ api.post('/push/test', requirePushUser, ah(async (req, res) => {
   await initPush();
   if (DEMO_MODE) {
     await restoreDemoSeed();  // pristine state on boot
-    setInterval(() => restoreDemoSeed().catch(e => console.error('Demo restore error:', e)),
-                DEMO_RESET_MINUTES * 60 * 1000).unref();
-    console.log('DEMO_MODE on — resetting every ' + DEMO_RESET_MINUTES + ' min from ' + DEMO_SEED_DIR);
+    await cleanupProvisionedDemoTournaments();
+    setInterval(() => {
+      restoreDemoSeed().catch(e => console.error('Demo restore error:', e));
+      cleanupProvisionedDemoTournaments().catch(e => console.error('Demo cleanup error:', e));
+    }, DEMO_RESET_MINUTES * 60 * 1000).unref();
+    console.log('DEMO_MODE on — resetting every ' + DEMO_RESET_MINUTES + ' min from ' + DEMO_SEED_DIR
+      + ', visitor sandboxes expire after ' + DEMO_PROVISION_TTL_MINUTES + ' min');
   }
   // Port is fixed at 3000 in the container (nginx proxies to it); PORT is an
   // override for local dev and for the route tests, which need a free port.

@@ -74,6 +74,13 @@
          serves everyone, in a browser or either installed app, and the login
          page itself explains that spectators need no account. -->
     <a href="/admin" class="admin-public-btn" id="signInBtn" hidden>Sign in</a>
+    <!-- Demo mode only (api/session's demoMode flag, see POST
+         /api/demo/provision) — gives an anonymous visitor their own
+         throwaway tournament and a Tournament Director account scoped to
+         just it, instead of poking at the shared showcase everyone else
+         sees. Never shown outside DEMO_MODE, so a real deployment's public
+         page is unaffected. -->
+    <button class="admin-public-btn" id="demoProvisionBtn" hidden data-action="provisionDemo">Manage your own tournament →</button>
   </div>
 </header>
 

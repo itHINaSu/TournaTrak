@@ -14,7 +14,7 @@ for shipped behaviour.
 - `docs/HANDOFF.md` is the narrative record of what happened and why. This file
   is the short answer to "is X built yet?" — keep it short enough to scan.
 
-Last updated 2026-07-30.
+Last updated 2026-07-31.
 
 ---
 
@@ -43,8 +43,9 @@ Last updated 2026-07-30.
 
 | # | Item | State |
 |---|---|---|
-| S1 | **Demo stack served from the sales site at `/demo`** | Built on `claude/sales-page-updates-x1cehz`, merging to `main` now. `compose.demo.yml` folded into `sales-site/docker-compose.yml` via `include:`, then physically relocated to `sales-site/demo/compose.demo.yml` (with `demo-seed/`, `demo-files/` alongside it) since the sales site is its only real consumer. `/demo/` reverse-proxied by `sales-site/nginx.conf` with the path-rewriting a subpath-unaware app needs, re-verified against every frontend file this merge changed (including the new `coach.html`/`coach.js`). The named `demo-pgdata` volume and its `down -v`-is-a-feature property are preserved unchanged; still isolated from the real instance's `./pgdata`. Verified via a locally-installed nginx against the real `frontend/` files (this sandbox's Docker can't pull `nginx:alpine`/`postgres:16-alpine` to test the containers themselves) — NOT yet verified against the live app end-to-end. See `HANDOFF.md` "Sales site" for the full detail. |
+| S1 | **Demo stack served from the sales site at `/demo`** | Built on `claude/sales-page-updates-x1cehz`. `compose.demo.yml` folded into `sales-site/docker-compose.yml` via `include:`, physically relocated to `sales-site/demo/compose.demo.yml` (with `demo-seed/`, `demo-files/` alongside it). `/demo/` reverse-proxied by `sales-site/nginx.conf` with the path-rewriting a subpath-unaware app needs. **Now verified end-to-end against a live instance**, not just text-diffed: a real `DEMO_MODE=true` backend behind an actual `sales-site/nginx.conf` nginx, driven with Playwright — login, session, and the admin panel all confirmed working through the proxy. That verification pass caught two real bugs, both fixed here: a `sub_filter` rule was corrupting dates (`"7/15"` → `"7/demo/15"`), and several `fetch('/api/...')` calls in `admin.js`/`builder.js`/`lineup.js` bypassed the rewrite mechanism entirely, meaning login likely never worked through `/demo/` at all before this. See `HANDOFF.md`'s 2026-07-31 entries for the full detail. Still not deployed/verified on the owner's actual host. |
 | S2 | **Sales site placeholders** | Done in the same work as S1: contact is `sales@tournatrak.com`, demo CTAs point at `/demo/`. |
+| S4 | **Demo visitors get an isolated tournament instead of the shared showcase** | `POST /api/demo/provision` (DEMO_MODE-gated) gives each visitor their own seeded tournament and a throwaway TD-only account scoped to just it — no shared login, no way to touch another visitor's data or delete anything (not superadmin). Cleanup rides the existing reset interval, aging off each tournament's own `created_at`. New `frontend/index.html` button ("Manage your own tournament"), gated on a new `demoMode` flag in `/api/session`. Verified via `routes.test.js`'s new `describe('demo mode', ...)` (5 tests, own server+DB) AND end-to-end with Playwright against a real backend behind the real `/demo/` nginx config. See `HANDOFF.md`'s 2026-07-31 "demo visitors get their own tournament" entry. |
 
 ---
 

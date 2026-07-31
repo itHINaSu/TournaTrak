@@ -3986,6 +3986,103 @@ role the run reports the route tests as `skipped` and still exits 0, which
 hides every route regression. A genuine full run says `0 skipped`; see the
 Postgres-role note in "Session notes / traps" for how to get one. Run the suite after ANY generator, route, or standings change.
 
+**2026-07-31: demo visitors get their own tournament instead of sharing the
+showcase one.** Owner ask: the shared demo tournament reset every 30 minutes
+was a poor substitute for real isolation — two visitors clicking around at
+once step on each other's changes in between resets, and if they got a
+global-admin login they could delete each other's work outright. Fix:
+`POST /api/demo/provision` (server.js, DEMO_MODE-gated, 404s otherwise)
+creates a fresh tournament, seeds it with the same demo data
+(`seedTournamentDomains`, factored out of `restoreDemoSeed` so both share one
+code path), and creates ONE throwaway account granted `'admin'` (Tournament
+Director) on THAT tournament ONLY — never superadmin, never a grant anywhere
+else — then logs the caller straight in via `startSession`, no password.
+
+The isolation needed **zero new authorization code**: every user-management
+and tournament-deletion route already checks the caller's grant against
+`req.tid`, so an account with no grant elsewhere 403s out of touching another
+tournament's data on its own. Confirmed directly against a running instance
+(not just reasoned about) — see `routes.test.js`'s new `describe('demo
+mode', ...)` block, its own server+DB since DEMO_MODE changes boot behavior
+the main suite deliberately runs without: a visitor can't read the default
+tournament's users (403), can't delete ANY tournament including their own
+(403 — superadmin required, so cleanup has to be a server-side sweep, not a
+button), and a second visitor can't touch the first visitor's account even
+targeting it through the first visitor's own tournament slug.
+
+**Cleanup: `cleanupProvisionedDemoTournaments`, riding the existing
+`DEMO_RESET_MINUTES` interval.** Ages off `tournaments.created_at` (a column
+that already existed, just not previously exposed via `listTournaments()`)
+rather than a new schema field or slug-embedded timestamp. Skips
+`isDefault` unconditionally — the showcase tournament keeps resetting on its
+own schedule in `restoreDemoSeed`, never expires. Revokes the visitor's grant
+first and deletes the account only if that leaves it with zero grants
+anywhere (mirrors `DELETE /users/:username`'s exact order), rather than
+assuming a provisioned account can never pick up a second grant.
+
+**Real bug found and fixed along the way: the periodic reset used to wipe
+EVERY account in the users table.** `restoreDemoSeed` called
+`store.replaceUsers(seedUsers)`, which does `DELETE FROM users` with no
+scoping — fine when the showcase tournament was the only one, but with
+visitor-provisioned accounts now coexisting, every 30-minute reset would have
+deleted every visitor's account mid-session, logging them out from under
+themselves. Added `store.replaceUsersForTid(users, tid)` — deletes only the
+seed's own usernames, not the whole table — and `restoreDemoSeed` now calls
+that instead. Verified by backdating a provisioned tournament's `created_at`
+directly in Postgres and confirming a restart's cleanup sweep removes it
+while an already-logged-in showcase session (established before the restart)
+stays signed in afterward — sessions are genuinely untouched by a reset, not
+just by the seed's own account list.
+
+**Second real bug found: `admin.js`/`builder.js`/`lineup.js` had several
+`fetch('/api/session')`-style calls that bypassed `apiBase()`/`scopedUrl()`
+entirely, predating any of this multi-tournament work.** These are
+literal, standalone strings (not a prefix-returning function's result
+concatenated with a suffix), so the existing `sub_filter "'/api'"
+"'/demo/api'";` rule — which only matches when a closing quote follows
+immediately — never touched them. Confirmed with curl against the actual
+`/demo/` proxy: a bare `fetch('/api/session')` from a page at `/demo/admin`
+resolves to the SALES SITE's own root (`/api/session`, no `/demo` prefix),
+which nginx's `try_files` SPA fallback serves as the marketing page's own
+`index.html` — 200 OK, wrong content, `.json()` throws, and the admin panel
+reads that as "signed out" even with a valid session cookie. `POST
+/api/login` the same way hits a 405 (static serving refuses POST). This
+means **logging into the admin/coach/builder panels through `/demo/` may
+never have worked at all**, independent of anything about multi-tournament
+support — it just had no visitor who needed the panel to actually load. Six
+calls in `admin.js`, one each in `builder.js` and `lineup.js`, plus four
+`window.location.origin + '/api/...'` magic-link builders in `admin.js`
+(team-access, setup-password ×2, team-link).
+
+Fixed with a new shared helper rather than another `sub_filter` rule: unlike
+the public bracket page's `/t/:slug` scheme, admin/builder/coach/lineup/score
+each sit at one exact, known path — so `tt-common.js`'s new
+`fixedPagePrefix()` strips that known trailing segment off
+`window.location.pathname` and whatever's left (`""` at a real deployment
+root, `"/demo"` under the proxy) is `TT_PAGE_PREFIX`, prepended at all eleven
+call sites. Client-side by necessity, same reasoning as `ttTabPath()`'s
+`TT_PREFIX` from the 2026-07-31 sub_filter-corruption entry above:
+`sub_filter` can't safely target these literals without also matching
+unrelated code elsewhere. Verified end-to-end with Playwright against the
+real backend (`docs/agent-demo/proxy.js` pointed at a `DEMO_MODE=true`
+instance, behind a local nginx running the actual `sales-site/nginx.conf`):
+clicked the new "Manage your own tournament" button from `/demo/`, landed
+signed in on `/demo/admin` with zero console errors, then followed "View
+public bracket" to `/demo/t/<slug>` successfully — which also exercised the
+new `sub_filter "'/t/'" "'/demo/t/'";` rule (the tournament-scoped PAGE path,
+distinct from the already-covered `/api/t/` API path) and `parseTtPath`'s
+extension to find the `t` segment anywhere in the path rather than only at
+position 0, so a reverse-proxy prefix in front of `/t/:slug` doesn't defeat
+the public page's own multi-tournament routing either.
+
+New UI: `frontend/index.html` gets a `demoProvisionBtn` (hidden unless
+`/api/session`'s `demoMode` flag is set), wired through the existing
+`data-action` dispatch in `bracket.js`. Demo-only in every sense — the
+button, the route, and the four new `server.js`/`store.js` functions
+(`provisionDemoTournament`, `cleanupProvisionedDemoTournaments`,
+`seedTournamentDomains`, `store.replaceUsersForTid`) are all inert or 404 in
+a real deployment.
+
 Also run `node scripts/build-issa-state-2026.js` after touching
 `ROUND_ORDER`, `SLOT_DEFS`, or the generators — it re-derives the ISSA
 transcription and fails the build on a game fed from a later round column

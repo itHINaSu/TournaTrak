@@ -51,7 +51,7 @@ async function init(skipAuth) {
   if (!skipAuth) {
     var sess;
     try {
-      var r = await fetch('/api/session', { credentials: 'same-origin' });
+      var r = await fetch(TT_PAGE_PREFIX + '/api/session', { credentials: 'same-origin' });
       sess = await r.json();
     } catch (e) { sess = null; }
 

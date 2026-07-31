@@ -1586,7 +1586,7 @@ function showAdmin(username, role, teamName) {
 // header switcher, and reconcile the saved slug against current grants.
 async function loadTournamentContext() {
   try {
-    var r = await fetch('/api/session');
+    var r = await fetch(TT_PAGE_PREFIX + '/api/session');
     var data = await r.json();
     // One place decides which tournament is active and drops a stale saved
     // slug, shared with checkSession, so the two cannot drift apart.
@@ -1726,7 +1726,7 @@ async function doSetup(e) {
   }
   btn.disabled = true;
   try {
-    var r = await fetch('/api/setup', {
+    var r = await fetch(TT_PAGE_PREFIX + '/api/setup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: user, password: pass1 })
@@ -1795,7 +1795,7 @@ async function doLogin(e) {
   btn.disabled = true;
   errEl.hidden = true;
   try {
-    var r = await fetch('/api/login', {
+    var r = await fetch(TT_PAGE_PREFIX + '/api/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username: user, password: pass })
@@ -1821,7 +1821,7 @@ async function doLogin(e) {
 }
 
 async function doLogout() {
-  await fetch('/api/logout', { method: 'POST' }).catch(function(){});
+  await fetch(TT_PAGE_PREFIX + '/api/logout', { method: 'POST' }).catch(function(){});
   showLogin();
 }
 
@@ -1959,7 +1959,7 @@ function seedTournamentContext(data) {
 
 async function checkSession() {
   try {
-    var r    = await fetch('/api/session');
+    var r    = await fetch(TT_PAGE_PREFIX + '/api/session');
     var data = await r.json();
     if (data.authenticated) {
       if (data.role === 'team') { showCoachBlock(data.username); return; }
@@ -2079,7 +2079,7 @@ function copyText(text) {
 }
 
 function copyMagicLink(token) {
-  var link = window.location.origin + '/api/team-access/' + token;
+  var link = window.location.origin + TT_PAGE_PREFIX + '/api/team-access/' + token;
   copyText(link);
   showToast('Link copied to clipboard');
 }
@@ -2088,7 +2088,7 @@ async function regenerateSetupLink(username) {
   var r = await apiFetch('/api/users/' + encodeURIComponent(username) + '/setup-link', { method: 'POST' });
   var d = await r.json().catch(function() { return {}; });
   if (!r.ok) { showToast((d.error || 'Failed to regenerate link'), true); return; }
-  var link = window.location.origin + '/api/setup-password/' + d.setupToken;
+  var link = window.location.origin + TT_PAGE_PREFIX + '/api/setup-password/' + d.setupToken;
   copyText(link);
   showToast('Setup link copied to clipboard');
   loadUsers();
@@ -2148,7 +2148,7 @@ async function addUser() {
   if (document.getElementById('newTeamName')) document.getElementById('newTeamName').value = '';
 
   if (data.setupToken) {
-    var setupLink = window.location.origin + '/api/setup-password/' + data.setupToken;
+    var setupLink = window.location.origin + TT_PAGE_PREFIX + '/api/setup-password/' + data.setupToken;
     copyText(setupLink);
     showToast('User created — setup link copied to clipboard');
     status.textContent = '✓ Created — setup link copied';
@@ -2195,7 +2195,7 @@ async function loadTournaments() {
   var el = document.getElementById('tournamentsList');
   if (!el) return;
   try {
-    var r = await fetch('/api/tournaments');
+    var r = await fetch(TT_PAGE_PREFIX + '/api/tournaments');
     if (!r.ok) { el.innerHTML = '<div class="admin-subtitle">Could not load tournaments.</div>'; return; }
     var list = await r.json();
     renderTournamentsList(list);
@@ -4663,7 +4663,7 @@ function wireTeamProfileRow(list) {
 }
 
 function teamLinkUrl(token) {
-  return window.location.origin + '/api/team-link/' + token;
+  return window.location.origin + TT_PAGE_PREFIX + '/api/team-link/' + token;
 }
 
 // The expanded panel under a team row. Deliberately shows the URL in full:

@@ -6712,6 +6712,11 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   var refreshBtn = document.getElementById('refreshBtn');
   if (refreshBtn)     refreshBtn.hidden = !isPwa;
   if (signInBtn)      signInBtn.hidden = !(!_sessionRole);
+  // Same visibility rule as Sign in — offering a brand-new sandbox to
+  // someone already signed in (e.g. from their own just-provisioned
+  // session) would just be confusing, and they can already reach /admin.
+  var demoProvisionBtn = document.getElementById('demoProvisionBtn');
+  if (demoProvisionBtn) demoProvisionBtn.hidden = !(sess.demoMode && !_sessionRole);
   if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
   // Coach Panel is offered by TEAM ASSIGNMENT, not by role — coaching a team
   // and being staff are independent facts. session.teams is populated for
@@ -6930,6 +6935,19 @@ document.addEventListener('touchcancel', function() {
 
 // ── Delegated actions (see tt-common.js) ──────────────────────────────
 Object.assign(TT_ACTIONS, {
+  // Demo mode only — see the demoProvisionBtn markup in index.html and
+  // POST /api/demo/provision in server.js. 404s (and does nothing but show
+  // an error) outside DEMO_MODE, since the button itself is hidden there.
+  provisionDemo: function(arg, el) {
+    if (el) { el.disabled = true; el.textContent = 'Setting up your tournament…'; }
+    fetch(apiBase() + '/demo/provision', { method: 'POST' })
+      .then(function(r) { if (!r.ok) throw new Error('provision failed'); return r.json(); })
+      .then(function() { window.location.href = '/admin'; })
+      .catch(function() {
+        showToast('Could not start a demo tournament — try again', true);
+        if (el) { el.disabled = false; el.textContent = 'Manage your own tournament →'; }
+      });
+  },
   refreshNow: function(arg, el) {
     // Tapped from inside the hamburger on a phone — close it, or the panel
     // sits over the bracket the viewer just asked to see refreshed.
