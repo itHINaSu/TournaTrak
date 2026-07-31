@@ -89,6 +89,42 @@ function showToast(msg, err) {
   t._tt = setTimeout(function() { t.classList.remove('show'); }, 2500);
 }
 
+// ── Roster sorting (shared by coach.js's roster editor and lineup.js's
+// player picker) ─────────────────────────────────────────────────────────
+// Scorebook order, not alphabetical (owner, 2026-08-02: "Sort by position
+// in roster should be based on scorebook position number, not
+// alphabetically") — a position missing from this list (a different
+// sport's preset, or none set) sorts after every known one instead of
+// erroring.
+var ROSTER_POS_SORT_ORDER = ['P', 'C', '1st', '2nd', '3rd', 'SS', 'LF', 'CF', 'RF', 'R', 'EH'];
+
+// One comparator value function for a roster-shaped record ({jerseys,
+// name, position}), so "sort by X" means the same thing everywhere it's
+// used, not two implementations that could drift apart.
+function rosterSortValue(r, key) {
+  if (key === 'num') {
+    var nums = (r.jerseys || []).map(function (j) { return parseInt(j, 10); })
+      .filter(function (n) { return !isNaN(n); });
+    return nums.length ? Math.min.apply(null, nums) : Infinity;
+  }
+  if (key === 'pos') {
+    var pos = r.position || '';
+    var idx = ROSTER_POS_SORT_ORDER.indexOf(pos);
+    return (idx === -1 ? '99-' : ('0' + idx).slice(-2) + '-') + pos.toLowerCase();
+  }
+  return String(r.name || '').toLowerCase();
+}
+
+// The roster editor's last "Sort by" choice (owner, 2026-08-02: "if the
+// roster is sorted by jersey do that, if the roster is sorted by name do
+// that, if roster is sorted by position, do that") — read by the lineup
+// tab's player picker so its ordering matches whatever the coach last
+// chose in Roster, without the two tabs sharing anything more than this.
+// Defaults to 'num' (a shirt number is the fastest way to find someone) so
+// the picker has a sensible order even before Roster's buttons are ever
+// touched this session.
+var _rosterSortKey = 'num';
+
 // ── Delegated actions ──────────────────────────────────────────────────
 // Replaces inline onclick="fn(...)" attributes, which are blocked once the
 // CSP drops script-src 'unsafe-inline'. Markup declares data-action="name"

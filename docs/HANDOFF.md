@@ -3425,6 +3425,28 @@ fastest way to find someone while building a lineup. Verified against the
 demo: picker showed `#2 | #3 | #7/#21 | #8 | #9 | #12 | #15 | #21 | #44`.
 Full API suite (140 tests) still passes.
 
+## Picker follows WHICHEVER roster sort was last used, not always number (owner, 2026-08-02)
+Owner, immediately after the above: *"if the roster is sorted by jersey do
+that, if the roster is sorted by name do that, if roster is sorted by
+position, do that."* The picker sort landed one message ago hardcoded
+jersey-number order — right for the default, wrong the moment a coach
+actually clicks "Sort by Name" or "Sort by Position" in Roster first.
+
+Moved `ROSTER_POS_SORT_ORDER` and the sort-value logic (previously
+duplicated inline in `sortRoster`, coach.js) into tt-common.js as
+`rosterSortValue(r, key)` — one comparator both tabs call, so "sort by X"
+can't drift into meaning something different in each. Added `_rosterSortKey`
+(also tt-common.js, defaults `'num'`), which `sortRoster()` now records on
+every call; `openLineupPlayerPicker()` reads it (falling back to `'num'` if
+somehow unset) and sorts candidates the same way. The two tabs share
+nothing else — no persisted setting, no server round-trip — just this one
+in-memory value for the session.
+
+Verified against the demo: sorted Roster by Name, opened the picker —
+identical order (`Alex Rivera | Casey Nguyen | Devon Marsh | ...`). Sorted
+Roster by Position instead, reopened the picker — reordered to match that
+too. Full API suite (140 tests) still passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an

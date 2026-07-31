@@ -311,15 +311,19 @@ function openLineupPlayerPicker(rowIdx) {
   document.querySelectorAll('#lineupBody tr.lineup-row').forEach(function(r) {
     if (r !== tr && r.dataset.pid) used[r.dataset.pid] = true;
   });
-  // Same order a coach sorts the roster into by number (owner, 2026-08-02:
-  // "players should [appear] in the lineup selector the way that's
-  // selected in roster") — a shirt number is the fastest way to find
-  // someone while building a lineup. No jersey sinks to the bottom rather
-  // than sorting first, same convention as the roster's own "Sort by #".
+  // Whichever sort the coach last picked in Roster — jersey, name, or
+  // position — is how they show up here too (owner, 2026-08-02: "if the
+  // roster is sorted by jersey do that, if the roster is sorted by name do
+  // that, if roster is sorted by position, do that"). _rosterSortKey and
+  // rosterSortValue live in tt-common.js, shared with coach.js's own
+  // sortRoster, so "sort by X" means the same thing in both places.
   var candidates = _lineupRoster.players.filter(function(p) { return p.id && !used[p.id]; });
+  var sortKey = (typeof _rosterSortKey !== 'undefined') ? _rosterSortKey : 'num';
   candidates.sort(function(a, b) {
-    function firstNum(p) { var n = parseInt((p.jerseys || [])[0], 10); return isNaN(n) ? Infinity : n; }
-    return firstNum(a) - firstNum(b);
+    var va = rosterSortValue(a, sortKey), vb = rosterSortValue(b, sortKey);
+    if (va < vb) return -1;
+    if (va > vb) return 1;
+    return 0;
   });
 
   closeLineupPlayerPicker();

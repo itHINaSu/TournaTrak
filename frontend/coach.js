@@ -283,33 +283,17 @@ function updateRosterCount() {
 // One-time reorder on click, not a persisted sort mode — blank typing rows
 // always sink to the bottom regardless of key, so they stay reachable
 // instead of scattering wherever an empty name/number happens to sort.
-// Scorebook order, not alphabetical (owner, 2026-08-02: "Sort by position
-// in roster should be based on scorebook position number, not
-// alphabetically") — the softball preset's OWN dropdown order (settings-
-// defaults.js) lists 1st/2nd/3rd before C/P, which reads fine as a <select>
-// but sorts oddly. A position missing from this list (a different sport's
-// preset, or none set) sorts after every known one instead of erroring.
-var ROSTER_POS_SORT_ORDER = ['P', 'C', '1st', '2nd', '3rd', 'SS', 'LF', 'CF', 'RF', 'R', 'EH'];
-
+// rosterSortValue/ROSTER_POS_SORT_ORDER live in tt-common.js — shared with
+// the lineup tab's player picker, which reads _rosterSortKey (also there)
+// to match whatever the coach last chose here (owner, 2026-08-02: "if the
+// roster is sorted by jersey do that... by name... by position, do that").
 function sortRoster(key) {
   harvestRoster();
+  _rosterSortKey = key;
   var real = _rosterRows.filter(function (r) { return !isBlankRosterRow(r); });
   var blanks = _rosterRows.filter(isBlankRosterRow);
-  function val(r) {
-    if (key === 'num') {
-      var nums = (r.jerseys || []).map(function (j) { return parseInt(j, 10); })
-        .filter(function (n) { return !isNaN(n); });
-      return nums.length ? Math.min.apply(null, nums) : Infinity;
-    }
-    if (key === 'pos') {
-      var pos = r.position || '';
-      var idx = ROSTER_POS_SORT_ORDER.indexOf(pos);
-      return (idx === -1 ? '99-' : ('0' + idx).slice(-2) + '-') + pos.toLowerCase();
-    }
-    return String(r.name || '').toLowerCase();
-  }
   real.sort(function (a, b) {
-    var va = val(a), vb = val(b);
+    var va = rosterSortValue(a, key), vb = rosterSortValue(b, key);
     if (va < vb) return -1;
     if (va > vb) return 1;
     return 0;
