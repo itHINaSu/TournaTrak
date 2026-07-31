@@ -3209,6 +3209,51 @@ Two owner reports, same conversation:
      which renders through the OTHER container; fixed to
      `querySelector('.bcc-stack, .bcc-outerflex')`.
 
+## Print: the first page was blank on a tall bracket (owner, 2026-08-02)
+Owner: *"When selecting print, the first page is always blank. I want the
+bracket to always be sized to print the whole (of whatever the user
+selects) on a single page."*
+
+Root cause in `printShareImage()` (bracket.js): the print stylesheet was
+`img{width:100%}` with no height cap. A `<img>` is an ATOMIC box a print
+engine cannot slice mid-image — if the rendered height (width:100% times
+the canvas's own aspect ratio) ran past what was left of the first
+printable page, the browser didn't split it; it moved the WHOLE image to
+page 2, leaving page 1 blank. This is exactly what "share scope: All
+brackets (one image)" produces — `stackCanvases()` stacks Open/A/B
+vertically into one TALL canvas (aspect ratio height:width of ~2.2:1 in
+testing, vs. ~0.66:1 for a single small bracket) that blows well past one
+page at full page width.
+
+Fix: each image now renders inside its own full-page `.print-page` (`height:
+100vh; display:flex; align-items:center; justify-content:center`) with
+`max-width:100%; max-height:100%; width:auto; height:auto` instead of a
+bare `width:100%` — the standard "shrink to fit both dimensions, preserve
+aspect ratio" technique (the print-CSS equivalent of `object-fit:contain`
+in a fixed box). This GUARANTEES no image can ever be taller than one page
+regardless of its own aspect ratio, so nothing can trigger the
+whole-image-bumps-to-next-page behavior — satisfying "always ... on a
+single page" for whatever the visitor selected, not just the common case.
+Also added `@page{size:landscape}` since every bracket shape this app
+produces is wider than tall at the page level even after stacking multiple
+onto one sheet; harmless even where a browser/OS ignores it, since the
+containment math doesn't depend on which orientation actually gets used.
+
+**How this was verified without a human at a printer**: Chromium's
+`page.pdf()` (Playwright) uses the SAME print engine `window.print()` does,
+so it reproduces pagination bugs faithfully — this class of bug (an atomic
+box exceeding page height) does not show up in ordinary DOM inspection,
+only in actual paginated output. Extracted the print iframe's exact HTML
+(via `shareCanvases()`, the same call `printShareImage()` makes), rendered
+it standalone with `preferCSSPageSize: true`, and counted PDF pages by
+reading `/Count` off the `/Pages` object. Old CSS against the stacked
+Open+A+B canvas: **2 pages** (reproducing the bug). New CSS, same canvas:
+**1 page**. Single-bracket share (the common case, aspect ratio already
+under 1:1) was 1 page under both old and new CSS — the bug is real but
+scope-dependent, which is exactly why "print a single small bracket looks
+fine, print 'all brackets on one image' or a deep/narrow bracket doesn't"
+went unnoticed until the owner hit a tall one.
+
 ## Coach Panel visibility is a TEAM GRANT, not a role (2026-07-31)
 Owner report: **"If an admin is assigned to a team, they need the coaches
 panel in addition to the admin panel, currently that is not in the hamburger

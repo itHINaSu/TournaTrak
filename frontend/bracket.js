@@ -3465,11 +3465,27 @@ function printShareImage() {
   document.body.appendChild(ifr);
   var doc = ifr.contentDocument;
   doc.open();
+  // Each bracket gets its own full page, sized to CONTAIN it rather than
+  // stretched to the page's width — owner, 2026-08-02: "I want the bracket
+  // to always be sized to print the whole ... on a single page." Width:100%
+  // with no height cap (the old rule) let a tall/narrow bracket's rendered
+  // height run past one printable page; a <img> is an atomic box a print
+  // engine cannot slice mid-image, so the WHOLE image bumped to page 2 the
+  // moment it didn't fit what was left of page 1 — leaving page 1 blank,
+  // which is exactly the bug report. object-fit:contain inside a
+  // full-page-height flex box scales EITHER dimension down as needed, so
+  // the image can never be taller than one page regardless of its own
+  // aspect ratio, whatever the visitor selected (one bracket, or several
+  // stacked/side by side onto one sheet).
   doc.write('<!doctype html><html><head><title>' + esc(bracketShareText()) + '</title>'
-    + '<style>@page{margin:8mm}html,body{margin:0;padding:0;background:#fff}'
-    + 'img{display:block;width:100%;page-break-after:always}'
-    + 'img:last-child{page-break-after:auto}</style></head><body>'
-    + items.map(function(it) { return '<img src="' + it.canvas.toDataURL('image/png') + '">'; }).join('')
+    + '<style>@page{size:landscape;margin:8mm}'
+    + 'html,body{margin:0;padding:0;background:#fff;height:100%}'
+    + '.print-page{height:100vh;display:flex;align-items:center;justify-content:center;'
+    + 'page-break-after:always;box-sizing:border-box}'
+    + '.print-page:last-child{page-break-after:auto}'
+    + '.print-page img{display:block;max-width:100%;max-height:100%;width:auto;height:auto}'
+    + '</style></head><body>'
+    + items.map(function(it) { return '<div class="print-page"><img src="' + it.canvas.toDataURL('image/png') + '"></div>'; }).join('')
     + '</body></html>');
   doc.close();
   var imgs = doc.images, left = imgs.length;
