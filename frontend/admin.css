@@ -1771,3 +1771,39 @@ input[type="time"]:focus {
 .coach-list-teams   { color: var(--text-dim); flex: 1; min-width: 0; }
 .coach-list-pending { color: var(--gold-lt); font-size: 0.7rem; }
 .coach-list-btn     { padding: 0.2em 0.55em; font-size: 0.7rem; }
+
+/* Invite-link banner: the whole line is the button, with a separate dismiss. */
+.coach-pending-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--gold);
+}
+.coach-pending-main {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 0.6em 1em;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-family: 'Barlow', sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  cursor: pointer;
+}
+.coach-pending-main:hover { color: var(--text); }
+.coach-pending-main strong { color: var(--gold-lt); }
+.coach-pending-x {
+  flex: 0 0 auto;
+  padding: 0 0.9em;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-mute);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.coach-pending-x:hover { color: var(--text); }

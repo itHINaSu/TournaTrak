@@ -2166,9 +2166,11 @@ describe('team data is shared between a team\'s coaches', () => {
 });
 
 describe('a coach invited by magic link must be able to set a password', () => {
-  rtest('every coach route 403s until the password is set, then works', async () => {
-    // This is why the form has to be the FIRST thing the panel shows: an
-    // invitee cannot load anything until mustChangePassword is cleared.
+  rtest('can work the roster immediately, and set a password when ready', async () => {
+    // Owner, 2026-08-02: the invite link is for DOING THE JOB, so roster and
+    // lineup are open straight away. Team details and inviting coaches wait
+    // until they have an account. (This test asserted the opposite until that
+    // decision; the reversal is deliberate, not a regression.)
     const a = await loginAdmin();
     const mk = await a.post('/api/team-links/' + encodeURIComponent('Setuppers'), {});
     const token = mk.json.token || (mk.json.link && mk.json.link.token);
@@ -2187,8 +2189,11 @@ describe('a coach invited by magic link must be able to set a password', () => {
     assert.equal(sess.json.mustChangePassword, true,
       'the panel keys the forced form off this');
 
-    // Locked out of its own team data until it sets one.
-    assert.equal((await inv.get('/api/roster/' + encodeURIComponent('Setuppers'))).status, 403);
+    // Its own team's roster is available at once.
+    assert.equal((await inv.get('/api/roster/' + encodeURIComponent('Setuppers'))).status, 200);
+    // Team details are not.
+    assert.equal((await inv.req('PUT', '/api/team-profile/' + encodeURIComponent('Setuppers'),
+      { primaryColor: '#123456' })).status, 403);
 
     assert.equal((await inv.post('/api/change-password', { password: 'assistantpw1' })).status, 200);
     const after = await inv.get('/api/session');
@@ -2228,13 +2233,15 @@ describe('an ADMIN who also coaches invites a new coach', () => {
       undefined, { manual: true });
     assert.match(hit.headers.get('location'), /^\/coach\?setup=/);
 
-    // BEFORE setup: signed in, correct team, and locked out of everything —
-    // which is exactly what "unable to see roster/lineup" looked like.
+    // BEFORE setup: signed in, correct team, and able to work the roster —
+    // the original report ("unable to see roster/lineup") is what changed.
     const before = await inv.get('/api/session');
     assert.equal(before.json.mustChangePassword, true);
     assert.deepEqual(before.json.teams, ['AdminCoached'],
       'the invitee is on the right team even before setup');
-    assert.equal((await inv.get('/api/roster/' + encodeURIComponent('AdminCoached'))).status, 403);
+    const early = await inv.get('/api/roster/' + encodeURIComponent('AdminCoached'));
+    assert.equal(early.status, 200, 'roster is readable before setup');
+    assert.equal((early.json.players || early.json || [])[0].name, 'Robin Vale');
 
     // AFTER setup: the same team data the admin manages.
     assert.equal((await inv.post('/api/change-password', { password: 'newcoachpw123' })).status, 200);
@@ -2252,5 +2259,92 @@ describe('an ADMIN who also coaches invites a new coach', () => {
     const lu = await inv.get('/api/lineups/game/' + gid + '/' + encodeURIComponent('AdminCoached'));
     assert.equal(lu.status, 200);
     assert.equal((lu.json.rows || lu.json || [])[0].name, 'Robin Vale');
+  });
+});
+
+describe('a magic-link coach before setting a password', () => {
+  // Owner, 2026-08-02: the link grants read/write on roster and lineup, but
+  // NOT team branding and NOT inviting coaches, until they authenticate.
+  async function invited(team, ownerName, asstName) {
+    const a = await loginAdmin();
+    const mk = await a.post('/api/team-links/' + encodeURIComponent(team), {});
+    const token = mk.json.token || (mk.json.link && mk.json.link.token);
+    const owner = agent();
+    await owner.post('/api/team-join/' + token, { username: ownerName, password: 'ownerpw12345' });
+    const made = await owner.post('/api/coach/coaches', { username: asstName });
+    assert.equal(made.status, 200, JSON.stringify(made.json));
+    const inv = agent();
+    await inv.req('GET', '/api/setup-password/' + made.json.setupToken, undefined, { manual: true });
+    return { owner, inv, setupToken: made.json.setupToken, a };
+  }
+
+  rtest('CAN read and write the roster and the lineup', async () => {
+    const { inv, a } = await invited('PendRW', 'coach_rw_own', 'asst_rw');
+    assert.equal((await inv.get('/api/session')).json.mustChangePassword, true);
+
+    const w = await inv.post('/api/roster/' + encodeURIComponent('PendRW'),
+      { players: [{ name: 'Pat Reed', numbers: ['4'] }] });
+    assert.equal(w.status, 200, 'roster write: ' + JSON.stringify(w.json));
+    assert.equal((await inv.get('/api/roster/' + encodeURIComponent('PendRW'))).status, 200);
+
+    const sched = (await a.get('/api/schedule')).json || {};
+    const results = (await a.get('/api/results')).json || {};
+    const gid = Object.keys(sched).find(k => !results[k] || !results[k].winner);
+    const lw = await inv.post('/api/lineups/game/' + gid + '/' + encodeURIComponent('PendRW'),
+      { rows: [{ name: 'Pat Reed', jersey: '4', position: 'P' }] });
+    assert.equal(lw.status, 200, 'lineup write: ' + JSON.stringify(lw.json));
+    assert.equal((await inv.get('/api/lineups/game/' + gid + '/' + encodeURIComponent('PendRW'))).status, 200);
+  });
+
+  rtest('CANNOT change team branding or invite coaches', async () => {
+    const { inv } = await invited('PendRO', 'coach_ro_own', 'asst_ro');
+    // rosterFor() only surfaces teams that appear in the SCHEDULE, so an
+    // invented name 404s before the permission check ever runs. Grant the
+    // pending coach a real one and test branding against that.
+    const a2 = await loginAdmin();
+    const real = (await a2.get('/api/teams')).json.teams[0].name;
+    assert.equal((await a2.post('/api/users/asst_ro/teams', { teamName: real })).status, 200);
+    const brand = await inv.req('PUT', '/api/team-profile/' + encodeURIComponent(real),
+      { primaryColor: '#ff0000' });
+    assert.equal(brand.status, 403, 'branding must stay shut: ' + JSON.stringify(brand.json));
+    assert.equal((await inv.post('/api/coach/coaches', { username: 'sneaky_asst' })).status, 403);
+    assert.equal((await inv.req('DELETE', '/api/coach/coaches/coach_ro_own')).status, 403);
+    // But the coach LIST is readable.
+    const list = await inv.get('/api/coach/coaches');
+    assert.equal(list.status, 200, 'the list is read-only, not forbidden');
+    assert.ok(list.json.some(x => x.username === 'coach_ro_own'));
+  });
+
+  rtest('cannot touch another team, pending or not', async () => {
+    const { inv } = await invited('PendScope', 'coach_sc_own', 'asst_sc');
+    const a = await loginAdmin();
+    await a.post('/api/roster/' + encodeURIComponent('Outsiders'), { players: [] });
+    assert.equal((await inv.get('/api/roster/' + encodeURIComponent('Outsiders'))).status, 403);
+    assert.equal((await inv.post('/api/roster/' + encodeURIComponent('Outsiders'),
+      { players: [{ name: 'Nope', numbers: [] }] })).status, 403);
+  });
+
+  rtest('the link dies once the password is set, and lands on the coach panel', async () => {
+    const { inv, setupToken, a } = await invited('PendBurn', 'coach_burn_own', 'asst_burn');
+    // Same reason as above: branding needs a team the schedule knows.
+    const realTeam = (await a.get('/api/teams')).json.teams[0].name;
+    assert.equal((await a.post('/api/users/asst_burn/teams', { teamName: realTeam })).status, 200);
+    assert.equal((await inv.post('/api/change-password', { password: 'assistantpw99' })).status, 200);
+
+    // Spent: no session for anyone else holding the same link.
+    const second = agent();
+    const again = await second.req('GET', '/api/setup-password/' + setupToken,
+      undefined, { manual: true });
+    assert.equal(again.status, 302);
+    assert.match(again.headers.get('location'), /^\/coach\?setup=invalid/,
+      'a spent link just goes to the coach panel, got ' + again.headers.get('location'));
+    assert.equal((await second.get('/api/session')).json.authenticated, false,
+      'a spent link must not sign anyone in');
+
+    // And the now-authenticated coach has the full set.
+    const after = await inv.req('PUT', '/api/team-profile/' + encodeURIComponent(realTeam),
+      { primaryColor: '#00ff00' });
+    assert.equal(after.status, 200, 'branding opens up after setup: ' + JSON.stringify(after.json));
+    assert.equal((await inv.post('/api/coach/coaches', { username: 'asst_burn_2' })).status, 200);
   });
 });

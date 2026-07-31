@@ -49,6 +49,16 @@ function showCoachPanel(session) {
   document.getElementById('coachGate').hidden = true;
   document.getElementById('adminWrap').hidden = false;
   updateCoachHomeLink();
+  // Invited but not yet set up: roster and lineup work, team details and
+  // inviting others do not (the server enforces both). Say so, and put the
+  // fix one tap away, rather than letting those controls fail silently.
+  // Dismissal is remembered per browser, not per session: sessions regenerate
+  // on every sign-in, so anything session-shaped would bring the bar back on
+  // each visit — the trap already documented for the notification prompt.
+  var dismissed = false;
+  try { dismissed = localStorage.getItem('ttCoachPendingDismissed') === '1'; } catch (e) {}
+  var pend = document.getElementById('coachPendingBar');
+  if (pend) pend.hidden = !(session && session.mustChangePassword) || dismissed;
   ttApplyPanelOffsets();
   var teams = session.teams || [];
   var line = document.getElementById('coachTeamLine');
@@ -255,9 +265,12 @@ async function initCoachPanel() {
   var session = r && r.ok ? await r.json().catch(function () { return null; }) : null;
   _coachSession = session;
 
-  // Before the role checks: this account cannot use any of them yet.
-  if (session && session.authenticated && session.mustChangePassword) {
-    showCoachSetup();
+  // A spent or bogus setup link lands here — say so rather than showing a
+  // bare sign-in with no explanation.
+  if (new URLSearchParams(window.location.search).get('setup') === 'invalid') {
+    showCoachGate('Link already used',
+      'This setup link has already been used or has expired. Sign in with your password, '
+      + 'or ask whoever invited you for a new link.', true);
     return;
   }
 
@@ -1530,6 +1543,13 @@ Object.assign(TT_ACTIONS, {
   sortRoster:        function (arg) { sortRoster(arg); },
   saveTeamProfile:   function () { saveTeamProfile(); },
   addTeamCoach:      function () { addTeamCoach(); },
+  coachStartSetup:   function () { showCoachSetup(); },
+  coachDismissPending: function (arg, el, e) {
+    if (e) e.stopPropagation();
+    var bar = document.getElementById('coachPendingBar');
+    if (bar) bar.hidden = true;
+    try { localStorage.setItem('ttCoachPendingDismissed', '1'); } catch (e2) {}
+  },
   coachNewLink:      function (arg) { coachNewLink(arg); },
   coachRemove:       function (arg) { coachRemove(arg); },
   removeTeamTabLogo: function () { removeTeamTabLogo(); },

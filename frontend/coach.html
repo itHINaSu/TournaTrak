@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=4.08.043">
-<link rel="stylesheet" href="/admin.css?v=4.08.043">
-<link rel="stylesheet" href="/lineup.css?v=4.08.043">
-<script src="/app-h.js?v=4.08.043"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.044">
+<link rel="stylesheet" href="/admin.css?v=4.08.044">
+<link rel="stylesheet" href="/lineup.css?v=4.08.044">
+<script src="/app-h.js?v=4.08.044"></script>
 </head>
 <body>
 
@@ -140,6 +140,20 @@
     </div>
     <div class="share-hint" id="coachShareHint"></div>
   </div>
+</div>
+
+<!-- Shown to a coach who arrived on a magic link and has not set a password.
+     They CAN work on the roster and lineup; team details and inviting other
+     coaches are refused by the server until they finish setting up. -->
+<div class="coach-pending-bar" id="coachPendingBar" hidden>
+  <!-- The whole bar is the action (owner, 2026-08-02) — a one-line prompt that
+       only responds on a small button is a smaller target than the sentence
+       telling you to press it. The dismiss button stops propagation so it
+       never doubles as "open the form". -->
+  <button type="button" class="coach-pending-main" data-action="coachStartSetup">
+    <span class="coach-pending-text">You're signed in from an invite link. Rosters and lineups work now — <strong>set a password</strong> to manage team details and invite other coaches.</span>
+  </button>
+  <button type="button" class="coach-pending-x" data-action="coachDismissPending" aria-label="Dismiss">&times;</button>
 </div>
 
 <header class="site-header" id="siteHeader">
@@ -603,11 +617,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.043"></script>
-<script src="/theme-css.js?v=4.08.043"></script>
-<script src="/tt-common.js?v=4.08.043"></script>
-<script src="/bracket-data.js?v=4.08.043"></script>
-<script src="/lineup.js?v=4.08.043"></script>
-<script src="/coach.js?v=4.08.043"></script>
+<script src="/settings-defaults.js?v=4.08.044"></script>
+<script src="/theme-css.js?v=4.08.044"></script>
+<script src="/tt-common.js?v=4.08.044"></script>
+<script src="/bracket-data.js?v=4.08.044"></script>
+<script src="/lineup.js?v=4.08.044"></script>
+<script src="/coach.js?v=4.08.044"></script>
 </body>
 </html>

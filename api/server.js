@@ -409,6 +409,17 @@ function requireSuperadmin(req, res, next) {
 
 // Lineup access: team users can only read/write their own team (in this
 // tournament); admin and results can access any.
+// Layered on top of requireLineupAccess for the things a magic-link coach may
+// NOT do before setting a password. Kept separate so the roster/lineup
+// relaxation above cannot silently widen anything else that shares that guard.
+function denyPending(req, res, next) {
+  if (req.user && req.user.mustChangePassword) {
+    return res.status(403).json({
+      error: 'Set a password first to change team details.', mustChangePassword: true });
+  }
+  next();
+}
+
 function requireLineupAccess(req, res, next) {
   // A team lineup link: no account, exactly one team, this tournament only.
   if (req.teamLink) {
@@ -416,7 +427,18 @@ function requireLineupAccess(req, res, next) {
     return res.status(403).json({ error: 'Access denied' });
   }
   if (!req.user)                   return res.status(401).json({ error: 'Authentication required' });
-  if (req.user.mustChangePassword) return res.status(403).json({ error: 'Password change required', mustChangePassword: true });
+  // A coach invited by magic link has not set a password yet, and the job they
+  // were invited to do is the roster and the lineup — so those stay OPEN to
+  // them, read AND write, scoped to their own team (owner, 2026-08-02).
+  // Deliberately NOT the staff branch below: a staff account with a pending
+  // password change must not get tournament-wide access on a link alone. What
+  // stays shut until they authenticate is team branding (see denyPending on
+  // PUT /team-profile) and inviting further coaches (requireCoachSelf).
+  if (req.user.mustChangePassword) {
+    const pendingTeams = store.teamsFor(req.user, req.tid);
+    if (req.params.teamName && pendingTeams.includes(req.params.teamName)) return next();
+    return res.status(403).json({ error: 'Password change required', mustChangePassword: true });
+  }
   const role = roleFor(req);
   if (role === 'superadmin' || role === 'admin' || role === 'results') return next();
   if (role === 'team') {
@@ -1005,10 +1027,14 @@ api.delete('/users/:username/grants/:tid', requireSuperadmin, ah(async (req, res
 api.get('/setup-password/:token', ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const { token } = req.params;
-  if (!token || !/^[a-f0-9]{64}$/.test(token)) return res.redirect('/admin?setup=invalid');
+  if (!token || !/^[a-f0-9]{64}$/.test(token)) return res.redirect('/coach?setup=invalid');
   const hashed = store.hashToken(token);
   const user = (await store.allUsers()).find(u => u.setupToken === hashed && u.mustChangePassword);
-  if (!user) return res.redirect('/admin?setup=invalid');
+  // Spent or unknown: the token is cleared the moment a password is set
+  // (change-password writes setupToken: null), so a used link cannot be told
+  // apart from a bogus one. Both just land on the coach panel, which offers
+  // Sign in rather than a dead end (owner, 2026-08-02).
+  if (!user) return res.redirect('/coach?setup=invalid');
   // A coach invited by another coach has no business on the admin login page —
   // send them where their account can actually do something.
   const home = user.role === 'team' ? '/coach' : '/admin';
@@ -1170,7 +1196,19 @@ function requireCoachSelf(req, res, next) {
 }
 
 
-api.get('/coach/coaches', requireCoachSelf, ah(async (req, res) => {
+// READ-ONLY while pending (owner, 2026-08-02): a magic-link coach may see who
+// else is on the team, but may not add or remove anyone until they have an
+// account of their own — those routes keep requireCoachSelf, which refuses a
+// pending password change.
+function requireCoachTeamRead(req, res, next) {
+  if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+  if (!coachTeamsOf(req.user, req.tid).length) {
+    return res.status(403).json({ error: 'You do not coach a team here.' });
+  }
+  next();
+}
+
+api.get('/coach/coaches', requireCoachTeamRead, ah(async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   const mine = coachTeamsOf(req.user, req.tid);
   if (!mine.length) return res.status(403).json({ error: 'You do not coach a team here.' });
@@ -2395,7 +2433,7 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
 // only their own. Also honors the lock a TD can set on the team's row in
 // Settings > Teams — locked freezes a COACH out (staff still edit freely via
 // POST /teams, which never checks its own lock).
-api.put('/team-profile/:teamName', requireLineupAccess, ah(async (req, res) => {
+api.put('/team-profile/:teamName', requireLineupAccess, denyPending, ah(async (req, res) => {
   await ensureTeamIds(req.tid);
   const { data, teams } = await rosterFor(req.tid);
   const idx = teams.findIndex(t => t.name === req.params.teamName);

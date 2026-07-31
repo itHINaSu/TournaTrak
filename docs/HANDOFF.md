@@ -199,6 +199,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **A magic-link coach can do the job before setting a password, but not the admin bits** (owner, 2026-08-02, REVERSING the rule shipped hours earlier). `requireLineupAccess` now lets a `mustChangePassword` account read AND write its own team's roster and lineup — deliberately only the team-scoped branch, never the staff-wide one, so a pending staff account gains nothing. Shut until they authenticate: **team branding** (`denyPending` layered onto `PUT /team-profile`) and **inviting/removing coaches** (`requireCoachSelf` still refuses pending); the coach LIST is readable via the new `requireCoachTeamRead`. The setup token was already single-use — `change-password` writes `setupToken: null` — so a spent link cannot be told from a bogus one, and **both now land on `/coach?setup=invalid`**, which explains itself instead of dumping a coach on the admin login. The panel shows a dismissable banner (whole line clickable → password form; dismissal remembered in localStorage, NOT the session, which regenerates on every sign-in). |
 | (this) | **The TD-facing team link now opens the coach panel, and an invited coach can actually set a password.** Two separate link systems exist and only one had been converted: `/api/team-access/:token` (a team USER's accessToken) versus **`/api/team-link/:token`, backed by `team_links` — the one Settings → Teams / Coaches actually hands out**. The second still went to `/lineup`. `resolveJoinToken()` now accepts BOTH, and `/team-link/:token` redirects to `/coach?join=…` while still starting the session first (same rule as the other link: registration is an offer on top of access, never a wall). Separately, `coach.js` had **no handling of `mustChangePassword` at all**, so an invitee arriving on a setup magic link landed on a panel where every route 403s with "Password change required" and nothing said why — `showCoachSetup()` now forces the password form first, the way the admin panel's `showChangePassword()` does. **Coaches can also remove a coach or reissue their link** (`DELETE /coach/coaches/:username`, `POST /coach/coaches/:username/link`), scoped to their own teams, refusing self-removal and refusing staff accounts outright. |
 | (this) | **iOS push delivered nothing: the VAPID subject was `mailto:admin@localhost`** (owner, 2026-08-02, permissions confirmed granted in iOS Settings). Apple validates the VAPID JWT's `sub` claim and rejects a non-routable one — 403, per send, silently, because every sender is fire-and-forget. FCM accepts almost anything, which is why the same build would deliver to Android and never to an iPhone. `.env.example` documents `VAPID_SUBJECT` but ships it COMMENTED OUT, so any instance that never set it hit the broken default. Now: `validVapidSubject()` accepts only a real `mailto:`/`https:` URI, the subject resolves per send (a valid configured `VAPID_SUBJECT` → `DEFAULT_VAPID_SUBJECT`, now the REAL address `mailto:notifications@tournatrak.com` so an instance that never touches `.env` still delivers to iOS; an invalid override is ignored with a warning rather than silently poisoning every send, and the chosen subject is logged at boot), and failures log `statusCode` + the service's own body instead of just `err.message`. **`POST /api/push/public-test` + a "Send a test" button** on the notify page send to the caller's own device and show the push service's verbatim rejection — previously there was no way to tell a refused push from one never sent. |
 | (this) | **Install page type scaled up** (owner: "a bit small on mobile") — intro and steps to `--text-md`, note to `--text-sm`, with `#view-install`-scoped overrides for the `.notify-section-hdr` / `.notify-note` it borrows so the notifications settings page is untouched. |
@@ -2437,14 +2438,20 @@ Settings → Teams and → Coaches hand out. A team USER's `accessToken`
 not the other is exactly how "the coach link still goes to lineup" happened
 after the coach-panel join page shipped. `resolveJoinToken()` accepts both.
 
-**"A new coach cannot see roster/lineup" is almost always mustChangePassword.**
-An invited coach is signed in and on the correct team BEFORE they set a
-password — but every coach route 403s with "Password change required" until
-they do, so the panel looks empty and the data looks unshared. That is
-intended; what was missing was any UI saying so, fixed by `showCoachSetup()`.
-Pinned by a test covering the exact reported shape: an ADMIN who also coaches
-invites a new user, who is 403'd from the roster before setup and sees the
-admin's roster AND lineup immediately after.
+**What a magic-link coach may do BEFORE setting a password (owner,
+2026-08-02).** Roster and lineup: **read and write**, their own team only.
+Team branding and inviting/removing coaches: **refused** until they have an
+account; the coach list is readable. This REVERSES the blanket block that
+shipped earlier the same day — the link exists so someone can do the job they
+were invited to do, and a password is what unlocks changing the team itself.
+The relaxation lives in `requireLineupAccess`'s team-scoped branch only;
+`denyPending` guards `PUT /team-profile` because it shares that guard.
+
+**A `PUT /team-profile` 404 is usually the TEAM, not permissions.**
+`rosterFor()` only surfaces teams that appear in the SCHEDULE, so a team that
+exists in `team_links` or on a user grant but not in the bracket is "Team not
+found" before any permission check runs. Cost a test failure that looked like
+an authorisation bug.
 
 **Roster and lineup are already keyed by TEAM, not by account** — verified by
 tests that register two separate coach accounts on one team and read each
