@@ -135,6 +135,112 @@ twice:
 Worked examples: "Teams have a hidden id" and, for the fuller version including
 lineup rows, "The roster, and why it is not a lineup".
 
+## ⚠ DOUBLE-ELIMINATION ENDGAME — READ BEFORE TOUCHING BRACKET LAYOUT
+### (owner directive, 2026-08-02 — applies to the mobile/PWA column carousel)
+
+**If you are about to change how the last few rounds of a double-elim lay
+out, read this whole section first.** It has been re-derived from scratch
+three times in one session, each time costing several rounds of screenshots,
+because the shape is genuinely counter-intuitive and because *the same round
+number means different things at different team counts*.
+
+**How a true double elimination actually ends.** Reading backwards from the
+trophy:
+
+- The **Championship** is fed by exactly two games: the **WB Final** and the
+  **LB Final**.
+- The **WB Final** is fed by two winners (the WB semifinals). It is a normal
+  bracket junction.
+- The **LB Final** is fed by *one winner and one loser*: the winner of the LB
+  semifinal, and **the loser of the WB Final dropping down**. It is NOT a
+  two-winner junction.
+- The **LB semifinal** is fed by two LB winners, and in a true double elim it
+  is **always exactly one game** — its winner exists solely to play the WB
+  Final's loser. There is never a second one.
+
+**The column rule** (owner's words, originally established for the tiered
+A/B three-game-guarantee format and then restated as general): *"if a round
+has no game that is fed by two winners, it gets stacked under a round that
+feeds it."* A round that pairs two winners is a real junction and earns its
+own column, so its card can sit centred between the two feeders in the
+column to its left. A round where every game is winner-plus-loser is a drop,
+not a junction, and folds into the column before it.
+
+Implemented in `renderMobileBracket` (bracket.js) by testing the FEEDS —
+`t1.type === 'winner' && t2.type === 'winner'` — **not** by testing whether
+the winners bracket still has games at that round number. That distinction
+is the whole ballgame; see the "wrong test" trap below.
+
+**How the endgame must render.** One `Finals` column immediately left of
+`Championship`, reading top to bottom:
+
+```
+   Finals                     Championship
+   ├─ <Winners Bracket Final>   └─ CHAMP
+   ├─ <Losers Bracket Final>
+   └─ <Play-In>  LB semifinal
+```
+
+WB Final directly above LB Final, because those two feed the championship
+card to their right. The LB semifinal sits **below** the LB Final behind the
+TD-configurable `playInLabel` divider, separating it from the two finals.
+
+**This last part is a deliberate EXCEPTION, not a consequence of the rule.**
+The LB semifinal pairs two winners, so the rule on its own gives it a column
+of its own — and a version that did exactly that was shipped (v4.08.047) and
+then explicitly rejected by the owner in favour of putting the whole endgame
+on one page (v4.08.048). **Do not "simplify" it back into rule-consistency.**
+It is guarded to a single game, per the "never two games" fact above.
+
+### The traps, all three of which cost real time
+1. **The wrong test.** The fold condition used to be `!bucket.L.length` —
+   "the winners bracket has no games at this round number". That is only a
+   *proxy* for the rule and is wrong in both directions: an LB round pairing
+   two LB winners folded in anyway once the WB ran out of rounds, and an LB
+   drop round got its own column whenever the WB still had a game at the same
+   index. Test the feeds.
+2. **Timing.** Rounds are bucketed across BOTH sides (losers round N sits
+   with winners round N). So a pure winner+loser LB round can ride into its
+   own column on the back of the winners game sharing its number — and at the
+   top of the bracket that winners game is the **WB Final**, which the
+   championship-parity pass then promotes out into the Finals column, leaving
+   those LB games stranded in a column they never earned. The rule therefore
+   has to be re-checked AFTER that extraction, against each column's final
+   contents. Both passes exist in the code; keep both.
+3. **Team count changes the topology — this is the big one.** The same round
+   number is a different kind of round at different sizes:
+
+   | | LB round that is a **drop** (folds) | LB round that is a **junction** (own column) |
+   |---|---|---|
+   | 16 teams | R1, R2, R4, R6 | R3, **R5** |
+   | 22 teams | R1, R3, **R5**, R7 | R2, R4, **R6** |
+   | 32 teams | R1, R2, R4, R6, R8 | R3, **R5**, R7 |
+
+   (Measured, not reasoned — regenerate and re-measure rather than trusting
+   this table after any change to `api/schedule-formats.js`. LB R1 is always
+   a drop, `loser+loser`, but never actually folds anywhere: it is in the
+   first column, and the fold is guarded by `cols.length > 0`. The last row
+   of each size is the LB Final, always a drop, always promoted into the
+   Finals column by the parity pass rather than folded.)
+
+   The live ISSA event is **22 teams**, where LB Round 5 is a drop and must
+   fold. At 16 and 32 teams that same LB Round 5 is a junction and correctly
+   does not. A bug report quoting round numbers is therefore **unreproducible
+   on a generated bracket of the wrong size** — that is exactly what happened
+   here, repeatedly, until the team count was asked for. **Always generate a
+   bracket at the reporter's actual team count before concluding anything.**
+   Hand-transcribed brackets (see "Paper-bracket transcription") can differ
+   again from a generated bracket of the same size, which is another reason
+   the code tests feeds rather than assuming a shape.
+
+Verified layouts (regenerate these before/after any change here):
+`22 → Round 4 · Round 5 | Finals[WBF, LBF, <Play-In>] | Championship`;
+`16 → Round 3 · Round 4 | Finals[…] | Championship`;
+`32 → Round 5 · Round 6 | Finals[…] | Championship`;
+`8 single-elim → Round 1 | Round 2 | Championship` (no Finals column at all —
+the parity pass requires a WB+LB feeder pair and skips single-elim entirely).
+Desktop is a separate render path and is not affected by any of this.
+
 ## Branch rule
 **`main` is the leading/integration branch as of 2026-07-15** (owner
 decision, superseding the 2026-07-04 note that pointed at
