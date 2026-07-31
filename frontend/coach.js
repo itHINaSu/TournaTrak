@@ -474,11 +474,14 @@ function teamTabSyncLogo() {
 // swatch falls back to a neutral grey when unset rather than showing a
 // color that was never actually chosen.
 var TEAM_TAB_COLOR_UNSET = '#4a4a4a';
-var _teamTabColors = { primaryColor: null, secondaryColor: null, brandTextColor: null };
+var _teamTabColors = {
+  primaryColor: null, secondaryColor: null, brandTextColor: null, brandNameOutlineColor: null,
+};
 var TEAM_TAB_COLOR_IDS = {
-  primaryColor:   { input: 'teamTabPrimaryColor',   clear: 'teamTabPrimaryColorClear' },
-  secondaryColor: { input: 'teamTabSecondaryColor', clear: 'teamTabSecondaryColorClear' },
-  brandTextColor: { input: 'teamTabTextColor',      clear: 'teamTabTextColorClear' },
+  primaryColor:          { input: 'teamTabPrimaryColor',   clear: 'teamTabPrimaryColorClear' },
+  secondaryColor:        { input: 'teamTabSecondaryColor', clear: 'teamTabSecondaryColorClear' },
+  brandTextColor:        { input: 'teamTabTextColor',      clear: 'teamTabTextColorClear' },
+  brandNameOutlineColor: { input: 'teamTabOutlineColor',   clear: 'teamTabOutlineColorClear' },
 };
 
 function teamTabSyncColor(which) {
@@ -495,7 +498,8 @@ function teamTabSyncColor(which) {
 function clearTeamTabColor(which) {
   _teamTabColors[which] = '';
   teamTabSyncColor(which);
-  showToast((which === 'brandTextColor' ? 'Text color' : 'Color') + ' will be removed on Save');
+  var label = which === 'brandTextColor' ? 'Text color' : which === 'brandNameOutlineColor' ? 'Outline' : 'Color';
+  showToast(label + ' will be removed on Save');
 }
 
 // Banner style/angle have no "unset" state worth tracking separately —
@@ -533,7 +537,7 @@ function teamTabUpdatePreview() {
   banner.hidden = !hasAnything;
   if (!hasAnything) return;
   banner.style.cssText = teamBrandBannerCss(primary, secondary,
-    teamTabStyleValue(), teamTabAngleValue(), _teamTabColors.brandTextColor);
+    teamTabStyleValue(), teamTabAngleValue(), _teamTabColors.brandTextColor, _teamTabColors.brandNameOutlineColor);
   if (logoImg) {
     if (logo) { logoImg.src = logo; logoImg.hidden = false; }
     else { logoImg.removeAttribute('src'); logoImg.hidden = true; }
@@ -548,7 +552,9 @@ async function loadTeamTab(team) {
   setStatus('teamTabStatus', '');
   _teamTabTeam = team;
   _teamTabLogo = null;
-  _teamTabColors = { primaryColor: null, secondaryColor: null, brandTextColor: null };
+  _teamTabColors = {
+    primaryColor: null, secondaryColor: null, brandTextColor: null, brandNameOutlineColor: null,
+  };
   var lockedEl = document.getElementById('teamTabLocked');
   var formEl   = document.getElementById('teamTabForm');
   if (!team) { lockedEl.hidden = true; formEl.hidden = true; return; }
@@ -562,9 +568,11 @@ async function loadTeamTab(team) {
   _teamTabColors.primaryColor   = (rec && rec.primaryColor)   || '';
   _teamTabColors.secondaryColor = (rec && rec.secondaryColor) || '';
   _teamTabColors.brandTextColor = (rec && rec.brandTextColor) || '';
+  _teamTabColors.brandNameOutlineColor = (rec && rec.brandNameOutlineColor) || '';
   teamTabSyncColor('primaryColor');
   teamTabSyncColor('secondaryColor');
   teamTabSyncColor('brandTextColor');
+  teamTabSyncColor('brandNameOutlineColor');
   var styleVal = (rec && rec.brandStyle) || 'gradient';
   var styleEl = document.getElementById('teamTabStyle'
     + styleVal.charAt(0).toUpperCase() + styleVal.slice(1)) || document.getElementById('teamTabStyleGradient');
@@ -621,6 +629,11 @@ async function saveTeamProfile() {
   if (_teamTabColors.brandTextColor !== null) {
     body.brandTextColor = _teamTabColors.brandTextColor === '' ? '' : (textColorEl ? textColorEl.value : _teamTabColors.brandTextColor);
   }
+  var outlineColorEl = document.getElementById('teamTabOutlineColor');
+  if (_teamTabColors.brandNameOutlineColor !== null) {
+    body.brandNameOutlineColor = _teamTabColors.brandNameOutlineColor === '' ? ''
+      : (outlineColorEl ? outlineColorEl.value : _teamTabColors.brandNameOutlineColor);
+  }
   body.brandStyle = teamTabStyleValue();
   body.brandAngle = teamTabAngleValue();
   var r = await fetch(coachApiBase() + '/team-profile/' + encodeURIComponent(_teamTabTeam), {
@@ -640,9 +653,11 @@ async function saveTeamProfile() {
     _teamTabColors.primaryColor   = data.team.primaryColor   || '';
     _teamTabColors.secondaryColor = data.team.secondaryColor || '';
     _teamTabColors.brandTextColor = data.team.brandTextColor || '';
+    _teamTabColors.brandNameOutlineColor = data.team.brandNameOutlineColor || '';
     teamTabSyncColor('primaryColor');
     teamTabSyncColor('secondaryColor');
     teamTabSyncColor('brandTextColor');
+    teamTabSyncColor('brandNameOutlineColor');
     var styleVal = data.team.brandStyle || 'gradient';
     var styleEl = document.getElementById('teamTabStyle'
       + styleVal.charAt(0).toUpperCase() + styleVal.slice(1)) || document.getElementById('teamTabStyleGradient');
@@ -682,6 +697,11 @@ async function initTeamTab() {
   if (textColorEl) textColorEl.addEventListener('input', function () {
     _teamTabColors.brandTextColor = textColorEl.value;
     teamTabSyncColor('brandTextColor');
+  });
+  var outlineColorEl = document.getElementById('teamTabOutlineColor');
+  if (outlineColorEl) outlineColorEl.addEventListener('input', function () {
+    _teamTabColors.brandNameOutlineColor = outlineColorEl.value;
+    teamTabSyncColor('brandNameOutlineColor');
   });
   var styleRow = document.getElementById('teamTabStyleRow');
   if (styleRow) styleRow.addEventListener('change', teamTabSyncStyleRow);

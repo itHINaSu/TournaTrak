@@ -624,15 +624,27 @@ body.print-palette .flight-col--champ {
   color: #fff;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
 }
+/* No background/padding wash here (there used to be a translucent white
+   frame) — it was meant to give a transparent logo some contrast, but most
+   uploaded logos already carry their own opaque backing square, so the
+   wash just showed as a mismatched pale box around it (owner, 2026-08-02:
+   "what is happening surrounding that logo?"). A plain, unframed image
+   reads correctly either way. */
 .team-brand-logo {
   width: 3rem;
   height: 3rem;
   object-fit: contain;
   border-radius: var(--radius-xs);
-  background: rgba(255, 255, 255, 0.18);
-  padding: 0.25em;
   flex-shrink: 0;
 }
+/* Logo AFTER the name in DOM order (owner, 2026-08-02: "move logos to the
+   right of team names — more space, less alignment issues") — a name of
+   any length gets its full run of space on the left instead of sharing a
+   line with a fixed-width image ahead of it. brandNameOutlineColor (set via
+   data-css alongside the banner's own background/text color, tt-common.js
+   teamBrandBannerCss) is a stroke, not a fill — .team-brand-name still gets
+   its color from the parent's `color` and keeps the text-shadow for
+   legibility against any background, outline or not. */
 .team-brand-name {
   font-family: 'Oswald', sans-serif;
   font-size: 1.15rem;

@@ -469,7 +469,13 @@ function ttApplyLogoScale(scale) {
 // different pattern"). textColor overrides the banner's default white
 // (.team-brand-banner already carries a text-shadow for legibility against
 // ANY background, so this is an opt-in override, not a requirement).
-function teamBrandBannerCss(primary, secondary, style, angle, textColor) {
+// outlineColor: a stroke around the team name (owner, 2026-08-02: "give
+// coaches the option to add an outline to the team name and select the
+// outline color") — -webkit-text-stroke is an inherited property, so
+// setting it on the banner reaches .team-brand-name without a second
+// selector; the fixed 0.035em width keeps this "add an outline", not a
+// second tunable nobody asked for.
+function teamBrandBannerCss(primary, secondary, style, angle, textColor, outlineColor) {
   var p = primary || secondary || '#4a4a4a';
   var s = secondary || primary || '#4a4a4a';
   var a = (typeof angle === 'number' && angle >= 0 && angle < 360) ? angle : 135;
@@ -483,6 +489,7 @@ function teamBrandBannerCss(primary, secondary, style, angle, textColor) {
     css = 'background: linear-gradient(' + a + 'deg, ' + p + ' 0%, ' + s + ' 100%);';
   }
   if (textColor) css += ' color: ' + textColor + ';';
+  if (outlineColor) css += ' -webkit-text-stroke: 0.035em ' + outlineColor + ';';
   return css;
 }
 

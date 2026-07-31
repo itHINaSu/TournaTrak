@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=3.95">
-<link rel="stylesheet" href="/admin.css?v=3.95">
-<link rel="stylesheet" href="/lineup.css?v=3.95">
-<script src="/app-h.js?v=3.95"></script>
+<link rel="stylesheet" href="/base.css?v=3.96">
+<link rel="stylesheet" href="/admin.css?v=3.96">
+<link rel="stylesheet" href="/lineup.css?v=3.96">
+<script src="/app-h.js?v=3.96"></script>
 </head>
 <body>
 
@@ -302,8 +302,8 @@
                so a coach sees what they're actually picking. Hidden until
                there's anything to preview. -->
           <div class="team-brand-banner" id="teamTabPreview" hidden>
-            <img class="team-brand-logo" id="teamTabPreviewLogo" alt="" hidden>
             <span class="team-brand-name" id="teamTabPreviewName"></span>
+            <img class="team-brand-logo" id="teamTabPreviewLogo" alt="" hidden>
           </div>
           <div class="settings-field">
             <label>Display Name <span class="field-label-hint">(shown on the bracket)</span></label>
@@ -365,6 +365,11 @@
                 <span>Text</span>
                 <input type="color" id="teamTabTextColor" value="#ffffff">
                 <button type="button" class="admin-clear-btn" id="teamTabTextColorClear" data-action="clearTeamTabColor" data-arg="brandTextColor" hidden>Auto</button>
+              </label>
+              <label class="team-tab-color-field">
+                <span>Outline</span>
+                <input type="color" id="teamTabOutlineColor" value="#000000">
+                <button type="button" class="admin-clear-btn" id="teamTabOutlineColorClear" data-action="clearTeamTabColor" data-arg="brandNameOutlineColor" hidden>None</button>
               </label>
             </div>
           </div>
@@ -429,11 +434,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.95"></script>
-<script src="/theme-css.js?v=3.95"></script>
-<script src="/tt-common.js?v=3.95"></script>
-<script src="/bracket-data.js?v=3.95"></script>
-<script src="/lineup.js?v=3.95"></script>
-<script src="/coach.js?v=3.95"></script>
+<script src="/settings-defaults.js?v=3.96"></script>
+<script src="/theme-css.js?v=3.96"></script>
+<script src="/tt-common.js?v=3.96"></script>
+<script src="/bracket-data.js?v=3.96"></script>
+<script src="/lineup.js?v=3.96"></script>
+<script src="/coach.js?v=3.96"></script>
 </body>
 </html>

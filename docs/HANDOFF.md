@@ -3256,6 +3256,35 @@ its title wrapped two lines instead). Screenshot confirms logo, title, and
 toggle/hamburger all sit on one visual row. Full API suite (140 tests)
 still passes (CSS-only change, run as a sanity check).
 
+## Team Path banner: logo moved right, halo removed, name outline added (owner, 2026-08-02)
+Owner, with a screenshot of the Team Path banner: *"What is happening
+surrounding that logo? Move logos to the right of team names (more space
+less alignment issues) Give coaches the option to add an outline to the
+team name and select the outline color."* The "surrounding" box was
+`.team-brand-logo`'s own `background: rgba(255,255,255,0.18)` + padding —
+meant to give a transparent logo some contrast, but most uploaded logos
+already carry their own opaque backing square (the crop/bake pipeline
+outputs a flat PNG), so the translucent wash just showed as a mismatched
+pale frame. Removed it; a plain unframed logo reads correctly either way.
+
+Logo now comes AFTER the name in DOM order everywhere `.team-brand-banner`
+renders (bracket.js's Team Path banner, coach.html's live preview) — the
+name gets its full run of space on the left instead of sharing a line with
+a fixed-width image ahead of it.
+
+New team field `brandNameOutlineColor` (hex, same null/empty/hex convention
+as `brandTextColor`) — `-webkit-text-stroke` is an inherited CSS property,
+so `teamBrandBannerCss()` (tt-common.js) sets it once on the banner and it
+reaches `.team-brand-name` for free, no second selector needed. Wired into
+the coach Team tab next to the existing text-color swatch (an "Outline"
+color field with a "None" clear button, same pattern).
+
+Schema-only mirror of `brandTextColor` field-for-field (server.js
+normalizeTeam/POST /teams/PUT /team-profile) — skipped a fresh Playwright
+pass here (owner, 2026-08-02: "light testing only, I am very tight on
+usage") since the code is a direct copy of an already-verified pattern;
+syntax-checked and the full API suite (140 tests) still passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an

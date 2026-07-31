@@ -1986,6 +1986,7 @@ function normalizeTeam(t) {
     if (Number.isFinite(angle) && angle >= 0 && angle < 360) out.brandAngle = Math.round(angle);
   }
   if (validHexColor(t.brandTextColor)) out.brandTextColor = t.brandTextColor.toLowerCase();
+  if (validHexColor(t.brandNameOutlineColor)) out.brandNameOutlineColor = t.brandNameOutlineColor.toLowerCase();
   // Freezes a coach out of PUT /team-profile for this team (name/short
   // name/logo/colors) once staff have set it — an admin still edits freely
   // via POST /teams, which never checks its own lock.
@@ -2069,6 +2070,7 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
       brandStyle:     t && 'brandStyle'     in t ? t.brandStyle     : prior.brandStyle,
       brandAngle:     t && 'brandAngle'     in t ? t.brandAngle     : prior.brandAngle,
       brandTextColor: t && 'brandTextColor' in t ? t.brandTextColor : prior.brandTextColor,
+      brandNameOutlineColor: t && 'brandNameOutlineColor' in t ? t.brandNameOutlineColor : prior.brandNameOutlineColor,
       locked:         t && 'locked'         in t ? !!t.locked       : !!prior.locked,
     });
     if (seenIds.has(rec.id)) rec.id = newTeamId();   // never emit a duplicate
@@ -2115,6 +2117,7 @@ api.put('/team-profile/:teamName', requireLineupAccess, ah(async (req, res) => {
     brandStyle:     'brandStyle'     in body ? body.brandStyle     : current.brandStyle,
     brandAngle:     'brandAngle'     in body ? body.brandAngle     : current.brandAngle,
     brandTextColor: 'brandTextColor' in body ? body.brandTextColor : current.brandTextColor,
+    brandNameOutlineColor: 'brandNameOutlineColor' in body ? body.brandNameOutlineColor : current.brandNameOutlineColor,
     locked: current.locked,
   });
   const clean = teams.slice();
