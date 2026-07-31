@@ -2887,6 +2887,13 @@ body.print-palette .bc-proj-chip {
    to the last one. */
 #view-install.view-panel.active { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
+.install-intro {
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--text-dim);
+  margin-bottom: 0.6em;
+}
+
 .install-steps {
   margin: 0.5em 0 1.1em;
   padding-left: 1.4em;
