@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.85">
-<link rel="stylesheet" href="/admin.css?v=3.85">
-<link rel="stylesheet" href="/lineup.css?v=3.85">
-<link rel="stylesheet" href="/builder.css?v=3.85">
-<link rel="stylesheet" href="/score.css?v=3.85">
-<script src="/app-h.js?v=3.85"></script>
+<link rel="stylesheet" href="/base.css?v=3.86">
+<link rel="stylesheet" href="/admin.css?v=3.86">
+<link rel="stylesheet" href="/lineup.css?v=3.86">
+<link rel="stylesheet" href="/builder.css?v=3.86">
+<link rel="stylesheet" href="/score.css?v=3.86">
+<script src="/app-h.js?v=3.86"></script>
 </head>
 <body>
 
@@ -142,21 +142,25 @@
   <div class="header-name-block">
     <h1 id="adminSiteName">Tournament Admin</h1>
   </div>
-  <!-- Below the desktop breakpoint the controls collapse behind this, exactly
-       as on the public bracket. Without it the stylesheet still gave
-       .header-controls the dropdown-panel treatment, so the menu sat open on
-       top of the page with no way to shut it. -->
-  <button class="header-menu-btn" id="headerMenuBtn" data-action="toggleHeaderMenu"
-          aria-label="Menu" aria-expanded="false" aria-controls="headerControls" hidden>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-      <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
-    </svg>
-  </button>
+  <!-- Persistent cluster beside the hamburger, same pattern as the public
+       header (owner, 2026-08-01) — the theme toggle icon sits a touch left of
+       the hamburger rather than as text buried at the bottom of the
+       collapsible menu. Below the desktop breakpoint the controls still
+       collapse behind the hamburger, exactly as on the public bracket. -->
+  <div class="header-menu-cluster">
+    <button class="theme-toggle-btn" id="themeToggle"></button>
+    <button class="header-menu-btn" id="headerMenuBtn" data-action="toggleHeaderMenu"
+            aria-label="Menu" aria-expanded="false" aria-controls="headerControls" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
+      </svg>
+    </button>
+  </div>
   <!-- ORDER (owner, 2026-08-01): switcher first (a utility control, not a
        destination), then Bracket and Coach Panel — Bracket, Coach, Admin,
        whichever of the three this session has access to, minus a link to
-       THIS page — then Dark Mode last, always, same rule as every other
-       header now. -->
+       THIS page. The theme toggle used to anchor the bottom of this menu; it
+       now lives in the persistent cluster above instead. -->
   <div class="header-controls" id="headerControls">
     <select class="styled admin-tournament-switcher" id="tournamentSwitcher" data-action-change="switchTournament" hidden title="Active tournament"></select>
     <a href="/" class="admin-public-btn" id="viewPublicLink">← Bracket</a>
@@ -165,7 +169,6 @@
          are independent facts, not alternatives. Hidden by default; shown in
          showAdmin() only when the signed-in account has a team assigned. -->
     <a href="/coach" class="admin-public-btn" id="coachPanelLink" hidden>Coach Panel →</a>
-    <button class="admin-public-btn" id="themeToggle">Dark Mode</button>
   </div>
 </header>
 
@@ -964,15 +967,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.85"></script>
-<script src="/theme-css.js?v=3.85"></script>
-<script src="/tt-common.js?v=3.85"></script>
-<script src="/bracket-data.js?v=3.85"></script>
-<script src="/admin.js?v=3.85"></script>
-<script src="/lineup.js?v=3.85"></script>
-<script src="/score.js?v=3.85"></script>
-<script src="/builder-form.js?v=3.85"></script>
-<script src="/builder.js?v=3.85"></script>
-<script src="/sw-register.js?v=3.85" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.86"></script>
+<script src="/theme-css.js?v=3.86"></script>
+<script src="/tt-common.js?v=3.86"></script>
+<script src="/bracket-data.js?v=3.86"></script>
+<script src="/admin.js?v=3.86"></script>
+<script src="/lineup.js?v=3.86"></script>
+<script src="/score.js?v=3.86"></script>
+<script src="/builder-form.js?v=3.86"></script>
+<script src="/builder.js?v=3.86"></script>
+<script src="/sw-register.js?v=3.86" data-sw="/admin-sw.js"></script>
 </body>
 </html>

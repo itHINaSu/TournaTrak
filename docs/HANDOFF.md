@@ -2976,7 +2976,7 @@ already; don't let it survive a second.)
 `bracketEditBtn`/`bucketEditBtn` are NOT part of this menu at all anymore —
 see "Edit lives next to the hamburger, not behind it" below.
 
-## Edit lives next to the hamburger, not behind it (owner, 2026-08-01)
+## Edit AND the theme toggle live next to the hamburger, not behind it (owner, 2026-08-01/02)
 Owner: *"move the edit button out of the hamburger menu to next to the
 hamburger menu."* `#bracketEditBtn` and `#bucketEditBtn` (public page only —
 neither `/admin` nor `/coach` has an Edit button in their header) moved out
@@ -2985,6 +2985,32 @@ now holds `#headerMenuBtn` itself. Reasoning: Edit is a PRIMARY action for
 whoever can see it — an admin actively laying out the bracket, or a
 `buckets`-role operator running the challenge — and it should be one tap,
 not one tap into a menu plus a second tap on the item.
+
+**Follow-up, same day**: owner then said *"I still don't like the light/mode
+dark mode. Move it back to the image icon and place it a touch further left
+of the hamburger menu. For admins edit should be left of that still."* This
+reverses the EARLIER same-day decision (below, in the header-menu-order
+section) to make the theme toggle text and put it last in the collapsible
+menu. `#themeToggle` moved into `.header-menu-cluster` on **all three**
+pages (index/admin/coach — admin and coach didn't have a cluster before,
+just a bare hamburger; each now wraps `themeToggle` + `headerMenuBtn` the
+same way). Order left to right: Edit (index.html only) → theme icon →
+hamburger — the cluster's own `gap: 0.5em` is what puts "a touch" of space
+between the icon and the hamburger, no extra rule needed.
+
+The icon itself is the inline SVG sun/moon from `ec3ef7d` (`.theme-icon`
+class restored in base.css), **not emoji** — ☀/🌙 previously rendered as
+empty tofu boxes on a real device (no glyph in the font stack, no emoji
+fallback) and the commit that fixed that says outright "Do not reintroduce
+emoji in UI chrome." Sized and bordered to match `.header-menu-btn`
+(`.theme-toggle-btn`, 2.75rem square) so the two read as a matched pair.
+`updateHeaderMenu()`'s "2+ visible children of `#headerControls` shows the
+hamburger" threshold still works correctly now that `themeToggle` no longer
+counts as one of those children — on `/admin` with no coach-panel grant that
+can drop `#headerControls` to a single item (`← Bracket`), which per that
+function's own documented behavior just sits inline instead of behind a
+(now single-item, pointless) hamburger. That's the existing, intentional
+rule, not a new gap.
 
 **Why a wrapper, not just `margin-left: auto` on Edit itself**: both Edit
 buttons are individually `hidden` most of the time (role-gated, and only one
@@ -3012,6 +3038,50 @@ it has to be checked at MOBILE width instead. Verified: `#bracketEditBtn`
 next to the hamburger at 1440px (7.8px gap, matching the 0.5em CSS gap);
 `#bucketEditBtn` next to the hamburger at 390px, signed in as a fresh
 `buckets`-role account (7.4px gap). Neither shows for a signed-out visitor.
+
+## Share always captures the Bracket tab, and defaults to left-aligned (owner, 2026-08-02)
+Two owner reports, same conversation:
+
+1. *"For the share button. If that is clicked outside of the bracket tab
+   inform the user that it is for sharing the bracket and prompt them to
+   continue or exit. Don't just do nothing."* `openShareImage()` in
+   `bracket.js` now checks `activeView()` first; off the `bracket` tab it
+   shows a `ttConfirm()` ("Share makes an image of the Bracket tab, not what
+   you're currently viewing" / Continue / Exit) before doing anything, and
+   only opens the share overlay if the visitor confirms. On the bracket tab
+   it's unchanged — opens immediately, no dialog. `ttConfirm` (tt-common.js)
+   was already there for exactly this ("replace window.confirm / window.prompt
+   — native dialogs... look foreign, are hostile on mobile").
+
+2. *"By default brackets should be left justified. when sharing a centered
+   bracket if feels closer to right justified."* then, mid-thread: *"The
+   justification should appear regardless of what bracket(s) are selected.
+   Don't hide it for only printing all on one page."* There are **two**
+   layout container classes, not one — `.bcc-stack` (flights, and large
+   brackets that stack winners over losers vertically) and `.bcc-outerflex`
+   (the side-by-side desktop layout most small/medium tournaments actually
+   use — see `getDims`/`stackedDims` in bracket.js for which one a given
+   bracket picks). Both needed the same three changes, and it's easy to fix
+   only one and ship a change that looks right on whichever layout you
+   happened to test:
+   - Base CSS `justify-content` on BOTH classes is now `flex-start` (was
+     `center`) — these are the SAME classes the on-screen bracket renders
+     into, not just the share canvas, so the live page defaults to
+     left-justified too, not only the exported image.
+   - The share dialog's alignment radios default to `left` (both the HTML
+     `checked` attribute and `shareOpts()`'s JS fallback — two places, don't
+     miss one when touching this again).
+   - `#shareAlignRow` used to hide unless `shareScope === 'all-one'`
+     (comment: "only means something when several brackets share one
+     sheet") — that comment was wrong even before this: `paintFlights()`
+     applies `opts.align` to the rendered container for EVERY flight
+     painted, including a lone single-bracket share, so alignment always
+     did something, the control just wasn't reachable. Row is
+     unconditionally visible now. `paintFlights()`'s own selector was
+     `.bcc-stack` only — missed `.bcc-outerflex` on the first pass, caught
+     by testing against the demo's default format (two-sided single elim),
+     which renders through the OTHER container; fixed to
+     `querySelector('.bcc-stack, .bcc-outerflex')`.
 
 ## Coach Panel visibility is a TEAM GRANT, not a role (2026-07-31)
 Owner report: **"If an admin is assigned to a team, they need the coaches

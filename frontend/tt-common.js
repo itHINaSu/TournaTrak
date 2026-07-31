@@ -230,18 +230,24 @@ document.addEventListener('DOMContentLoaded', updateHeaderMenu);
   var btn = document.getElementById('themeToggle');
   function applyLight(light) {
     document.body.classList.toggle('light', light);
-    // Text, styled like every other header button (.admin-public-btn), not
-    // the pill-shaped icon-only sun/moon this used to be — owner, 2026-07-31:
-    // "modify the dark/light mode button so it matches the theme and style
-    // of the other buttons in the menu. Use text and not an image." The
-    // label names the MODE TAPPING GETS YOU, not the current one: the prior
-    // icon-only design existed specifically because "Light"/"Dark" text read
-    // as ambiguous between current-state and switch-to-target. Phrasing it
-    // as a destination ("Dark Mode" = tap to go dark) reads the same way the
-    // other destination buttons in this menu do (Coach Panel →, Sign in) and
-    // keeps that ambiguity resolved without needing an icon to do it.
+    // Inline SVG icon, not text and not emoji (owner, 2026-08-01: back to
+    // "the image icon"). Emoji (☀/🌙) previously rendered as empty tofu boxes
+    // on at least one real device — the display fonts carry no glyph for them
+    // and there's no emoji fallback in the stack — so this is the same SVG
+    // sun/moon every other icon in the app already uses. The accessible name
+    // still names the mode tapping GETS you (aria-label/title), which is all
+    // that needs to resolve the current-state-vs-switch-target ambiguity when
+    // there's no text label to read.
     if (btn) {
-      btn.textContent = light ? 'Dark Mode' : 'Light Mode';
+      btn.innerHTML = light
+        ? '<svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+          + ' stroke-width="2" stroke-linecap="round" aria-hidden="true">'
+          + '<circle cx="12" cy="12" r="4.2"/>'
+          + '<path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2'
+          + 'M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/></svg>'
+        : '<svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+          + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+          + '<path d="M20 13.5A8.2 8.2 0 1 1 10.5 4a6.6 6.6 0 0 0 9.5 9.5z"/></svg>';
       btn.setAttribute('aria-label', light ? 'Switch to dark theme' : 'Switch to light theme');
       btn.title = light ? 'Switch to dark theme' : 'Switch to light theme';
     }

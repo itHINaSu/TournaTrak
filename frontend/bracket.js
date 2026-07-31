@@ -2951,7 +2951,7 @@ function shareOpts() {
     withResults: !res || res.checked,
     theme: (sel && sel.value) || 'dark',
     scope: (sc && sc.value) || 'current',
-    align: (al && al.value) || 'center',
+    align: (al && al.value) || 'left',
   };
 }
 
@@ -2979,16 +2979,34 @@ function updateShareScopeRow() {
   updateShareAlignRow();
 }
 
-// Alignment only means something when several brackets share one sheet; with
-// separate files each bracket is alone on its own.
+// Alignment pins the bracket's own content to an edge inside its canvas
+// (paintFlights sets .bcc-stack's justify-content from this) — it matters for
+// a single bracket too, not just when stacking several onto one sheet, so the
+// row stays visible regardless of scope (owner, 2026-08-01).
 function updateShareAlignRow() {
   var row = document.getElementById('shareAlignRow');
   if (!row) return;
-  var sc = document.querySelector('input[name="shareScope"]:checked');
-  row.hidden = !(sc && sc.value === 'all-one');
+  row.hidden = false;
 }
 
+// Share always captures the Bracket tab, regardless of which tab is on
+// screen when it's tapped — a tap from Schedule/Team/Buckets would otherwise
+// silently produce an image of something the visitor wasn't looking at
+// (owner, 2026-08-01: "don't just do nothing", i.e. don't silently share the
+// wrong thing either — ask).
 function openShareImage() {
+  var ov = document.getElementById('shareOverlay');
+  if (!ov) return;
+  if (activeView() !== 'bracket') {
+    ttConfirm('Share makes an image of the Bracket tab, not what you’re currently viewing.',
+      { okLabel: 'Continue', cancelLabel: 'Exit' }).then(function(ok) {
+      if (ok) openShareImageNow();
+    });
+    return;
+  }
+  openShareImageNow();
+}
+function openShareImageNow() {
   var ov = document.getElementById('shareOverlay');
   if (!ov) return;
   ov.hidden = false;
@@ -3022,7 +3040,10 @@ function paintFlights(win, doc, opts, flights) {
     // the middle — the B bracket stayed stranded mid-page. Pin the content to
     // the chosen edge here, before it is painted.
     try {
-      var stack = doc.querySelector('.bcc-stack');
+      // .bcc-stack (flights, and large brackets that stack winners over
+      // losers) or .bcc-outerflex (the side-by-side desktop layout) —
+      // whichever this render actually used.
+      var stack = doc.querySelector('.bcc-stack, .bcc-outerflex');
       if (stack) {
         stack.style.justifyContent = opts.align === 'left' ? 'flex-start'
           : opts.align === 'right' ? 'flex-end' : 'center';

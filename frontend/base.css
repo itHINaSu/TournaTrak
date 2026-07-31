@@ -185,6 +185,35 @@ body {
    overridden back to 0 here so it does not fight this wrapper for it. */
 .header-menu-cluster { margin-left: auto; display: flex; align-items: center; gap: 0.5em; flex-shrink: 0; }
 .header-menu-cluster .header-menu-btn { margin-left: 0; }
+/* Edit's height comes from .admin-public-btn's padding, which doesn't land on
+   the same pixel height as the theme toggle / hamburger's fixed 2.75rem box —
+   owner, 2026-08-02: "set the edit button to match the height of the other
+   two". Pinned here rather than in .admin-public-btn itself, which other
+   (non-cluster) buttons still size by padding. */
+.header-menu-cluster .admin-public-btn { height: 2.75rem; }
+
+/* Theme toggle: a persistent icon button beside the hamburger on every page,
+   not text buried at the bottom of the collapsible menu (owner, 2026-08-01:
+   "I still don't like the light/mode dark mode. Move it back to the image
+   icon and place it a touch further left of the hamburger menu"). Sized to
+   match .header-menu-btn so the two sit as a matched pair; the cluster's own
+   gap is what puts a "touch" of space between it and the hamburger. */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text-dim);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.theme-toggle-btn .theme-icon { width: 1.55rem; height: 1.55rem; display: block; }
 
 /* Outline "cancel / dismiss" button. Lives HERE, not in admin.css, because
    index.html does not load admin.css — the Save-image dialog's Cancel, the

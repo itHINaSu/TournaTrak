@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=3.85">
-<link rel="stylesheet" href="/admin.css?v=3.85">
-<link rel="stylesheet" href="/lineup.css?v=3.85">
-<script src="/app-h.js?v=3.85"></script>
+<link rel="stylesheet" href="/base.css?v=3.86">
+<link rel="stylesheet" href="/admin.css?v=3.86">
+<link rel="stylesheet" href="/lineup.css?v=3.86">
+<script src="/app-h.js?v=3.86"></script>
 </head>
 <body>
 
@@ -51,16 +51,24 @@
     <h1 id="coachSiteName">Coach Panel</h1>
     <div id="coachTeamLine" class="site-subtitle"></div>
   </div>
-  <button class="header-menu-btn" id="headerMenuBtn" data-action="toggleHeaderMenu"
-          aria-label="Menu" aria-expanded="false" aria-controls="headerControls" hidden>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-      <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
-    </svg>
-  </button>
+  <!-- Persistent cluster beside the hamburger, same pattern as the public
+       header (owner, 2026-08-01) — the theme toggle icon sits a touch left of
+       the hamburger rather than as text buried at the bottom of the
+       collapsible menu. -->
+  <div class="header-menu-cluster">
+    <button class="theme-toggle-btn" id="themeToggle"></button>
+    <button class="header-menu-btn" id="headerMenuBtn" data-action="toggleHeaderMenu"
+            aria-label="Menu" aria-expanded="false" aria-controls="headerControls" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
+      </svg>
+    </button>
+  </div>
   <!-- ORDER (owner, 2026-08-01): Sign Out first (a context action, not a
        destination), then Bracket and Admin Panel — Bracket, Coach, Admin,
        whichever of the three this session has access to, minus a link to
-       THIS page — then Dark Mode last, always. -->
+       THIS page. The theme toggle used to anchor the bottom of this menu; it
+       now lives in the persistent cluster above instead. -->
   <div class="header-controls" id="headerControls">
     <button class="admin-public-btn" id="coachLogoutBtn" data-action="coachLogout">Sign Out</button>
     <a href="/" class="admin-public-btn">← Bracket</a>
@@ -69,7 +77,6 @@
          what a coach sees — need a way back to their own panel. Hidden by
          default; shown in showCoachPanel() for staff roles only. -->
     <a href="/admin" class="admin-public-btn" id="adminPanelLink" hidden>Admin Panel →</a>
-    <button class="admin-public-btn" id="themeToggle">Dark Mode</button>
   </div>
 </header>
 
@@ -292,11 +299,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.85"></script>
-<script src="/theme-css.js?v=3.85"></script>
-<script src="/tt-common.js?v=3.85"></script>
-<script src="/bracket-data.js?v=3.85"></script>
-<script src="/lineup.js?v=3.85"></script>
-<script src="/coach.js?v=3.85"></script>
+<script src="/settings-defaults.js?v=3.86"></script>
+<script src="/theme-css.js?v=3.86"></script>
+<script src="/tt-common.js?v=3.86"></script>
+<script src="/bracket-data.js?v=3.86"></script>
+<script src="/lineup.js?v=3.86"></script>
+<script src="/coach.js?v=3.86"></script>
 </body>
 </html>
