@@ -3620,6 +3620,15 @@ same `rgb(232,237,233)` as every other row; rank and 0-0 record stay
 visibly muted. Screenshot confirms. Full API suite (140 tests) still
 passes.
 
+## Standings branded-row wash bumped 24% -> 32% (owner, 2026-08-02)
+Owner: *"Can the color highlight in the standings tab be a touch more
+prominent. Not a ton, but a little."* One number: the `color-mix(in srgb,
+accent 24%, var(--surface))` in `renderStandingsViewInner()`'s `rowCss`
+(`frontend/bracket.js`) is now `32%`. Left border and gradient falloff
+(`var(--surface) 85%`) unchanged. Verified with a temporarily-set team color
+against the demo — visibly more present without reading as a different
+design.
+
 ## Team Path's own team-picker buttons wear the team's colors too (owner, 2026-08-02)
 Owner: *"If a team hasn't been selected yet in team path, use their gradient
 for the selection buttons."* Before now, `teamBrandBannerCss()` (the

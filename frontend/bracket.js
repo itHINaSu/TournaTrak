@@ -5429,9 +5429,11 @@ function renderStandingsViewInner() {
     // color might be set.
     var brand = teamBrandingFor(r.name);
     var accent = brand && (brand.primaryColor || brand.secondaryColor);
+    // 24% -> 32% (owner, 2026-08-02: "can the color highlight in the
+    // standings tab be a touch more prominent. Not a ton, but a little").
     var rowCss = accent
       ? 'border-left-color: ' + accent + '; background: linear-gradient(90deg, '
-        + 'color-mix(in srgb, ' + accent + ' 24%, var(--surface)) 0%, var(--surface) 85%);'
+        + 'color-mix(in srgb, ' + accent + ' 32%, var(--surface)) 0%, var(--surface) 85%);'
       : '';
     // Teams with no games yet are listed but not ranked — a "1" next to a
     // team that hasn't played reads as a standing it hasn't earned.
