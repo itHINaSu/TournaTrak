@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=3.92">
-<link rel="stylesheet" href="/admin.css?v=3.92">
-<link rel="stylesheet" href="/lineup.css?v=3.92">
-<script src="/app-h.js?v=3.92"></script>
+<link rel="stylesheet" href="/base.css?v=3.93">
+<link rel="stylesheet" href="/admin.css?v=3.93">
+<link rel="stylesheet" href="/lineup.css?v=3.93">
+<script src="/app-h.js?v=3.93"></script>
 </head>
 <body>
 
@@ -41,6 +41,33 @@
     <div id="coachGateActions" hidden>
       <a class="sched-save-btn login-btn" id="coachGateSignIn" href="/admin">Sign In</a>
       <a class="login-public-link" href="/">← Back to the bracket</a>
+    </div>
+  </div>
+</div>
+
+<!-- Team logo crop modal (owner, 2026-08-02) — see ttOpenLogoCropModal in
+     tt-common.js. Same markup/ids as admin.html's copy (never both loaded
+     at once). -->
+<div class="login-overlay" id="teamLogoCropOverlay" hidden>
+  <div class="login-box team-logo-crop-box">
+    <div class="login-title">Crop Team Logo</div>
+    <div class="icon-crop">
+      <div class="icon-crop-stage" id="teamLogoCropStage">
+        <img class="icon-crop-img" id="teamLogoCropImg" alt="">
+        <div class="icon-crop-box" id="teamLogoCropBox">
+          <span class="icon-crop-handle" id="teamLogoCropHandle"></span>
+        </div>
+      </div>
+      <div class="icon-crop-side">
+        <div class="field-hint">Drag the square to move it, or its corner to resize. The area inside becomes the logo.</div>
+        <div class="icon-crop-actions">
+          <button type="button" class="admin-clear-btn" data-action="ttCropReset">Reset crop</button>
+        </div>
+      </div>
+    </div>
+    <div class="u-flexrow-gap u-mt-1">
+      <button type="button" class="sched-save-btn" data-action="ttCropApply">Use this crop</button>
+      <button type="button" class="admin-clear-btn" data-action="ttCropCancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -371,11 +398,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.92"></script>
-<script src="/theme-css.js?v=3.92"></script>
-<script src="/tt-common.js?v=3.92"></script>
-<script src="/bracket-data.js?v=3.92"></script>
-<script src="/lineup.js?v=3.92"></script>
-<script src="/coach.js?v=3.92"></script>
+<script src="/settings-defaults.js?v=3.93"></script>
+<script src="/theme-css.js?v=3.93"></script>
+<script src="/tt-common.js?v=3.93"></script>
+<script src="/bracket-data.js?v=3.93"></script>
+<script src="/lineup.js?v=3.93"></script>
+<script src="/coach.js?v=3.93"></script>
 </body>
 </html>

@@ -2582,39 +2582,10 @@ function makeIconSrc(origUri, cb) {
   img.src = origUri;
 }
 
-// The centered largest square — the default crop, and what the old "Fill"
-// (auto-crop-to-cover) mode produced, so a logo saved under Fill re-bakes
-// byte-identically after the migration in normalizeIconStyle().
-function centerCrop(w, h) {
-  var side = Math.min(w, h);
-  return { x: (w - side) / (2 * w), y: (h - side) / (2 * h), s: 1 };
-}
-
-// Largest square that CONTAINS the whole image — the other end of the range
-// from centerCrop. On a wide logo this is the "letterbox it, don't cut it"
-// setting: the parts of the square hanging off the top and bottom bake as
-// background rather than forcing the sides to be cropped away.
-function containCropS(w, h) { return Math.max(w, h) / Math.min(w, h); }
-
-// Resolve a stored crop to a pixel rect on a w×h image.
-//
-// The square is deliberately ALLOWED to extend past the edges: that is what
-// lets a rectangular logo be framed with empty pixels instead of trimmed.
-// Only two things are constrained — the side stays within a usable range,
-// and the square's CENTRE stays on the image, so it can never be dragged
-// somewhere that bakes to nothing.
-function cropRect(crop, w, h) {
-  var c = crop || centerCrop(w, h);
-  var short = Math.min(w, h);
-  var side = short * Math.min(cropMaxS(w, h), Math.max(0.05, c.s));
-  var cx = Math.min(Math.max(c.x * w + side / 2, 0), w);
-  var cy = Math.min(Math.max(c.y * h + side / 2, 0), h);
-  return { x: cx - side / 2, y: cy - side / 2, side: side };
-}
-
-// A little past "contains the whole image", so there is room to add breathing
-// space around a logo rather than only just enclosing it.
-function cropMaxS(w, h) { return containCropS(w, h) * 1.25; }
+// centerCrop/containCropS/cropRect/cropMaxS/drawCropped moved to tt-common.js
+// (2026-08-02) so the team-logo crop modal (admin.js AND coach.js, which
+// don't share this file) can reuse the same math the app/tab icon editors
+// below already use — see tt-common.js for the functions themselves.
 
 // Bounding box of the non-transparent pixels. A logo exported from a design
 // tool usually carries its own transparent margin; fitting the FULL bitmap
@@ -2647,15 +2618,6 @@ function opaqueBounds(img) {
   // No meaningful margin — don't bother.
   if (b.w >= img.width * 0.98 && b.h >= img.height * 0.98) return null;
   return b;
-}
-
-// Paint `rect` (a square in source-image pixels, possibly extending past the
-// edges) onto the full size×size tile. Scaling the WHOLE image and offsetting
-// it is exact whether or not the square is inside the bitmap — drawImage with
-// an out-of-bounds source rect clips instead, which would shift the art.
-function drawCropped(ctx, img, rect, size) {
-  var k = size / rect.side;
-  ctx.drawImage(img, -rect.x * k, -rect.y * k, img.width * k, img.height * k);
 }
 
 // Accept whatever is stored/posted and return a valid style. Logos saved

@@ -3077,17 +3077,43 @@ gradient direction/colors and squared-off left edge render as intended;
 coach Team tab preview updates live and matches. Full API suite (140
 tests) still passes.
 
-## Team logo needs the tournament logo's crop/auto-size UI (owner, 2026-08-02) — IN PROGRESS
-Owner, immediately after the above: *"The team logo needs the same image
-functions as the tournament logo. Auto size if too large, and then crop
-option."* The team logo picker shipped earlier today (`ttReadTeamLogoFile`
-in tt-common.js) already auto-shrinks an oversized upload to fit the 48KB
-cap, but has no crop step — the tournament logo's picker
-(`admin.js`: `_iconStyle`, `cleanIconStyle` server-side validation,
-`makeIconSrc`/`makeLogoIcon` baking, the drag-crop-rectangle UI) is a much
-bigger subsystem this doesn't reuse yet. Being built as a follow-up —
-see git log after this entry for what actually shipped, this note may be
-stale by the time you're reading it.
+## Team logo crop/auto-size UI (owner, 2026-08-02)
+Owner, immediately after the branding work above: *"The team logo needs the
+same image functions as the tournament logo. Auto size if too large, and then
+crop option."* The team logo picker (`ttReadTeamLogoFile` in tt-common.js)
+already auto-shrank an oversized upload to fit the 48KB cap, but had no crop
+step.
+
+Reused only the pure crop math from the tournament-logo editor
+(`centerCrop`/`containCropS`/`cropMaxS`/`cropRect`/`drawCropped` — moved
+verbatim from admin.js to tt-common.js, since they have zero dependency on
+that system's state) rather than the whole subsystem. The tournament-icon
+editor also carries a fit-vs-crop mode toggle and a background-fill color
+picker; both exist only because a PWA home-screen icon must be an opaque
+square (iOS composites transparency onto black). A team badge has no such
+requirement, so the new editor skips both and is just: pick a file → crop →
+done.
+
+New pipeline in `ttReadTeamLogoFile` (same external signature, so neither
+admin.js's Teams editor nor coach.js's `pickTeamTabLogo` needed to change):
+FileReader → `ttDownscaleForEdit` (cap 800px, the "auto size if too large"
+step) → `ttOpenLogoCropModal` (new shared modal, `#teamLogoCropOverlay`,
+identical markup added to both admin.html and coach.html since Settings >
+Teams and the coach Team tab are different pages) → `ttShrinkImageDataUri`
+(final 48KB-cap shrink, bakes at 480×480) → `onReady(finalUri)`. Unlike the
+tournament-icon editor's per-target `CROP_TARGETS` table, this is one modal
+instance reused for whichever team's file input was used — Settings > Teams
+can list many teams and doesn't need a dialog per row.
+
+Verified with Playwright against the demo: on Settings > Teams, uploading a
+1000×500 test image opens the crop modal with the image loaded and a
+centered default crop box; dragging the corner handle resizes the box
+(confirmed the inline style changed); "Use this crop" closes the modal and
+the row's logo preview updates to a data URI. Repeated the same flow on the
+coach Team tab logging in as `coach_lopez` — modal opens, applies, and the
+live preview banner updates — confirming the shared tt-common.js modal works
+identically from both pages' markup copies. No console errors either run.
+Full API suite (140 tests) still passes.
 
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in

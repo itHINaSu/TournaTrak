@@ -1470,6 +1470,9 @@ input[type="time"]:focus {
   touch-action: none;
 }
 .icon-crop-side { display: flex; flex-direction: column; gap: 0.6em; align-items: flex-start; max-width: 20em; }
+/* Wider than the default .login-box (340px) so the crop stage and its side
+   panel can sit next to each other instead of always stacking. */
+.team-logo-crop-box { width: min(90vw, 560px); }
 @media (pointer: coarse) {
   .icon-crop-handle { width: 1.6em; height: 1.6em; right: -0.8em; bottom: -0.8em; }
 }

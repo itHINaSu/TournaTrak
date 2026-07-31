@@ -513,16 +513,31 @@ function ttSetThemeOverrideCss(cssText) {
   }
 }
 
-// ── Team logo picker ──────────────────────────────────────────────────────
+// ── Team logo picker + crop ────────────────────────────────────────────────
 // Shared by admin.js (Settings > Teams) and coach.js (the coach's own Team
-// tab) — the only two places a team logo is set. Reads a File, downscales it
-// client-side if needed to fit the server's cap (validLogoDataUri /
-// LOGO_MAX_CHARS in api/server.js), and hands back a data URI. A team badge
-// is small and roughly square, unlike the wide header wordmark the admin
-// logo picker (admin.js) is tuned for, so this is its own small pipeline
-// rather than a shared one with different target dimensions.
+// tab) — the only two places a team logo is set. Reads a File, opens the
+// crop modal (owner, 2026-08-02: "The team logo needs the same image
+// functions as the tournament logo. Auto size if too large, and then crop
+// option."), and hands back a final data URI shrunk to fit the server's cap
+// (validLogoDataUri / LOGO_MAX_CHARS in api/server.js).
+//
+// Deliberately simpler than the tournament logo's crop system
+// (CROP_TARGETS/makeLogoIcon/normalizeIconStyle in admin.js): no fit-vs-crop
+// mode, no background-fill color. That machinery exists because a PWA/home-
+// screen icon must be a fully opaque square tile on every device (iOS
+// composites transparency onto black). A team badge has no such
+// requirement — it's just a square crop of whatever was uploaded,
+// transparency preserved — so this reuses only the crop MATH those editors
+// are built on (centerCrop/cropRect/cropMaxS/drawCropped, below), not their
+// full state machine. The drag-to-move/resize mechanics are re-implemented
+// here for a single reusable MODAL rather than admin.js's fixed-id
+// CROP_TARGETS table, because there can be many teams (a list in Settings >
+// Teams) sharing the one modal, opened for whichever team's file input was
+// used, rather than one inline editor per target.
 var TT_TEAM_LOGO_MAX_URI = 48 * 1024;  // matches the server's LOGO_MAX_CHARS
-var TT_TEAM_LOGO_MAX_PX  = 240;        // a badge, not a header wordmark
+var TT_TEAM_LOGO_EDIT_DIM = 800;       // working resolution for the crop stage
+var TT_TEAM_LOGO_BAKE_DIM = 480;       // final square output, before the shrink-to-cap pass
+
 function ttReadTeamLogoFile(file, onReady, onError) {
   if (!file) return;
   if (['image/png', 'image/jpeg', 'image/webp'].indexOf(file.type) === -1) {
@@ -531,26 +546,221 @@ function ttReadTeamLogoFile(file, onReady, onError) {
   }
   var reader = new FileReader();
   reader.onload = function () {
-    var uri = reader.result;
-    if (uri.length <= TT_TEAM_LOGO_MAX_URI) return onReady(uri);
-    var img = new Image();
-    img.onload = function () {
-      var scale = Math.min(1, TT_TEAM_LOGO_MAX_PX / Math.max(img.width, img.height));
-      for (var attempt = 0; attempt < 5; attempt++) {
-        var w = Math.max(1, Math.round(img.width * scale));
-        var h = Math.max(1, Math.round(img.height * scale));
-        var canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        var out = canvas.toDataURL('image/webp', 0.85);
-        if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/png');
-        if (out.length <= TT_TEAM_LOGO_MAX_URI) return onReady(out);
-        scale *= 0.65;
-      }
-      onError('Could not shrink that image enough — try a simpler or smaller logo');
-    };
-    img.onerror = function () { onError('Could not read that image'); };
-    img.src = uri;
+    ttDownscaleForEdit(reader.result, TT_TEAM_LOGO_EDIT_DIM, function (editUri) {
+      if (!editUri) { onError('Could not read that image'); return; }
+      ttOpenLogoCropModal(editUri, function (croppedUri) {
+        ttShrinkImageDataUri(croppedUri, TT_TEAM_LOGO_MAX_URI, function (finalUri) {
+          if (!finalUri) { onError('Could not shrink that image enough — try a simpler or smaller logo'); return; }
+          onReady(finalUri);
+        });
+      });
+    });
   };
+  reader.onerror = function () { onError('Could not read that file'); };
   reader.readAsDataURL(file);
 }
+
+// One-time downscale to a reasonable working size, so the crop stage isn't
+// laying out (and the browser isn't holding onto) a multi-megapixel photo
+// straight off a phone camera. Auto-size step 1 of "auto size if too large,
+// and then crop option" — step 2 is the modal this hands off to.
+function ttDownscaleForEdit(srcUri, maxDim, cb) {
+  var img = new Image();
+  img.onload = function () {
+    var scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    var w = Math.max(1, Math.round(img.width * scale));
+    var h = Math.max(1, Math.round(img.height * scale));
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    cb(canvas.toDataURL('image/png'));
+  };
+  img.onerror = function () { cb(null); };
+  img.src = srcUri;
+}
+
+// Downscale-until-it-fits, same loop shape as the old inline version of this
+// function (still used as-is by admin.js's tournament logo picker via its
+// own copy) — WebP first (smallest), PNG if the browser can't encode WebP.
+function ttShrinkImageDataUri(srcUri, maxUri, cb) {
+  if (srcUri.length <= maxUri) return cb(srcUri);
+  var img = new Image();
+  img.onload = function () {
+    var scale = 1;
+    for (var attempt = 0; attempt < 6; attempt++) {
+      var w = Math.max(1, Math.round(img.width * scale));
+      var h = Math.max(1, Math.round(img.height * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      var out = canvas.toDataURL('image/webp', 0.85);
+      if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/png');
+      if (out.length <= maxUri) return cb(out);
+      scale *= 0.65;
+    }
+    cb(null);
+  };
+  img.onerror = function () { cb(null); };
+  img.src = srcUri;
+}
+
+// ── Crop math (shared with admin.js's app/tab icon editors) ───────────────
+// Moved here from admin.js (2026-08-02) so the team-logo crop modal, used
+// from both admin.js and coach.js, can share it instead of duplicating it a
+// third time. Pure functions, no dependency on either page's state.
+
+// The centered largest square — the default crop.
+function centerCrop(w, h) {
+  var side = Math.min(w, h);
+  return { x: (w - side) / (2 * w), y: (h - side) / (2 * h), s: 1 };
+}
+// Largest square that CONTAINS the whole image — the other end of the range
+// from centerCrop. On a wide logo this is the "letterbox it, don't cut it"
+// setting: the parts of the square hanging off the top and bottom bake as
+// transparent (or background, for the icon editors) rather than forcing the
+// sides to be cropped away.
+function containCropS(w, h) { return Math.max(w, h) / Math.min(w, h); }
+// A little past "contains the whole image", so there is room to add
+// breathing space around a logo rather than only just enclosing it.
+function cropMaxS(w, h) { return containCropS(w, h) * 1.25; }
+// Resolve a stored crop to a pixel rect on a w×h image.
+//
+// The square is deliberately ALLOWED to extend past the edges: that is what
+// lets a rectangular logo be framed with empty pixels instead of trimmed.
+// Only two things are constrained — the side stays within a usable range,
+// and the square's CENTRE stays on the image, so it can never be dragged
+// somewhere that bakes to nothing.
+function cropRect(crop, w, h) {
+  var c = crop || centerCrop(w, h);
+  var short = Math.min(w, h);
+  var side = short * Math.min(cropMaxS(w, h), Math.max(0.05, c.s));
+  var cx = Math.min(Math.max(c.x * w + side / 2, 0), w);
+  var cy = Math.min(Math.max(c.y * h + side / 2, 0), h);
+  return { x: cx - side / 2, y: cy - side / 2, side: side };
+}
+// Paint `rect` (a square in source-image pixels, possibly extending past the
+// edges) onto the full size×size tile. Scaling the WHOLE image and offsetting
+// it is exact whether or not the square is inside the bitmap — drawImage with
+// an out-of-bounds source rect clips instead, which would shift the art.
+function drawCropped(ctx, img, rect, size) {
+  var k = size / rect.side;
+  ctx.drawImage(img, -rect.x * k, -rect.y * k, img.width * k, img.height * k);
+}
+
+// ── Team logo crop modal ───────────────────────────────────────────────────
+// One shared overlay (markup duplicated in admin.html and coach.html — same
+// element ids, never both loaded at once) rather than one editor per team:
+// there can be many teams in Settings > Teams, so this opens bound to
+// whichever one's file input was used, and rebinds on the next pick.
+var _tlCrop = null;       // {x,y,s} pending crop, source-fraction terms
+var _tlCropDrag = null;
+var _tlCropDone = null;   // function(finalDataUri) — set per-open, cleared on Apply/Cancel
+
+function ttOpenLogoCropModal(srcUri, onDone) {
+  var overlay = document.getElementById('teamLogoCropOverlay');
+  var img = document.getElementById('teamLogoCropImg');
+  if (!overlay || !img) { onDone(srcUri); return; }  // no modal in this page's markup — skip cropping
+  _tlCrop = null;
+  _tlCropDone = onDone;
+  overlay.hidden = false;
+  img.onload = function () {
+    if (!_tlCrop) _tlCrop = centerCrop(img.naturalWidth, img.naturalHeight);
+    ttDrawCropBox();
+  };
+  img.src = srcUri;
+}
+function ttDrawCropBox() {
+  var stage = document.getElementById('teamLogoCropStage');
+  var img = document.getElementById('teamLogoCropImg');
+  var boxEl = document.getElementById('teamLogoCropBox');
+  if (!stage || !img || !boxEl || !img.naturalWidth) return;
+  var sr = stage.getBoundingClientRect(), ir = img.getBoundingClientRect();
+  var k = ir.width / img.naturalWidth;
+  var r = cropRect(_tlCrop, img.naturalWidth, img.naturalHeight);
+  boxEl.style.left   = (ir.left - sr.left + r.x * k) + 'px';
+  boxEl.style.top    = (ir.top  - sr.top  + r.y * k) + 'px';
+  boxEl.style.width  = (r.side * k) + 'px';
+  boxEl.style.height = (r.side * k) + 'px';
+}
+function ttCropDragStart(mode, e) {
+  var img = document.getElementById('teamLogoCropImg');
+  if (!img || !img.naturalWidth) return;
+  e.preventDefault();
+  var ir = img.getBoundingClientRect();
+  _tlCropDrag = {
+    mode: mode, x0: e.clientX, y0: e.clientY, k: ir.width / img.naturalWidth,
+    r: cropRect(_tlCrop, img.naturalWidth, img.naturalHeight),
+    W: img.naturalWidth, H: img.naturalHeight,
+  };
+  window.addEventListener('pointermove', ttCropDragMove);
+  window.addEventListener('pointerup', ttCropDragEnd);
+  window.addEventListener('pointercancel', ttCropDragEnd);
+}
+function ttCropDragMove(e) {
+  var d = _tlCropDrag;
+  if (!d) return;
+  var dx = (e.clientX - d.x0) / d.k, dy = (e.clientY - d.y0) / d.k;
+  var x = d.r.x, y = d.r.y, side = d.r.side;
+  if (d.mode === 'move') {
+    x = d.r.x + dx; y = d.r.y + dy;
+  } else {
+    side = d.r.side + Math.max(dx, dy);
+    var short = Math.min(d.W, d.H);
+    side = Math.min(Math.max(short * 0.05, side), short * cropMaxS(d.W, d.H));
+  }
+  _tlCrop = { x: x / d.W, y: y / d.H, s: side / Math.min(d.W, d.H) };
+  ttDrawCropBox();
+}
+function ttCropDragEnd() {
+  _tlCropDrag = null;
+  window.removeEventListener('pointermove', ttCropDragMove);
+  window.removeEventListener('pointerup', ttCropDragEnd);
+  window.removeEventListener('pointercancel', ttCropDragEnd);
+}
+function ttCropReset() {
+  var img = document.getElementById('teamLogoCropImg');
+  if (!img || !img.naturalWidth) return;
+  _tlCrop = centerCrop(img.naturalWidth, img.naturalHeight);
+  ttDrawCropBox();
+}
+function ttCropApply() {
+  var img = document.getElementById('teamLogoCropImg');
+  var overlay = document.getElementById('teamLogoCropOverlay');
+  var cb = _tlCropDone;
+  _tlCropDone = null;
+  if (overlay) overlay.hidden = true;
+  if (!img || !img.naturalWidth || !cb) return;
+  var rect = cropRect(_tlCrop, img.naturalWidth, img.naturalHeight);
+  var canvas = document.createElement('canvas');
+  canvas.width = TT_TEAM_LOGO_BAKE_DIM; canvas.height = TT_TEAM_LOGO_BAKE_DIM;
+  drawCropped(canvas.getContext('2d'), img, rect, TT_TEAM_LOGO_BAKE_DIM);
+  var out = canvas.toDataURL('image/webp', 0.9);
+  if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/png');
+  cb(out);
+}
+function ttCropCancel() {
+  var overlay = document.getElementById('teamLogoCropOverlay');
+  if (overlay) overlay.hidden = true;
+  _tlCropDone = null;
+}
+TT_ACTIONS.ttCropApply  = function () { ttCropApply(); };
+TT_ACTIONS.ttCropCancel = function () { ttCropCancel(); };
+TT_ACTIONS.ttCropReset  = function () { ttCropReset(); };
+
+document.addEventListener('DOMContentLoaded', function () {
+  var boxEl  = document.getElementById('teamLogoCropBox');
+  var handle = document.getElementById('teamLogoCropHandle');
+  if (!boxEl || !handle) return;   // page has no crop modal markup
+  boxEl.addEventListener('pointerdown', function (e) {
+    if (e.target === handle) return;   // handled below
+    ttCropDragStart('move', e);
+  });
+  handle.addEventListener('pointerdown', function (e) {
+    e.stopPropagation();
+    ttCropDragStart('resize', e);
+  });
+  window.addEventListener('resize', function () {
+    var overlay = document.getElementById('teamLogoCropOverlay');
+    if (overlay && !overlay.hidden) ttDrawCropBox();
+  });
+});
