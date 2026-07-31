@@ -266,12 +266,31 @@ function setOffline(on) {
 }
 
 // ── Results notification bar ──────────────────────────────────────────
+// Last banner text this page rendered, so a notice that is merely STANDING
+// can be told from one that just arrived or was reworded. null until the
+// first run, which makes a notice already in place when the page loads count
+// as new — that is wanted: someone opening the page mid-delay should get the
+// same attention pull as someone who had it appear under them.
+var _lastDelayMsg = null;
 function updateDelayNotice() {
   var el   = document.getElementById('delayNotice');
   var text = document.getElementById('delayNoticeText');
   var msg  = (_offsets && _offsets.banner) ? _offsets.banner.trim() : '';
-  if (el) el.hidden = !(msg);
-  if (text) text.textContent = msg;
+  // Only write when it actually changed: the element is role="alert", and
+  // rewriting identical text on every poll makes some screen readers
+  // re-announce a delay that has been standing all morning.
+  if (text && text.textContent !== msg) text.textContent = msg;
+  if (el) {
+    el.hidden = !(msg);
+    if (msg && msg !== _lastDelayMsg) {
+      el.classList.remove('delay-notice--new');
+      void el.offsetWidth;                    // reflow, so the animation restarts
+      el.classList.add('delay-notice--new');
+    } else if (!msg) {
+      el.classList.remove('delay-notice--new');
+    }
+  }
+  _lastDelayMsg = msg;
 }
 
 function updateTimestamp() {

@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.049">
-<link rel="stylesheet" href="/bracket.css?v=4.08.049">
-<script src="/app-h.js?v=4.08.049"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.050">
+<link rel="stylesheet" href="/bracket.css?v=4.08.050">
+<script src="/app-h.js?v=4.08.050"></script>
 </head>
 <body>
 
@@ -94,7 +94,16 @@
   <span id="updateBarText"></span>
 </div>
 
-<div class="delay-notice" id="delayNotice" hidden>
+<!-- role="alert" so a screen reader announces a schedule change rather than
+     leaving it to be noticed visually. updateDelayNotice() only writes
+     textContent when the wording actually changes, so a standing notice is
+     not re-announced on every poll. -->
+<div class="delay-notice" id="delayNotice" role="alert" hidden>
+  <svg class="delay-notice-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+    <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
   <span id="delayNoticeText"></span>
 </div>
 
@@ -447,11 +456,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.049"></script>
-<script src="/theme-css.js?v=4.08.049"></script>
-<script src="/tt-common.js?v=4.08.049"></script>
-<script src="/bracket-data.js?v=4.08.049"></script>
-<script src="/bracket.js?v=4.08.049"></script>
-<script src="/sw-register.js?v=4.08.049" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.050"></script>
+<script src="/theme-css.js?v=4.08.050"></script>
+<script src="/tt-common.js?v=4.08.050"></script>
+<script src="/bracket-data.js?v=4.08.050"></script>
+<script src="/bracket.js?v=4.08.050"></script>
+<script src="/sw-register.js?v=4.08.050" data-sw="/sw.js"></script>
 </body>
 </html>
