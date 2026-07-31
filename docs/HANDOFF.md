@@ -3620,6 +3620,28 @@ same `rgb(232,237,233)` as every other row; rank and 0-0 record stay
 visibly muted. Screenshot confirms. Full API suite (140 tests) still
 passes.
 
+## Settings sidebar now auto-opens on a direct/deep-link entry, not just a click (owner, 2026-08-02)
+Owner: *"When entering the admin panel from another page, if coming to the
+settings tab the hamburger menu for the admin settings should be opened by
+default so the user can select a settings tab."* The mobile auto-open-sidebar
+logic (and the default-section pick) only ever lived inside the `.admin-tab`
+click listener in `frontend/admin.js` — so a user who arrived on Settings any
+other way (a link with `?tab=settings`, or the tab restored from
+`localStorage` on page load) got the panel with no visible way to pick a
+section until they happened to tap the already-active Settings tab again.
+
+Extracted `activateAdminTab(tabName)` out of the click listener so it holds
+every side effect that used to be inline (delays-panel hide, class toggling,
+`localStorage` save, `updateQuickBar()`, lineups lazy-init, results/schedule
+sub-mode reset, and the settings-specific default-section-if-none-active +
+`innerWidth < 1024` sidebar-auto-open). Both the click listener and the
+initial-load "restore last tab" block (`fetchAll()`, reads `?tab=` or the
+saved tab) now call it, so the two paths can't drift again. "Tap outside
+closes" needed no change — `ttRegisterOverlay(settingsSidebar, ...)` already
+covered it. Verified with Playwright at a 390px viewport: logging in and
+navigating straight to `/admin?tab=settings` (no click involved) opens
+`#settingsSidebar` immediately, and a tap outside it closes it.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an

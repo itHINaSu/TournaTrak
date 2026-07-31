@@ -50,6 +50,53 @@ function scopedUrl(url) {
 // Theme toggle is managed by tt-common.js.
 
 // ── Tabs ───────────────────────────────────────────────────────────────
+// Shared by the click handler AND the initial-load "restore last tab"
+// path below — landing directly on Settings (a link from another page, a
+// saved localStorage tab, or ?tab=settings) used to skip the settings-
+// specific side effects entirely, since they only lived in the click
+// listener. On mobile that meant arriving on Settings with no way to see
+// the section picker until you happened to tap the tab again (owner,
+// 2026-08-02: "When entering the admin panel from another page, if coming
+// to the settings tab the hamburger menu for the admin settings should be
+// opened by default").
+function activateAdminTab(tabName) {
+  var tab = document.querySelector('.admin-tab[data-tab="' + tabName + '"]');
+  var panel = document.getElementById('tab-' + tabName);
+  if (!tab || !panel) return;
+  // Hide delays panel on any tab switch
+  var _dp = document.getElementById('resultsDelaysPanel');
+  if (_dp) _dp.hidden = true;
+  document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
+  document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  tab.classList.add('active');
+  panel.classList.add('active');
+  try { localStorage.setItem('adminTab', tabName); } catch(e) {}
+  updateQuickBar();
+  if (tabName === 'lineups' && !window._lineupInitDone) {
+    window._lineupInitDone = true;
+    lineupInit();
+  }
+  // Reset to default sub-view when re-entering a tab
+  if (tabName === 'results')  setResultsMode('games');
+  if (tabName === 'schedule') setSchedMode('quick');
+  if (tabName === 'settings') {
+    var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
+    var anyActive = document.querySelector('.settings-panel.active');
+    if (!anyActive) showSettingsSection(defaultSection);
+    if (window.innerWidth < 1024) {
+      var visibleNavItems = Array.prototype.filter.call(
+        document.querySelectorAll('.settings-nav-item'),
+        function(n) { return n.hidden === false; }
+      );
+      if (visibleNavItems.length === 1) {
+        showSettingsSection(visibleNavItems[0].dataset.section);
+      } else {
+        openSettingsSidebar();
+      }
+    }
+  }
+}
+
 document.querySelectorAll('.admin-tab').forEach(function(tab){
   tab.addEventListener('click', function(){
     // On mobile: if Settings tab already active, toggle sidebar instead of re-navigating
@@ -57,38 +104,7 @@ document.querySelectorAll('.admin-tab').forEach(function(tab){
       toggleSettingsSidebar();
       return;
     }
-    // Hide delays panel on any tab switch
-    var _dp = document.getElementById('resultsDelaysPanel');
-    if (_dp) _dp.hidden = true;
-    document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
-    document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
-    tab.classList.add('active');
-    document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
-    try { localStorage.setItem('adminTab', tab.dataset.tab); } catch(e) {}
-    updateQuickBar();
-    if (tab.dataset.tab === 'lineups' && !window._lineupInitDone) {
-      window._lineupInitDone = true;
-      lineupInit();
-    }
-    // Reset to default sub-view when re-entering a tab
-    if (tab.dataset.tab === 'results')  setResultsMode('games');
-    if (tab.dataset.tab === 'schedule') setSchedMode('quick');
-    if (tab.dataset.tab === 'settings') {
-      var defaultSection = currentRole === 'admin' ? 'pageinfo' : 'account';
-      var anyActive = document.querySelector('.settings-panel.active');
-      if (!anyActive) showSettingsSection(defaultSection);
-      if (window.innerWidth < 1024) {
-        var visibleNavItems = Array.prototype.filter.call(
-          document.querySelectorAll('.settings-nav-item'),
-          function(n) { return n.hidden === false; }
-        );
-        if (visibleNavItems.length === 1) {
-          showSettingsSection(visibleNavItems[0].dataset.section);
-        } else {
-          openSettingsSidebar();
-        }
-      }
-    }
+    activateAdminTab(tab.dataset.tab);
   });
 });
 
@@ -215,15 +231,7 @@ async function fetchAll() {
   var savedTab = qTab || (function(){ try { return localStorage.getItem('adminTab'); } catch(e) { return null; } }());
   if (savedTab) {
     var target = document.querySelector('.admin-tab[data-tab="' + savedTab + '"]');
-    var panel  = document.getElementById('tab-' + savedTab);
-    if (target && panel && target.hidden === false) {
-      document.querySelectorAll('.admin-tab').forEach(function(t){ t.classList.remove('active'); });
-      document.querySelectorAll('.admin-tab-panel').forEach(function(p){ p.classList.remove('active'); });
-      target.classList.add('active');
-      panel.classList.add('active');
-      if (savedTab === 'lineups' && !window._lineupInitDone) { window._lineupInitDone = true; lineupInit(); }
-      if (savedTab === 'schedule') setSchedMode('quick');
-    }
+    if (target && target.hidden === false) activateAdminTab(savedTab);
   }
   updateQuickBar();
 }
