@@ -793,6 +793,7 @@ async function fetchAll(){
 var resizeTimer;
 window.addEventListener('resize',function(){
   applyStickyOffsets();
+  syncInstallBtn();   // mobile-only control, so the breakpoint has to be live
   clearTimeout(resizeTimer);
   resizeTimer=setTimeout(function(){if(activeView()==='bracket') renderBracket();},150);
 });
@@ -6828,6 +6829,11 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   // place, so it is one more thing crowding the menu for no gain.
   var refreshBtn = document.getElementById('refreshBtn');
   if (refreshBtn)     refreshBtn.hidden = !isPwa;
+  // Install App is the inverse: never in the installed app (there is nothing
+  // left to install), and mobile only — "add to home screen" is not a gesture
+  // anyone is looking for on a desktop. syncInstallBtn owns the rule so the
+  // resize handler can re-run it.
+  syncInstallBtn();
   if (signInBtn)      signInBtn.hidden = !(!_sessionRole);
   if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
   // Coach Panel is offered by TEAM ASSIGNMENT, not by role — coaching a team
@@ -7000,6 +7006,8 @@ Object.assign(TT_ACTIONS, {
   // toggleHeaderMenu is registered in tt-common.js, with the menu itself.
   openNotifyPanel:   function() { closeHeaderMenu(); openNotifyPanel(); },
   closeNotifyPanel:  function() { closeNotifyPanel(); },
+  openInstallPanel:  function() { closeHeaderMenu(); openInstallPanel(); },
+  closeInstallPanel: function() { closeInstallPanel(); },
   notifyScopeChange: function() { renderNotifyTeams(); notifyDirty(); },
   notifyDirty:       function() { notifyDirty(); },
   notifySave:        function() { notifySave(); },
@@ -7109,6 +7117,55 @@ function openNotifyPanel() {
   document.querySelectorAll('.view-panel').forEach(function(x) { x.classList.remove('active'); });
   panel.classList.add('active');
   window.scrollTo(0, 0);
+}
+
+// ── Install App ───────────────────────────────────────────────────────
+// Shown only where installing is both possible and wanted: not already
+// running as an installed app, and on a phone. Called from the session
+// handler and again on resize, because a desktop window narrowed past the
+// breakpoint should get the same menu a phone gets.
+function ttIsPwa() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+         !!window.navigator.standalone;
+}
+function syncInstallBtn() {
+  var btn = document.getElementById('installAppBtn');
+  if (!btn) return;
+  var was = btn.hidden;
+  btn.hidden = ttIsPwa() || window.innerWidth >= 1280;
+  // The hamburger appears at two visible header buttons, so changing one
+  // changes that count (same reason syncProjectBtn does this).
+  if (was !== btn.hidden) updateHeaderMenu();
+  // Narrowed/widened while the page itself was open — do not strand the
+  // viewer on a page whose entry point just disappeared.
+  if (btn.hidden) {
+    var panel = document.getElementById('view-install');
+    if (panel && panel.classList.contains('active')) closeInstallPanel();
+  }
+}
+
+var _installReturnTab = null;
+
+function openInstallPanel() {
+  var panel = document.getElementById('view-install');
+  if (!panel) return;
+  var cur = document.querySelector('.view-tab.active');
+  _installReturnTab = cur ? cur.dataset.view : null;
+  document.querySelectorAll('.view-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.view-panel').forEach(function(x) { x.classList.remove('active'); });
+  panel.classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function closeInstallPanel() {
+  var panel = document.getElementById('view-install');
+  if (panel) panel.classList.remove('active');
+  var want = _installReturnTab || 'bracket';
+  var tab = document.querySelector('.view-tab[data-view="' + want + '"]');
+  var dest = document.getElementById('view-' + want);
+  if (tab) tab.classList.add('active');
+  if (dest) dest.classList.add('active');
+  _installReturnTab = null;
 }
 
 // Back to wherever they were. Clicking a tab also leaves the page, since the

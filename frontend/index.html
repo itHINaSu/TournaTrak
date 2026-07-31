@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.031">
-<link rel="stylesheet" href="/bracket.css?v=4.08.031">
-<script src="/app-h.js?v=4.08.031"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.032">
+<link rel="stylesheet" href="/bracket.css?v=4.08.032">
+<script src="/app-h.js?v=4.08.032"></script>
 </head>
 <body>
 
@@ -67,6 +67,14 @@
     <button class="admin-public-btn" id="refreshBtn" hidden data-action="refreshNow" title="Reload the latest scores and schedule">Refresh</button>
     <a href="/coach" class="admin-public-btn" id="lineupPortalBtn" hidden>Coach Panel →</a>
     <a href="/admin" class="admin-public-btn" id="adminPortalBtn" hidden>Admin Panel →</a>
+    <!-- MOBILE ONLY, and never in the installed app — the inverse of Refresh
+         above. Someone already running the PWA has nothing to install, and on
+         a desktop "add to home screen" is not the gesture anyone is looking
+         for. Sits directly above Sign in (owner, 2026-08-01): both are
+         destinations, and installing is the thing a spectator does before
+         they ever need an account. Visibility is set in bracket.js, which
+         re-checks it on resize. -->
+    <button class="admin-public-btn" id="installAppBtn" hidden data-action="openInstallPanel" title="Add TournaTrak to your home screen">Install App</button>
     <!-- Shown ONLY when signed out, and it replaces the guesswork that used to
          live here: the page cannot tell which installed app launched it, so it
          used to show "Admin" to any signed-out visitor in standalone mode just
@@ -372,13 +380,67 @@
   </div>
 </div>
 
+<!-- Install instructions. A PAGE, not a modal, for the same reason the
+     notification settings are one (see HANDOFF): on mobile an active
+     .view-panel is a fixed-height flex child, and a dialog taller than the
+     viewport gets clipped with no way to reach the bottom. The steps are kept
+     in step with the sales site's #install section — if one changes, change
+     both. -->
+<div class="view-panel" id="view-install">
+  <div class="notify-page">
+    <div class="notify-page-hdr">
+      <button class="admin-clear-btn" data-action="closeInstallPanel">&larr; Back</button>
+      <div class="share-title">Install this app</div>
+    </div>
+    <div class="notify-page-body">
+      <div class="share-hint">
+        It's a website, so there is nothing to install just to look at it — but
+        you can add it to your home screen and it will open full-screen, with no
+        browser bar, like an app. No app store, no account.
+      </div>
+
+      <div class="notify-section-hdr">iPhone &amp; iPad</div>
+      <!-- Stated outright rather than implied. On iOS, "Add to Home Screen"
+           only exists in Safari — Chrome, Firefox and Edge on iOS cannot
+           install a web app at all, and someone following these steps in the
+           wrong browser will simply not find the menu item and conclude the
+           app is broken. -->
+      <div class="install-note">
+        On iPhone and iPad this <strong>only works in Safari</strong>. Chrome,
+        Firefox and Edge on iOS cannot add an app to the home screen — if you are
+        reading this in one of those, open the tournament link in Safari first.
+      </div>
+      <ol class="install-steps">
+        <li>Open the tournament link in <strong>Safari</strong>.</li>
+        <li>Tap the <strong>Share</strong> icon — the square with an arrow pointing up.</li>
+        <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
+        <li>Tap <strong>Add</strong>. The icon appears on your home screen.</li>
+      </ol>
+
+      <div class="notify-section-hdr">Android</div>
+      <ol class="install-steps">
+        <li>Open the tournament link in <strong>Chrome</strong>.</li>
+        <li>Tap the <strong>⋮</strong> menu in the top right.</li>
+        <li>Tap <strong>Add to Home screen</strong> — or <strong>Install app</strong>, if Chrome offers that directly.</li>
+        <li>Confirm. The icon appears on your home screen.</li>
+      </ol>
+
+      <div class="notify-note">
+        Installing is optional. Everything works in a normal browser tab — the
+        installed app just opens full-screen and keeps working on a weak
+        connection at the field.
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.031"></script>
-<script src="/theme-css.js?v=4.08.031"></script>
-<script src="/tt-common.js?v=4.08.031"></script>
-<script src="/bracket-data.js?v=4.08.031"></script>
-<script src="/bracket.js?v=4.08.031"></script>
-<script src="/sw-register.js?v=4.08.031" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.032"></script>
+<script src="/theme-css.js?v=4.08.032"></script>
+<script src="/tt-common.js?v=4.08.032"></script>
+<script src="/bracket-data.js?v=4.08.032"></script>
+<script src="/bracket.js?v=4.08.032"></script>
+<script src="/sw-register.js?v=4.08.032" data-sw="/sw.js"></script>
 </body>
 </html>

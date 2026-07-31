@@ -199,6 +199,7 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **"Install App" in the header menu, with a real instructions page** (owner, 2026-08-01). New `#view-install` panel carrying the iOS and Android steps, reached from `#installAppBtn` sitting directly above Sign in. **Mobile only and never in the installed app** — the inverse of Refresh's rule, since someone already in the PWA has nothing to install and "add to home screen" means nothing on a desktop. `syncInstallBtn()` owns that test and is re-run from the `resize` handler, so narrowing a desktop window past 1280px produces the same menu a phone gets; it also closes the page if the viewer is already on it when the control disappears, rather than stranding them. The steps mirror the sales site's `#install` section — **if one changes, change both** — with one addition the sales copy only implies: iOS **must** use Safari, stated outright, because Chrome/Firefox/Edge on iOS cannot add to the home screen at all and someone following the steps in the wrong browser will conclude the app is broken rather than that their browser can't do it. |
 | (this) | **Team-name outline weight is now tunable, and its default is a touch heavier** (owner, 2026-08-02: "Increase the outline weight a touch. Or select a reasonable range and allow coaches to increase/decrease the outline weight within the preset range" — did both). `teamBrandBannerCss()`'s outline ring (tt-common.js) was a hardcoded `0.028em`; it now reads `extra.outlineWidth` (thousandths of an em, default 35 — up from the old 28), with a new "Outline weight" slider (15-70) next to Outline color in both the admin Teams-detail view and the coach Team tab, shown only once an outline color is actually set. New `brandOutlineWidth` field: `BRAND_OUTLINE_WIDTH_MIN/MAX` in api/server.js, threaded through `normalizeTeam()` and both save endpoints (`POST /teams`, `PUT /team-profile/:teamName`); bracket.js's `_teamBranding` map and both its `teamBrandBannerCss()` call sites (Team Path pre-selection chips, the Team Path banner itself) pass it through too. Verified by setting it to 15 and 60 on a real team in the demo and screenshotting the rendered banner at each — thin hairline vs. bold outline, both legible. |
 | (this) | **Mobile/PWA Standings logo slot narrowed from 3/8 back toward 1/3** (owner, 2026-08-02: "The logo position for standings on mobile/pwa should be closer to centered on right 1/3 instead of 3/8") — v4.08.027 widened `.std-logo-slot` to 37.5% everywhere for consistency with Team Path; this adds a `@media (max-width: 1279px)` override back to 33.33% for Standings specifically (same breakpoint the bracket view already uses for its own mobile/desktop split), leaving Team Path's chips and banner at 37.5% on every width since the owner's ask was Standings-specific. NOT yet done: the same message's second half ("if a team name gets truncated here the short name should be used — if a team hasn't defined their own short name, follow the default short name rule") — `shortNameAttr()` currently only offers a fallback when a team has an explicit custom short name saved; wiring in the existing `shortName()` auto-abbreviation helper (bracket-data.js, today used only inside "Team A / Team B" feed labels) as the fallback for a truncated SOLO team name is still open, see Outstanding work below.
 | v4.08.030 | **Removed the leftover instructional paragraph above the Roster tab's team-brand-banner** (owner, 2026-08-02: "Remove the text above the team brand banner in the roster tab") — the Lineups tab never had one, so this just brings Roster in line with it; the banner is now the very first thing in the tab. |
@@ -5270,6 +5271,21 @@ reading first.
 - Do NOT put model IDs in commits/PRs/code.
 - Push: `git push origin main` (see Branch rule — main is the integration
   branch as of 2026-07-15). Do not open PRs unless asked.
+- **ALWAYS PULL `main` BEFORE PUSHING TO IT** (owner directive, 2026-08-01).
+  `git fetch origin main && git merge origin/main` on your branch, resolve,
+  re-run the checks on the MERGED tree, and only then update `main`. Not a
+  formality — on 2026-07-31 `main` moved four commits between one `git fetch`
+  and the merge minutes later, and 83 more commits landed on top within the
+  same session. A push built on a stale `main` either fails or quietly
+  reverses somebody else's work.
+- **A push to `main` is effectively irreversible once other sessions build on
+  it.** Rolling one back was requested on 2026-08-01 and had to be refused:
+  by then 83 commits sat on top of it, several EXTENDING the pushed work
+  (`77b7874` extended refresh to the admin and coach panels, `1edd642` made it
+  installed-app-only). Force-pushing would have destroyed all of it. If a push
+  to `main` turns out to be unwanted, the only safe remedy is a forward revert
+  commit, and even that has to be checked against what has since been built on
+  top. **So confirm before pushing to `main`, not after.**
 - `git fetch origin` before pushing; if another `claude/*` branch is ahead,
   read the parallel-session hazard note under Branch rule first.
 

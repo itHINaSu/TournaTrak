@@ -2879,3 +2879,37 @@ body.print-palette .bc-proj-chip {
    "the refresh button should be available in coach and admin panel also") —
    those pages don't load bracket.css, and the indicator/spinner are shared
    UI now, not bracket-specific. */
+
+/* ── Install instructions page ────────────────────────────────────────────
+   Same containing rule as #view-notify directly above, and for the same
+   reason: on mobile the active view panel is a fixed-height flex child with
+   overflow:hidden, so a page of steps would be clipped with no way to scroll
+   to the last one. */
+#view-install.view-panel.active { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+.install-steps {
+  margin: 0.5em 0 1.1em;
+  padding-left: 1.4em;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--text);
+}
+.install-steps li { margin-bottom: 0.45em; }
+.install-steps li::marker { color: var(--text-dim); }
+.install-steps strong { color: var(--text); }
+
+/* The iOS/Safari constraint. Given the gold treatment because someone
+   following these steps in Chrome on an iPhone will not find the menu item at
+   all, and will reasonably conclude the app is broken rather than that their
+   browser cannot do it. */
+.install-note {
+  margin: 0.2em 0 0.9em;
+  padding: 0.65em 0.8em;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-dim);
+  background: var(--surface2);
+  border-left: 0.2em solid var(--gold);
+  border-radius: var(--radius-xs);
+}
+.install-note strong { color: var(--text); }
