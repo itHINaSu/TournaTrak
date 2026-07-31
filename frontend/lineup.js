@@ -311,7 +311,16 @@ function openLineupPlayerPicker(rowIdx) {
   document.querySelectorAll('#lineupBody tr.lineup-row').forEach(function(r) {
     if (r !== tr && r.dataset.pid) used[r.dataset.pid] = true;
   });
+  // Same order a coach sorts the roster into by number (owner, 2026-08-02:
+  // "players should [appear] in the lineup selector the way that's
+  // selected in roster") — a shirt number is the fastest way to find
+  // someone while building a lineup. No jersey sinks to the bottom rather
+  // than sorting first, same convention as the roster's own "Sort by #".
   var candidates = _lineupRoster.players.filter(function(p) { return p.id && !used[p.id]; });
+  candidates.sort(function(a, b) {
+    function firstNum(p) { var n = parseInt((p.jerseys || [])[0], 10); return isNaN(n) ? Infinity : n; }
+    return firstNum(a) - firstNum(b);
+  });
 
   closeLineupPlayerPicker();
   var overlay = document.createElement('div');

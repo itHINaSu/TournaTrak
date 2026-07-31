@@ -3393,6 +3393,38 @@ shared classes, one width decision. Verified against the demo: roster row
 num/name/pos rendered at 100px/543px/84px, lineup row at 77px/576px/84px —
 name dominant again on both. Full API suite (140 tests) still passes.
 
+## Roster really shares lineup's CSS now; scorebook position sort; picker sorted by number (owner, 2026-08-02)
+Owner, with two screenshots: *"Roster should use the same css as lineup.
+Players should [appear] in the lineup selector the way that's selected in
+roster. Sort by position in roster should be based on scorebook position
+number, not alphabetically. P, C, 1st, 2nd, 3rd, SS, LF, CF, RF, R, EH."*
+
+The screenshots showed the roster's `#` column visibly wider than the
+lineup tab's, despite both claiming to share `.lineup-td-num`/
+`.lineup-th--num`. The actual cause: `.roster-jerseys` (a class ALSO
+carried by the roster's number input) had its own `min-width: 5.5rem` and
+`text-align: left`, fighting the shared class's `5em`/centered styling —
+and the roster header used a separate `.lineup-th--nums` (plural) class
+mirroring the width by value rather than sharing the real class. Removed
+both: the roster header now uses `.lineup-th--num` directly (coach.html),
+and `.roster-jerseys` carries no width/alignment rule at all — genuinely
+the same CSS, not a copy of it. Verified: both columns measure 76.8px.
+
+**Position sort** (`sortRoster('pos')` in coach.js) was sorting the string
+alphabetically, which reads oddly for positions (`1st` before `C`/`P`).
+Added `ROSTER_POS_SORT_ORDER = ['P','C','1st','2nd','3rd','SS','LF','CF',
+'RF','R','EH']` and sort by each position's index in it (anything not on
+the list — a different sport's preset, or blank — sorts after every known
+one). Verified: sorting by position now produces exactly that order.
+
+**Lineup picker order**: candidates in `openLineupPlayerPicker` are now
+sorted by jersey number ascending (no number sinks to the bottom, same
+"blanks last" rule as the roster's own "Sort by #") rather than left in
+whatever order the roster happened to load in — a shirt number is the
+fastest way to find someone while building a lineup. Verified against the
+demo: picker showed `#2 | #3 | #7/#21 | #8 | #9 | #12 | #15 | #21 | #44`.
+Full API suite (140 tests) still passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an

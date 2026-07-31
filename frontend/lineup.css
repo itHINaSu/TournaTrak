@@ -474,9 +474,11 @@
    One number per player now — a per-game exception is handled in the
    lineup tab instead of a comma list here (owner, 2026-08-02: "only accept
    one number [in the roster] (they can change for one jersey in the
-   lineup tab)"). Same width as the lineup tab's own # column. */
-.lineup-th--nums { width: 5em; text-align: left; white-space: nowrap; }
-.roster-jerseys  { text-align: left; min-width: 5.5rem; }
+   lineup tab)"). No roster-only width/alignment override anymore — the
+   roster's # header uses .lineup-th--num directly (not a mirrored
+   .lineup-th--nums) and the input carries no extra rule beyond
+   .lineup-inp--num, so it's the SAME css as lineup, not a copy of it
+   (owner, 2026-08-02: "Roster should use the same css as lineup"). */
 
 /* Two PLAYERS sharing a number is allowed and saves fine; it only means a
    lineup cannot autofill from that number. So this is a hint, not an error

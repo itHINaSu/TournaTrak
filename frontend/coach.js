@@ -283,6 +283,14 @@ function updateRosterCount() {
 // One-time reorder on click, not a persisted sort mode — blank typing rows
 // always sink to the bottom regardless of key, so they stay reachable
 // instead of scattering wherever an empty name/number happens to sort.
+// Scorebook order, not alphabetical (owner, 2026-08-02: "Sort by position
+// in roster should be based on scorebook position number, not
+// alphabetically") — the softball preset's OWN dropdown order (settings-
+// defaults.js) lists 1st/2nd/3rd before C/P, which reads fine as a <select>
+// but sorts oddly. A position missing from this list (a different sport's
+// preset, or none set) sorts after every known one instead of erroring.
+var ROSTER_POS_SORT_ORDER = ['P', 'C', '1st', '2nd', '3rd', 'SS', 'LF', 'CF', 'RF', 'R', 'EH'];
+
 function sortRoster(key) {
   harvestRoster();
   var real = _rosterRows.filter(function (r) { return !isBlankRosterRow(r); });
@@ -293,7 +301,12 @@ function sortRoster(key) {
         .filter(function (n) { return !isNaN(n); });
       return nums.length ? Math.min.apply(null, nums) : Infinity;
     }
-    return String((key === 'pos' ? r.position : r.name) || '').toLowerCase();
+    if (key === 'pos') {
+      var pos = r.position || '';
+      var idx = ROSTER_POS_SORT_ORDER.indexOf(pos);
+      return (idx === -1 ? '99-' : ('0' + idx).slice(-2) + '-') + pos.toLowerCase();
+    }
+    return String(r.name || '').toLowerCase();
   }
   real.sort(function (a, b) {
     var va = val(a), vb = val(b);
