@@ -244,20 +244,21 @@
    accent bar looks like everywhere else this pattern shows up. Color itself
    comes from data-css (border-left-color), set per-row in bracket.js. */
 .std-row--branded { border-left-width: 0.35em; border-left-style: solid; border-top-left-radius: 0; border-bottom-left-radius: 0; }
-/* ~78% of the row's own rendered height (owner, 2026-08-02: "Team logos
-   should be 70-90% of the height of the div") — measured empirically since
-   .std-row's height is content-driven (no explicit height for a percentage
-   to resolve against). Height is the fixed dimension and width follows the
-   logo's own aspect ratio (owner, 2026-08-02: "Allow a non-square crop for
-   team logos... height should be the determining factor for sizing") —
-   there's room to the row's right for a wide badge to run, so only
-   max-width bounds it (matching the crop modal's own aspect-ratio cap). */
-/* Sized to fit within the row's own text-driven height, never the other way
-   around (owner, 2026-08-02: "logos shouldn't expand the height of a
-   card... should expand/shrink based on the card height") — .std-row's
-   height comes entirely from .std-main's two-line name+meta stack plus
-   padding, and this stays comfortably under that (see .std-main below). */
-.std-team-logo { height: 3.25rem; width: auto; max-width: 9.75rem; object-fit: contain; border-radius: var(--radius-xs); flex-shrink: 0; }
+/* A fixed-width slot between the name and the record, logo centered inside
+   it — NOT sized to hug the name (owner, 2026-08-02: "Undo moving the team
+   logo in standings. The record should always be right justified. Find a
+   reasonable width constraint to the left of the record and center logos
+   within that space"). Only rendered when a row actually has a logo, so an
+   unbranded row doesn't reserve blank space — .std-main stays flex:1 either
+   way, so .std-figures lands at the same right-justified position
+   regardless. */
+.std-logo-slot { width: 4.5rem; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+/* Height is the sizing dimension (owner, 2026-08-02: "logos shouldn't expand
+   the height of a card... should expand/shrink based on the card height") —
+   comfortably under the row's own text-driven height (.std-main's two-line
+   name+meta stack plus padding). max-width:100% additionally constrains it to
+   the slot above, so a wide logo shrinks to fit rather than overflowing it. */
+.std-team-logo { height: 3.25rem; width: auto; max-width: 100%; object-fit: contain; border-radius: var(--radius-xs); }
 .std-rank {
   font-family: 'Oswald', sans-serif;
   font-size: var(--text-lg);
@@ -267,13 +268,7 @@
   text-align: center;
   flex-shrink: 0;
 }
-/* NOT flex:1 — sized to its own name/meta content (shrinking only if the row
-   is too narrow for name+logo+figures together) rather than stretching to
-   fill the row. flex:1 here is what put the logo at the row's far edge
-   instead of right after the visible name (owner, 2026-08-02: "logos just to
-   the right of the team name, not right aligned") — .std-figures' own
-   margin-left:auto is what still pins the record/diff to the right edge. */
-.std-main { flex: 0 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.15em; }
+.std-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15em; }
 .std-team {
   font-family: 'Oswald', sans-serif;
   font-size: 0.95rem;

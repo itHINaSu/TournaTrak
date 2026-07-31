@@ -5373,15 +5373,17 @@ function renderStandingsViewInner() {
       +     '<span class="std-stat"><b>' + r.ra + '</b> RA</span>'
       +   '</span>'
       + '</span>'
-      // Logo AFTER .std-main, but .std-main no longer flex:1 (see bracket.css)
-      // so it sizes to its own name/meta text instead of stretching to fill
-      // the row — that's what lets the logo sit right after the visible name
-      // rather than at the row's far edge (owner, 2026-08-02: "logos just to
-      // the right of the team name, not right aligned"). Sized in CSS to fit
-      // within the row's own text-driven height rather than the other way
-      // around (owner, 2026-08-02: "logos shouldn't expand the height of a
-      // card... should expand/shrink based on the card height").
-      + (standingsLogosOk && brand && brand.logoUrl ? '<img class="std-team-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
+      // A fixed-width slot between the name and the record, logo centered
+      // inside it (owner, 2026-08-02: "Undo moving the team logo in
+      // standings. The record should always be right justified. Find a
+      // reasonable width constraint to the left of the record and center
+      // logos within that space.") — .std-main stays flex:1 (see
+      // bracket.css) so it fills whatever room the slot doesn't take,
+      // keeping .std-figures pinned to the row's true right edge regardless
+      // of whether a given row even has a logo.
+      + (standingsLogosOk && brand && brand.logoUrl
+          ? '<span class="std-logo-slot"><img class="std-team-logo" src="' + esc(brand.logoUrl) + '" alt=""></span>'
+          : '')
       + '<span class="std-figures">'
       +   '<span class="std-record">' + r.w + '<span class="std-record-sep">–</span>' + r.l + '</span>'
       +   '<span class="std-diff' + diffCls + '">' + (diff > 0 ? '+' : '') + diff + '</span>'
