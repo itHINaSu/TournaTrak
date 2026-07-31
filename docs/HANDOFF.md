@@ -3598,6 +3598,28 @@ column Roster genuinely has and Lineup doesn't. Position values
 (390px) — still matches (56/185/88 both), collapsed delete column intact.
 Full API suite (140 tests) still passes.
 
+## Standings: an unplayed team's row dimmed the NAME too, not just rank (owner, 2026-08-02)
+Owner: *"In standings team names should be the same color white as an
+active game card. This is closer to the color of an undetermined game
+card."* `.std-team` never actually had the wrong `color` — it inherits
+`var(--text)`, identical to an active (non-TBD) `.bc-team`'s explicit
+`color: var(--text)` (confirmed by measuring both directly: same
+`rgb(232,237,233)` in dark mode). The real cause was `.std-row--unplayed
+{ opacity: 0.55 }` — applied to the WHOLE row for any team with zero games
+played, which dims the name right along with everything else even though
+its underlying color was correct the whole time. Visually, 55%-opacity
+near-white reads close enough to `--text-mute` (the TBD placeholder color)
+to be exactly the mix-up described.
+
+Scoped the dimming to `.std-rank`/`.std-meta` only — the "—" in place of a
+rank number already communicates "not ranked yet" on its own, so the name
+and logo no longer need to carry that signal too. Verified against the
+demo (dark mode): the two teams with 0 games played (Granite City Gulls,
+Harbor Hawks) now render at `.std-row` opacity 1, with their names in the
+same `rgb(232,237,233)` as every other row; rank and 0-0 record stay
+visibly muted. Screenshot confirms. Full API suite (140 tests) still
+passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an

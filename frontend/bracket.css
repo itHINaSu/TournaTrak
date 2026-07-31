@@ -230,7 +230,15 @@
   border-radius: var(--radius-sm);
   padding: 0.6em 1em;
 }
-.std-row--unplayed { opacity: 0.55; }
+/* De-emphasize rank and record for a team that hasn't played, NOT the name
+   itself — this used to be opacity on the whole row, which dimmed the team
+   name along with everything else (owner, 2026-08-02: "standings team
+   names should be the same color white as an active game card" — it was
+   reading closer to a TBD placeholder's muted color instead, purely from
+   this opacity, since .std-team's own color was already correct). The "—"
+   in place of a rank number already says "not ranked yet" on its own. */
+.std-row--unplayed .std-rank,
+.std-row--unplayed .std-meta { opacity: 0.55; }
 /* Colored left edge for a team that's set its own colors — squared off
    rather than following the card's rounded corners, which is what a flush
    accent bar looks like everywhere else this pattern shows up. Color itself
