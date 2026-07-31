@@ -66,6 +66,14 @@ const SETTINGS_DEFAULTS = {
   // of a hand-drawn guess or a rival site would not. Turn it off for a
   // tournament where even a marked what-if would cause arguments.
   publicProjections:    'true',
+  // TD-level caps on team self-service branding (owner, 2026-08-02: "TDs need
+  // the option to toggle off team customization options globally"). Read at
+  // render time in bracket.js (rebuildTeamLabels/renderStandingsViewInner) —
+  // off doesn't erase what a team saved, it just stops it from being shown,
+  // so nothing is lost if a TD flips it back on mid-tournament.
+  allowTeamSecondaryColor: 'true',
+  allowTeamLogos:          'true',
+  allowTeamLogosStandings: 'true',
   // Custom display names for storage rounds; '' = use the built-in label.
   roundNameR0:     '',
   roundNameR1:     '',

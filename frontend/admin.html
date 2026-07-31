@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.018">
-<link rel="stylesheet" href="/admin.css?v=4.08.018">
-<link rel="stylesheet" href="/lineup.css?v=4.08.018">
-<link rel="stylesheet" href="/builder.css?v=4.08.018">
-<link rel="stylesheet" href="/score.css?v=4.08.018">
-<script src="/app-h.js?v=4.08.018"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.019">
+<link rel="stylesheet" href="/admin.css?v=4.08.019">
+<link rel="stylesheet" href="/lineup.css?v=4.08.019">
+<link rel="stylesheet" href="/builder.css?v=4.08.019">
+<link rel="stylesheet" href="/score.css?v=4.08.019">
+<script src="/app-h.js?v=4.08.019"></script>
 </head>
 <body>
 
@@ -502,6 +502,22 @@
                 <label>Let visitors project winners</label>
                 <input type="checkbox" id="set-publicProjections">
                 <div class="field-hint">Adds "Project winners" to the public bracket so anyone can tap through a what-if. Picks live on that one device, are never saved, and every card they affect is watermarked "Potential Outcome" — on screen and in a saved image. Turn this off to keep the picker staff-only.</div>
+              </div>
+              <div class="settings-subsection-hdr" class="u-mt-09">Team Branding</div>
+              <div class="settings-field settings-field--toggle">
+                <label>Allow team gradients/patterns</label>
+                <input type="checkbox" id="set-allowTeamSecondaryColor">
+                <div class="field-hint">Lets a team pick a second color and a banner style (gradient, stripes, honeycomb, etc). Turn this off to keep every team's banner a solid color — their own primary color, no secondary — across Team Path and Standings.</div>
+              </div>
+              <div class="settings-field settings-field--toggle">
+                <label>Allow team logos</label>
+                <input type="checkbox" id="set-allowTeamLogos">
+                <div class="field-hint">Shows a team's uploaded logo on Team Path and Standings. Turn this off to hide logos everywhere, even for teams that have one set.</div>
+              </div>
+              <div class="settings-field settings-field--toggle">
+                <label>Allow team logos on Standings</label>
+                <input type="checkbox" id="set-allowTeamLogosStandings">
+                <div class="field-hint">Same logos, Standings only — leave the setting above on to keep them on Team Path while hiding them from the Standings table specifically.</div>
               </div>
               <div class="settings-field">
                 <label>Default landing tab</label>
@@ -1131,15 +1147,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.08.018"></script>
-<script src="/theme-css.js?v=4.08.018"></script>
-<script src="/tt-common.js?v=4.08.018"></script>
-<script src="/bracket-data.js?v=4.08.018"></script>
-<script src="/admin.js?v=4.08.018"></script>
-<script src="/lineup.js?v=4.08.018"></script>
-<script src="/score.js?v=4.08.018"></script>
-<script src="/builder-form.js?v=4.08.018"></script>
-<script src="/builder.js?v=4.08.018"></script>
-<script src="/sw-register.js?v=4.08.018" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.019"></script>
+<script src="/theme-css.js?v=4.08.019"></script>
+<script src="/tt-common.js?v=4.08.019"></script>
+<script src="/bracket-data.js?v=4.08.019"></script>
+<script src="/admin.js?v=4.08.019"></script>
+<script src="/lineup.js?v=4.08.019"></script>
+<script src="/score.js?v=4.08.019"></script>
+<script src="/builder-form.js?v=4.08.019"></script>
+<script src="/builder.js?v=4.08.019"></script>
+<script src="/sw-register.js?v=4.08.019" data-sw="/admin-sw.js"></script>
 </body>
 </html>

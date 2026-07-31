@@ -86,11 +86,20 @@ function rebuildTeamLabels() {
       _teamLabels[t.name] = { display: t.displayName || '', short: t.shortName || '' };
     }
     if (t.logo || t.primaryColor || t.secondaryColor) {
+      // A TD can cap what team self-service branding actually shows, without
+      // erasing what a team saved (owner, 2026-08-02: "TDs need the option to
+      // toggle off team customization options globally... turn off secondary
+      // color so that only solid backgrounds happen"). Applied once here so
+      // every consumer of _teamBranding (Team Path banner, its pre-selection
+      // chips, Standings) is capped identically — logos get a further,
+      // Standings-only cap at that one render site below.
+      var secondaryOk = getSetting('allowTeamSecondaryColor') !== 'false';
+      var logosOk = getSetting('allowTeamLogos') !== 'false';
       _teamBranding[t.name] = {
-        logoUrl: (t.logo && t.id) ? teamLogoUrl(t.id) : null,
+        logoUrl: (logosOk && t.logo && t.id) ? teamLogoUrl(t.id) : null,
         primaryColor: t.primaryColor || null,
-        secondaryColor: t.secondaryColor || null,
-        brandStyle: t.brandStyle || 'gradient',
+        secondaryColor: secondaryOk ? (t.secondaryColor || null) : null,
+        brandStyle: secondaryOk ? (t.brandStyle || 'gradient') : 'solid',
         brandAngle: typeof t.brandAngle === 'number' ? t.brandAngle : null,
         brandStripeWidth: typeof t.brandStripeWidth === 'number' ? t.brandStripeWidth : null,
         brandStripeGap: typeof t.brandStripeGap === 'number' ? t.brandStripeGap : null,
@@ -5329,6 +5338,10 @@ function renderStandingsViewInner() {
   // The stats fold into the row instead of needing header cells: the record
   // is the row's headline figure, run differential sits under it, and runs
   // for/against carry their own inline labels.
+  // A further, Standings-only cap on top of _teamBranding's own logo gate
+  // (owner, 2026-08-02: "turn off logos either globally or just for
+  // standings") — Team Path can keep showing them while this table doesn't.
+  var standingsLogosOk = getSetting('allowTeamLogosStandings') !== 'false';
   var html = '<div class="std-board">';
   rows.forEach(function(r, i) {
     var diff = r.rf - r.ra;
@@ -5363,7 +5376,7 @@ function renderStandingsViewInner() {
       +     '<span class="std-stat"><b>' + r.ra + '</b> RA</span>'
       +   '</span>'
       + '</span>'
-      + (brand && brand.logoUrl ? '<img class="std-team-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
+      + (standingsLogosOk && brand && brand.logoUrl ? '<img class="std-team-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
       + '<span class="std-figures">'
       +   '<span class="std-record">' + r.w + '<span class="std-record-sep">–</span>' + r.l + '</span>'
       +   '<span class="std-diff' + diffCls + '">' + (diff > 0 ? '+' : '') + diff + '</span>'
