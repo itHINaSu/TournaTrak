@@ -212,6 +212,41 @@
 }
 .lineup-inp:focus { outline: 0.13em solid var(--blue-lt); border-color: var(--blue-lt); }
 .lineup-inp--num  { text-align: center; font-weight: 700; }
+/* Every tap opens the player picker now, filled or blank (owner, 2026-08-02)
+   — cursor:pointer says "tap opens something" rather than reading as a
+   normal text field. */
+.lineup-inp--name { cursor: pointer; }
+
+/* ── Player picker (lineup.js openLineupPlayerPicker) ──────────────────── */
+.lineup-picker { width: min(92vw, 24em); max-height: 80vh; }
+.lineup-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  overflow-y: auto;
+  max-height: 50vh;
+}
+.lineup-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6em;
+  padding: 0.6em 0.7em;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: 'Barlow', sans-serif;
+  font-size: var(--text-md);
+  cursor: pointer;
+  text-align: left;
+}
+.lineup-picker-item:hover { border-color: var(--blue-lt); }
+.lineup-picker-item--current { border-color: var(--gold); }
+.lineup-picker-num { color: var(--text-mute); font-size: var(--text-sm); flex-shrink: 0; }
+.lineup-picker-item--add { color: var(--win-color); border-color: var(--win-color); justify-content: center; }
+.lineup-picker-empty { color: var(--text-mute); font-size: var(--text-sm); padding: 0.5em 0; }
+@media (pointer: coarse) { .lineup-picker-item { min-height: 44px; } }
 
 .lineup-sel {
   font-family: 'Barlow', sans-serif;

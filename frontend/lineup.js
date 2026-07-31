@@ -281,6 +281,140 @@ function onJerseyEntered(input) {
   });
 }
 
+// ── Player picker (readonly name cells) ─────────────────────────────────
+// Opened from the click handler in renderLineupBody. Lists roster players
+// NOT already placed in another row of THIS lineup (owner, 2026-08-02:
+// "once a player has been placed in the lineup, their name should not
+// appear in future selectors ... within the same lineup that is" — a
+// different game's lineup is untouched, since this only ever looks at
+// #lineupBody's own rows) plus the row's own current player (so re-picking
+// them is a no-op) and an Add Player option for someone off the roster.
+function lineupNameColIndex() {
+  var cfg = lineupConfig();
+  for (var i = 0; i < cfg.cols.length; i++) {
+    if (cfg.cols[i].kind === 'text' && cfg.cols[i].key === 'name') return i;
+  }
+  return -1;
+}
+
+var _lineupPickerOverlay = null;
+
+function openLineupPlayerPicker(rowIdx) {
+  var nameCi = lineupNameColIndex();
+  if (nameCi < 0) return;
+  var nameEl = document.getElementById('lc' + nameCi + '-' + rowIdx);
+  if (!nameEl) return;
+  var tr = nameEl.closest('tr');
+  var currentPid = tr ? tr.dataset.pid : '';
+
+  var used = {};
+  document.querySelectorAll('#lineupBody tr.lineup-row').forEach(function(r) {
+    if (r !== tr && r.dataset.pid) used[r.dataset.pid] = true;
+  });
+  var candidates = _lineupRoster.players.filter(function(p) { return p.id && !used[p.id]; });
+
+  closeLineupPlayerPicker();
+  var overlay = document.createElement('div');
+  overlay.className = 'tt-dialog-overlay';
+  overlay.innerHTML =
+    '<div class="tt-dialog lineup-picker">' +
+      '<div class="tt-dialog-msg">Choose a player</div>' +
+      '<div class="lineup-picker-list">' +
+        (candidates.length ? candidates.map(function(p) {
+          var js = (p.jerseys || []).map(function(n) { return '#' + n; }).join(' / ');
+          return '<button type="button" class="lineup-picker-item'
+            + (p.id === currentPid ? ' lineup-picker-item--current' : '') + '" data-pid="' + esc(p.id) + '">'
+            + '<span class="lineup-picker-name">' + esc(p.name || '') + '</span>'
+            + (js ? '<span class="lineup-picker-num">' + esc(js) + '</span>' : '')
+            + '</button>';
+        }).join('') : '<div class="lineup-picker-empty">No roster players left to place.</div>') +
+        '<button type="button" class="lineup-picker-item lineup-picker-item--add" data-pid="">+ Add Player</button>' +
+      '</div>' +
+      '<div class="tt-dialog-actions"><button type="button" class="tt-dialog-btn" id="lineupPickerCancel">Cancel</button></div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  // Self-contained Escape handling rather than ttRegisterOverlay — that
+  // registry is for the persistent, toggle-visibility overlays the pages
+  // already have (import modal, etc.); this one is created and destroyed
+  // per open, and never unregisters, so reusing it here would leave a
+  // growing pile of dead entries behind every picker use.
+  function onKey(e) { if (e.key === 'Escape') closeLineupPlayerPicker(); }
+  document.addEventListener('keydown', onKey, true);
+  overlay._onKey = onKey;
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeLineupPlayerPicker(); });
+  overlay.querySelector('#lineupPickerCancel').addEventListener('click', closeLineupPlayerPicker);
+  overlay.querySelectorAll('.lineup-picker-item[data-pid]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var pid = btn.dataset.pid;
+      closeLineupPlayerPicker();
+      if (pid) lineupPickerSelectPlayer(rowIdx, pid);
+      else lineupPickerAddPlayer(rowIdx);
+    });
+  });
+  _lineupPickerOverlay = overlay;
+}
+
+function closeLineupPlayerPicker() {
+  if (_lineupPickerOverlay) {
+    document.removeEventListener('keydown', _lineupPickerOverlay._onKey, true);
+    _lineupPickerOverlay.remove();
+    _lineupPickerOverlay = null;
+  }
+}
+
+function lineupPickerSelectPlayer(rowIdx, pid) {
+  var p = _lineupRoster.players.filter(function(pp) { return pp.id === pid; })[0];
+  if (!p) return;
+  var nameCi = lineupNameColIndex();
+  var nameEl = document.getElementById('lc' + nameCi + '-' + rowIdx);
+  var tr = nameEl ? nameEl.closest('tr') : null;
+  if (tr) tr.dataset.pid = p.id;
+  var cfg = lineupConfig();
+  cfg.cols.forEach(function(c, ci) {
+    var el = document.getElementById('lc' + ci + '-' + rowIdx);
+    if (!el || el.disabled) return;
+    if (c.kind === 'text' && c.key === 'name') el.value = p.name || '';
+    if (c.kind === 'num') el.value = (p.jerseys && p.jerseys[0]) || '';
+    if (c.kind === 'pos' && p.position) el.value = p.position;
+  });
+  refreshPosSelects();
+}
+
+// Not on the roster (or a correction) — clears the slot back to a plain
+// editable field instead of guessing which roster entry was meant.
+function lineupPickerAddPlayer(rowIdx) {
+  var nameCi = lineupNameColIndex();
+  var nameEl = document.getElementById('lc' + nameCi + '-' + rowIdx);
+  if (!nameEl) return;
+  var tr = nameEl.closest('tr');
+  if (tr) delete tr.dataset.pid;
+  nameEl.value = '';
+  var cfg = lineupConfig();
+  cfg.cols.forEach(function(c, ci) {
+    if (c.kind !== 'num') return;
+    var el = document.getElementById('lc' + ci + '-' + rowIdx);
+    if (el && !el.disabled) el.value = '';
+  });
+  nameEl.focus();
+}
+
+// ── Clear lineup ─────────────────────────────────────────────────────────
+async function clearLineup() {
+  var ok = await ttConfirm('Clear this lineup? Every slot goes back to blank.',
+    { okLabel: 'Clear', cancelLabel: 'Cancel', danger: true });
+  if (!ok) return;
+  var cfg = lineupConfig();
+  var rows = [];
+  for (var i = 0; i < lineupRowCount; i++) {
+    var isSub = cfg.subs && i >= cfg.rows;
+    var row = {};
+    cfg.cols.forEach(function(c) { row[c.key] = (c.kind === 'pos' && isSub) ? 'Sub' : ''; });
+    rows.push(row);
+  }
+  renderLineupBody(rows, isReadOnly);
+  showToast('Lineup cleared');
+}
+
 function renderLineupBody(rows, readOnly) {
   var body = document.getElementById('lineupBody');
   if (!body) return;
@@ -293,6 +427,29 @@ function renderLineupBody(rows, readOnly) {
       // 'change' rather than 'input': filling in on every keystroke fights a
       // coach typing a two-digit number, because #1 matches before #12 does.
       if (t && t.classList && t.classList.contains('lineup-inp--num')) onJerseyEntered(t);
+    });
+    // A tap on a name cell opens the picker instead of editing in place —
+    // whether the slot is already filled or still blank (owner, 2026-08-02:
+    // "tapping a player who has already been filled in lineup should bring
+    // up remaining players ... not open a keyboard", and separately: "when
+    // I clicked a player name field in lineup it populated a list from the
+    // roster" — the picker replaces that, for every tap, not just a filled
+    // one). preventDefault on pointerdown is what stops the on-screen
+    // keyboard: it blocks the focus a tap would otherwise cause, before it
+    // happens, rather than reacting after. The picker's own "Add Player"
+    // still calls .focus() directly (a JS call, not a pointerdown on this
+    // field), which this does not touch.
+    body.addEventListener('pointerdown', function(e) {
+      if (e.target && e.target.classList && e.target.classList.contains('lineup-inp--name')) {
+        e.preventDefault();
+      }
+    });
+    body.addEventListener('click', function(e) {
+      var t = e.target;
+      if (t && t.classList && t.classList.contains('lineup-inp--name')) {
+        var idx = lineupRowIndexOf(t);
+        if (idx >= 0) openLineupPlayerPicker(idx);
+      }
     });
   }
   // Point the name inputs at the roster datalist. Done here rather than in
@@ -1131,6 +1288,7 @@ Object.assign(TT_ACTIONS, {
   closeImport:   function(arg, el, e) { closeImport(arg, el, e); },
   confirmImport: function() { confirmImport(); },
   toggleReorder: function() { toggleReorder(); },
+  clearLineup:   function() { clearLineup(); },
   submitLineup:  function() { submitLineup(); },
   addSubRow:     function() { addSubRow(); },
   deleteSubRow:  function() { deleteSubRow(); },

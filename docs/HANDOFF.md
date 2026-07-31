@@ -3312,6 +3312,70 @@ only, I am very tight on usage") — reviewed the wiring against the existing,
 already-shipped Teams-editor version of the same panel; syntax-checked and
 the full API suite (140 tests, unaffected — this is UI-only) still passes.
 
+## Lineup tab: a tap opens a player picker instead of the keyboard (owner, 2026-08-02)
+Owner, across two messages: *"If a player has a number and position in
+roster, lineup should be pre populated (but editable) with those data
+points... once a player has been placed in the lineup, their name should
+not appear in future selectors... within the same lineup that is."* Then,
+mid-build: *"Add a clear lineup button to the lineup page. Tapping a player
+who has already been filled in lineup should bring up remaining players
+including the one tapped, not open a keyboard. Add an (add player) option
+to the lineup list."* And separately, catching an early design mistake:
+*"Before the lineup/roster changes, when I clicked a player name field in
+lineup it populated a list from the roster. that's gone."*
+
+Position-from-roster on jersey-number autofill (`onJerseyEntered` in
+lineup.js) already existed — nothing to do there.
+
+First pass made only an already-FILLED name field `readonly` (so a tap
+wouldn't raise the keyboard) and left a blank one as a plain typing field
+with its native `<datalist>`. That broke the very thing the owner's
+follow-up flagged — clicking a field to see the roster list is exactly what
+a coach expects on a BLANK slot too, and the old datalist click-to-suggest
+behavior doesn't fire reliably on a tap without typing first on most mobile
+browsers. Corrected: every name-cell tap (filled or blank) now opens the
+same player picker, which IS "a list from the roster" — arguably a better
+one, since a `<datalist>` never had a way to exclude someone already
+placed. Getting text into the field at all is only ever needed for the "not
+on the roster" case, and that's the picker's "+ Add Player" option
+(`lineupPickerAddPlayer`), which explicitly calls `.focus()` — a JS call,
+untouched by the tap-blocking below.
+
+Blocking the keyboard doesn't use `readonly` at all now: a `pointerdown`
+listener on `.lineup-inp--name` calls `e.preventDefault()`, which stops the
+browser's default focus-on-tap before it happens — reacting after (e.g.
+readonly + blur) risks a keyboard flash first. `click` still fires normally
+afterward (pointerdown→pointerup on the same element fires a synthetic
+click even when its default was prevented), which is what opens the picker.
+
+`openLineupPlayerPicker(rowIdx)` builds the candidate list from
+`_lineupRoster.players`, excluding any player whose id is on another row's
+`tr.dataset.pid` within `#lineupBody` **only** — never touches other
+games/lineups, per "within the same lineup that is." The row's own current
+player is deliberately NOT excluded (so re-picking them is a no-op), shown
+with a `--current` highlight. Selecting a player fills name + jersey (first
+number) + position and sets `tr.dataset.pid`; Add Player clears the slot's
+identity fields and focuses the name input for a manual entry.
+
+Built as a one-off overlay (`.tt-dialog-overlay`/`.tt-dialog` classes,
+reused rather than duplicated) rather than through `ttRegisterOverlay` —
+that registry is for the pages' persistent, toggle-visibility overlays and
+never unregisters, so a per-open dynamic overlay would leave a growing pile
+of dead entries. Escape handling is self-contained instead: a `keydown`
+listener added on open, removed by name on close.
+
+Added a **Clear** button (`clearLineup()`, confirmed via `ttConfirm`) to
+`.lineup-tools` in both coach.html and lineup.html, between Import and
+Reorder.
+
+Verified end-to-end against the demo with Playwright (coach_lopez,
+Lineups tab): tapping a blank name cell opens the picker listing every
+roster player; picking one fills the row; tapping that now-filled cell
+reopens the picker with that player highlighted `--current`; a DIFFERENT
+row's picker excludes them; **+ Add Player** focuses the field for typing;
+**Clear** asks for confirmation and blanks every slot. No console errors.
+Full API suite (140 tests) still passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an
