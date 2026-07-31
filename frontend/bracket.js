@@ -2884,14 +2884,19 @@ function withRenderFrame(opts, cb) {
     (function ready() {
       if (++tries > 80) { finish(null, null); return; }   // ~8s
       if (!win.__ttReady) { setTimeout(ready, 100); return; }
-      // Force the bracket tab active — a saved tt_tab cookie may have opened
-      // the frame on Schedule, and a display:none panel measures as zero.
+      // Force the TARGET tab active — a saved tt_tab cookie may have opened
+      // the frame on a different one, and a display:none panel measures as
+      // zero. Target defaults to 'bracket' (owner, 2026-08-01 behavior,
+      // unchanged); Schedule/Standings/Team Path use the same panel/tab ids
+      // renderActive() already dispatches on (owner, 2026-08-02: "share the
+      // entire contents of whatever page they're on").
+      var target = (opts.target && SHARE_TARGETS.indexOf(opts.target) !== -1) ? opts.target : 'bracket';
       doc.querySelectorAll('.view-panel').forEach(function(el) { el.classList.remove('active'); });
       doc.querySelectorAll('.view-tab').forEach(function(el) { el.classList.remove('active'); });
-      var bp = doc.getElementById('view-bracket');
-      var bt = doc.querySelector('.view-tab[data-view="bracket"]');
-      if (bp) bp.classList.add('active');
-      if (bt) bt.classList.add('active');
+      var vp = doc.getElementById('view-' + target);
+      var vt = doc.querySelector('.view-tab[data-view="' + target + '"]');
+      if (vp) vp.classList.add('active');
+      if (vt) vt.classList.add('active');
       doc.body.classList.toggle('light', opts.theme !== 'dark');
       doc.body.classList.toggle('print-palette', opts.theme === 'print');
       if (!opts.withResults) win.results = {};
@@ -2905,13 +2910,15 @@ function withRenderFrame(opts, cb) {
       // Not on a blank bracket: with results emptied there is nothing for a
       // pick to hang off, so the few that still resolved would be noise.
       win._projected = opts.withResults ? Object.assign({}, _projected) : {};
-      // Team Path picks stay out — this is the Bracket image, and they are
-      // scoped to that one view by design.
+      // Team Path picks stay out of every target's image, not just Bracket's
+      // — they're scoped to that one view by design, on-screen too.
       win._pathProjected = {};
       win._bracketFlight = opts.flight || _bracketFlight;
-      // renderBracket, not renderBracketInner: the outer function is what
-      // overlays the picks and computes the watermark taint.
-      try { win.renderBracket(); } catch (e) { /* fall through to paint whatever rendered */ }
+      // renderActive (not renderBracket/renderBracketInner directly): it
+      // dispatches on the panel/tab just activated above, and for the
+      // Bracket target specifically it's still the outer function that
+      // overlays picks and computes the watermark taint.
+      try { win.renderActive(); } catch (e) { /* fall through to paint whatever rendered */ }
       // One more frame so fonts/layout settle before measuring.
       setTimeout(function() { finish(win, doc); }, 120);
     })();
@@ -2981,6 +2988,58 @@ function paintBracketCanvas(win, doc, opts) {
   return trimCanvas(canvas, pad);
 }
 
+// Schedule/Standings/Team Path capture (owner, 2026-08-02: "share the entire
+// contents of whatever page they're on... add options for schedule,
+// standings, and team path") — a single shot, none of paintBracketCanvas's
+// flight logic, but the same title band + paintEl rasterizer. The content
+// root is whatever that tab actually renders into, EXCLUDING its own
+// selector controls above it (the group-by/section dropdowns on Schedule,
+// the team dropdown on Team Path) — a control isn't content, same reasoning
+// paintBracketCanvas already applies to the flight-switcher pills.
+var SHARE_VIEW_ROOTS = { schedule: 'roundGames', standings: 'standingsOut', teampath: 'teamOut' };
+function paintViewCanvas(win, doc, opts) {
+  if (!win || !doc) return null;
+  var rootId = SHARE_VIEW_ROOTS[opts.target];
+  var content = rootId && doc.getElementById(rootId);
+  if (!content) return null;
+  var base = content.getBoundingClientRect();
+  if (!base.width || !base.height) return null;
+  var pad = 28, headH = 74;
+  var scale = Math.min(2, Math.max(1, 2200 / base.width));
+  var W = Math.ceil(base.width + pad * 2);
+  var H = Math.ceil(base.height + pad * 2 + headH);
+  var canvas = document.createElement('canvas');
+  canvas.width = Math.round(W * scale);
+  canvas.height = Math.round(H * scale);
+  var ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  var pageCS = win.getComputedStyle(doc.body);
+  ctx.fillStyle = opts.theme === 'print' ? '#ffffff' : (pageCS.backgroundColor || '#ffffff');
+  ctx.fillRect(0, 0, W, H);
+
+  var name = (getSetting('tournamentName') || '').trim();
+  var label = SHARE_TARGET_LABELS[opts.target] || '';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  if (name) {
+    ctx.font = "600 26px 'Oswald', sans-serif";
+    ctx.fillStyle = opts.theme === 'print' ? '#000000'
+      : (win.getComputedStyle(doc.documentElement).getPropertyValue('--gold') || '#c8a24a');
+    ctx.fillText(name + (label ? '  ·  ' + label.charAt(0).toUpperCase() + label.slice(1) : ''), pad, 34);
+  }
+  var sub = (getSetting('subtitle') || '').trim();
+  if (sub) {
+    ctx.font = "400 14px 'Barlow', sans-serif";
+    ctx.fillStyle = opts.theme === 'print' ? '#333333' : pageCS.color;
+    ctx.globalAlpha = opts.theme === 'print' ? 1 : 0.75;
+    ctx.fillText(sub, pad, 56);
+    ctx.globalAlpha = 1;
+  }
+  ctx.translate(pad, pad + headH);
+  paintEl(ctx, content, base, win);
+  return trimCanvas(canvas, pad);
+}
+
 // Crop a painted canvas to what is actually on it.
 //
 // The canvas is sized from the bracket's CONTAINER, and a column's box is as
@@ -3028,16 +3087,24 @@ function trimCanvas(canvas, pad) {
   return out;
 }
 
+// Every target Share can capture — order matches the radio row in
+// index.html. 'buckets' (and anything else) isn't in this list on purpose:
+// openShareImage() falls back to 'bracket' with a warning for those.
+var SHARE_TARGETS = ['bracket', 'schedule', 'standings', 'teampath'];
+var SHARE_TARGET_LABELS = { bracket: 'bracket', schedule: 'schedule', standings: 'standings', teampath: 'team path' };
+
 function shareOpts() {
   var res = document.getElementById('shareResults');
   var sel = document.querySelector('input[name="shareTheme"]:checked');
   var sc  = document.querySelector('input[name="shareScope"]:checked');
   var al  = document.querySelector('input[name="shareAlign"]:checked');
+  var tg  = document.querySelector('input[name="shareTarget"]:checked');
   return {
     withResults: !res || res.checked,
     theme: (sel && sel.value) || 'dark',
     scope: (sc && sc.value) || 'current',
     align: (al && al.value) || 'left',
+    target: (tg && SHARE_TARGETS.indexOf(tg.value) !== -1) ? tg.value : 'bracket',
   };
 }
 
@@ -3051,12 +3118,13 @@ function shareFlights() {
   return out;
 }
 
-// The scope row is meaningless on a single-bracket tournament — hide it, and
-// make sure a stale 'all-*' choice can't survive into one.
+// The scope row only means anything for the Bracket target on a tiered
+// tournament — hide it otherwise, and make sure a stale 'all-*' choice can't
+// survive into either case.
 function updateShareScopeRow() {
   var row = document.getElementById('shareScopeRow');
   if (!row) return;
-  var many = shareFlights().length > 1;
+  var many = shareOpts().target === 'bracket' && shareFlights().length > 1;
   row.hidden = !many;
   if (!many) {
     var cur = document.querySelector('input[name="shareScope"][value="current"]');
@@ -3066,31 +3134,51 @@ function updateShareScopeRow() {
 }
 
 // Alignment pins the bracket's own content to an edge inside its canvas
-// (paintFlights sets .bcc-stack's justify-content from this) — it matters for
-// a single bracket too, not just when stacking several onto one sheet, so the
-// row stays visible regardless of scope (owner, 2026-08-01).
+// (paintFlights sets .bcc-stack's justify-content from this) — bracket-only,
+// same as scope; Schedule/Standings/Team Path have no equivalent concept.
 function updateShareAlignRow() {
   var row = document.getElementById('shareAlignRow');
   if (!row) return;
-  row.hidden = false;
+  row.hidden = shareOpts().target !== 'bracket';
 }
 
-// Share always captures the Bracket tab, regardless of which tab is on
-// screen when it's tapped — a tap from Schedule/Team/Buckets would otherwise
-// silently produce an image of something the visitor wasn't looking at
-// (owner, 2026-08-01: "don't just do nothing", i.e. don't silently share the
-// wrong thing either — ask).
+// Picking a different target re-syncs the bracket-only rows and the dialog's
+// own title before re-rendering — a plain data-action-change="refreshShareImage"
+// (like every other option here) would leave the Scope/Align rows showing
+// for a Schedule/Standings/Team Path capture.
+function onShareTargetChange() {
+  updateShareScopeRow();
+  var title = document.getElementById('shareTitle');
+  if (title) title.textContent = 'Share ' + SHARE_TARGET_LABELS[shareOpts().target];
+  refreshShareImage();
+}
+
+// Defaults the target picker to whichever of the four supported tabs is on
+// screen when Share is opened, so tapping it shares what the visitor is
+// actually looking at rather than always assuming Bracket (owner, 2026-08-02:
+// "share the entire contents of whatever page they're on"). Buckets (and
+// anything else) still falls back to Bracket with a warning — there's no
+// capture for it (owner, 2026-08-01: "don't just do nothing", i.e. don't
+// silently share the wrong thing either — ask).
 function openShareImage() {
   var ov = document.getElementById('shareOverlay');
   if (!ov) return;
-  if (activeView() !== 'bracket') {
+  var av = activeView();
+  if (SHARE_TARGETS.indexOf(av) === -1) {
     ttConfirm('Share makes an image of the Bracket tab, not what you’re currently viewing.',
       { okLabel: 'Continue', cancelLabel: 'Exit' }).then(function(ok) {
-      if (ok) openShareImageNow();
+      if (ok) { setShareTarget('bracket'); openShareImageNow(); }
     });
     return;
   }
+  setShareTarget(av);
   openShareImageNow();
+}
+function setShareTarget(target) {
+  var el = document.querySelector('input[name="shareTarget"][value="' + target + '"]');
+  if (el) el.checked = true;
+  var title = document.getElementById('shareTitle');
+  if (title) title.textContent = 'Share ' + SHARE_TARGET_LABELS[target];
 }
 function openShareImageNow() {
   var ov = document.getElementById('shareOverlay');
@@ -3209,6 +3297,27 @@ function refreshShareImage() {
   _shareBusy = true;
   if (hint) hint.textContent = 'Rendering\u2026';
   var opts = shareOpts();
+  if (opts.target !== 'bracket') {
+    // Schedule/Standings/Team Path: one shot, no flights/scope/alignment \u2014
+    // still stored in _shareShots (with a null flight) so
+    // shareCanvases()/filesForFormat() below don't need their own branch.
+    withRenderFrame(opts, function(win, doc, cleanup) {
+      try {
+        var canvas = paintViewCanvas(win, doc, opts);
+        if (!canvas) { if (hint) hint.textContent = 'Nothing to render yet.'; return; }
+        _shareShots = [{ flight: null, canvas: canvas }];
+        prepareShareFiles();
+        img.src = canvas.toDataURL('image/png');
+        if (hint) hint.textContent = canvas.width + ' \u00d7 ' + canvas.height;
+      } catch (e) {
+        if (hint) hint.textContent = 'Could not build the image.';
+      } finally {
+        cleanup();
+        _shareBusy = false;
+      }
+    });
+    return;
+  }
   var flights = opts.scope === 'current' ? [_bracketFlight] : shareFlights();
   withRenderFrame(opts, function(win, doc, cleanup) {
     try {
@@ -3258,6 +3367,10 @@ function shareFileBase() {
 // bracket" is.
 function shareCanvases() {
   var opts = shareOpts();
+  if (opts.target !== 'bracket') {
+    if (!_shareShots.length) return [];
+    return [{ canvas: _shareShots[0].canvas, name: shareFileBase() + '-' + opts.target }];
+  }
   if (opts.scope === 'all-separate') {
     return _shareShots.map(function(s) {
       return { canvas: s.canvas, name: shareFileBase() + '-'
@@ -6857,6 +6970,7 @@ Object.assign(TT_ACTIONS, {
   openShareImage:    function() { openShareImage(); },
   closeShareImage:   function() { closeShareImage(); },
   refreshShareImage: function() { refreshShareImage(); },
+  onShareTargetChange: function() { onShareTargetChange(); },
   downloadShareImage:function() { downloadShareImage(); },
   downloadAs:      function(arg) { downloadAs(arg); },
   shareShareImage: function() { shareShareImage(); },

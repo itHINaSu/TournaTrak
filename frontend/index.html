@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.022">
-<link rel="stylesheet" href="/bracket.css?v=4.08.022">
-<script src="/app-h.js?v=4.08.022"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.023">
+<link rel="stylesheet" href="/bracket.css?v=4.08.023">
+<script src="/app-h.js?v=4.08.023"></script>
 </head>
 <body>
 
@@ -153,7 +153,20 @@
   </div>
   <div class="share-overlay" id="shareOverlay" hidden>
     <div class="share-box">
-      <div class="share-title">Share bracket</div>
+      <div class="share-title" id="shareTitle">Share bracket</div>
+      <!-- What to capture (owner, 2026-08-02: "Change share so that it
+           allows a user to share the entire contents of whatever page
+           they're on... keep the bracket as is, but add options for
+           schedule, standings, and team path"). Defaults to whichever of
+           these four tabs is active when Share is opened (openShareImage) —
+           the options below (scope/align) stay bracket-only; the rest
+           (results, theme) apply to every target. -->
+      <div class="share-opts share-target" id="shareTargetRow">
+        <label class="share-opt"><input type="radio" name="shareTarget" value="bracket" checked data-action-change="onShareTargetChange"> Bracket</label>
+        <label class="share-opt"><input type="radio" name="shareTarget" value="schedule" data-action-change="onShareTargetChange"> Schedule</label>
+        <label class="share-opt"><input type="radio" name="shareTarget" value="standings" data-action-change="onShareTargetChange"> Standings</label>
+        <label class="share-opt"><input type="radio" name="shareTarget" value="teampath" data-action-change="onShareTargetChange"> Team Path</label>
+      </div>
       <div class="share-opts">
         <label class="share-opt"><input type="checkbox" id="shareResults" checked data-action-change="refreshShareImage"> Include scores and winners</label>
       </div>
@@ -361,11 +374,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.022"></script>
-<script src="/theme-css.js?v=4.08.022"></script>
-<script src="/tt-common.js?v=4.08.022"></script>
-<script src="/bracket-data.js?v=4.08.022"></script>
-<script src="/bracket.js?v=4.08.022"></script>
-<script src="/sw-register.js?v=4.08.022" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.023"></script>
+<script src="/theme-css.js?v=4.08.023"></script>
+<script src="/tt-common.js?v=4.08.023"></script>
+<script src="/bracket-data.js?v=4.08.023"></script>
+<script src="/bracket.js?v=4.08.023"></script>
+<script src="/sw-register.js?v=4.08.023" data-sw="/sw.js"></script>
 </body>
 </html>
