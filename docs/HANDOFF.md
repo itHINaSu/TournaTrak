@@ -3376,6 +3376,23 @@ row's picker excludes them; **+ Add Player** focuses the field for typing;
 **Clear** asks for confirmation and blanks every slot. No console errors.
 Full API suite (140 tests) still passes.
 
+## Lineup/roster column widths: back to the original ratio (owner, 2026-08-02)
+Owner: *"Let's make the player name field a little wider. The proportion
+that were used in lineup before told you the 1/4 1/2 1/4 were good. What
+were those widths?"* They weren't 25/50/25 — that was this session's OWN
+change (the 2026-08-02 roster resize entry above). The actual pre-existing
+Lineup tab widths were `.lineup-th--num`/`.lineup-td-num` at a fixed `5em`,
+`.lineup-th--pos`/`.lineup-td-pos` at a fixed `5.5em`, and Name with NO
+explicit width — it simply filled whatever was left, which on a normal
+screen is well over half the row, not a flat 50%. Reverted to that: fixed
+small widths for `#`/Position, Name auto-fills the remainder (also restores
+the `3.5em` narrow-viewport override for `#` that the percentage version
+had removed as unnecessary). `.lineup-th--nums` (the roster-only header)
+matches the lineup tab's `#` column width for the same reason as before —
+shared classes, one width decision. Verified against the demo: roster row
+num/name/pos rendered at 100px/543px/84px, lineup row at 77px/576px/84px —
+name dominant again on both. Full API suite (140 tests) still passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an

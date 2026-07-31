@@ -162,13 +162,15 @@
   border-bottom: 0.12em solid var(--gold);
 }
 .lineup-th--order { width: 2em; text-align: center; }
-/* Name gets half the row, number and position a quarter each — shared by
-   the Lineup tab's own header and the roster editor, which reuses these
-   same classes on purpose (owner, 2026-08-02: "roster should functionally
-   reuse the lineup css"). */
-.lineup-th--num   { width: 25%; }
-.lineup-th--pos   { width: 25%; }
-.lineup-th--name  { width: 50%; }
+/* # and Position keep small fixed widths, same as before the 2026-08-02
+   resize; Name gets no explicit width so it fills whatever's left — a much
+   bigger share than a flat 1/2 (owner, 2026-08-02: "make the player name
+   field a little wider... what were those widths?"). Shared by the Lineup
+   tab's own header and the roster editor, which reuses these same classes
+   on purpose (owner, 2026-08-02: "roster should functionally reuse the
+   lineup css"). */
+.lineup-th--num   { width: 5em; }
+.lineup-th--pos   { width: 5.5em; }
 
 .lineup-row { border-bottom: 0.07em solid var(--border); }
 .lineup-row:last-child { border-bottom: none; }
@@ -184,9 +186,9 @@
   color: var(--text-mute);
   font-weight: 600;
 }
-.lineup-td-num   { padding: 0.35em 0.4em; width: 25%; }
-.lineup-td-name  { padding: 0.35em 0.4em; width: 50%; }
-.lineup-td-pos   { padding: 0.35em 0.4em; width: 25%; }
+.lineup-td-num   { padding: 0.35em 0.4em; width: 5em; }
+.lineup-td-name  { padding: 0.35em 0.4em; }
+.lineup-td-pos   { padding: 0.35em 0.4em; width: 5.5em; }
 
 .lineup-row--sub { background: var(--surface2); }
 .lineup-sub-tag {
@@ -304,6 +306,7 @@
 }
 
 @media (max-width: 720px) {
+  .lineup-td-num { width: 3.5em; }
   .lineup-inp--num { padding: 0.4em 0.2em; }
 }
 
@@ -471,8 +474,8 @@
    One number per player now — a per-game exception is handled in the
    lineup tab instead of a comma list here (owner, 2026-08-02: "only accept
    one number [in the roster] (they can change for one jersey in the
-   lineup tab)"). Same 25% share as the lineup tab's own # column. */
-.lineup-th--nums { width: 25%; text-align: left; white-space: nowrap; }
+   lineup tab)"). Same width as the lineup tab's own # column. */
+.lineup-th--nums { width: 5em; text-align: left; white-space: nowrap; }
 .roster-jerseys  { text-align: left; min-width: 5.5rem; }
 
 /* Two PLAYERS sharing a number is allowed and saves fine; it only means a
