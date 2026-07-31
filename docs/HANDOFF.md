@@ -3620,6 +3620,34 @@ same `rgb(232,237,233)` as every other row; rank and 0-0 record stay
 visibly muted. Screenshot confirms. Full API suite (140 tests) still
 passes.
 
+## Team Path's own team-picker buttons wear the team's colors too (owner, 2026-08-02)
+Owner: *"If a team hasn't been selected yet in team path, use their gradient
+for the selection buttons."* Before now, `teamBrandBannerCss()` (the
+gradient/solid/stripes + angle + optional text/outline color builder) only
+ran once a team was already selected, for the `.team-brand-banner` at the
+top of its path. The `.team-chip` list that appears BEFORE a team is picked
+(`renderTeamViewInner()`'s `!team` branch, `frontend/bracket.js`) was plain
+`var(--surface)` for every team regardless of branding.
+
+Same helper, same `data-css` CSP-safe pattern, applied per-chip: each
+`.team-chip` looks up `teamBrandingFor(t)`, and if the team has a primary or
+secondary color, gets `team-chip--branded` + a `data-css` with the full
+banner CSS (background + optional text/outline color). New CSS
+(`bracket.css`) gives `.team-chip--branded` the same white-text-plus-shadow
+treatment `.team-brand-banner` uses, legible against any of the three
+background styles; `data-css`'s inline `color`/`-webkit-text-stroke` still
+win over it when a coach picked their own. `:hover`/`:active` no longer force
+`color: var(--blue-lt)` on a branded chip (added an explicit override at
+equal specificity) — the border still highlights on hover, background stays
+branded (inline style always beats a stylesheet hover rule, brand or not).
+
+Verified against the demo: temporarily set Northside Eagles to a blue→amber
+gradient and Westfield Warriors to solid green via `PUT /team-profile`,
+confirmed both chips picked up the right background + white text (Westfield
+also correctly showed at `.elim` opacity, unaffected by branding), then
+cleared both back to unset afterward — the demo seed itself has no team
+colors set, so this was a temporary check, not a data change worth keeping.
+
 ## Unset team colors get a red X through the swatch (owner, 2026-08-02)
 Owner: *"If a team hasn't selected a color (primary, secondary, text,
 outline) place a small red x through the box to indicate a selection hasn't

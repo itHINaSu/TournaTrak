@@ -6197,7 +6197,19 @@ function renderTeamViewInner(realResults){
             return results[sid] && (resolveSlot(GAMES[sid]&&GAMES[sid].t1,results)===t || resolveSlot(GAMES[sid]&&GAMES[sid].t2,results)===t);
           });
           var elim = isEliminated(t, results);
-          return '<button class="team-chip' + (elim ? ' elim' : '') + '" data-team="'+esc(t)+'">'+esc(t)+'</button>';
+          // Before a team is picked, its own colors/pattern already identify
+          // it — same gradient the Team Path banner uses once selected
+          // (owner, 2026-08-02: "if a team hasn't been selected yet in team
+          // path, use their gradient for the selection buttons").
+          var brand = teamBrandingFor(t);
+          var branded = brand && (brand.primaryColor || brand.secondaryColor);
+          var css = branded
+            ? teamBrandBannerCss(brand.primaryColor, brand.secondaryColor,
+                brand.brandStyle, brand.brandAngle, brand.brandTextColor, brand.brandNameOutlineColor)
+            : '';
+          return '<button class="team-chip' + (elim ? ' elim' : '') + (branded ? ' team-chip--branded' : '') + '"'
+            + (css ? ' data-css="' + esc(css) + '"' : '')
+            + ' data-team="'+esc(t)+'">'+esc(t)+'</button>';
         }).join('')
       + '</div>';
     out.querySelectorAll('.team-chip').forEach(function(btn){

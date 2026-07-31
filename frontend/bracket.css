@@ -1257,6 +1257,13 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
   -webkit-tap-highlight-color: transparent;
 }
 .team-chip:hover, .team-chip:active { background: var(--surface2); border-color: var(--blue-lt); color: var(--blue-lt); }
+/* Background/text color come from data-css (arbitrary hex, per team) — same
+   pattern as .team-brand-banner. White + shadow is the default text
+   treatment (legible against any gradient/solid/stripes); data-css overrides
+   it inline when a coach picked their own name color, which always wins
+   over these rules regardless of :hover. */
+.team-chip--branded { color: #fff; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65); border-color: transparent; }
+.team-chip--branded:hover, .team-chip--branded:active { color: #fff; }
 .team-chip.elim { opacity: 0.45; }
 .team-elim-inline {
   max-width: 42em;
