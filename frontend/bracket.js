@@ -4263,11 +4263,29 @@ function renderMobileBracket(root, dims) {
     // round is the one both sides' games converge on.
     var round = bucket.rounds[0];
 
-    // A column with no winners-side games is a losers-only tail (the losers
-    // bracket runs more rounds than the winners side). Fold it into the
-    // previous column so the winners games in adjacent columns stay adjacent
-    // and the convergence animation still has feeders to converge on.
-    if (!bucket.L.length && cols.length > 0) {
+    // A round in which NOTHING is fed by two winners does not begin a new
+    // column — it folds into the column holding the round that feeds it.
+    //
+    // Owner rule, 2026-08-02 (established earlier for the tiered A/B
+    // three-game-guarantee format, restated here as general): "if a round has
+    // no game that is fed by two winners, it gets stacked under a round that
+    // feeds it." The test used to be `!bucket.L.length` — "this round has no
+    // winners-bracket games" — which is only a PROXY for that rule and
+    // disagrees with it exactly where it matters. A losers round pairing two
+    // LB winners (a real bracket junction, deserving its own column) folded in
+    // anyway just because the WB had finished, while a losers round taking a
+    // WB drop (winner+loser — not a junction, should fold) got its own column
+    // whenever the WB still had a game left in the same round index. Testing
+    // the FEEDS directly makes the layout follow the bracket's actual shape
+    // rather than how far along the winners side happens to be, so it lands
+    // correctly on a hand-transcribed bracket whose topology doesn't match a
+    // generated one of the same size.
+    var anyTwoWinnerFed = bucket.L.concat(bucket.R).some(function(gid) {
+      var gm = GAMES[gid];
+      return !!(gm && gm.t1 && gm.t1.type === 'winner' && gm.t1.slot
+                   && gm.t2 && gm.t2.type === 'winner' && gm.t2.slot);
+    });
+    if (!anyTwoWinnerFed && cols.length > 0) {
       var prev = cols[cols.length - 1];
       // roundNum marks this as a GENUINELY later round folded in — distinct
       // from the same-round WB/LB divider below, which shares its column's
@@ -4279,7 +4297,10 @@ function renderMobileBracket(root, dims) {
       // LB Final, promoted into the CHAMP column), and concatenating the
       // string eagerly here would leave a stale "· Round N" in the header
       // for a round that column no longer contains anything from.
-      bucket.R.forEach(function(gid) { prev.gids.push(gid); });
+      // Both sides, not just R: the condition above is now about FEEDS, so a
+      // round can qualify to fold while still holding a winners-side game
+      // (the old !bucket.L.length test made that impossible by construction).
+      bucket.L.concat(bucket.R).forEach(function(gid) { prev.gids.push(gid); });
       return;
     }
 
