@@ -266,18 +266,6 @@ const app = express();
 // and cookie.secure works correctly when HAProxy terminates TLS.
 app.set('trust proxy', 1);
 
-// Remember this instance's public origin the first time a request carries one.
-// It becomes the VAPID `sub` when the operator has not set VAPID_SUBJECT — an
-// https origin is a valid subject, and unlike a guessed mailto it is certainly
-// correct for this deployment. trust proxy is already on above, so req.protocol
-// honours X-Forwarded-Proto from nginx/haproxy.
-app.use((req, _res, next) => {
-  if (!PUBLIC_ORIGIN && req.headers.host && req.protocol === 'https') {
-    PUBLIC_ORIGIN = 'https://' + req.headers.host;
-  }
-  next();
-});
-
 // Disable Express's default weak-ETag generation so our explicit ETags
 // on /api/results and /api/buckets are the sole source of truth.
 app.set('etag', false);
@@ -3238,14 +3226,14 @@ async function initPush() {
     // Resolution order: an explicitly configured subject, else the site's own
     // https origin (a valid `sub` and always correct for this deployment),
     // else the mailto of last resort — which now at least warns.
-    PUSH_VAPID_SUBJECT = validVapidSubject(process.env.VAPID_SUBJECT) || '';
-    if (!PUSH_VAPID_SUBJECT) {
-      console.warn('[push] VAPID_SUBJECT is not set or is not a valid mailto:/https: URI. '
-        + 'Falling back to this instance\'s own origin once a request arrives. '
-        + 'Set VAPID_SUBJECT=mailto:you@yourdomain in .env to pin it — '
-        + 'Apple REJECTS an invalid subject and iOS gets nothing.');
+    PUSH_VAPID_SUBJECT = validVapidSubject(process.env.VAPID_SUBJECT) || DEFAULT_VAPID_SUBJECT;
+    if (process.env.VAPID_SUBJECT && !validVapidSubject(process.env.VAPID_SUBJECT)) {
+      console.warn('[push] VAPID_SUBJECT is set but is not a valid mailto:/https: URI — '
+        + 'ignoring it and using ' + DEFAULT_VAPID_SUBJECT + '. Apple REJECTS an invalid '
+        + 'subject and iOS gets nothing.');
     }
-    webpush.setVapidDetails(PUSH_VAPID_SUBJECT || 'mailto:admin@localhost', pub, priv);
+    console.log('[push] VAPID subject:', PUSH_VAPID_SUBJECT);
+    webpush.setVapidDetails(PUSH_VAPID_SUBJECT, pub, priv);
     PUSH_VAPID_PUB = pub; PUSH_VAPID_PRIV = priv;
     PUSH_VAPID_PUBLIC = pub;
     PUSH_READY = true;
@@ -3256,10 +3244,14 @@ async function initPush() {
 }
 let PUSH_VAPID_PUBLIC = '';
 let PUSH_VAPID_PUB = '', PUSH_VAPID_PRIV = '', PUSH_VAPID_SUBJECT = '';
-// Remembered from the first request that carries a usable host, so a push sent
-// minutes later still has a valid `sub` even though it has no request of its
-// own. Behind haproxy/nginx the forwarded headers are the only truth.
-let PUBLIC_ORIGIN = '';
+
+// The operator contact Apple and every other push service sees in the VAPID
+// JWT's `sub`. A REAL, routable address on purpose (owner, 2026-08-02): the
+// previous default was `mailto:admin@localhost`, which Apple rejects outright,
+// and shipping a valid one means an instance that never touches .env still
+// delivers to iOS. VAPID_SUBJECT overrides it for anyone self-hosting under
+// their own brand.
+const DEFAULT_VAPID_SUBJECT = 'mailto:notifications@tournatrak.com';
 
 // Apple accepts a mailto: or https: URI and nothing else. Rejects the
 // hostname-less cases that look fine locally and fail in production.
@@ -3271,10 +3263,10 @@ function validVapidSubject(v) {
   return '';
 }
 
-// The subject actually used for a send: configured, else this instance's own
-// https origin, else the legacy default (which Apple will refuse — logged).
+// The subject actually used for a send. Resolved at call time so a send is
+// never signed with something the boot-time setup got wrong.
 function effectiveVapidSubject() {
-  return PUSH_VAPID_SUBJECT || validVapidSubject(PUBLIC_ORIGIN) || 'mailto:admin@localhost';
+  return PUSH_VAPID_SUBJECT || DEFAULT_VAPID_SUBJECT;
 }
 
 // Staff who should hear about a lineup in THIS tournament: its admins and
