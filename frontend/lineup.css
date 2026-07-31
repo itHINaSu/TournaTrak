@@ -149,6 +149,16 @@
   width: 100%;
   border-collapse: collapse;
   font-family: 'Barlow', sans-serif;
+  /* Deterministic column widths instead of the browser's own auto-layout
+     heuristic, which sizes columns from CONTENT and can legitimately
+     differ between rendering engines for two tables that don't share the
+     same column set (owner, 2026-08-02: "make roster more visually
+     similar to lineup... this has limited visual continuity") — order/
+     num/pos already carry explicit widths, so table-layout:fixed just
+     means Name (the one column with none) reliably gets "the rest",
+     rather than a value that can drift with what's actually typed into
+     the other cells. */
+  table-layout: fixed;
 }
 .lineup-th {
   font-family: 'Oswald', sans-serif;
@@ -161,7 +171,7 @@
   text-align: left;
   border-bottom: 0.12em solid var(--gold);
 }
-.lineup-th--order { width: 2em; text-align: center; }
+.lineup-th--order { width: 2rem; text-align: center; }
 /* # and Position keep small fixed widths, same as before the 2026-08-02
    resize; Name gets no explicit width so it fills whatever's left — a much
    bigger share than a flat 1/2 (owner, 2026-08-02: "make the player name
@@ -169,8 +179,15 @@
    tab's own header and the roster editor, which reuses these same classes
    on purpose (owner, 2026-08-02: "roster should functionally reuse the
    lineup css"). */
-.lineup-th--num   { width: 5em; }
-.lineup-th--pos   { width: 5.5em; }
+/* rem, not em: table-layout:fixed (below) resolves a column's width from
+   its FIRST-ROW (header) cell, and .lineup-th's font-size (0.7rem) is
+   smaller than a data row's — an em-based width here would shrink every
+   column to fit that smaller header font instead of the body rows these
+   sizes were actually chosen for, clipping "1st"/"2nd"/"3rd" in Position's
+   own <select>. rem is relative to the root, not whichever row happens to
+   be measured. */
+.lineup-th--num   { width: 5rem; }
+.lineup-th--pos   { width: 5.5rem; }
 
 .lineup-row { border-bottom: 0.07em solid var(--border); }
 .lineup-row:last-child { border-bottom: none; }
@@ -178,7 +195,7 @@
 .lineup-td-order {
   text-align: center;
   padding: 0.4em 0.3em;
-  width: 2em;
+  width: 2rem;
 }
 .lineup-order {
   font-family: 'Oswald', sans-serif;
@@ -186,9 +203,9 @@
   color: var(--text-mute);
   font-weight: 600;
 }
-.lineup-td-num   { padding: 0.35em 0.4em; width: 5em; }
+.lineup-td-num   { padding: 0.35em 0.4em; width: 5rem; }
 .lineup-td-name  { padding: 0.35em 0.4em; }
-.lineup-td-pos   { padding: 0.35em 0.4em; width: 5.5em; }
+.lineup-td-pos   { padding: 0.35em 0.4em; width: 5.5rem; }
 
 .lineup-row--sub { background: var(--surface2); }
 .lineup-sub-tag {
@@ -310,7 +327,9 @@
 }
 
 @media (max-width: 720px) {
-  .lineup-td-num { width: 3.5em; }
+  /* Both th and td: table-layout:fixed reads column width from the header
+     row, so overriding only the td here would have no visible effect. */
+  .lineup-th--num, .lineup-td-num { width: 3.5rem; }
   .lineup-inp--num { padding: 0.4em 0.2em; }
 }
 

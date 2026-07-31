@@ -3565,6 +3565,39 @@ real column width and correctly showed "RIV". Full-page screenshots
 (desktop and mobile) show no visual regression elsewhere. Full API suite
 (140 tests) still passes.
 
+## Roster vs Lineup on desktop: auto-layout was the real inconsistency (owner, 2026-08-02)
+Owner, with two desktop screenshots: *"Can we make roster more visually
+similar to lineup in the desktop aswell. This has limited visual
+continuity."* My own Playwright checks kept showing identical column
+widths at every viewport I tried, which didn't square with what the
+screenshots showed — a `table-layout: auto` table (the default, and what
+`.lineup-table` was using) sizes columns from CONTENT across the whole
+table using engine-specific heuristics, so two tables with a different
+column COUNT (Roster's extra delete column) can legitimately get slightly
+different distributions in ways a single browser's dev tools won't always
+reproduce identically to what a person sees.
+
+Fix: `table-layout: fixed` on `.lineup-table`, so every column's width is
+exactly what's declared — no content-based heuristics left to diverge.
+That immediately surfaced a second, real bug: `table-layout: fixed`
+resolves each column's width from its FIRST ROW (the `<thead>`), and
+`.lineup-th`'s font-size (`0.7rem`) is smaller than a data row's — so the
+`em`-based width declarations (`.lineup-td-num` etc.) were resolving
+against the SMALLER header font instead of the body rows they were
+actually sized for, clipping "1st"/"2nd"/"3rd" in Position's own `<select>`
+down to "1s"/"2n"/"3r". Converted every `em` column width to `rem`
+(order/num/pos, both `th` and `td`, plus the `max-width:720px` narrow
+override) — `rem` is relative to the root, immune to whichever row's own
+font-size happens to establish it.
+
+Verified against the demo at 700px: order/#/position now measure
+identically (32px/56px/88px) between Roster and Lineup with zero
+tolerance — not "close," exact — Name differs only by the ~32px delete
+column Roster genuinely has and Lineup doesn't. Position values
+("2nd"/"3rd") render in full, no clipping. Re-checked mobile/touch
+(390px) — still matches (56/185/88 both), collapsed delete column intact.
+Full API suite (140 tests) still passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an
