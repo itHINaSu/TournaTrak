@@ -3685,6 +3685,95 @@ accent 24%, var(--surface))` in `renderStandingsViewInner()`'s `rowCss`
 against the demo — visibly more present without reading as a different
 design.
 
+## Team banner patterns: Chevron/Dots + tunable stripe width/spacing (owner, 2026-08-02)
+Owner, on the existing gradient/solid/stripes banner style picker: *"For the
+team pattern fill I was tentatively thinking options like this [a 90s-style
+swatch grid of dozens of hatch/dot/crosshatch fills], but we need more
+customization options (for stripes the width of the stripes, and the
+spacing between stripes should be modifiable). Textures that are more sporty
+than 90s graphic editors would be great."* Proposed a short, curated list
+instead of a big swatch grid (owner confirmed, then: "Get the texture
+portion done"): diagonal stripes (already existed, now tunable) + **Chevron**
++ **Dots** (halftone). Hexagon/honeycomb was considered and deliberately
+dropped — true hex tiling needs an SVG mask to look right, and shipping a
+CSS-gradient approximation risked looking wrong with no reliable way to
+preview every combination ahead of time.
+
+**Schema** (`api/server.js`): `BRAND_STYLES` gained `'chevron'`/`'dots'`.
+Three new numeric fields, same `''`/`null` = "use the default" convention
+`brandAngle` already had: `brandStripeWidth`/`brandStripeGap` (2–80px, only
+meaningful for `'stripes'`) and `brandPatternScale` (8–120px, the tile size
+for `'chevron'`/`'dots'`). All three stored regardless of the CURRENTLY
+selected style (like `brandAngle`), so switching styles and back doesn't
+lose a coach's tuning. Threaded through both `POST /teams` (bulk save merge)
+and `PUT /team-profile/:teamName` (per-team save) the same way the existing
+four brand fields already were.
+
+**Rendering** (`tt-common.js` `teamBrandBannerCss()`): took an `extra`
+options-arg (`{stripeWidth, stripeGap, patternScale}`) rather than more
+positional params — 9+ positional arguments was already unreasonable.
+Existing stripes gained real width/gap instead of hardcoded 14px/28px. Dots
+is a `radial-gradient` tiled via `background-size`. Chevron is the
+well-known four-corner-wedge zigzag recipe (four `linear-gradient`s at
+135/225/315/45deg, each a hard-edged 25% triangular wedge, tiled at two
+offset positions) — **two real bugs found and fixed by actually rendering a
+test page before touching the app**, worth remembering because both looked
+plausible from the code alone:
+1. First draft wrote each gradient's `position/size` as `image pos/size`
+   inside a `background-image` list — that shorthand only exists inside the
+   full `background` PROPERTY, not `background-image` alone. Invalid CSS
+   silently drops the WHOLE declaration; every chevron rendered as a flat
+   solid color, no error anywhere to notice.
+2. Second draft fixed the shorthand but used soft 25%–75% color bands at
+   only two angles (135/45) instead of four hard corners at all four
+   diagonals — the bands fully self-overlapped into another solid block.
+Only caught by literally opening a standalone test HTML page in a browser
+and looking at it — see `docs/agent-demo` conventions; this one used a
+scratch file, not the demo app, since it's pure CSS with no server
+dependency.
+
+**UI**: `coach.html`'s Team tab and `admin.html`'s Teams-detail view (added
+earlier the same day) both got the same two new radio options plus three
+new range sliders (`*StripeWidthRow`/`*StripeGapRow` shown only for
+`'stripes'`, `*PatternScaleRow` shown only for `'chevron'`/`'dots'`) —
+`*SyncStyleRow()` in both `coach.js` and `admin.js` now toggles THREE row
+visibilities instead of one. `_teamBranding` in `bracket.js` (feeds the
+Team Path banner, its pre-selection chip buttons, and the Standings row
+wash) extended with the three new fields so all three surfaces pick up a
+coach's chosen pattern/tuning, not just the coach panel's own preview.
+
+**Verified against the demo**: chevron/dots both render correctly in the
+actual coach Team tab preview and the admin Teams-detail preview; adjusting
+stripe width/gap sliders visibly changes the banner in real time; Save →
+page reload → re-open correctly restored `brandStyle: 'stripes'`,
+`brandStripeWidth: 30`, `brandStripeGap: 6` exactly as set; zero console
+errors in either panel.
+
+## Team name outline was unreadable — wrong CSS technique, not a color problem (owner, 2026-08-02)
+Owner: *"When I do a black text with white outline the text is near
+unreadable. Can we adjust how the outline functions?"* The outline
+(`brandNameOutlineColor`) was built with `-webkit-text-stroke`, which paints
+CENTERED on the glyph's own path — half the stroke's width is drawn INSIDE
+the letterform, eating into the fill. At a stroke width close to (or
+thicker than) the letterform's own strokes, that inner half can cover MOST
+of the fill color, so black text with a white stroke rendered as mostly
+white letters with thin black slivers — confirmed by rendering both side by
+side in a scratch HTML file before touching the fix (screenshot: the old
+version was genuinely hard to read the word in, the new one wasn't).
+
+Replaced it with a ring of 8 zero-blur `text-shadow`s (N/S/E/W + 4
+diagonals, offset ~0.028em) — text-shadow always paints BEHIND the glyph's
+own fill, so the fill renders on top at full strength regardless of stroke
+color/weight, and the outline sits entirely OUTSIDE the letterform instead
+of straddling it. Appends `.team-brand-banner`'s original drop-shadow
+(`0 1px 4px rgba(0,0,0,.65)`) as the LAST (furthest-back) shadow in the same
+list, rather than dropping it, so legibility against the banner itself is
+unaffected by whether an outline is set — text-shadow paints its list
+front-to-back, so ordering the sharp outline shadows before the diffuse
+drop-shadow keeps the outline crisp on top. Fixes all three surfaces that
+read `teamBrandBannerCss()`'s output: the Team Path banner, the coach/admin
+preview banners, and the pre-selection team-chip buttons.
+
 ## Coach panel Share (roster/lineup → image/txt/csv) (owner, 2026-08-02)
 Owner: *"Build in an option for coaches to 'share' their roster or lineups
 via the share button if clicked while in the coaches panel in either tab."*

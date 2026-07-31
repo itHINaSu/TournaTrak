@@ -1537,7 +1537,15 @@ function validHexColor(v) {
 // "allow the user to adjust the gradient, select a solid color instead, or
 // choose a different pattern". Angle only matters for 'gradient'/'stripes';
 // 'solid' ignores it and secondaryColor.
-const BRAND_STYLES = ['gradient', 'solid', 'stripes'];
+// chevron/dots added (owner, 2026-08-02: "Textures that are more sporty than
+// 90s graphic editors" — a small, deliberately-picked set of CSS-gradient-
+// only patterns, not a big swatch grid).
+const BRAND_STYLES = ['gradient', 'solid', 'stripes', 'chevron', 'dots'];
+// px ranges for the pattern-tuning sliders — generous enough to go from a
+// tight pinstripe to a bold block, but bounded so a stray huge number can't
+// blow the banner up or render an invisible hairline pattern.
+const BRAND_STRIPE_PX_MIN = 2, BRAND_STRIPE_PX_MAX = 80;
+const BRAND_PATTERN_SCALE_MIN = 8, BRAND_PATTERN_SCALE_MAX = 120;
 
 api.get('/theme-colors', ah(async (req, res) => {
   // Response varies by role (heavy fields are editor-only) — no shared caches.
@@ -1985,6 +1993,25 @@ function normalizeTeam(t) {
     const angle = Number(t.brandAngle);
     if (Number.isFinite(angle) && angle >= 0 && angle < 360) out.brandAngle = Math.round(angle);
   }
+  // Same "'' /null/undefined = use the default" convention as brandAngle —
+  // owner, 2026-08-02: "for stripes the width of the stripes, and the
+  // spacing between stripes should be modifiable." stripeWidth/stripeGap
+  // only mean anything for brandStyle 'stripes'; patternScale only for
+  // 'chevron'/'dots' — but all three are stored regardless of the CURRENT
+  // style, same as brandAngle already is, so switching styles and back
+  // doesn't lose a coach's tuning.
+  if (t.brandStripeWidth !== '' && t.brandStripeWidth != null) {
+    const w = Number(t.brandStripeWidth);
+    if (Number.isFinite(w) && w >= BRAND_STRIPE_PX_MIN && w <= BRAND_STRIPE_PX_MAX) out.brandStripeWidth = Math.round(w);
+  }
+  if (t.brandStripeGap !== '' && t.brandStripeGap != null) {
+    const g = Number(t.brandStripeGap);
+    if (Number.isFinite(g) && g >= BRAND_STRIPE_PX_MIN && g <= BRAND_STRIPE_PX_MAX) out.brandStripeGap = Math.round(g);
+  }
+  if (t.brandPatternScale !== '' && t.brandPatternScale != null) {
+    const sc = Number(t.brandPatternScale);
+    if (Number.isFinite(sc) && sc >= BRAND_PATTERN_SCALE_MIN && sc <= BRAND_PATTERN_SCALE_MAX) out.brandPatternScale = Math.round(sc);
+  }
   if (validHexColor(t.brandTextColor)) out.brandTextColor = t.brandTextColor.toLowerCase();
   if (validHexColor(t.brandNameOutlineColor)) out.brandNameOutlineColor = t.brandNameOutlineColor.toLowerCase();
   // Freezes a coach out of PUT /team-profile for this team (name/short
@@ -2069,6 +2096,9 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
       secondaryColor: t && 'secondaryColor' in t ? t.secondaryColor : prior.secondaryColor,
       brandStyle:     t && 'brandStyle'     in t ? t.brandStyle     : prior.brandStyle,
       brandAngle:     t && 'brandAngle'     in t ? t.brandAngle     : prior.brandAngle,
+      brandStripeWidth:  t && 'brandStripeWidth'  in t ? t.brandStripeWidth  : prior.brandStripeWidth,
+      brandStripeGap:    t && 'brandStripeGap'    in t ? t.brandStripeGap    : prior.brandStripeGap,
+      brandPatternScale: t && 'brandPatternScale' in t ? t.brandPatternScale : prior.brandPatternScale,
       brandTextColor: t && 'brandTextColor' in t ? t.brandTextColor : prior.brandTextColor,
       brandNameOutlineColor: t && 'brandNameOutlineColor' in t ? t.brandNameOutlineColor : prior.brandNameOutlineColor,
       locked:         t && 'locked'         in t ? !!t.locked       : !!prior.locked,
@@ -2116,6 +2146,9 @@ api.put('/team-profile/:teamName', requireLineupAccess, ah(async (req, res) => {
     secondaryColor: 'secondaryColor' in body ? body.secondaryColor : current.secondaryColor,
     brandStyle:     'brandStyle'     in body ? body.brandStyle     : current.brandStyle,
     brandAngle:     'brandAngle'     in body ? body.brandAngle     : current.brandAngle,
+    brandStripeWidth:  'brandStripeWidth'  in body ? body.brandStripeWidth  : current.brandStripeWidth,
+    brandStripeGap:    'brandStripeGap'    in body ? body.brandStripeGap    : current.brandStripeGap,
+    brandPatternScale: 'brandPatternScale' in body ? body.brandPatternScale : current.brandPatternScale,
     brandTextColor: 'brandTextColor' in body ? body.brandTextColor : current.brandTextColor,
     brandNameOutlineColor: 'brandNameOutlineColor' in body ? body.brandNameOutlineColor : current.brandNameOutlineColor,
     locked: current.locked,

@@ -4632,9 +4632,28 @@ function teamsDetailAngleValue() {
   var el = document.getElementById('teamsDetailAngle');
   return el ? Number(el.value) : 135;
 }
+function teamsDetailStripeWidthValue() {
+  var el = document.getElementById('teamsDetailStripeWidth');
+  return el ? Number(el.value) : 14;
+}
+function teamsDetailStripeGapValue() {
+  var el = document.getElementById('teamsDetailStripeGap');
+  return el ? Number(el.value) : 14;
+}
+function teamsDetailPatternScaleValue() {
+  var el = document.getElementById('teamsDetailPatternScale');
+  return el ? Number(el.value) : 28;
+}
 function teamsDetailSyncStyleRow() {
-  var row = document.getElementById('teamsDetailAngleRow');
-  if (row) row.hidden = teamsDetailStyleValue() === 'solid';
+  var style = teamsDetailStyleValue();
+  var angleRow = document.getElementById('teamsDetailAngleRow');
+  if (angleRow) angleRow.hidden = (style === 'solid' || style === 'chevron' || style === 'dots');
+  var stripeWidthRow = document.getElementById('teamsDetailStripeWidthRow');
+  var stripeGapRow = document.getElementById('teamsDetailStripeGapRow');
+  if (stripeWidthRow) stripeWidthRow.hidden = style !== 'stripes';
+  if (stripeGapRow) stripeGapRow.hidden = style !== 'stripes';
+  var scaleRow = document.getElementById('teamsDetailPatternScaleRow');
+  if (scaleRow) scaleRow.hidden = (style !== 'chevron' && style !== 'dots');
   teamsDetailUpdatePreview();
 }
 
@@ -4648,7 +4667,8 @@ function teamsDetailUpdatePreview() {
   banner.hidden = !hasAnything;
   if (!hasAnything) return;
   banner.style.cssText = teamBrandBannerCss(primary, secondary,
-    teamsDetailStyleValue(), teamsDetailAngleValue(), _teamsDetailColors.brandTextColor, _teamsDetailColors.brandNameOutlineColor);
+    teamsDetailStyleValue(), teamsDetailAngleValue(), _teamsDetailColors.brandTextColor, _teamsDetailColors.brandNameOutlineColor,
+    { stripeWidth: teamsDetailStripeWidthValue(), stripeGap: teamsDetailStripeGapValue(), patternScale: teamsDetailPatternScaleValue() });
   if (logoImg) {
     if (logo) { logoImg.src = logo; logoImg.hidden = false; }
     else { logoImg.removeAttribute('src'); logoImg.hidden = true; }
@@ -4692,6 +4712,12 @@ function openTeamDetail(idx) {
   if (styleEl) styleEl.checked = true;
   var angleEl = document.getElementById('teamsDetailAngle');
   if (angleEl) angleEl.value = typeof team.brandAngle === 'number' ? team.brandAngle : 135;
+  var stripeWidthEl = document.getElementById('teamsDetailStripeWidth');
+  if (stripeWidthEl) stripeWidthEl.value = typeof team.brandStripeWidth === 'number' ? team.brandStripeWidth : 14;
+  var stripeGapEl = document.getElementById('teamsDetailStripeGap');
+  if (stripeGapEl) stripeGapEl.value = typeof team.brandStripeGap === 'number' ? team.brandStripeGap : 14;
+  var scaleEl = document.getElementById('teamsDetailPatternScale');
+  if (scaleEl) scaleEl.value = typeof team.brandPatternScale === 'number' ? team.brandPatternScale : 28;
   teamsDetailSyncStyleRow();
   var lockedEl = document.getElementById('teamsDetailLockedNote');
   if (lockedEl) lockedEl.hidden = !team.locked;
@@ -4733,6 +4759,9 @@ async function saveTeamsDetail() {
   }
   body.brandStyle = teamsDetailStyleValue();
   body.brandAngle = teamsDetailAngleValue();
+  body.brandStripeWidth = teamsDetailStripeWidthValue();
+  body.brandStripeGap = teamsDetailStripeGapValue();
+  body.brandPatternScale = teamsDetailPatternScaleValue();
   try {
     var r = await apiFetch('/api/team-profile/' + encodeURIComponent(team.name), {
       method: 'PUT',
@@ -4797,6 +4826,12 @@ function removeTeamsDetailLogo() {
   if (styleRow) styleRow.addEventListener('change', teamsDetailSyncStyleRow);
   var angleEl = document.getElementById('teamsDetailAngle');
   if (angleEl) angleEl.addEventListener('input', teamsDetailUpdatePreview);
+  var stripeWidthEl = document.getElementById('teamsDetailStripeWidth');
+  if (stripeWidthEl) stripeWidthEl.addEventListener('input', teamsDetailUpdatePreview);
+  var stripeGapEl = document.getElementById('teamsDetailStripeGap');
+  if (stripeGapEl) stripeGapEl.addEventListener('input', teamsDetailUpdatePreview);
+  var scaleEl = document.getElementById('teamsDetailPatternScale');
+  if (scaleEl) scaleEl.addEventListener('input', teamsDetailUpdatePreview);
 })();
 
 Object.assign(TT_ACTIONS, {

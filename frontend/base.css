@@ -641,10 +641,10 @@ body.print-palette .flight-col--champ {
    right of team names — more space, less alignment issues") — a name of
    any length gets its full run of space on the left instead of sharing a
    line with a fixed-width image ahead of it. brandNameOutlineColor (set via
-   data-css alongside the banner's own background/text color, tt-common.js
-   teamBrandBannerCss) is a stroke, not a fill — .team-brand-name still gets
-   its color from the parent's `color` and keeps the text-shadow for
-   legibility against any background, outline or not. */
+   data-css as a ring of text-shadows on the banner, tt-common.js
+   teamBrandBannerCss — see its comment for why not -webkit-text-stroke) is
+   inherited, not a fill — .team-brand-name still gets its own color from
+   the parent's `color` and reads the same outline/shadow either way. */
 .team-brand-name {
   font-family: 'Oswald', sans-serif;
   font-size: 1.15rem;

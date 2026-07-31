@@ -752,34 +752,109 @@ function ttApplyLogoScale(scale) {
 // neutral grey when a team has set only one color, or neither (the banner
 // still shows for a logo-only team).
 //
-// style: 'gradient' (default) | 'solid' | 'stripes' — a coach can pick a
-// solid fill or a striped pattern instead of the gradient, and (for
-// gradient/stripes) the angle it runs at (owner, 2026-08-02: "allow the
-// user to adjust the gradient, select a solid color instead, or choose a
-// different pattern"). textColor overrides the banner's default white
-// (.team-brand-banner already carries a text-shadow for legibility against
-// ANY background, so this is an opt-in override, not a requirement).
-// outlineColor: a stroke around the team name (owner, 2026-08-02: "give
-// coaches the option to add an outline to the team name and select the
-// outline color") — -webkit-text-stroke is an inherited property, so
+// style: 'gradient' (default) | 'solid' | 'stripes' | 'chevron' | 'dots' —
+// a coach can pick a solid fill or a patterned background instead of the
+// gradient, and (for gradient/stripes) the angle it runs at (owner,
+// 2026-08-02: "allow the user to adjust the gradient, select a solid color
+// instead, or choose a different pattern"). chevron/dots added later the
+// same day — "Textures that are more sporty than 90s graphic editors" —
+// deliberately a short, curated list of CSS-gradient-only patterns rather
+// than a big swatch grid; true hexagon/honeycomb tiling needs an SVG mask
+// to look right and was judged not worth the risk of shipping something
+// that renders wrong on a screen nobody previewed it on.
+//
+// extra: { stripeWidth, stripeGap, patternScale } — "for stripes the width
+// of the stripes, and the spacing between stripes should be modifiable."
+// stripeWidth/stripeGap only apply to 'stripes'; patternScale (the tile
+// size) only to 'chevron'/'dots'. All three default to their original
+// hardcoded values so every existing saved team (no tunables set) renders
+// identically to before this feature existed.
+//
+// textColor overrides the banner's default white (.team-brand-banner
+// already carries a text-shadow for legibility against ANY background, so
+// this is an opt-in override, not a requirement). outlineColor: an outline
+// around the team name (owner, 2026-08-02: "give coaches the option to add
+// an outline to the team name and select the outline color"), built from
+// text-shadow rather than -webkit-text-stroke — see the note further down
+// where it's built for why. Set via text-shadow, an inherited property, so
 // setting it on the banner reaches .team-brand-name without a second
-// selector; the fixed 0.035em width keeps this "add an outline", not a
-// second tunable nobody asked for.
-function teamBrandBannerCss(primary, secondary, style, angle, textColor, outlineColor) {
+// selector; the fixed width keeps this "add an outline", not a second
+// tunable nobody asked for.
+function teamBrandBannerCss(primary, secondary, style, angle, textColor, outlineColor, extra) {
   var p = primary || secondary || '#4a4a4a';
   var s = secondary || primary || '#4a4a4a';
   var a = (typeof angle === 'number' && angle >= 0 && angle < 360) ? angle : 135;
+  var e = extra || {};
+  var stripeW = (typeof e.stripeWidth === 'number' && e.stripeWidth > 0) ? e.stripeWidth : 14;
+  var stripeG = (typeof e.stripeGap === 'number' && e.stripeGap > 0) ? e.stripeGap : 14;
+  var scale   = (typeof e.patternScale === 'number' && e.patternScale > 0) ? e.patternScale : 28;
   var css;
   if (style === 'solid') {
     css = 'background: ' + p + ';';
   } else if (style === 'stripes') {
-    css = 'background: repeating-linear-gradient(' + a + 'deg, ' + p + ' 0, ' + p + ' 14px, '
-      + s + ' 14px, ' + s + ' 28px);';
+    css = 'background: repeating-linear-gradient(' + a + 'deg, ' + p + ' 0, ' + p + ' ' + stripeW + 'px, '
+      + s + ' ' + stripeW + 'px, ' + s + ' ' + (stripeW + stripeG) + 'px);';
+  } else if (style === 'chevron') {
+    // Classic four-corner-wedge zigzag: each gradient paints a hard-edged
+    // triangular wedge into ONE corner of its tile (a two-stop gradient
+    // that goes straight from color to transparent at the same 25% offset,
+    // no soft band), and the four corners/angles interlock into a
+    // herringbone "V" when tiled — this exact recipe is a well-known CSS
+    // pattern, not derived from scratch. Angle isn't tunable here (a
+    // chevron only reads correctly at these four angles); patternScale
+    // controls how big each zigzag repeat is.
+    //
+    // Per-layer position/size ("pos/size" after each gradient) is only
+    // valid inside the full `background` SHORTHAND — an earlier version
+    // wrote it into `background-image` alone, which is invalid CSS and
+    // silently drops the WHOLE declaration; every chevron rendered as a
+    // flat solid color with no pattern, caught only by rendering a test
+    // page rather than trusting the code by eye. A second attempt fixed
+    // the shorthand but used soft 25%-75% bands with two angles instead of
+    // four hard corners, which fully self-overlapped into another solid
+    // block — worth recording so a future edit doesn't repeat either one.
+    var half = scale / 2;
+    css = 'background: '
+      + 'linear-gradient(135deg, ' + p + ' 25%, transparent 25%) -' + half + 'px 0/' + scale + 'px ' + scale + 'px,'
+      + 'linear-gradient(225deg, ' + p + ' 25%, transparent 25%) -' + half + 'px 0/' + scale + 'px ' + scale + 'px,'
+      + 'linear-gradient(315deg, ' + p + ' 25%, transparent 25%) 0 0/' + scale + 'px ' + scale + 'px,'
+      + 'linear-gradient(45deg, ' + p + ' 25%, transparent 25%) 0 0/' + scale + 'px ' + scale + 'px,'
+      + s + ';';
+  } else if (style === 'dots') {
+    // A halftone/polka dot grid — patternScale is the grid pitch, so a
+    // small scale reads as tight halftone dots and a large one as bold
+    // sport-ball-style spots.
+    css = 'background-color: ' + s + '; '
+      + 'background-image: radial-gradient(circle, ' + p + ' 38%, transparent 40%); '
+      + 'background-size: ' + scale + 'px ' + scale + 'px;';
   } else {
     css = 'background: linear-gradient(' + a + 'deg, ' + p + ' 0%, ' + s + ' 100%);';
   }
   if (textColor) css += ' color: ' + textColor + ';';
-  if (outlineColor) css += ' -webkit-text-stroke: 0.035em ' + outlineColor + ';';
+  // Was -webkit-text-stroke, which paints CENTERED on the glyph's own
+  // outline — half the stroke width eats into the fill, so a stroke close
+  // in weight to the letterform's own strokes can wash out most of the
+  // fill color entirely (owner, 2026-08-02: "when I do a black text with
+  // white outline the text is near unreadable"). A ring of 8 zero-blur
+  // text-shadows sits entirely OUTSIDE the glyph instead — text-shadow
+  // always paints behind the text's own fill, so the fill renders on top at
+  // full strength no matter how thick the outline or how close the two
+  // colors are. Appends the banner's own drop-shadow last (further back)
+  // rather than dropping it, so legibility against the banner itself is
+  // unaffected by whether an outline is set.
+  if (outlineColor) {
+    var d = '0.028em';
+    css += ' text-shadow: '
+      + '-' + d + ' -' + d + ' 0 ' + outlineColor + ', '
+      + '0 -' + d + ' 0 ' + outlineColor + ', '
+      + d + ' -' + d + ' 0 ' + outlineColor + ', '
+      + '-' + d + ' 0 0 ' + outlineColor + ', '
+      + d + ' 0 0 ' + outlineColor + ', '
+      + '-' + d + ' ' + d + ' 0 ' + outlineColor + ', '
+      + '0 ' + d + ' 0 ' + outlineColor + ', '
+      + d + ' ' + d + ' 0 ' + outlineColor + ', '
+      + '0 1px 4px rgba(0, 0, 0, 0.65);';
+  }
   return css;
 }
 

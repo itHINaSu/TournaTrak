@@ -538,11 +538,32 @@ function teamTabAngleValue() {
   var el = document.getElementById('teamTabAngle');
   return el ? Number(el.value) : 135;
 }
-// Angle only means anything for gradient/stripes — hide it under solid so
-// it doesn't look like a control that does nothing.
+function teamTabStripeWidthValue() {
+  var el = document.getElementById('teamTabStripeWidth');
+  return el ? Number(el.value) : 14;
+}
+function teamTabStripeGapValue() {
+  var el = document.getElementById('teamTabStripeGap');
+  return el ? Number(el.value) : 14;
+}
+function teamTabPatternScaleValue() {
+  var el = document.getElementById('teamTabPatternScale');
+  return el ? Number(el.value) : 28;
+}
+// Each slider only means something for its own style(s) — hide the rest so
+// they don't look like controls that do nothing (owner, 2026-08-02: "for
+// stripes the width of the stripes, and the spacing between stripes should
+// be modifiable").
 function teamTabSyncStyleRow() {
-  var row = document.getElementById('teamTabAngleRow');
-  if (row) row.hidden = teamTabStyleValue() === 'solid';
+  var style = teamTabStyleValue();
+  var angleRow = document.getElementById('teamTabAngleRow');
+  if (angleRow) angleRow.hidden = (style === 'solid' || style === 'chevron' || style === 'dots');
+  var stripeWidthRow = document.getElementById('teamTabStripeWidthRow');
+  var stripeGapRow = document.getElementById('teamTabStripeGapRow');
+  if (stripeWidthRow) stripeWidthRow.hidden = style !== 'stripes';
+  if (stripeGapRow) stripeGapRow.hidden = style !== 'stripes';
+  var scaleRow = document.getElementById('teamTabPatternScaleRow');
+  if (scaleRow) scaleRow.hidden = (style !== 'chevron' && style !== 'dots');
   teamTabUpdatePreview();
 }
 
@@ -559,7 +580,8 @@ function teamTabUpdatePreview() {
   banner.hidden = !hasAnything;
   if (!hasAnything) return;
   banner.style.cssText = teamBrandBannerCss(primary, secondary,
-    teamTabStyleValue(), teamTabAngleValue(), _teamTabColors.brandTextColor, _teamTabColors.brandNameOutlineColor);
+    teamTabStyleValue(), teamTabAngleValue(), _teamTabColors.brandTextColor, _teamTabColors.brandNameOutlineColor,
+    { stripeWidth: teamTabStripeWidthValue(), stripeGap: teamTabStripeGapValue(), patternScale: teamTabPatternScaleValue() });
   if (logoImg) {
     if (logo) { logoImg.src = logo; logoImg.hidden = false; }
     else { logoImg.removeAttribute('src'); logoImg.hidden = true; }
@@ -601,6 +623,12 @@ async function loadTeamTab(team) {
   if (styleEl) styleEl.checked = true;
   var angleEl = document.getElementById('teamTabAngle');
   if (angleEl) angleEl.value = (rec && typeof rec.brandAngle === 'number') ? rec.brandAngle : 135;
+  var stripeWidthEl = document.getElementById('teamTabStripeWidth');
+  if (stripeWidthEl) stripeWidthEl.value = (rec && typeof rec.brandStripeWidth === 'number') ? rec.brandStripeWidth : 14;
+  var stripeGapEl = document.getElementById('teamTabStripeGap');
+  if (stripeGapEl) stripeGapEl.value = (rec && typeof rec.brandStripeGap === 'number') ? rec.brandStripeGap : 14;
+  var scaleEl = document.getElementById('teamTabPatternScale');
+  if (scaleEl) scaleEl.value = (rec && typeof rec.brandPatternScale === 'number') ? rec.brandPatternScale : 28;
   teamTabSyncStyleRow();
   // Staff viewing the coach panel (checking what a coach sees, or coaching
   // themselves) are never locked out — only a genuine coach session is.
@@ -658,6 +686,9 @@ async function saveTeamProfile() {
   }
   body.brandStyle = teamTabStyleValue();
   body.brandAngle = teamTabAngleValue();
+  body.brandStripeWidth = teamTabStripeWidthValue();
+  body.brandStripeGap = teamTabStripeGapValue();
+  body.brandPatternScale = teamTabPatternScaleValue();
   var r = await fetch(coachApiBase() + '/team-profile/' + encodeURIComponent(_teamTabTeam), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -686,6 +717,12 @@ async function saveTeamProfile() {
     if (styleEl) styleEl.checked = true;
     var angleEl = document.getElementById('teamTabAngle');
     if (angleEl) angleEl.value = typeof data.team.brandAngle === 'number' ? data.team.brandAngle : 135;
+    var stripeWidthEl = document.getElementById('teamTabStripeWidth');
+    if (stripeWidthEl) stripeWidthEl.value = typeof data.team.brandStripeWidth === 'number' ? data.team.brandStripeWidth : 14;
+    var stripeGapEl = document.getElementById('teamTabStripeGap');
+    if (stripeGapEl) stripeGapEl.value = typeof data.team.brandStripeGap === 'number' ? data.team.brandStripeGap : 14;
+    var scaleEl = document.getElementById('teamTabPatternScale');
+    if (scaleEl) scaleEl.value = typeof data.team.brandPatternScale === 'number' ? data.team.brandPatternScale : 28;
     teamTabSyncStyleRow();
   }
 }
@@ -729,6 +766,12 @@ async function initTeamTab() {
   if (styleRow) styleRow.addEventListener('change', teamTabSyncStyleRow);
   var angleEl = document.getElementById('teamTabAngle');
   if (angleEl) angleEl.addEventListener('input', teamTabUpdatePreview);
+  var stripeWidthEl = document.getElementById('teamTabStripeWidth');
+  if (stripeWidthEl) stripeWidthEl.addEventListener('input', teamTabUpdatePreview);
+  var stripeGapEl = document.getElementById('teamTabStripeGap');
+  if (stripeGapEl) stripeGapEl.addEventListener('input', teamTabUpdatePreview);
+  var scaleEl = document.getElementById('teamTabPatternScale');
+  if (scaleEl) scaleEl.addEventListener('input', teamTabUpdatePreview);
   var displayEl = document.getElementById('teamTabDisplay');
   if (displayEl) displayEl.addEventListener('input', teamTabUpdatePreview);
   await loadTeamTab(teams[0] || null);

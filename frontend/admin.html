@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.016">
-<link rel="stylesheet" href="/admin.css?v=4.08.016">
-<link rel="stylesheet" href="/lineup.css?v=4.08.016">
-<link rel="stylesheet" href="/builder.css?v=4.08.016">
-<link rel="stylesheet" href="/score.css?v=4.08.016">
-<script src="/app-h.js?v=4.08.016"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.017">
+<link rel="stylesheet" href="/admin.css?v=4.08.017">
+<link rel="stylesheet" href="/lineup.css?v=4.08.017">
+<link rel="stylesheet" href="/builder.css?v=4.08.017">
+<link rel="stylesheet" href="/score.css?v=4.08.017">
+<script src="/app-h.js?v=4.08.017"></script>
 </head>
 <body>
 
@@ -995,10 +995,30 @@
                   <input type="radio" name="teamsDetailBrandStyle" value="stripes" id="teamsDetailStyleStripes">
                   <span>Stripes</span>
                 </label>
+                <label class="team-tab-style-opt">
+                  <input type="radio" name="teamsDetailBrandStyle" value="chevron" id="teamsDetailStyleChevron">
+                  <span>Chevron</span>
+                </label>
+                <label class="team-tab-style-opt">
+                  <input type="radio" name="teamsDetailBrandStyle" value="dots" id="teamsDetailStyleDots">
+                  <span>Dots</span>
+                </label>
               </div>
               <div class="team-tab-angle-row" id="teamsDetailAngleRow">
                 <label for="teamsDetailAngle">Angle</label>
                 <input type="range" id="teamsDetailAngle" min="0" max="359" step="15" value="135">
+              </div>
+              <div class="team-tab-angle-row" id="teamsDetailStripeWidthRow" hidden>
+                <label for="teamsDetailStripeWidth">Stripe width</label>
+                <input type="range" id="teamsDetailStripeWidth" min="2" max="80" step="1" value="14">
+              </div>
+              <div class="team-tab-angle-row" id="teamsDetailStripeGapRow" hidden>
+                <label for="teamsDetailStripeGap">Stripe spacing</label>
+                <input type="range" id="teamsDetailStripeGap" min="2" max="80" step="1" value="14">
+              </div>
+              <div class="team-tab-angle-row" id="teamsDetailPatternScaleRow" hidden>
+                <label for="teamsDetailPatternScale">Pattern size</label>
+                <input type="range" id="teamsDetailPatternScale" min="8" max="120" step="2" value="28">
               </div>
             </div>
             <div class="settings-field">
@@ -1104,15 +1124,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.08.016"></script>
-<script src="/theme-css.js?v=4.08.016"></script>
-<script src="/tt-common.js?v=4.08.016"></script>
-<script src="/bracket-data.js?v=4.08.016"></script>
-<script src="/admin.js?v=4.08.016"></script>
-<script src="/lineup.js?v=4.08.016"></script>
-<script src="/score.js?v=4.08.016"></script>
-<script src="/builder-form.js?v=4.08.016"></script>
-<script src="/builder.js?v=4.08.016"></script>
-<script src="/sw-register.js?v=4.08.016" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.017"></script>
+<script src="/theme-css.js?v=4.08.017"></script>
+<script src="/tt-common.js?v=4.08.017"></script>
+<script src="/bracket-data.js?v=4.08.017"></script>
+<script src="/admin.js?v=4.08.017"></script>
+<script src="/lineup.js?v=4.08.017"></script>
+<script src="/score.js?v=4.08.017"></script>
+<script src="/builder-form.js?v=4.08.017"></script>
+<script src="/builder.js?v=4.08.017"></script>
+<script src="/sw-register.js?v=4.08.017" data-sw="/admin-sw.js"></script>
 </body>
 </html>
