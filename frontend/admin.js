@@ -3561,14 +3561,23 @@ function reschedCandidates() {
   var out = [];
   Object.keys(GAMES).forEach(function(sid) {
     var t = reschedTimeOf(sid);
-    if (!t) return;
     var over = schedule[sid] || {};
     var f = over.field || GAMES[sid].field || '';
-    if (days.length   && days.indexOf(t.slice(0, 10)) === -1) return;
+    // A TBD game has no day, so a day filter cannot include it — but it must
+    // still be reachable, or clearing a time would be a one-way door: the
+    // game would vanish from the only tool that can give it one back.
+    if (t && days.length   && days.indexOf(t.slice(0, 10)) === -1) return;
+    if (!t && days.length) return;
     if (fields.length && fields.indexOf(f) === -1) return;
     out.push({ sid: sid, time: t, field: f });
   });
-  out.sort(function(a, b) { return a.time < b.time ? -1 : a.time > b.time ? 1 : 0; });
+  // Earliest first; TBD sorts last, where a reader looks for "not scheduled".
+  out.sort(function(a, b) {
+    if (!a.time && !b.time) return 0;
+    if (!a.time) return 1;
+    if (!b.time) return -1;
+    return a.time < b.time ? -1 : a.time > b.time ? 1 : 0;
+  });
   return out;
 }
 
@@ -3609,7 +3618,7 @@ function renderReschedList() {
   if (!list) return;
   var games = reschedCandidates();
   if (!games.length) {
-    list.innerHTML = '<div class="admin-subtitle admin-subtitle--flush">No scheduled games match — a game with no start time cannot be moved.</div>';
+    list.innerHTML = '<div class="admin-subtitle admin-subtitle--flush">No games match the day/field filters above.</div>';
     updateReschedCount();
     return;
   }
@@ -3618,7 +3627,9 @@ function renderReschedList() {
     return '<label class="resched-row">'
       + '<input type="checkbox" class="resched-chk" value="' + esc(g.sid) + '"' + on
       + ' data-action-change="reschedTick">'
-      + '<span class="resched-when">' + esc(fmtDayLabel(g.time.slice(0, 10))) + ' ' + esc(fmtClock(g.time)) + '</span>'
+      + '<span class="resched-when">'
+      + (g.time ? esc(fmtDayLabel(g.time.slice(0, 10))) + ' ' + esc(fmtClock(g.time)) : 'TBD')
+      + '</span>'
       + '<span class="resched-lbl">' + esc(gameLabel(g.sid)) + '</span>'
       + (g.field ? '<span class="resched-fld">' + esc(g.field) + '</span>' : '')
       + '</label>';
@@ -3656,6 +3667,23 @@ function reschedComputeMoves() {
   var modeEl = document.querySelector('input[name="reschedMode"]:checked');
   var mode = modeEl ? modeEl.value : 'shift';
   var delta;
+
+  if (mode === 'tbd') {
+    // Nothing to compute — the target is "no time". Games already TBD are
+    // dropped rather than reported as moving from nothing to nothing.
+    var clearing = picked.filter(function(p) { return !!p.time; });
+    if (!clearing.length) return { error: 'Every game selected is already TBD.' };
+    return { moves: clearing.map(function(p) { return { sid: p.sid, from: p.time, to: '' }; }) };
+  }
+
+  // Both remaining modes do arithmetic on an existing time, so a TBD game
+  // cannot take part — say which, instead of failing on a blank string.
+  var noTime = picked.filter(function(p) { return !p.time; });
+  if (noTime.length) {
+    return { error: noTime.length + ' selected game' + (noTime.length === 1 ? ' is' : 's are')
+      + ' TBD and have no time to move. Untick ' + (noTime.length === 1 ? 'it' : 'them')
+      + ', or set a time in the Schedule editor first.' };
+  }
 
   if (mode === 'shift') {
     var h = parseInt(document.getElementById('reschedHours').value, 10) || 0;
@@ -3713,15 +3741,20 @@ function reschedPreview() {
     : 'Too many games for per-game notifications (' + r.moves.length + ' > 12), so NO push will be sent. Set the delay notice above so spectators know.';
 
   out.hidden = false;
-  out.innerHTML = '<div class="resched-preview-hdr">' + r.moves.length + ' game' + (r.moves.length === 1 ? '' : 's') + ' will move</div>'
+  var clearing = r.moves.length && !r.moves[0].to;
+  out.innerHTML = '<div class="resched-preview-hdr">' + r.moves.length + ' game' + (r.moves.length === 1 ? '' : 's')
+      + (clearing ? ' will be set to TBD' : ' will move') + '</div>'
     + r.moves.map(function(m) {
-        var dayChanged = m.from.slice(0, 10) !== m.to.slice(0, 10);
+        var dayChanged = !!m.to && m.from.slice(0, 10) !== m.to.slice(0, 10);
+        var toLabel = m.to
+          ? esc(fmtDayLabel(m.to.slice(0, 10))) + ' ' + esc(fmtClock(m.to))
+          : 'TBD';
         return '<div class="resched-move">'
           + '<span class="resched-lbl">' + esc(gameLabel(m.sid)) + '</span>'
           + '<span class="resched-from">' + esc(fmtDayLabel(m.from.slice(0, 10))) + ' ' + esc(fmtClock(m.from)) + '</span>'
           + '<span class="resched-arrow">&rarr;</span>'
           + '<span class="resched-to' + (dayChanged ? ' resched-to--day' : '') + '">'
-          + esc(fmtDayLabel(m.to.slice(0, 10))) + ' ' + esc(fmtClock(m.to)) + '</span>'
+          + toLabel + '</span>'
           + '</div>';
       }).join('')
     + '<div class="resched-note">' + esc(pushNote) + '</div>'
@@ -3735,7 +3768,12 @@ async function reschedApply() {
   var r = reschedComputeMoves();
   if (r.error) { showToast(r.error, true); return; }
 
-  var ok = await ttConfirm('Move ' + r.moves.length + ' game' + (r.moves.length === 1 ? '' : 's') + '? Undo will restore the current schedule.');
+  var clearingAll = r.moves.length && !r.moves[0].to;
+  var ok = await ttConfirm(
+    (clearingAll ? 'Clear the time on ' : 'Move ') + r.moves.length
+    + ' game' + (r.moves.length === 1 ? '' : 's')
+    + (clearingAll ? ' (they will show as TBD)' : '')
+    + '? Undo will restore the current schedule.');
   if (!ok) return;
 
   // Same shape as saveQuickEdits: start from the whole existing document and
@@ -3755,7 +3793,8 @@ async function reschedApply() {
     if (!resp.ok) throw new Error();
     schedule = out;
     if (typeof applySchedule === 'function') applySchedule(schedule);
-    showToast(r.moves.length + ' game' + (r.moves.length === 1 ? '' : 's') + ' moved');
+    showToast(r.moves.length + ' game' + (r.moves.length === 1 ? '' : 's')
+      + (clearingAll ? ' set to TBD' : ' moved'));
     if (status) { status.textContent = '✓ Applied'; setTimeout(function(){ status.textContent = ''; }, 3000); }
     _reschedChecked = {};
     var pv = document.getElementById('reschedPreview');
@@ -5151,11 +5190,12 @@ Object.assign(TT_ACTIONS, {
   reschedSelectNone:   function() { _reschedChecked = {}; renderReschedList(); },
   reschedModeChange:   function() {
     var mode = document.querySelector('input[name="reschedMode"]:checked');
-    var isShift = !mode || mode.value === 'shift';
+    var v = mode ? mode.value : 'shift';
     var s = document.getElementById('reschedShiftWrap');
     var r = document.getElementById('reschedRestartWrap');
-    if (s) s.hidden = !isShift;
-    if (r) r.hidden = isShift;
+    // 'tbd' takes no input at all, so neither row is shown.
+    if (s) s.hidden = v !== 'shift';
+    if (r) r.hidden = v !== 'restart';
   },
   reschedPreview:      function() { reschedPreview(); },
   reschedApply:        function() { reschedApply(); },

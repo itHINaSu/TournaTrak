@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.052">
-<link rel="stylesheet" href="/admin.css?v=4.08.052">
-<link rel="stylesheet" href="/lineup.css?v=4.08.052">
-<link rel="stylesheet" href="/builder.css?v=4.08.052">
-<link rel="stylesheet" href="/score.css?v=4.08.052">
-<script src="/app-h.js?v=4.08.052"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.053">
+<link rel="stylesheet" href="/admin.css?v=4.08.053">
+<link rel="stylesheet" href="/lineup.css?v=4.08.053">
+<link rel="stylesheet" href="/builder.css?v=4.08.053">
+<link rel="stylesheet" href="/score.css?v=4.08.053">
+<script src="/app-h.js?v=4.08.053"></script>
 </head>
 <body>
 
@@ -1009,6 +1009,13 @@
       <div class="resched-mode-row">
         <label class="share-opt"><input type="radio" name="reschedMode" value="shift" checked data-action-change="reschedModeChange"> Shift by an amount</label>
         <label class="share-opt"><input type="radio" name="reschedMode" value="restart" data-action-change="reschedModeChange"> Restart at a set time</label>
+        <!-- Owner, 2026-08-02, mid-tournament with nine games cancelled: "We
+             need to move all games to a TBD time." Clears the stored time so
+             the cards read TBD instead of advertising a time nobody is going
+             to play at. Times are restored by picking the games again and
+             using "Restart at a set time" — TBD games stay listed here for
+             exactly that reason. -->
+        <label class="share-opt"><input type="radio" name="reschedMode" value="tbd" data-action-change="reschedModeChange"> Clear the time (TBD)</label>
       </div>
     </div>
 
@@ -1046,15 +1053,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.08.052"></script>
-<script src="/theme-css.js?v=4.08.052"></script>
-<script src="/tt-common.js?v=4.08.052"></script>
-<script src="/bracket-data.js?v=4.08.052"></script>
-<script src="/admin.js?v=4.08.052"></script>
-<script src="/lineup.js?v=4.08.052"></script>
-<script src="/score.js?v=4.08.052"></script>
-<script src="/builder-form.js?v=4.08.052"></script>
-<script src="/builder.js?v=4.08.052"></script>
-<script src="/sw-register.js?v=4.08.052" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.053"></script>
+<script src="/theme-css.js?v=4.08.053"></script>
+<script src="/tt-common.js?v=4.08.053"></script>
+<script src="/bracket-data.js?v=4.08.053"></script>
+<script src="/admin.js?v=4.08.053"></script>
+<script src="/lineup.js?v=4.08.053"></script>
+<script src="/score.js?v=4.08.053"></script>
+<script src="/builder-form.js?v=4.08.053"></script>
+<script src="/builder.js?v=4.08.053"></script>
+<script src="/sw-register.js?v=4.08.053" data-sw="/admin-sw.js"></script>
 </body>
 </html>
