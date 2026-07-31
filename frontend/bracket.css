@@ -244,7 +244,15 @@
    accent bar looks like everywhere else this pattern shows up. Color itself
    comes from data-css (border-left-color), set per-row in bracket.js. */
 .std-row--branded { border-left-width: 0.35em; border-left-style: solid; border-top-left-radius: 0; border-bottom-left-radius: 0; }
-.std-team-logo { width: 2rem; height: 2rem; object-fit: contain; border-radius: var(--radius-xs); flex-shrink: 0; }
+/* ~78% of the row's own rendered height (owner, 2026-08-02: "Team logos
+   should be 70-90% of the height of the div") — measured empirically since
+   .std-row's height is content-driven (no explicit height for a percentage
+   to resolve against). Height is the fixed dimension and width follows the
+   logo's own aspect ratio (owner, 2026-08-02: "Allow a non-square crop for
+   team logos... height should be the determining factor for sizing") —
+   there's room to the row's right for a wide badge to run, so only
+   max-width bounds it (matching the crop modal's own aspect-ratio cap). */
+.std-team-logo { height: 3rem; width: auto; max-width: 9rem; object-fit: contain; border-radius: var(--radius-xs); flex-shrink: 0; }
 .std-rank {
   font-family: 'Oswald', sans-serif;
   font-size: var(--text-lg);

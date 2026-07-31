@@ -1278,7 +1278,25 @@ input[type="time"]:focus {
   border-radius: var(--radius-xs);
   background: var(--bg);
 }
-.team-tab-colors { display: flex; gap: 1.2em; }
+.team-tab-colors { display: flex; gap: 1.2em; align-items: flex-start; }
+/* Sits between the two swatches in the same flex row — owner, 2026-08-02:
+   "Add a button in team panel to swap primary & secondary colors, same for
+   text/outline." margin-top roughly clears the label text above the swatch
+   so the icon lines up with the swatch itself, not the taller column that
+   also includes the Clear/Auto/None button underneath it. */
+.team-tab-swap-btn {
+  margin-top: 1.3em;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--text-dim);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.team-tab-swap-btn:hover { color: var(--text); border-color: var(--text-dim); }
 .team-tab-color-field {
   display: flex;
   flex-direction: column;
@@ -1310,6 +1328,19 @@ input[type="time"]:focus {
    Team tab's swatches (.team-tab-color-field) and admin's Teams editor
    (.team-ed-color-field), which share this CSS file. */
 .color-swatch { position: relative; display: inline-block; line-height: 0; }
+/* Chrome/Safari's native <input type="color"> reserves its own internal
+   inset around the visible swatch (::-webkit-color-swatch-wrapper's default
+   padding) — the element's own border-box is bigger than the color you
+   actually see painted inside it. The X sizes itself to the wrapper's full
+   box (correctly, per the corner-to-corner note above), so that gap showed
+   up as the X overshooting the VISIBLE color rectangle even though it never
+   overshot the input's own box (owner, 2026-08-02: "constrain it to the
+   inner rectangle, not the outer most rectangle"). Zeroing the native inset
+   makes the visible color fill the whole box, so the two rectangles become
+   the same one instead of trying to shrink the X to match an inset that
+   has no CSS custom property to measure. */
+.color-swatch input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+.color-swatch input[type="color"]::-webkit-color-swatch { border: none; }
 .color-swatch--unset::after {
   content: '';
   position: absolute;
@@ -1530,6 +1561,23 @@ input[type="time"]:focus {
   touch-action: none;
 }
 .icon-crop-side { display: flex; flex-direction: column; gap: 0.6em; align-items: flex-start; max-width: 20em; }
+/* Square/Rectangle crop-shape toggle (owner, 2026-08-02: "allow a selector
+   for square or rectangle crop"). */
+.icon-crop-shape-toggle { display: flex; gap: 0.4em; }
+.icon-crop-shape-btn {
+  padding: 0.3em 0.8em;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-xs);
+  background: none;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.icon-crop-shape-btn.is-active {
+  background: var(--blue-lt);
+  border-color: var(--blue-lt);
+  color: #fff;
+}
 /* Wider than the default .login-box (340px) so the crop stage and its side
    panel can sit next to each other instead of always stacking. */
 .team-logo-crop-box { width: min(90vw, 560px); }

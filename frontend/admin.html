@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.017">
-<link rel="stylesheet" href="/admin.css?v=4.08.017">
-<link rel="stylesheet" href="/lineup.css?v=4.08.017">
-<link rel="stylesheet" href="/builder.css?v=4.08.017">
-<link rel="stylesheet" href="/score.css?v=4.08.017">
-<script src="/app-h.js?v=4.08.017"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.018">
+<link rel="stylesheet" href="/admin.css?v=4.08.018">
+<link rel="stylesheet" href="/lineup.css?v=4.08.018">
+<link rel="stylesheet" href="/builder.css?v=4.08.018">
+<link rel="stylesheet" href="/score.css?v=4.08.018">
+<script src="/app-h.js?v=4.08.018"></script>
 </head>
 <body>
 
@@ -147,8 +147,13 @@
         </div>
       </div>
       <div class="icon-crop-side">
-        <div class="field-hint">Drag the square to move it, or its corner to resize. The area inside becomes the logo.</div>
+        <div class="field-hint">Drag the box to move it, or its corner to resize. The area inside becomes the logo.</div>
+        <div class="icon-crop-shape-toggle" role="group" aria-label="Crop shape">
+          <button type="button" class="icon-crop-shape-btn" id="teamLogoCropShapeSquare" data-action="ttCropSetMode" data-arg="square">Square</button>
+          <button type="button" class="icon-crop-shape-btn" id="teamLogoCropShapeRect" data-action="ttCropSetMode" data-arg="rect">Rectangle</button>
+        </div>
         <div class="icon-crop-actions">
+          <button type="button" class="admin-clear-btn" data-action="ttCropCenter">Center</button>
           <button type="button" class="admin-clear-btn" data-action="ttCropReset">Reset crop</button>
         </div>
       </div>
@@ -973,6 +978,7 @@
                   <span class="color-swatch"><input type="color" id="teamsDetailPrimaryColor" value="#4a4a4a"></span>
                   <button type="button" class="admin-clear-btn" id="teamsDetailPrimaryColorClear" data-action="clearTeamsDetailColor" data-arg="primaryColor" hidden>Clear</button>
                 </label>
+                <button type="button" class="team-tab-swap-btn" data-action="swapTeamsDetailColors" data-arg="primarySecondary" title="Swap primary and secondary">⇄</button>
                 <label class="team-tab-color-field">
                   <span>Secondary</span>
                   <span class="color-swatch"><input type="color" id="teamsDetailSecondaryColor" value="#4a4a4a"></span>
@@ -1029,6 +1035,7 @@
                   <span class="color-swatch"><input type="color" id="teamsDetailTextColor" value="#ffffff"></span>
                   <button type="button" class="admin-clear-btn" id="teamsDetailTextColorClear" data-action="clearTeamsDetailColor" data-arg="brandTextColor" hidden>Auto</button>
                 </label>
+                <button type="button" class="team-tab-swap-btn" data-action="swapTeamsDetailColors" data-arg="textOutline" title="Swap text and outline">⇄</button>
                 <label class="team-tab-color-field">
                   <span>Outline</span>
                   <span class="color-swatch"><input type="color" id="teamsDetailOutlineColor" value="#000000"></span>
@@ -1124,15 +1131,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.08.017"></script>
-<script src="/theme-css.js?v=4.08.017"></script>
-<script src="/tt-common.js?v=4.08.017"></script>
-<script src="/bracket-data.js?v=4.08.017"></script>
-<script src="/admin.js?v=4.08.017"></script>
-<script src="/lineup.js?v=4.08.017"></script>
-<script src="/score.js?v=4.08.017"></script>
-<script src="/builder-form.js?v=4.08.017"></script>
-<script src="/builder.js?v=4.08.017"></script>
-<script src="/sw-register.js?v=4.08.017" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.018"></script>
+<script src="/theme-css.js?v=4.08.018"></script>
+<script src="/tt-common.js?v=4.08.018"></script>
+<script src="/bracket-data.js?v=4.08.018"></script>
+<script src="/admin.js?v=4.08.018"></script>
+<script src="/lineup.js?v=4.08.018"></script>
+<script src="/score.js?v=4.08.018"></script>
+<script src="/builder-form.js?v=4.08.018"></script>
+<script src="/builder.js?v=4.08.018"></script>
+<script src="/sw-register.js?v=4.08.018" data-sw="/admin-sw.js"></script>
 </body>
 </html>

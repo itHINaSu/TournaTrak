@@ -5352,7 +5352,10 @@ function renderStandingsViewInner() {
     html += '<div class="std-row' + (r.gp ? '' : ' std-row--unplayed') + (accent ? ' std-row--branded' : '') + '"'
       + (rowCss ? ' data-css="' + esc(rowCss) + '"' : '') + '>'
       + '<span class="std-rank">' + (r.gp ? (i + 1) : '—') + '</span>'
-      + (brand && brand.logoUrl ? '<img class="std-team-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
+      // Logo AFTER the name in DOM order, same reasoning as the Team Path
+      // banner (owner, 2026-08-02: "move logos to the right of team names")
+      // — the name gets its full run of space rather than sharing a line
+      // with a fixed-width image ahead of it.
       + '<span class="std-main">'
       +   '<span class="std-team">' + seedChip(r.name) + esc(r.name) + '</span>'
       +   '<span class="std-meta">'
@@ -5360,6 +5363,7 @@ function renderStandingsViewInner() {
       +     '<span class="std-stat"><b>' + r.ra + '</b> RA</span>'
       +   '</span>'
       + '</span>'
+      + (brand && brand.logoUrl ? '<img class="std-team-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
       + '<span class="std-figures">'
       +   '<span class="std-record">' + r.w + '<span class="std-record-sep">–</span>' + r.l + '</span>'
       +   '<span class="std-diff' + diffCls + '">' + (diff > 0 ? '+' : '') + diff + '</span>'

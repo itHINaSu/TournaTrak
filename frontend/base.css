@@ -631,8 +631,17 @@ body.print-palette .flight-col--champ {
    "what is happening surrounding that logo?"). A plain, unframed image
    reads correctly either way. */
 .team-brand-logo {
-  width: 3rem;
-  height: 3rem;
+  /* ~80% of the banner's own rendered height (owner, 2026-08-02: "Team logos
+     should be 70-90% of the height of the div") — measured empirically since
+     .team-brand-banner's height is content-driven (no explicit height for a
+     percentage to resolve against). Height is the fixed dimension and width
+     follows the logo's own aspect ratio (owner, 2026-08-02: "Allow a
+     non-square crop for team logos... height should be the determining
+     factor for sizing"); max-width mirrors the crop modal's aspect-ratio cap
+     so a wide badge has room to run without overrunning the banner. */
+  height: 4.5rem;
+  width: auto;
+  max-width: 13.5rem;
   object-fit: contain;
   border-radius: var(--radius-xs);
   flex-shrink: 0;

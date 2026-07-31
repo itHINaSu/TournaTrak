@@ -928,7 +928,14 @@ function ttSetThemeOverrideCss(cssText) {
 // used, rather than one inline editor per target.
 var TT_TEAM_LOGO_MAX_URI = 48 * 1024;  // matches the server's LOGO_MAX_CHARS
 var TT_TEAM_LOGO_EDIT_DIM = 800;       // working resolution for the crop stage
-var TT_TEAM_LOGO_BAKE_DIM = 480;       // final square output, before the shrink-to-cap pass
+// Bake HEIGHT is fixed; width follows whatever aspect ratio the crop box was
+// dragged to (owner, 2026-08-02: "Allow a non-square crop for team logos...
+// height should be the determining factor for sizing" — team badges are
+// commonly wordmarks/rectangles, not square icons, and standings/Team Path
+// both size the logo by height with room to spare on the width). Bounded to
+// TT_TEAM_LOGO_MAX_ASPECT so a pathological drag can't bake a mile-wide strip.
+var TT_TEAM_LOGO_BAKE_H = 300;
+var TT_TEAM_LOGO_MAX_ASPECT = 3;       // widest allowed w:h (and narrowest, as 1/3)
 
 function ttReadTeamLogoFile(file, onReady, onError) {
   if (!file) return;
@@ -1044,22 +1051,97 @@ function drawCropped(ctx, img, rect, size) {
 // element ids, never both loaded at once) rather than one editor per team:
 // there can be many teams in Settings > Teams, so this opens bound to
 // whichever one's file input was used, and rebinds on the next pick.
-var _tlCrop = null;       // {x,y,s} pending crop, source-fraction terms
+//
+// NON-square rect (owner, 2026-08-02: "Allow a non-square crop for team
+// logos... height should be the determining factor for sizing") — deliberately
+// its own {x,y,rw,rh} rect math rather than reusing centerCrop/cropRect/
+// cropMaxS above, because those stay locked to a single `side` for admin.js's
+// app/tab icon editors, which DO need a true square PWA tile.
+var _tlCrop = null;       // {x,y,rw,rh} pending crop, source-fraction terms
 var _tlCropDrag = null;
 var _tlCropDone = null;   // function(finalDataUri) — set per-open, cleared on Apply/Cancel
+// Shape toggle (owner, 2026-08-02: "allow a selector for square or rectangle
+// crop") — 'rect' lets width/height resize independently (the default, since
+// most team badges are wordmarks/rectangles); 'square' locks the resize
+// handle to grow both dimensions together, same feel as the old fixed-square
+// modal, for a team that wants an icon-style badge instead.
+var _tlCropMode = 'rect';
+
+// Default crop: contain the whole image, letterboxed to the nearest aspect
+// ratio this modal allows, rather than forced to a square — a source image
+// already inside the allowed range needs no letterboxing at all. In 'square'
+// mode the allowed range collapses to exactly 1:1.
+function tlDefaultCrop(w, h, mode) {
+  var maxAspect = mode === 'square' ? 1 : TT_TEAM_LOGO_MAX_ASPECT;
+  var minAspect = mode === 'square' ? 1 : 1 / TT_TEAM_LOGO_MAX_ASPECT;
+  var aspect = Math.min(maxAspect, Math.max(minAspect, w / h));
+  var rw, rh;
+  if (w / h > aspect) { rh = h; rw = h * aspect; } else { rw = w; rh = w / aspect; }
+  return { x: 0.5, y: 0.5, rw: rw / w, rh: rh / h };
+}
+// Resolve a stored {x,y,rw,rh} crop (fractions of the image) to a pixel rect.
+// Same overhang allowance as cropRect above — the rect's centre must stay on
+// the image, but its edges may extend past it (bakes as transparent).
+function tlCropRect(crop, w, h) {
+  var c = crop || tlDefaultCrop(w, h);
+  var rw = Math.min(1.5, Math.max(0.05, c.rw)) * w;
+  var rh = Math.min(1.5, Math.max(0.05, c.rh)) * h;
+  var cx = Math.min(Math.max(c.x * w, 0), w);
+  var cy = Math.min(Math.max(c.y * h, 0), h);
+  return { x: cx - rw / 2, y: cy - rh / 2, w: rw, h: rh };
+}
+// Paint `rect` (possibly extending past the source image's edges) onto an
+// outW x outH tile. outW/outH must share rect's aspect ratio (the caller
+// picks outW from outH and rect.w/rect.h) so this scales uniformly — no
+// stretch.
+function tlDrawCropped(ctx, img, rect, outW, outH) {
+  var k = outW / rect.w;
+  ctx.drawImage(img, -rect.x * k, -rect.y * k, img.width * k, img.height * k);
+}
 
 function ttOpenLogoCropModal(srcUri, onDone) {
   var overlay = document.getElementById('teamLogoCropOverlay');
   var img = document.getElementById('teamLogoCropImg');
   if (!overlay || !img) { onDone(srcUri); return; }  // no modal in this page's markup — skip cropping
   _tlCrop = null;
+  _tlCropMode = 'rect';
   _tlCropDone = onDone;
   overlay.hidden = false;
+  ttSyncCropShapeButtons();
   img.onload = function () {
-    if (!_tlCrop) _tlCrop = centerCrop(img.naturalWidth, img.naturalHeight);
+    if (!_tlCrop) _tlCrop = tlDefaultCrop(img.naturalWidth, img.naturalHeight, _tlCropMode);
     ttDrawCropBox();
   };
   img.src = srcUri;
+}
+function ttSyncCropShapeButtons() {
+  var sq = document.getElementById('teamLogoCropShapeSquare');
+  var rect = document.getElementById('teamLogoCropShapeRect');
+  if (sq) sq.classList.toggle('is-active', _tlCropMode === 'square');
+  if (rect) rect.classList.toggle('is-active', _tlCropMode === 'rect');
+}
+function ttCropSetMode(mode) {
+  var img = document.getElementById('teamLogoCropImg');
+  _tlCropMode = mode;
+  ttSyncCropShapeButtons();
+  if (!img || !img.naturalWidth) return;
+  if (mode === 'square' && _tlCrop) {
+    // Collapse the current box to a centred square using its shorter pixel
+    // side, rather than jumping back to the whole-image default — switching
+    // shape shouldn't also throw away where the user already positioned it.
+    // rw/rh are fractions of W/H independently, so equal fractions are only
+    // square in PIXELS when W==H — convert through pixels to be sure.
+    var W = img.naturalWidth, H = img.naturalHeight;
+    var pxSide = Math.min(_tlCrop.rw * W, _tlCrop.rh * H);
+    _tlCrop = { x: _tlCrop.x, y: _tlCrop.y, rw: pxSide / W, rh: pxSide / H };
+  }
+  ttDrawCropBox();
+}
+function ttCropCenter() {
+  var img = document.getElementById('teamLogoCropImg');
+  if (!img || !img.naturalWidth || !_tlCrop) return;
+  _tlCrop = { x: 0.5, y: 0.5, rw: _tlCrop.rw, rh: _tlCrop.rh };
+  ttDrawCropBox();
 }
 function ttDrawCropBox() {
   var stage = document.getElementById('teamLogoCropStage');
@@ -1068,11 +1150,11 @@ function ttDrawCropBox() {
   if (!stage || !img || !boxEl || !img.naturalWidth) return;
   var sr = stage.getBoundingClientRect(), ir = img.getBoundingClientRect();
   var k = ir.width / img.naturalWidth;
-  var r = cropRect(_tlCrop, img.naturalWidth, img.naturalHeight);
+  var r = tlCropRect(_tlCrop, img.naturalWidth, img.naturalHeight);
   boxEl.style.left   = (ir.left - sr.left + r.x * k) + 'px';
   boxEl.style.top    = (ir.top  - sr.top  + r.y * k) + 'px';
-  boxEl.style.width  = (r.side * k) + 'px';
-  boxEl.style.height = (r.side * k) + 'px';
+  boxEl.style.width  = (r.w * k) + 'px';
+  boxEl.style.height = (r.h * k) + 'px';
 }
 function ttCropDragStart(mode, e) {
   var img = document.getElementById('teamLogoCropImg');
@@ -1081,7 +1163,7 @@ function ttCropDragStart(mode, e) {
   var ir = img.getBoundingClientRect();
   _tlCropDrag = {
     mode: mode, x0: e.clientX, y0: e.clientY, k: ir.width / img.naturalWidth,
-    r: cropRect(_tlCrop, img.naturalWidth, img.naturalHeight),
+    r: tlCropRect(_tlCrop, img.naturalWidth, img.naturalHeight),
     W: img.naturalWidth, H: img.naturalHeight,
   };
   window.addEventListener('pointermove', ttCropDragMove);
@@ -1092,15 +1174,27 @@ function ttCropDragMove(e) {
   var d = _tlCropDrag;
   if (!d) return;
   var dx = (e.clientX - d.x0) / d.k, dy = (e.clientY - d.y0) / d.k;
-  var x = d.r.x, y = d.r.y, side = d.r.side;
+  var x = d.r.x, y = d.r.y, w = d.r.w, h = d.r.h;
   if (d.mode === 'move') {
     x = d.r.x + dx; y = d.r.y + dy;
+  } else if (_tlCropMode === 'square') {
+    // Locked 1:1 — both dimensions grow together from whichever axis moved
+    // furthest, same feel as the old fixed-square modal.
+    var growPx = Math.max(dx, dy);
+    var side = Math.min(Math.max(Math.min(d.W, d.H) * 0.05, Math.min(d.r.w, d.r.h) + growPx), Math.min(d.W, d.H) * 1.5);
+    w = side; h = side;
   } else {
-    side = d.r.side + Math.max(dx, dy);
-    var short = Math.min(d.W, d.H);
-    side = Math.min(Math.max(short * 0.05, side), short * cropMaxS(d.W, d.H));
+    // Width and height resize independently — the whole point of allowing a
+    // non-square box — each clamped to its own 5%-150%-of-image range and
+    // to the overall aspect-ratio bound so a corner drag can't bake a
+    // pathologically wide/tall strip.
+    w = Math.min(Math.max(d.W * 0.05, d.r.w + dx), d.W * 1.5);
+    h = Math.min(Math.max(d.H * 0.05, d.r.h + dy), d.H * 1.5);
+    var aspect = w / h;
+    if (aspect > TT_TEAM_LOGO_MAX_ASPECT) h = w / TT_TEAM_LOGO_MAX_ASPECT;
+    else if (aspect < 1 / TT_TEAM_LOGO_MAX_ASPECT) w = h / TT_TEAM_LOGO_MAX_ASPECT;
   }
-  _tlCrop = { x: x / d.W, y: y / d.H, s: side / Math.min(d.W, d.H) };
+  _tlCrop = { x: (x + w / 2) / d.W, y: (y + h / 2) / d.H, rw: w / d.W, rh: h / d.H };
   ttDrawCropBox();
 }
 function ttCropDragEnd() {
@@ -1112,7 +1206,7 @@ function ttCropDragEnd() {
 function ttCropReset() {
   var img = document.getElementById('teamLogoCropImg');
   if (!img || !img.naturalWidth) return;
-  _tlCrop = centerCrop(img.naturalWidth, img.naturalHeight);
+  _tlCrop = tlDefaultCrop(img.naturalWidth, img.naturalHeight, _tlCropMode);
   ttDrawCropBox();
 }
 function ttCropApply() {
@@ -1122,10 +1216,12 @@ function ttCropApply() {
   _tlCropDone = null;
   if (overlay) overlay.hidden = true;
   if (!img || !img.naturalWidth || !cb) return;
-  var rect = cropRect(_tlCrop, img.naturalWidth, img.naturalHeight);
+  var rect = tlCropRect(_tlCrop, img.naturalWidth, img.naturalHeight);
+  var outH = TT_TEAM_LOGO_BAKE_H;
+  var outW = Math.max(1, Math.round(outH * (rect.w / rect.h)));
   var canvas = document.createElement('canvas');
-  canvas.width = TT_TEAM_LOGO_BAKE_DIM; canvas.height = TT_TEAM_LOGO_BAKE_DIM;
-  drawCropped(canvas.getContext('2d'), img, rect, TT_TEAM_LOGO_BAKE_DIM);
+  canvas.width = outW; canvas.height = outH;
+  tlDrawCropped(canvas.getContext('2d'), img, rect, outW, outH);
   var out = canvas.toDataURL('image/webp', 0.9);
   if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/png');
   cb(out);
@@ -1135,9 +1231,11 @@ function ttCropCancel() {
   if (overlay) overlay.hidden = true;
   _tlCropDone = null;
 }
-TT_ACTIONS.ttCropApply  = function () { ttCropApply(); };
-TT_ACTIONS.ttCropCancel = function () { ttCropCancel(); };
-TT_ACTIONS.ttCropReset  = function () { ttCropReset(); };
+TT_ACTIONS.ttCropApply   = function () { ttCropApply(); };
+TT_ACTIONS.ttCropCancel  = function () { ttCropCancel(); };
+TT_ACTIONS.ttCropReset   = function () { ttCropReset(); };
+TT_ACTIONS.ttCropSetMode = function (mode) { ttCropSetMode(mode); };
+TT_ACTIONS.ttCropCenter  = function () { ttCropCenter(); };
 
 document.addEventListener('DOMContentLoaded', function () {
   var boxEl  = document.getElementById('teamLogoCropBox');

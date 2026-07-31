@@ -524,6 +524,21 @@ function clearTeamTabColor(which) {
   showToast(label + ' will be removed on Save');
 }
 
+// Owner, 2026-08-02: "Add a button in team panel to swap primary &
+// secondary colors, same for text/outline." Both fields are already in
+// their settled ''/hex form by the time this can be clicked (loadTeamTab()
+// always resolves the initial null to one or the other before the form is
+// shown), so a plain swap is safe — no null/undetermined case to reconcile.
+function teamTabSwapColors(which) {
+  var a = which === 'textOutline' ? 'brandTextColor' : 'primaryColor';
+  var b = which === 'textOutline' ? 'brandNameOutlineColor' : 'secondaryColor';
+  var tmp = _teamTabColors[a];
+  _teamTabColors[a] = _teamTabColors[b];
+  _teamTabColors[b] = tmp;
+  teamTabSyncColor(a);
+  teamTabSyncColor(b);
+}
+
 // Banner style/angle have no "unset" state worth tracking separately —
 // unlike a color swatch, a radio is always showing SOME choice and the
 // slider always has SOME position, so both are just read straight off the
@@ -1117,6 +1132,7 @@ Object.assign(TT_ACTIONS, {
   saveTeamProfile:   function () { saveTeamProfile(); },
   removeTeamTabLogo: function () { removeTeamTabLogo(); },
   clearTeamTabColor: function (arg) { clearTeamTabColor(arg); },
+  swapTeamTabColors: function (arg) { teamTabSwapColors(arg); },
   openCoachShare:       function () { openCoachShare(); },
   closeCoachShare:      function () { closeCoachShare(); },
   printCoachShare:      function () { printCoachShare(); },

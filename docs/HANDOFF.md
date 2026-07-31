@@ -193,12 +193,17 @@ under different hashes. Check whether each apparent gap is a real gap
 deliberate behavioural reversal to the owner instead of silently picking a
 side.
 
-## Outstanding work (what's still needed) — updated 2026-07-30
+## Outstanding work (what's still needed) — updated 2026-08-02
 
-**Shipped 2026-07-30 on `main`, newest first.**
+**Shipped 2026-08-02 (v4.08.018), newest first.**
 
 | commit | what |
 |--------|------|
+| (this) | **Team logo crop is non-square** — Square/Rectangle shape toggle + a Center button in the crop modal (`tt-common.js`: `tlDefaultCrop`/`tlCropRect`/`tlDrawCropped`, `_tlCropMode`); bake is now HEIGHT-fixed (`TT_TEAM_LOGO_BAKE_H`) with width following the crop's own aspect, capped at `TT_TEAM_LOGO_MAX_ASPECT` (3:1). The admin.js/coach.js icon editors' own square crop math (`centerCrop`/`cropRect`/`cropMaxS`/`drawCropped`) is untouched — team logos now use separate `tl*` functions |
+| (this) | **Team logos resized to ~70-90% of their row/banner height** — `.std-team-logo` (bracket.css, 3rem) and `.team-brand-logo` (base.css, 4.5rem), both now `height` + `width:auto` + a `max-width` cap instead of a fixed square, so a non-square crop displays at its natural aspect ratio |
+| (this) | **Standings logo moved to the right of the team name** (`bracket.js` `.std-row` template — logo now emitted after `.std-main` instead of before) |
+| (this) | **Swap (⇄) buttons** for Primary/Secondary and Text/Outline team colors, in both the coach Team tab and admin Teams-detail view (`teamTabSwapColors`/`teamsDetailSwapColors`) |
+| (this) | **Color-swatch red-X no longer overshoots the visible swatch** — native `<input type="color">` reserves its own inset via `::-webkit-color-swatch-wrapper`'s default padding, independent of the input's own CSS `padding`; zeroed in `admin.css` |
 | (this) | **Teams get a hidden stable id** + coach-facing display/short names; picks now key off `data-team`, not rendered text |
 | (this) | **Header menu at every width**, not just mobile; **Refresh is PWA-only** |
 | (this) | **One "Sign in" replaces the PWA guesswork** — signed-out visitors get a login route in any context; coaches signing in at /admin are routed instead of dead-ended |

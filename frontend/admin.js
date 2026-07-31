@@ -4624,6 +4624,20 @@ function clearTeamsDetailColor(which) {
   showToast(label + ' will be removed on Save');
 }
 
+// Owner, 2026-08-02: "Add a button in team panel to swap primary &
+// secondary colors, same for text/outline." Mirrors coach.js's
+// teamTabSwapColors — both fields are already settled to ''/hex by the
+// time openTeamDetail() has populated the form, so a plain swap is safe.
+function teamsDetailSwapColors(which) {
+  var a = which === 'textOutline' ? 'brandTextColor' : 'primaryColor';
+  var b = which === 'textOutline' ? 'brandNameOutlineColor' : 'secondaryColor';
+  var tmp = _teamsDetailColors[a];
+  _teamsDetailColors[a] = _teamsDetailColors[b];
+  _teamsDetailColors[b] = tmp;
+  teamsDetailSyncColor(a);
+  teamsDetailSyncColor(b);
+}
+
 function teamsDetailStyleValue() {
   var el = document.querySelector('input[name="teamsDetailBrandStyle"]:checked');
   return (el && el.value) || 'gradient';
@@ -4839,6 +4853,7 @@ Object.assign(TT_ACTIONS, {
   saveTeamsDetail: function() { saveTeamsDetail(); },
   removeTeamsDetailLogo: function() { removeTeamsDetailLogo(); },
   clearTeamsDetailColor: function(which) { clearTeamsDetailColor(which); },
+  swapTeamsDetailColors: function(which) { teamsDetailSwapColors(which); },
 });
 
 function teamLinkUrl(token) {
