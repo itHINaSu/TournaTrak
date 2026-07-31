@@ -204,6 +204,11 @@ function renderRoster() {
     var single = mine.length ? String(mine[0]) : '';
     var clash = mine.some(function (j) { return dup[String(j).toLowerCase()]; });
     html += '<tr class="lineup-row">'
+      // Same running row number as the lineup tab's leftmost column (owner,
+      // 2026-08-02: "have the numbers one through however many players in
+      // the roster like there is in lineup") — purely a position-in-the-
+      // list count, unrelated to jersey number or batting order.
+      + '<td class="lineup-td-order"><span class="lineup-order">' + (i + 1) + '</span></td>'
       + '<td class="lineup-td-num">'
       +   '<input type="text" class="lineup-inp lineup-inp--num roster-jerseys'
       +     (clash ? ' roster-jerseys--dup' : '') + '" id="rj-' + i + '" '

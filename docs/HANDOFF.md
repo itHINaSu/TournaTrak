@@ -3447,6 +3447,25 @@ identical order (`Alex Rivera | Casey Nguyen | Devon Marsh | ...`). Sorted
 Roster by Position instead, reopened the picker — reordered to match that
 too. Full API suite (140 tests) still passes.
 
+## Roster gets the same leading row-number column as Lineup (owner, 2026-08-02)
+Owner, with two screenshots: *"Also have the numbers one through, however,
+many players in the roster like there is in lineup."* The Lineup tab's
+leftmost column (`.lineup-td-order`/`.lineup-order`) is just a running
+1..N row count, unrelated to jersey number or batting order; Roster had no
+equivalent — its OWN `.lineup-td-order` cell is the trailing ✕/swipe-delete
+column instead, so the two tables didn't visually match.
+
+Added a second `.lineup-td-order` cell at the START of each roster row
+(coach.html's `<thead>` gets a matching leading empty `<th>`), holding a
+`<span class="lineup-order">` with the same `i + 1` a coach would see in
+Lineup — the trailing delete column is untouched, so Roster now has 5
+columns (order, #, name, position, delete) where Lineup has 4 (no per-row
+delete there). Verified against the demo: numbers ran 1 through 12 (9 real
+players + 3 blank typing rows, matching "row count" rather than "player
+count" exactly like Lineup's own column never special-cases blank rows
+either), delete buttons still present on all 12 rows, and the #/name/
+position widths were unaffected. Full API suite (140 tests) still passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an
