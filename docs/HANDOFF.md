@@ -1020,7 +1020,11 @@ branch and main were both live at once this day and the graph shows it.
   height may compress further before a row stops fitting. Verified fitting
   at 1080/900/800/760 viewport heights. Column width also gained
   `MAX_COL_PX` so a few-round bracket on a wide monitor stops inflating into
-  a zoomed-in fragment.
+  a zoomed-in fragment. **This fix was NOT propagated to `flightDims()`
+  (the A/B tiered-flight renderer) at the time — see the 2026-07-31 entry
+  below.** `getDims()`'s own side-by-side path has the same latent gap
+  (still measures off header+tabs, not the bracket's own top) but hasn't
+  been reported broken; if it ever is, apply the identical fix there too.
 - ✅ **Standings can replace the Buckets tab.** New setting `fourthTab`:
   `buckets` (default, unchanged) / `standings` / `hidden`. The two share the
   fourth tab slot and only one is ever shown; both keep routable paths, and
@@ -2248,6 +2252,54 @@ one has a shape that will recur.
   list for choices that aren't yes/no) and only leaves Edit once the write
   lands. Save no longer lives in the bar below — one exit decision, one place.
 
+## A/B flight bracket must measure off its own top, not header+tabs (2026-07-31)
+Owner report: **"The A bracket doesn't size to fit the height of the screen."**
+`flightDims()` (desktop sizing for the A/B tiered flights — `renderFlightBracket`)
+computed its height budget the OLD way: `window.innerHeight - hdrH - tabsH - 16`.
+That is exactly the bug `stackedDims()` was fixed for back when the stacked
+double-elim layout shipped (see "Each stacked half fits one screen" above) —
+the fix was never carried over to the flight renderer, because nobody had
+reported it broken there yet. The flight-pills row (`#bracketFlights`, ~35px
+of buttons) sits BETWEEN the tabs and the bracket whenever you're viewing an
+A or B flight — you can't reach that view without it being on screen — so
+every flight bracket was sized as if that row took no space, and its last row
+ran off the bottom by roughly the row's own height.
+
+Same fix as `stackedDims`: measure from `document.getElementById('bracketRoot')
+.getBoundingClientRect().top` instead of summing header + tabs. This works
+because `parkFlightPills()` (called first, in `renderBracketInner()`) has
+already moved the pills row to sit as `#bracketRoot`'s previous sibling by the
+time `flightDims()` runs — so the root's own top position already reflects
+everything stacked above it, pills included, without needing to know about
+that row (or the delay banner, or the project bar) by name.
+
+**Why this was hard to catch on a whim, and how to actually test it**: the
+bug is silent right up until it isn't. `cardVh` has three competing
+constraints — a WIDTH-derived size, the (wrong or right) height ceiling, and
+a `MIN_CARD_PX` readability floor — and whichever is smallest wins. With a
+small flight (few rounds) width usually wins regardless, so the wrong
+availVh changes nothing visible. With a very tall flight the readability
+floor wins in BOTH the buggy and fixed math, so again nothing visible
+changes (the page is *supposed* to scroll there — see the "never past the
+readability floor" comment on `getDims()`). The bug only shows up in the
+middle band, where height is the actual binding constraint and the missing
+~35px tips a bracket that would have just barely fit into one that doesn't.
+Reproduced with a real 32-team `tiered` format tournament (`POST
+/schedule/generate {format:'tiered', teams:[...32]}` — A comes out to 15
+games, `gridH=8`, `nCols=3`) at a **960px-tall viewport**: old code overflowed
+the bottom row by ~15px, fixed code fit with ~11px to spare. Below ~840px or
+above ~1080px at that bracket size, both versions agree — don't "verify" this
+fix at a single arbitrary viewport height, it will pass by luck as often as
+by correctness. `docs/agent-demo/setup.sh` + the tiered-format generate call
+above is the fastest way to get a real flight bracket to test against; no
+static fixture reproduces it because the sizing depends on live layout
+measurement, not on the data.
+
+Confirmed no regression: the Open (main) tree, the B flight, and the mobile
+carousel path (`renderMobileColumns`, which `flightDims` never reaches — it
+returns early on `isMobile`) are all unaffected, since none of them call this
+function.
+
 ## Losers final is drawn ONCE (stacked layout)
 The stacked layout used to draw the losers final twice: a dashed copy beside
 the winners final, and the real game again at the end of the losers row. That
@@ -2697,6 +2749,43 @@ than the shared one. **Markup changes to admin.html/coach.html now need an API
 restart** to be seen, exactly like index.html and lineup.html: `docker compose
 restart api`.
 
+### `/logo.png` and `/theme.css` need their OWN nginx location — READ BEFORE ADDING A NEW SERVER-RENDERED ASSET (2026-07-31)
+Owner report: **"The tournament icon doesn't show on the public page anymore."**
+Cause: when the header moved to server-side rendering, `server.js` grew
+`GET /logo.png` and `GET /theme.css` (plus their `/t/:slug/` forms) — but
+nginx.conf was never given a matching `location` block. With no match, both
+fell through to the generic handlers already in the file: `/logo.png` hit the
+SPA fallback (`try_files … /index.html`), so the `<img src="/logo.png">` tag
+was handed a full HTML document instead of an image and silently failed to
+render; `/theme.css` hit the `\.(css|js|map)$` block, which does
+`try_files $uri =404` with **no** fallback, so every theme-color override
+404'd outright. Neither shows up in a server log as an error — nginx returns
+200 for the first and a plain 404 for the second, and the browser console
+says nothing useful about either.
+
+**The API adding a route is not enough — nginx has to be told to proxy it.**
+Every server-rendered path needs a `location` block, or it silently falls
+through to whatever generic rule matches next (SPA fallback, a static-file
+regex, or occasionally a real 404). This bit `/lineup` before (see "Shared
+links" below) and it bit `/logo.png` + `/theme.css` this time. When you add a
+new `app.get('/whatever', ...)` in server.js that RENDERS something (not a
+pure `/api/*` JSON route, which is already covered by the blanket
+`location /api/`), add its nginx location in the same commit and verify with
+the location-matcher check below — don't rely on noticing a broken image.
+
+Fixed: `logo.png` and `theme.css` each got a `location ~` regex block
+(scoped-and-unscoped, same pattern as `/tab-icon.png`), placed BEFORE the
+generic `\.(css|js|map)$` block — nginx tries `~`/`~*` regex locations in
+FILE ORDER and the first match wins, so placement matters, not just presence.
+
+No local nginx binary in a Claude Code container, so this can't be checked
+with `nginx -t`. Verified instead with a small location-matching script
+(exact match, then regex locations in file order, else longest prefix) run
+against the real `nginx/nginx.conf` for every path the app actually requests
+— confirms the fix resolves `/logo.png` and `/theme.css` to `PROXY` and
+changes nothing else. Worth re-running the same way after any future
+nginx.conf edit; there's no CI check for this today.
+
 ## Shared links: what is branded, and what nginx serves from disk (2026-07-30)
 A coach link is the most-shared URL this product has — the magic link
 redirects to `/lineup` and the coach pastes THAT into the team's group chat.
@@ -2710,12 +2799,14 @@ pointing at `/pwa-icon.png`, the scoped tab icon, and `/theme.css`. Cached per
 tid in `_lineupHtmlCache`, cleared by the same `invalidateIndexCache(tid)` —
 one invalidation point on purpose, because a second would be forgotten.
 
-**Still served from disk by nginx, and therefore unbranded:** `/admin`,
-`/score`, `/builder`. Branding them means another proxy block each. Deliberate
-for the icons — the admin PWA uses `/icons/admin-*.png` so it is
-distinguishable from the public app on a home screen, and pointing it at the
-tournament icon would break that. If someone wants OG previews on those, add
-the meta tags WITHOUT touching `rel="icon"`.
+**Still served from disk by nginx, and therefore unbranded:** `/score` and
+`/builder` (`/admin` and `/coach` are proxied now — see the section above
+this one, which is newer than this paragraph and supersedes it for those two).
+Branding `/score`/`/builder` means another proxy block each. Deliberate for
+their icons — the admin-family PWAs use `/icons/admin-*.png` so they stay
+distinguishable from the public app on a home screen, and pointing them at
+the tournament icon would break that. If someone wants OG previews on those,
+add the meta tags WITHOUT touching `rel="icon"`.
 
 Changing what nginx proxies is a deploy-config change: it needs a container
 recreate, not just an API restart.
@@ -3166,6 +3257,18 @@ could not work out a user name: start the cluster and run with
   Needs PG* env vars pointing at a cluster to actually run.
 - `standings.test.js` — the documented tiebreak order.
 - `schedule-health.test.js` — the pre-publish checks behind the health notice.
+
+**`node scripts/check-nginx-routes.js`** — a separate, non-`node --test`
+check: does `nginx/nginx.conf` actually proxy every path the API
+server-renders? No Postgres, no Docker, no real nginx needed — it's a
+location-matching simulation, not a live parse. Written after `/logo.png`
+and `/theme.css` sat unproxied for a whole session with nothing failing
+loudly (see "`/logo.png` and `/theme.css` need their OWN nginx location"
+below). **Run it after any nginx.conf edit, and add the path to
+`EXPECT_PROXY` in the same commit as any new non-`/api/` `app.get(...)` in
+server.js that renders a document/image/stylesheet.** It will not tell you
+your nginx config is valid — only that these specific paths resolve the way
+they're supposed to.
 
 ### Building a demo / browser harness — USE THE SCRIPT (2026-07-31)
 ```
