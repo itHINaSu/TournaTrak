@@ -1982,6 +1982,38 @@ Things that cost time this session, written down so they don't again.
   iframe needs the explicit `window.__ttReady = true` flag at the end of
   `fetchAll()` to know the frame has data. Don't "simplify" that away.
 
+## Cloudflare can serve a stale panel page after a deploy (owner, 2026-08-02)
+Owner deploys with `git pull && docker compose up -d --build` after every
+single push, and still hit a case where `/coach` rendered with the OLD
+roster table structure (thead: `#`/`Player Name`/`Position`, 3 columns)
+while the freshly-deployed `coach.js` emitted the NEW row markup (order/num/
+name/pos/delete, 5 columns) — every row's cells landed one column off from
+their header, so jersey numbers appeared to be player names, names appeared
+under Position, etc. Confirmed via the internal IP:port (bypasses
+Cloudflare): the page was correct there. **The deployed code was never
+wrong — Cloudflare's edge was serving a stale cached copy of `/coach`.**
+
+`panelRoute()` in `api/server.js` (serves `/admin` and `/coach`) sends
+`Cache-Control: no-cache` but no `ETag`/`Last-Modified`, so a CDN that
+properly respects origin caching semantics would revalidate on every
+request anyway — this only bites when Cloudflare is configured to IGNORE
+that header. The classic cause is a **Page Rule set to "Cache Everything"**
+covering the zone (or the newer Cache Rules equivalent), which caches a
+response regardless of what `Cache-Control` says. `/`, `/admin`, `/coach`,
+`/lineup` are all dynamic, session/tournament-scoped, server-rendered pages
+— none of them should EVER be edge-cached.
+
+**When this happens again:** confirm via the internal IP:port first (rules
+out an actual deploy/build problem in one step); if internal is correct and
+public is stale, it's Cloudflare. Purge the cache (`Caching → Configuration
+→ Purge Everything`, or scope to the four paths above), then fix the Page
+Rule / Cache Rule so those four paths bypass cache entirely instead of
+re-diagnosing the app. Static assets (`.js`/`.css`/`sw.js`) are NOT the same
+risk — those already carry version-stamped `?v=` query strings (see the
+version-stamp convention above), so even an aggressive CDN cache serves the
+right file once the version bumps; only the un-versioned HTML document URLs
+are exposed to this.
+
 ## Recovering a deploy box after a force-push (2026-07-28)
 A rebase rewrites commits, so a machine holding the OLD branch tip sees
 "diverged, N and M different commits" on the next fetch. The old commits are
