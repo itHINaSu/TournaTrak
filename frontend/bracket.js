@@ -156,7 +156,7 @@ function shortNameAttr(name) {
 // share/print render frame: each is its own `document`, so this only ever
 // touches whichever one is calling it.
 function fitTeamCardNames(root) {
-  (root || document).querySelectorAll('.bc-name[data-short], .mbc-champ-name[data-short], .mbc-team-name[data-short]')
+  (root || document).querySelectorAll('.bc-name[data-short], .mbc-champ-name[data-short], .mbc-team-name[data-short], .std-team[data-short]')
     .forEach(function(el) {
       if (el.scrollWidth > el.clientWidth + 1) el.textContent = el.dataset.short;
     });
@@ -5434,6 +5434,7 @@ function renderStandingsView() {
   var _real = results;
   results = mergedResults();
   try { renderStandingsViewInner(); } finally { results = _real; }
+  fitTeamCardNames();
 }
 
 function renderStandingsViewInner() {
@@ -5480,7 +5481,17 @@ function renderStandingsViewInner() {
       + (rowCss ? ' data-css="' + esc(rowCss) + '"' : '') + '>'
       + '<span class="std-rank">' + (r.gp ? (i + 1) : '—') + '</span>'
       + '<span class="std-main">'
-      +   '<span class="std-team">' + seedChip(r.name) + esc(r.name) + '</span>'
+      // Short name only takes over where the full one is actually clipped
+      // (fitTeamCardNames, same as bracket cards), not just because one is
+      // set (owner, 2026-08-02: "a team whose full name is truncated in the
+      // standings, it should use the short name instead"). Seed chip stays
+      // OUTSIDE .std-team, same as .bc-name on bracket cards — fitTeamCardNames
+      // replaces the whole textContent, which would eat the chip too if it
+      // were nested inside. .std-name-line is a plain (non-flex) wrapper, same
+      // reason .bc-team isn't a flex container either — .std-main's own
+      // column flex would otherwise stack the chip above the name instead of
+      // beside it.
+      +   '<span class="std-name-line">' + seedChip(r.name) + '<span class="std-team"' + shortNameAttr(r.name) + '>' + esc(teamLabel(r.name)) + '</span></span>'
       +   '<span class="std-meta">'
       +     '<span class="std-stat"><b>' + r.rf + '</b> RF</span>'
       +     '<span class="std-stat"><b>' + r.ra + '</b> RA</span>'
@@ -6260,9 +6271,18 @@ function renderTeamViewInner(realResults){
                 { stripeWidth: brand.brandStripeWidth, stripeGap: brand.brandStripeGap, patternScale: brand.brandPatternScale,
                   gradientBalance: brand.brandGradientBalance })
             : '';
+          // Same height/width as a Standings row (owner, 2026-08-02: "The
+          // 'buttons' to select a team in team path should be the same
+          // height and width as the boxes for standings" / "add the logo
+          // there too similar to standings") — reuses .std-logo-slot/
+          // .std-team-logo directly rather than a parallel set of classes,
+          // so a future size tweak to one applies to both automatically.
           return '<button class="team-chip' + (elim ? ' elim' : '') + (branded ? ' team-chip--branded' : '') + '"'
             + (css ? ' data-css="' + esc(css) + '"' : '')
-            + ' data-team="'+esc(t)+'">'+esc(t)+'</button>';
+            + ' data-team="'+esc(t)+'">'
+            + '<span class="team-chip-name">' + esc(teamLabel(t)) + '</span>'
+            + (brand && brand.logoUrl ? '<span class="std-logo-slot"><img class="std-team-logo" src="' + esc(brand.logoUrl) + '" alt=""></span>' : '')
+            + '</button>';
         }).join('')
       + '</div>';
     out.querySelectorAll('.team-chip').forEach(function(btn){

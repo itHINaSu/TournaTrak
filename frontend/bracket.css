@@ -269,7 +269,15 @@
   flex-shrink: 0;
 }
 .std-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.15em; }
+/* Flex ROW (seed chip + name), same shape as .bc-team on bracket cards —
+   .std-main's own column flex only stretches ONE box per line, so the chip
+   and name need their own row here to sit side by side instead of stacking
+   (owner, 2026-08-02: short name should take over when the full one is
+   actually truncated, same mechanism bracket cards already use). */
+.std-name-line { display: flex; align-items: center; gap: 0.3em; min-width: 0; }
 .std-team {
+  flex: 1;
+  min-width: 0;
   font-family: 'Oswald', sans-serif;
   font-size: 0.95rem;
   font-weight: 500;
@@ -278,7 +286,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
 }
 /* Runs for / against — secondary, so they read as detail under the name
    rather than competing with the record. */
@@ -1252,7 +1259,12 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
   display: flex;
   flex-direction: column;
   gap: 0.35em;
-  padding: 1em 1em 2em;
+  /* No horizontal padding of its own — matches .std-board, which relies
+     entirely on the shared .team-panel wrapper's padding. This used to
+     double up (1em here + 1em from .team-panel), which is why chips came
+     out narrower than a Standings row despite the same max-width (owner,
+     2026-08-02: "same... width as the boxes for standings"). */
+  padding: 1em 0 2em;
   max-width: 42em;
   margin: 0 auto;
 }
@@ -1264,7 +1276,13 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
   background: var(--surface);
   border: 0.07em solid var(--border);
   border-radius: var(--radius-sm);
-  padding: 0.75em 1em;
+  /* Same padding as .std-row, and a min-height matched to its typical
+     rendered height (owner, 2026-08-02: "same height... as the boxes for
+     standings") — .std-row gets there from two lines of content (name +
+     RF/RA); a chip has only the one, so the height is set explicitly
+     instead of trying to reproduce a second line that has no data to show. */
+  padding: 0.6em 1em;
+  min-height: 3.85rem;
   font-family: 'Oswald', sans-serif;
   font-size: 0.95rem;
   font-weight: 500;
@@ -1276,6 +1294,7 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
   transition: background 0.12s, border-color 0.12s, color 0.12s;
   -webkit-tap-highlight-color: transparent;
 }
+.team-chip-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .team-chip:hover, .team-chip:active { background: var(--surface2); border-color: var(--blue-lt); color: var(--blue-lt); }
 /* Background/text color come from data-css (arbitrary hex, per team) — same
    pattern as .team-brand-banner. White + shadow is the default text
@@ -2193,7 +2212,9 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
 /* ── Touch target sizing (coarse pointer = touchscreen) ── */
 @media (pointer: coarse) {
   .tp-opp-chip        { min-height: 2.75rem; }
-  .team-chip          { min-height: 2.75rem; }
+  /* .team-chip's own min-height (3.85rem, matching a Standings row) already
+     exceeds this touch-target minimum — no override needed, and one here
+     would only fight that match on a touch device. */
   .bucket-edit-save-btn, .bucket-edit-cancel-btn { min-height: 2.75rem; }
 }
 

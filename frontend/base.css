@@ -619,6 +619,15 @@ body.print-palette .flight-col--champ {
   align-items: center;
   gap: 0.8em;
   padding: 0.9em 1.1em;
+  /* Fixed, not content-driven — a big logo used to grow the whole banner
+     taller (owner, 2026-08-02: "should be a fixed height and not increased
+     to fit a logo. Use the same height as the standings card") — matches
+     .std-row/.team-chip's own height, which is set the same way for the
+     same reason. overflow:hidden is what makes that height stick: without
+     it a long name + a wide logo would just spill past the fixed box
+     instead of being contained by it. */
+  height: 3.85rem;
+  overflow: hidden;
   border-radius: var(--radius-sm);
   margin-bottom: 1em;
   color: #fff;
@@ -631,17 +640,18 @@ body.print-palette .flight-col--champ {
    "what is happening surrounding that logo?"). A plain, unframed image
    reads correctly either way. */
 .team-brand-logo {
-  /* ~80% of the banner's own rendered height (owner, 2026-08-02: "Team logos
-     should be 70-90% of the height of the div") — measured empirically since
-     .team-brand-banner's height is content-driven (no explicit height for a
-     percentage to resolve against). Height is the fixed dimension and width
-     follows the logo's own aspect ratio (owner, 2026-08-02: "Allow a
-     non-square crop for team logos... height should be the determining
-     factor for sizing"); max-width mirrors the crop modal's aspect-ratio cap
-     so a wide badge has room to run without overrunning the banner. */
-  height: 4.5rem;
+  /* Same height as .std-team-logo, now that the banner itself is fixed to
+     the same height as a Standings row — sized well within it rather than
+     the other way around (owner, 2026-08-02: "Team logos should be 70-90%
+     of the height of the div" / banner "should be a fixed height and not
+     increased to fit a logo"). Width follows the logo's own aspect ratio
+     (owner, 2026-08-02: "Allow a non-square crop for team logos... height
+     should be the determining factor for sizing"); max-width mirrors the
+     crop modal's aspect-ratio cap so a wide badge has room to run without
+     overrunning the banner. */
+  height: 3.25rem;
   width: auto;
-  max-width: 13.5rem;
+  max-width: 9.75rem;
   object-fit: contain;
   border-radius: var(--radius-xs);
   flex-shrink: 0;
@@ -655,6 +665,11 @@ body.print-palette .flight-col--champ {
    inherited, not a fill — .team-brand-name still gets its own color from
    the parent's `color` and reads the same outline/shadow either way. */
 .team-brand-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: 'Oswald', sans-serif;
   font-size: 1.15rem;
   font-weight: 700;
