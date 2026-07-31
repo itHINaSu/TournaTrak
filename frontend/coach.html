@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=3.91">
-<link rel="stylesheet" href="/admin.css?v=3.91">
-<link rel="stylesheet" href="/lineup.css?v=3.91">
-<script src="/app-h.js?v=3.91"></script>
+<link rel="stylesheet" href="/base.css?v=3.92">
+<link rel="stylesheet" href="/admin.css?v=3.92">
+<link rel="stylesheet" href="/lineup.css?v=3.92">
+<script src="/app-h.js?v=3.92"></script>
 </head>
 <body>
 
@@ -270,6 +270,14 @@
           <div class="lineup-state-body">This team’s info is locked by tournament staff — reach out to them for changes.</div>
         </div>
         <div id="teamTabForm">
+          <!-- Live preview, same banner Team Path shows once this is saved
+               (owner, 2026-08-02) — updates as fields change, before Save,
+               so a coach sees what they're actually picking. Hidden until
+               there's anything to preview. -->
+          <div class="team-brand-banner" id="teamTabPreview" hidden>
+            <img class="team-brand-logo" id="teamTabPreviewLogo" alt="" hidden>
+            <span class="team-brand-name" id="teamTabPreviewName"></span>
+          </div>
           <div class="settings-field">
             <label>Display Name <span class="field-label-hint">(shown on the bracket)</span></label>
             <input type="text" id="teamTabDisplay" maxlength="40" placeholder="Same as team name">
@@ -285,10 +293,10 @@
               <input type="file" id="teamTabLogoInput" accept="image/png,image/jpeg,image/webp">
               <button type="button" class="admin-clear-btn" id="teamTabLogoRemoveBtn" data-action="removeTeamTabLogo" hidden>Remove</button>
             </div>
-            <div class="field-hint">Not shown anywhere on the bracket yet — saved for when it is.</div>
+            <div class="field-hint">Shown on Team Path and Standings.</div>
           </div>
           <div class="settings-field">
-            <label>Team Colors <span class="field-label-hint">(not shown anywhere yet — saved for when they are)</span></label>
+            <label>Team Colors <span class="field-label-hint">(shown on Team Path and Standings)</span></label>
             <div class="team-tab-colors">
               <label class="team-tab-color-field">
                 <span>Primary</span>
@@ -363,11 +371,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.91"></script>
-<script src="/theme-css.js?v=3.91"></script>
-<script src="/tt-common.js?v=3.91"></script>
-<script src="/bracket-data.js?v=3.91"></script>
-<script src="/lineup.js?v=3.91"></script>
-<script src="/coach.js?v=3.91"></script>
+<script src="/settings-defaults.js?v=3.92"></script>
+<script src="/theme-css.js?v=3.92"></script>
+<script src="/tt-common.js?v=3.92"></script>
+<script src="/bracket-data.js?v=3.92"></script>
+<script src="/lineup.js?v=3.92"></script>
+<script src="/coach.js?v=3.92"></script>
 </body>
 </html>

@@ -68,17 +68,41 @@ var _mbcScrollTop = 0;
 // prefers the short one and is used on cards, which are fixed-width boxes
 // where a long name is ellipsised into uselessness.
 var _teamLabels = {};       // canonical name -> { display, short }
+// canonical name -> { logoUrl, primaryColor, secondaryColor } — Team Path and
+// Standings (owner, 2026-08-02: "team path, and standings would be the
+// perfect place to make use of team logos and colors"). Only populated for a
+// team that actually SET something, so a plain tournament with no branding
+// costs nothing extra to render.
+var _teamBranding = {};
 
 function rebuildTeamLabels() {
   _teamLabels = {};
+  _teamBranding = {};
   var list = (_teamsData && _teamsData.teams) || [];
   list.forEach(function(t) {
     if (!t || !t.name) return;
     if (t.displayName || t.shortName) {
       _teamLabels[t.name] = { display: t.displayName || '', short: t.shortName || '' };
     }
+    if (t.logo || t.primaryColor || t.secondaryColor) {
+      _teamBranding[t.name] = {
+        logoUrl: (t.logo && t.id) ? teamLogoUrl(t.id) : null,
+        primaryColor: t.primaryColor || null,
+        secondaryColor: t.secondaryColor || null,
+      };
+    }
   });
 }
+
+// A team's own logo, served as a URL (not the raw data URI /api/teams
+// carries) so the browser caches it by address instead of re-embedding
+// megabytes of base64 into every Standings/Team Path render.
+function teamLogoUrl(teamId) {
+  var prefix = (typeof TT_SLUG !== 'undefined' && TT_SLUG) ? '/t/' + encodeURIComponent(TT_SLUG) : '';
+  return prefix + '/team-logo/' + encodeURIComponent(teamId) + '.png';
+}
+
+function teamBrandingFor(name) { return _teamBranding[name] || null; }
 
 function teamLabel(name) {
   var l = _teamLabels[name];
@@ -5369,10 +5393,24 @@ function renderStandingsViewInner() {
   rows.forEach(function(r, i) {
     var diff = r.rf - r.ra;
     var diffCls = diff > 0 ? ' std-diff--pos' : diff < 0 ? ' std-diff--neg' : '';
+    // A team's own colors as a bold left accent + background wash, and their
+    // logo next to the name (owner, 2026-08-02: "team path, and standings
+    // would be the perfect place to make use of team logos and colors" —
+    // bolder treatment). --std-row-accent is used for the border AND mixed
+    // into the background, so the two always agree even though only one
+    // color might be set.
+    var brand = teamBrandingFor(r.name);
+    var accent = brand && (brand.primaryColor || brand.secondaryColor);
+    var rowCss = accent
+      ? 'border-left-color: ' + accent + '; background: linear-gradient(90deg, '
+        + 'color-mix(in srgb, ' + accent + ' 24%, var(--surface)) 0%, var(--surface) 85%);'
+      : '';
     // Teams with no games yet are listed but not ranked — a "1" next to a
     // team that hasn't played reads as a standing it hasn't earned.
-    html += '<div class="std-row' + (r.gp ? '' : ' std-row--unplayed') + '">'
+    html += '<div class="std-row' + (r.gp ? '' : ' std-row--unplayed') + (accent ? ' std-row--branded' : '') + '"'
+      + (rowCss ? ' data-css="' + esc(rowCss) + '"' : '') + '>'
       + '<span class="std-rank">' + (r.gp ? (i + 1) : '—') + '</span>'
+      + (brand && brand.logoUrl ? '<img class="std-team-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
       + '<span class="std-main">'
       +   '<span class="std-team">' + seedChip(r.name) + esc(r.name) + '</span>'
       +   '<span class="std-meta">'
@@ -6173,9 +6211,19 @@ function renderTeamViewInner(realResults){
     return;
   }
 
-  // Team name label intentionally omitted — the selector bar always shows
-  // which team is being viewed, so a heading here is redundant.
+  // A plain team-name heading was intentionally omitted here (the selector
+  // bar already shows which team is being viewed) — a BRANDED banner is a
+  // different thing, not a redundant label, so it earns its place when the
+  // team has actually set a logo or colors (owner, 2026-08-02).
   var html='';
+  var brand = teamBrandingFor(team);
+  if (brand && (brand.logoUrl || brand.primaryColor || brand.secondaryColor)) {
+    html += '<div class="team-brand-banner" data-css="'
+      + esc(teamBrandBannerCss(brand.primaryColor, brand.secondaryColor)) + '">'
+      + (brand.logoUrl ? '<img class="team-brand-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
+      + '<span class="team-brand-name">' + esc(teamLabel(team)) + '</span>'
+      + '</div>';
+  }
 
   // Record summary: wins-losses plus run totals where scores were entered.
   // REAL results only, even while projections are overlaid on the chain

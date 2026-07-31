@@ -231,6 +231,12 @@
   padding: 0.6em 1em;
 }
 .std-row--unplayed { opacity: 0.55; }
+/* Colored left edge for a team that's set its own colors — squared off
+   rather than following the card's rounded corners, which is what a flush
+   accent bar looks like everywhere else this pattern shows up. Color itself
+   comes from data-css (border-left-color), set per-row in bracket.js. */
+.std-row--branded { border-left-width: 0.35em; border-left-style: solid; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.std-team-logo { width: 2rem; height: 2rem; object-fit: contain; border-radius: var(--radius-xs); flex-shrink: 0; }
 .std-rank {
   font-family: 'Oswald', sans-serif;
   font-size: var(--text-lg);

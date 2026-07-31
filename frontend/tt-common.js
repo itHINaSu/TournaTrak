@@ -454,6 +454,18 @@ function ttApplyLogoScale(scale) {
   root.style.setProperty('--logo-maxw-sm', s.maxwSm);
 }
 
+// Gradient background for .team-brand-banner (base.css), from a team's own
+// primaryColor/secondaryColor — server-validated hex only (/^#[0-9a-f]{6}$/i,
+// see validHexColor in api/server.js), so this is safe to drop straight into
+// a data-css string with no further escaping. Falls back to a neutral grey
+// when a team has set only one color, or neither (the banner still shows
+// for a logo-only team).
+function teamBrandBannerCss(primary, secondary) {
+  var p = primary || secondary || '#4a4a4a';
+  var s = secondary || primary || '#4a4a4a';
+  return 'background: linear-gradient(135deg, ' + p + ' 0%, ' + s + ' 100%);';
+}
+
 // ── data-css: CSP-safe dynamic styling for generated markup ─────────────
 // style-src has no 'unsafe-inline', so markup built as HTML strings can't
 // carry style="" attributes. Emit data-css="prop:val;..." instead; this

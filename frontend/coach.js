@@ -412,18 +412,20 @@ var _teamTabLogo = null;   // data URI = has one; '' = remove on save; null = un
 function teamTabSyncLogo() {
   var img = document.getElementById('teamTabLogoPreview');
   var rm  = document.getElementById('teamTabLogoRemoveBtn');
-  if (!img || !rm) return;
-  if (_teamTabLogo) { img.src = _teamTabLogo; img.hidden = false; rm.hidden = false; }
-  else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
+  if (img && rm) {
+    if (_teamTabLogo) { img.src = _teamTabLogo; img.hidden = false; rm.hidden = false; }
+    else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
+  }
+  teamTabUpdatePreview();
 }
 
-// Not used anywhere yet, same as the logo — owner, 2026-08-02: "For team
-// colors a coach should be able to select primary and secondary colors.
-// These will be used later." Same null/''/hex convention as _teamTabLogo:
-// null = untouched this session (omit from the save body so the server
-// keeps whatever's stored), '' = clear, hex = set. A color <input> always
-// carries SOME value, so the swatch falls back to a neutral grey when unset
-// rather than showing a color that was never actually chosen.
+// Shown on Team Path and the Standings tab (owner, 2026-08-02) once saved;
+// live-previewed here before that (see teamTabUpdatePreview below). Same
+// null/''/hex convention as _teamTabLogo: null = untouched this session
+// (omit from the save body so the server keeps whatever's stored), '' =
+// clear, hex = set. A color <input> always carries SOME value, so the
+// swatch falls back to a neutral grey when unset rather than showing a
+// color that was never actually chosen.
 var TEAM_TAB_COLOR_UNSET = '#4a4a4a';
 var _teamTabColors = { primaryColor: null, secondaryColor: null };
 
@@ -433,12 +435,36 @@ function teamTabSyncColor(which) {
   var v = _teamTabColors[which];
   if (inp) inp.value = v || TEAM_TAB_COLOR_UNSET;
   if (clear) clear.hidden = !v;
+  teamTabUpdatePreview();
 }
 
 function clearTeamTabColor(which) {
   _teamTabColors[which] = '';
   teamTabSyncColor(which);
   showToast('Color will be removed on Save');
+}
+
+// Live preview of the banner Team Path shows once this is actually saved —
+// updates as the coach picks, so they see what they're choosing rather than
+// finding out after the fact on a different tab.
+function teamTabUpdatePreview() {
+  var banner = document.getElementById('teamTabPreview');
+  if (!banner) return;
+  var logoImg = document.getElementById('teamTabPreviewLogo');
+  var nameEl = document.getElementById('teamTabPreviewName');
+  var logo = _teamTabLogo, primary = _teamTabColors.primaryColor, secondary = _teamTabColors.secondaryColor;
+  var hasAnything = !!logo || !!primary || !!secondary;
+  banner.hidden = !hasAnything;
+  if (!hasAnything) return;
+  banner.style.cssText = teamBrandBannerCss(primary, secondary);
+  if (logoImg) {
+    if (logo) { logoImg.src = logo; logoImg.hidden = false; }
+    else { logoImg.removeAttribute('src'); logoImg.hidden = true; }
+  }
+  if (nameEl) {
+    var displayEl = document.getElementById('teamTabDisplay');
+    nameEl.textContent = (displayEl && displayEl.value.trim()) || _teamTabTeam || '';
+  }
 }
 
 async function loadTeamTab(team) {
@@ -551,6 +577,8 @@ async function initTeamTab() {
     _teamTabColors.secondaryColor = secondaryEl.value;
     teamTabSyncColor('secondaryColor');
   });
+  var displayEl = document.getElementById('teamTabDisplay');
+  if (displayEl) displayEl.addEventListener('input', teamTabUpdatePreview);
   await loadTeamTab(teams[0] || null);
 }
 

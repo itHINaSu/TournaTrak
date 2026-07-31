@@ -3015,6 +3015,80 @@ not a bug in the sort); color set → Save → reload keeps it, in both the
 coach Team tab and the admin Teams editor. Full API suite (140 tests)
 still passes.
 
+## Team logo/colors put to use: Team Path, Standings, and a coach-panel preview (owner, 2026-08-02)
+Owner: *"I think team path, and standings would be the perfect place to
+make use of team logos and colors."* Asked to choose the visual weight;
+picked **bolder** over a subtle accent — an actual colored background/
+banner, not just a small badge. Then: *"Find a spot in the coach portal to
+use the logo and colors."*
+
+**Where the data comes from, client-side**: `GET /api/teams` is public and
+already returns `logo`/`primaryColor`/`secondaryColor` per team (added
+earlier today), so no new endpoint was needed. `rebuildTeamLabels()`
+(bracket.js) — already the place that builds a canonical-name → display/
+short-name lookup whenever `_teamsData` loads — now also builds
+`_teamBranding`, a canonical-name → `{logoUrl, primaryColor,
+secondaryColor}` map. **Logo is served as a URL** (`teamLogoUrl(id)` →
+`/team-logo/<id>.png`, the route added earlier today), **not** the raw data
+URI `/api/teams` carries inline — Standings renders every team on every
+poll refresh, and re-embedding a 48KB data URI per row per render would
+bloat the DOM string for no reason a cached image URL doesn't already
+solve.
+
+**Team Path**: a `.team-brand-banner` (base.css — shared, see below) at the
+top of a team's path, gradient background from `teamBrandBannerCss()`
+(primary → secondary, falls back to grey if only one is set), logo, name.
+This DOES re-introduce a team-name heading that a prior comment called
+"redundant" (the selector bar already shows which team you're viewing) —
+worth flagging because that comment is easy to trip over later: a plain
+text heading would still be redundant, but a BRANDED banner is a different
+thing entirely and earns its place. Only rendered when a team has actually
+set something (`_teamBranding[name]` exists) — an unbranded tournament
+looks exactly as before.
+
+**Standings**: `.std-row--branded` gets a solid-color left edge (squared
+off, not following the card's rounded corners — `border-top/bottom-left-
+radius: 0`) plus a `color-mix()` background wash, both from the SAME color
+via `data-css` (arbitrary hex can't live in a stylesheet), and the logo
+sits next to the team name. Same "only if branded" gate as Team Path.
+
+**Shared CSS lives in base.css, not bracket.css or admin.css** —
+`.team-brand-banner`/`.team-brand-logo`/`.team-brand-name` are used on the
+PUBLIC Team Path page (bracket.css) AND the coach panel's Team tab
+(admin.css), which don't share a stylesheet; base.css is the one file all
+three pages (`index.html`, `admin.html`, `coach.html`) load. `teamBrandBannerCss()`
+lives in tt-common.js for the same reason — one gradient formula, used from
+both bracket.js and coach.js.
+
+**The coach-portal spot**: NOT the coach panel's global header (visible on
+every tab at all times) — tinting the whole coach experience permanently
+with whatever colors a coach happened to pick felt like it'd fight the
+app's own chrome rather than complement it. Instead, a **live preview** on
+the Team tab itself, right where a coach is already picking these things:
+`#teamTabPreview` uses the exact same `.team-brand-banner` markup/CSS Team
+Path will show, and updates on every keystroke/color pick/logo upload
+(`teamTabUpdatePreview()`) — BEFORE Save, so a coach sees what they're
+choosing rather than finding out after the fact on a different tab.
+
+Verified: colors set on a team (POST /teams) show up correctly on Team
+Path (gradient banner, correct name) and Standings (branded left-border +
+wash on the right row, unbranded rows untouched) — screenshots confirm the
+gradient direction/colors and squared-off left edge render as intended;
+coach Team tab preview updates live and matches. Full API suite (140
+tests) still passes.
+
+## Team logo needs the tournament logo's crop/auto-size UI (owner, 2026-08-02) — IN PROGRESS
+Owner, immediately after the above: *"The team logo needs the same image
+functions as the tournament logo. Auto size if too large, and then crop
+option."* The team logo picker shipped earlier today (`ttReadTeamLogoFile`
+in tt-common.js) already auto-shrinks an oversized upload to fit the 48KB
+cap, but has no crop step — the tournament logo's picker
+(`admin.js`: `_iconStyle`, `cleanIconStyle` server-side validation,
+`makeIconSrc`/`makeLogoIcon` baking, the drag-crop-rectangle UI) is a much
+bigger subsystem this doesn't reuse yet. Being built as a follow-up —
+see git log after this entry for what actually shipped, this note may be
+stale by the time you're reading it.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an

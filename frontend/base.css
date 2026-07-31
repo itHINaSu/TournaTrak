@@ -597,3 +597,43 @@ body.print-palette .flight-col--champ {
    comfortable touch target without a separate coarse-pointer rule. */
 .site-header.has-menu .header-controls > * { width: 100%; justify-content: center; min-height: 2.75rem; }
 .site-header.has-menu .header-controls .admin-public-btn { text-align: center; }
+
+/* Team branding banner — a team's own logo + colors as a bold header band,
+   owner, 2026-08-02: "team path, and standings would be the perfect place
+   to make use of team logos and colors" (bolder treatment, not a subtle
+   accent). Shared here (not bracket.css or admin.css alone) because it's
+   used on the public Team Path view AND as a live preview on the coach
+   panel's own Team tab while a coach is picking colors. Background comes
+   from a per-team gradient set via data-css (arbitrary hex, can't live in
+   a stylesheet) — text-shadow is what keeps the name legible regardless of
+   which colors a team actually picked. */
+.team-brand-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  padding: 0.9em 1.1em;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1em;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+}
+.team-brand-logo {
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
+  border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.18);
+  padding: 0.25em;
+  flex-shrink: 0;
+}
+.team-brand-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.team-brand-hint {
+  font-size: 0.7rem;
+  color: var(--text-mute);
+  margin: -0.6em 0 1em;
+}
