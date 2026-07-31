@@ -230,18 +230,24 @@ document.addEventListener('DOMContentLoaded', updateHeaderMenu);
   var btn = document.getElementById('themeToggle');
   function applyLight(light) {
     document.body.classList.toggle('light', light);
-    // Text, styled like every other header button (.admin-public-btn), not
-    // the pill-shaped icon-only sun/moon this used to be — owner, 2026-07-31:
-    // "modify the dark/light mode button so it matches the theme and style
-    // of the other buttons in the menu. Use text and not an image." The
-    // label names the MODE TAPPING GETS YOU, not the current one: the prior
-    // icon-only design existed specifically because "Light"/"Dark" text read
-    // as ambiguous between current-state and switch-to-target. Phrasing it
-    // as a destination ("Dark Mode" = tap to go dark) reads the same way the
-    // other destination buttons in this menu do (Coach Panel →, Sign in) and
-    // keeps that ambiguity resolved without needing an icon to do it.
+    // Inline SVG icon, not text and not emoji (owner, 2026-08-01: back to
+    // "the image icon"). Emoji (☀/🌙) previously rendered as empty tofu boxes
+    // on at least one real device — the display fonts carry no glyph for them
+    // and there's no emoji fallback in the stack — so this is the same SVG
+    // sun/moon every other icon in the app already uses. The accessible name
+    // still names the mode tapping GETS you (aria-label/title), which is all
+    // that needs to resolve the current-state-vs-switch-target ambiguity when
+    // there's no text label to read.
     if (btn) {
-      btn.textContent = light ? 'Dark Mode' : 'Light Mode';
+      btn.innerHTML = light
+        ? '<svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+          + ' stroke-width="2" stroke-linecap="round" aria-hidden="true">'
+          + '<circle cx="12" cy="12" r="4.2"/>'
+          + '<path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2'
+          + 'M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/></svg>'
+        : '<svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+          + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+          + '<path d="M20 13.5A8.2 8.2 0 1 1 10.5 4a6.6 6.6 0 0 0 9.5 9.5z"/></svg>';
       btn.setAttribute('aria-label', light ? 'Switch to dark theme' : 'Switch to light theme');
       btn.title = light ? 'Switch to dark theme' : 'Switch to light theme';
     }
@@ -448,6 +454,18 @@ function ttApplyLogoScale(scale) {
   root.style.setProperty('--logo-maxw-sm', s.maxwSm);
 }
 
+// Gradient background for .team-brand-banner (base.css), from a team's own
+// primaryColor/secondaryColor — server-validated hex only (/^#[0-9a-f]{6}$/i,
+// see validHexColor in api/server.js), so this is safe to drop straight into
+// a data-css string with no further escaping. Falls back to a neutral grey
+// when a team has set only one color, or neither (the banner still shows
+// for a logo-only team).
+function teamBrandBannerCss(primary, secondary) {
+  var p = primary || secondary || '#4a4a4a';
+  var s = secondary || primary || '#4a4a4a';
+  return 'background: linear-gradient(135deg, ' + p + ' 0%, ' + s + ' 100%);';
+}
+
 // ── data-css: CSP-safe dynamic styling for generated markup ─────────────
 // style-src has no 'unsafe-inline', so markup built as HTML strings can't
 // carry style="" attributes. Emit data-css="prop:val;..." instead; this
@@ -493,4 +511,46 @@ function ttSetThemeOverrideCss(cssText) {
     if (!el) { el = document.createElement('style'); el.id = 'tt-theme-overrides'; document.head.appendChild(el); }
     el.textContent = cssText;
   }
+}
+
+// ── Team logo picker ──────────────────────────────────────────────────────
+// Shared by admin.js (Settings > Teams) and coach.js (the coach's own Team
+// tab) — the only two places a team logo is set. Reads a File, downscales it
+// client-side if needed to fit the server's cap (validLogoDataUri /
+// LOGO_MAX_CHARS in api/server.js), and hands back a data URI. A team badge
+// is small and roughly square, unlike the wide header wordmark the admin
+// logo picker (admin.js) is tuned for, so this is its own small pipeline
+// rather than a shared one with different target dimensions.
+var TT_TEAM_LOGO_MAX_URI = 48 * 1024;  // matches the server's LOGO_MAX_CHARS
+var TT_TEAM_LOGO_MAX_PX  = 240;        // a badge, not a header wordmark
+function ttReadTeamLogoFile(file, onReady, onError) {
+  if (!file) return;
+  if (['image/png', 'image/jpeg', 'image/webp'].indexOf(file.type) === -1) {
+    onError('Logo must be PNG, JPEG, or WebP');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function () {
+    var uri = reader.result;
+    if (uri.length <= TT_TEAM_LOGO_MAX_URI) return onReady(uri);
+    var img = new Image();
+    img.onload = function () {
+      var scale = Math.min(1, TT_TEAM_LOGO_MAX_PX / Math.max(img.width, img.height));
+      for (var attempt = 0; attempt < 5; attempt++) {
+        var w = Math.max(1, Math.round(img.width * scale));
+        var h = Math.max(1, Math.round(img.height * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        var out = canvas.toDataURL('image/webp', 0.85);
+        if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/png');
+        if (out.length <= TT_TEAM_LOGO_MAX_URI) return onReady(out);
+        scale *= 0.65;
+      }
+      onError('Could not shrink that image enough — try a simpler or smaller logo');
+    };
+    img.onerror = function () { onError('Could not read that image'); };
+    img.src = uri;
+  };
+  reader.readAsDataURL(file);
 }

@@ -185,6 +185,35 @@ body {
    overridden back to 0 here so it does not fight this wrapper for it. */
 .header-menu-cluster { margin-left: auto; display: flex; align-items: center; gap: 0.5em; flex-shrink: 0; }
 .header-menu-cluster .header-menu-btn { margin-left: 0; }
+/* Edit's height comes from .admin-public-btn's padding, which doesn't land on
+   the same pixel height as the theme toggle / hamburger's fixed 2.75rem box —
+   owner, 2026-08-02: "set the edit button to match the height of the other
+   two". Pinned here rather than in .admin-public-btn itself, which other
+   (non-cluster) buttons still size by padding. */
+.header-menu-cluster .admin-public-btn { height: 2.75rem; }
+
+/* Theme toggle: a persistent icon button beside the hamburger on every page,
+   not text buried at the bottom of the collapsible menu (owner, 2026-08-01:
+   "I still don't like the light/mode dark mode. Move it back to the image
+   icon and place it a touch further left of the hamburger menu"). Sized to
+   match .header-menu-btn so the two sit as a matched pair; the cluster's own
+   gap is what puts a "touch" of space between it and the hamburger. */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex-shrink: 0;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  color: var(--text-dim);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.theme-toggle-btn .theme-icon { width: 1.55rem; height: 1.55rem; display: block; }
 
 /* Outline "cancel / dismiss" button. Lives HERE, not in admin.css, because
    index.html does not load admin.css — the Save-image dialog's Cancel, the
@@ -568,3 +597,43 @@ body.print-palette .flight-col--champ {
    comfortable touch target without a separate coarse-pointer rule. */
 .site-header.has-menu .header-controls > * { width: 100%; justify-content: center; min-height: 2.75rem; }
 .site-header.has-menu .header-controls .admin-public-btn { text-align: center; }
+
+/* Team branding banner — a team's own logo + colors as a bold header band,
+   owner, 2026-08-02: "team path, and standings would be the perfect place
+   to make use of team logos and colors" (bolder treatment, not a subtle
+   accent). Shared here (not bracket.css or admin.css alone) because it's
+   used on the public Team Path view AND as a live preview on the coach
+   panel's own Team tab while a coach is picking colors. Background comes
+   from a per-team gradient set via data-css (arbitrary hex, can't live in
+   a stylesheet) — text-shadow is what keeps the name legible regardless of
+   which colors a team actually picked. */
+.team-brand-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.8em;
+  padding: 0.9em 1.1em;
+  border-radius: var(--radius-sm);
+  margin-bottom: 1em;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.65);
+}
+.team-brand-logo {
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
+  border-radius: var(--radius-xs);
+  background: rgba(255, 255, 255, 0.18);
+  padding: 0.25em;
+  flex-shrink: 0;
+}
+.team-brand-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.team-brand-hint {
+  font-size: 0.7rem;
+  color: var(--text-mute);
+  margin: -0.6em 0 1em;
+}

@@ -85,6 +85,7 @@ const EXPECT_PROXY = [
   '/tab-icon.png', '/t/summer-2026/tab-icon.png',
   '/logo.png', '/t/summer-2026/logo.png',
   '/theme.css', '/t/summer-2026/theme.css',
+  '/team-logo/t_0123456789ab.png', '/t/summer-2026/team-logo/t_0123456789ab.png',
 ];
 
 // Paths that must NOT be swallowed by an overly broad fix — genuinely static

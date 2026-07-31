@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.85">
-<link rel="stylesheet" href="/bracket.css?v=3.85">
-<script src="/app-h.js?v=3.85"></script>
+<link rel="stylesheet" href="/base.css?v=3.92">
+<link rel="stylesheet" href="/bracket.css?v=3.92">
+<script src="/app-h.js?v=3.92"></script>
 </head>
 <body>
 
@@ -24,17 +24,18 @@
     <h1 id="siteName" data-action="goHome" title="Back to the main view">Tournament Bracket</h1>
     <div id="siteSubtitle" class="site-subtitle" data-action="goHome" title="Back to the main view"></div>
   </div>
-  <!-- Edit is a PRIMARY action for whoever can see it (an admin actively
-       laying out the bracket, or a buckets-role operator running the
-       challenge) — owner, 2026-08-01: it lives next to the hamburger, always
-       reachable, not one tap further in behind a menu of secondary actions.
-       Wrapped with the hamburger itself so the pair stays right-aligned as a
-       unit regardless of how long the tournament name runs (see
-       .header-menu-cluster in base.css) — only one of the two Edit buttons is
-       ever visible at once (bracket tab vs. buckets tab). -->
+  <!-- Persistent cluster, always visible, never collapsed behind the
+       hamburger — owner, 2026-08-01. Left to right: Edit (only one of the two
+       is ever visible at once — bracket tab vs. buckets tab — for whoever can
+       see it: an admin actively laying out the bracket, or a buckets-role
+       operator running the challenge), then the theme toggle icon "a touch
+       further left of the hamburger", then the hamburger itself. Wrapped as
+       one unit (see .header-menu-cluster in base.css) so it stays
+       right-aligned regardless of how long the tournament name runs. -->
   <div class="header-menu-cluster">
     <button class="admin-public-btn" id="bracketEditBtn" hidden data-action="toggleBracketEdit">Edit</button>
     <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
+    <button class="theme-toggle-btn" id="themeToggle"></button>
     <!-- Below the desktop breakpoint the controls collapse behind this. An admin
          signed in on a phone can have six of them, which took two rows off the
          top of the bracket. Shown by CSS only on mobile; the panel holds
@@ -50,11 +51,10 @@
        Project winners, Notifications, Refresh, then Coach Panel / Admin Panel
        / Sign in — exactly whichever of those three this session has access
        to, minus a link to THIS page (there isn't one) — because a destination
-       that leaves the page belongs at the end of a menu of actions. Dark Mode
-       is now the LAST item of all: it is the one control that is never a
-       destination and never role-gated, so it anchors the bottom regardless
-       of which of the others above it happen to be visible. The panel is a
-       flex column on mobile, so DOM order is menu order. -->
+       that leaves the page belongs at the end of a menu of actions. The theme
+       toggle used to anchor the bottom of this menu; it now lives in the
+       persistent cluster above instead (owner, 2026-08-01), so this panel is
+       purely secondary actions and role-gated destinations. -->
   <div class="header-controls" id="headerControls">
     <button class="admin-public-btn" id="shareImageBtn" hidden data-action="openShareImage" title="Share, download or print this bracket">Share</button>
     <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
@@ -74,7 +74,6 @@
          serves everyone, in a browser or either installed app, and the login
          page itself explains that spectators need no account. -->
     <a href="/admin" class="admin-public-btn" id="signInBtn" hidden>Sign in</a>
-    <button class="admin-public-btn" id="themeToggle">Dark Mode</button>
   </div>
 </header>
 
@@ -170,12 +169,14 @@
         <label class="share-opt"><input type="radio" name="shareScope" value="all-one" data-action-change="refreshShareImage"> All brackets <span class="share-opt-note">(one image)</span></label>
         <label class="share-opt"><input type="radio" name="shareScope" value="all-separate" data-action-change="refreshShareImage"> All brackets <span class="share-opt-note">(separate files)</span></label>
       </div>
-      <!-- Only for the combined image: brackets of different widths stacked on
-           one sheet need to agree on an edge, and which edge depends on what
-           the reader is following (updateShareScopeRow shows/hides this). -->
-      <div class="share-opts share-align" id="shareAlignRow" hidden>
-        <label class="share-opt"><input type="radio" name="shareAlign" value="left" data-action-change="refreshShareImage"> Line up round 1</label>
-        <label class="share-opt"><input type="radio" name="shareAlign" value="center" checked data-action-change="refreshShareImage"> Centered</label>
+      <!-- Which edge the bracket content pins to inside its own canvas — this
+           matters even for a single bracket (owner, 2026-08-01: "should
+           appear regardless of what bracket(s) are selected"), not just when
+           stacking several onto one sheet, so it's always shown. Left is the
+           default everywhere the bracket appears, on-screen and shared. -->
+      <div class="share-opts share-align" id="shareAlignRow">
+        <label class="share-opt"><input type="radio" name="shareAlign" value="left" checked data-action-change="refreshShareImage"> Line up round 1</label>
+        <label class="share-opt"><input type="radio" name="shareAlign" value="center" data-action-change="refreshShareImage"> Centered</label>
         <label class="share-opt"><input type="radio" name="shareAlign" value="right" data-action-change="refreshShareImage"> Line up championships</label>
       </div>
       <div class="share-preview-wrap"><img id="sharePreview" class="share-preview" alt="Bracket image preview"></div>
@@ -360,11 +361,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.85"></script>
-<script src="/theme-css.js?v=3.85"></script>
-<script src="/tt-common.js?v=3.85"></script>
-<script src="/bracket-data.js?v=3.85"></script>
-<script src="/bracket.js?v=3.85"></script>
-<script src="/sw-register.js?v=3.85" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.92"></script>
+<script src="/theme-css.js?v=3.92"></script>
+<script src="/tt-common.js?v=3.92"></script>
+<script src="/bracket-data.js?v=3.92"></script>
+<script src="/bracket.js?v=3.92"></script>
+<script src="/sw-register.js?v=3.92" data-sw="/sw.js"></script>
 </body>
 </html>

@@ -2883,8 +2883,211 @@ Two label forms in bracket.js: `teamLabel()` (full display name) and
 a long name is ellipsised into uselessness. Both fall back to the canonical
 name, so an unbranded tournament renders exactly as before.
 
-Still to come: coach editing of these names (with the TD override and the
-tournament-wide off switch the owner chose), and the coach panel itself.
+Coach editing of these names, a logo, and the admin-side Lock landed
+2026-08-02 — see the next section.
+
+## Coach team profile, admin Teams settings, and a team logo (owner, 2026-08-02)
+Owner: *"We need the coaches team name section built out. build the
+appropriate overrides in admin settings > teams (move teams from settings >
+schedule > teams). Also allow teams to upload a team logo/icon (not used
+yet) — you will need to be able to store and reference it per team."*
+Follow-up on admin overrides, asked directly: lock a team's fields, plus
+keep the existing seed/display-order controls; nothing else admin-only.
+
+**Where things moved**: the Teams editor used to live under Schedule > Teams
+(`#modeSchedTeamsBtn`/`#schedTeamsPanel`) — both are gone. It's now
+`Settings > Teams` (`#sp-teams`, sidebar item between Coaches and
+Tournaments), same `renderTeamsEditor()`/`saveTeams()`/`loadTeams()` in
+admin.js, called from `showSettingsSection()`'s `if (section === 'teams')`
+instead of `setSchedMode()`'s old `'teams'` branch.
+
+**Schema**: `teams.teams[]` records gained two fields, both added in
+`normalizeTeam()` (api/server.js) so every write path — `POST /teams`, the
+new coach endpoint below, the id-backfill — produces them consistently:
+- `logo`: a data URI, validated with the SAME `validLogoDataUri()`/
+  `LOGO_MAX_CHARS` (48KB) the tournament header logo already uses. **Not
+  referenced from the bracket anywhere yet** — this is storage +
+  serving only, ahead of whatever renders it later. Served at
+  `GET /team-logo/:teamId.png` (and `/t/:slug/team-logo/:teamId.png`),
+  same shape as `sendLogo()`. Needed its own nginx location (mirroring the
+  `/logo.png` fix from earlier this session) — a new dynamic path with no
+  matching `location` falls through to the SPA fallback and 200s with
+  index.html instead of an image, the exact bug that motivated that earlier
+  fix. `scripts/check-nginx-routes.js` covers it.
+- `locked`: freezes a COACH out of the three coach-facing fields (see
+  below) — an admin edits them freely via `POST /teams` regardless, since
+  that route never checks its own lock. A TD sets it from the new checkbox
+  in Settings > Teams.
+
+**New endpoint**: `PUT /api/team-profile/:teamName` — `requireLineupAccess`,
+the SAME access rule the roster endpoint already uses (staff/any team, a
+`team`-role session/its own team only), plus a lock check inside the
+handler the middleware can't know about. Body is `{ displayName, shortName,
+logo }`; an absent field keeps what's stored, matching `POST /teams`'
+existing "explicit empty string clears, absent field keeps" contract so a
+client that doesn't send `logo` can't accidentally wipe it.
+
+**Coach panel**: `/coach`'s Team tab (`#tab-team` in coach.html, previously
+a stub reading "Coming next…") is now a real form — display name, short
+name, logo — following the exact lazy-init-on-first-click pattern the
+Roster tab uses (`initTeamTab()`, gated on `window._teamTabInitDone`), and
+the same "team picker only shown when there's more than one" rule
+(`rosterTeams()` reused directly). Locked teams show a one-line message
+instead of the form — **but only for a genuine coach session**; staff
+viewing the coach panel (checking what a coach sees, or coaching
+themselves) are never locked out, checked via `_coachSession.role`.
+
+**Shared logo picker** (`ttReadTeamLogoFile` in tt-common.js, loaded by
+both admin.html and coach.html): reads a File, downscales client-side via
+canvas/WebP if it doesn't fit the 48KB cap, hands back a data URI. Written
+as ITS OWN small pipeline rather than reusing admin.js's tournament-logo
+picker (`downscaleLogo`/`LOGO_MAX_W`/`LOGO_MAX_H`) — that one is tuned for
+a wide header wordmark (288×144) and also bakes PWA/favicon variants a team
+badge (square, 240px, no baking) has no use for; admin.js doesn't load on
+`/coach` anyway, so sharing it would have meant moving admin-specific
+constants into a common file for one caller.
+
+**A bug the new fields would have inherited, fixed in passing**: the Teams
+editor's inline rename handler and `saveTeams()`'s commit-in-progress loop
+both did `_teamsData.teams[i] = { name: v }` — a bare replace, not a merge.
+That silently dropped the row's `id` on every rename (recoverable, by name,
+in `POST /teams` — usually) and would have dropped `displayName`/
+`shortName`/`logo`/`locked` right along with it, meaning "rename a team"
+and "wipe its logo" would have been the same click. Changed to
+`Object.assign({}, _teamsData.teams[i], { name: v })` in both places.
+
+Verified: coach edits own team (persists across reload) and gets 403 on
+someone else's; admin lock blocks the coach both through the UI and a
+direct API call, admin still edits the locked team via `POST /teams`,
+unlock restores coach access; logo upload → preview → Save → reload keeps
+it, in both the admin editor and the coach Team tab; Schedule tab's other
+three modes (Edit/Builder/Delays/Advanced) unaffected by the Teams button's
+removal. Full API suite (140 tests) and the nginx-routes checker (35
+checks, two new for `/team-logo/...`) still pass.
+
+## Follow-up, same day: roster save no longer piles up blanks, plus sort/count/colors (owner, 2026-08-02)
+Three owner requests, all in the coach panel:
+
+1. *"In the coach panel, when a coach saves a roster it adds another 3
+   slots. Not desireable."* `saveRoster()` re-appended `ROSTER_BLANKS`
+   (3) empty rows after EVERY save — the same courtesy `loadRoster()`
+   rightly does once, on first opening a roster with nothing in it yet
+   ("a roster that opens with no visible row reads as broken"). Re-doing
+   that after every save meant three unwanted rows piled up per click
+   with nothing to stop it. Fixed by dropping the loop from `saveRoster()`
+   only — `loadRoster()`'s copy is untouched. `+ Add Player` still exists
+   for when a coach actually wants more room.
+2. *"Coaches should be able to sort players by number, name, or
+   position."* `sortRoster(key)` in coach.js — a one-time reorder on
+   click (three buttons above the table), not a persisted sort mode:
+   click again after adding players if the order matters again. Blank
+   typing rows always sink to the bottom regardless of key
+   (`isBlankRosterRow`), so they stay reachable instead of scattering
+   wherever an empty name/number happens to sort.
+3. *"add a player count to the left hand side so a coach can easily
+   identify how many players are on the roster."* `#rosterCount`, first
+   child of `.lineup-actions` with `margin-right:auto` so Save/Add
+   Player/status keep their usual spot on the right. Counts only real
+   rows (`!isBlankRosterRow`) — the same rule `saveRoster()` uses to
+   decide what actually gets sent, so the number never disagrees with
+   what Save is about to do.
+
+*"For team colors a coach should be able to select primary and secondary
+colors. These will be used later."* Same shape as the logo added earlier
+today: `primaryColor`/`secondaryColor` on the team record, validated with
+a plain `/^#[0-9a-f]{6}$/i` hex check (`validHexColor`, api/server.js),
+settable via `POST /teams` (admin) and `PUT /team-profile/:teamName`
+(coach, subject to the same lock), **not referenced by any rendering
+yet**. `<input type="color">` always carries SOME value (there's no
+empty/unset state in the DOM), so both the admin editor and the coach
+Team tab track "has this actually been set" separately from the input's
+live value — `null` = untouched this session (omit from the save body),
+`''` = explicit clear (a small "Clear" button, same idea as the logo's
+Remove), a hex string = set. Falls back to a neutral grey swatch
+(`#4a4a4a`) when nothing's set, purely cosmetic — never written unless the
+coach/admin actually picks a color.
+
+Verified: roster row count stays flat across repeated saves instead of
+growing by 3 each time; sort-by-name/num/pos checked against clean
+synthetic data directly (not the demo's roster, which had pre-existing
+duplicate names from earlier ad hoc testing this session — a red herring,
+not a bug in the sort); color set → Save → reload keeps it, in both the
+coach Team tab and the admin Teams editor. Full API suite (140 tests)
+still passes.
+
+## Team logo/colors put to use: Team Path, Standings, and a coach-panel preview (owner, 2026-08-02)
+Owner: *"I think team path, and standings would be the perfect place to
+make use of team logos and colors."* Asked to choose the visual weight;
+picked **bolder** over a subtle accent — an actual colored background/
+banner, not just a small badge. Then: *"Find a spot in the coach portal to
+use the logo and colors."*
+
+**Where the data comes from, client-side**: `GET /api/teams` is public and
+already returns `logo`/`primaryColor`/`secondaryColor` per team (added
+earlier today), so no new endpoint was needed. `rebuildTeamLabels()`
+(bracket.js) — already the place that builds a canonical-name → display/
+short-name lookup whenever `_teamsData` loads — now also builds
+`_teamBranding`, a canonical-name → `{logoUrl, primaryColor,
+secondaryColor}` map. **Logo is served as a URL** (`teamLogoUrl(id)` →
+`/team-logo/<id>.png`, the route added earlier today), **not** the raw data
+URI `/api/teams` carries inline — Standings renders every team on every
+poll refresh, and re-embedding a 48KB data URI per row per render would
+bloat the DOM string for no reason a cached image URL doesn't already
+solve.
+
+**Team Path**: a `.team-brand-banner` (base.css — shared, see below) at the
+top of a team's path, gradient background from `teamBrandBannerCss()`
+(primary → secondary, falls back to grey if only one is set), logo, name.
+This DOES re-introduce a team-name heading that a prior comment called
+"redundant" (the selector bar already shows which team you're viewing) —
+worth flagging because that comment is easy to trip over later: a plain
+text heading would still be redundant, but a BRANDED banner is a different
+thing entirely and earns its place. Only rendered when a team has actually
+set something (`_teamBranding[name]` exists) — an unbranded tournament
+looks exactly as before.
+
+**Standings**: `.std-row--branded` gets a solid-color left edge (squared
+off, not following the card's rounded corners — `border-top/bottom-left-
+radius: 0`) plus a `color-mix()` background wash, both from the SAME color
+via `data-css` (arbitrary hex can't live in a stylesheet), and the logo
+sits next to the team name. Same "only if branded" gate as Team Path.
+
+**Shared CSS lives in base.css, not bracket.css or admin.css** —
+`.team-brand-banner`/`.team-brand-logo`/`.team-brand-name` are used on the
+PUBLIC Team Path page (bracket.css) AND the coach panel's Team tab
+(admin.css), which don't share a stylesheet; base.css is the one file all
+three pages (`index.html`, `admin.html`, `coach.html`) load. `teamBrandBannerCss()`
+lives in tt-common.js for the same reason — one gradient formula, used from
+both bracket.js and coach.js.
+
+**The coach-portal spot**: NOT the coach panel's global header (visible on
+every tab at all times) — tinting the whole coach experience permanently
+with whatever colors a coach happened to pick felt like it'd fight the
+app's own chrome rather than complement it. Instead, a **live preview** on
+the Team tab itself, right where a coach is already picking these things:
+`#teamTabPreview` uses the exact same `.team-brand-banner` markup/CSS Team
+Path will show, and updates on every keystroke/color pick/logo upload
+(`teamTabUpdatePreview()`) — BEFORE Save, so a coach sees what they're
+choosing rather than finding out after the fact on a different tab.
+
+Verified: colors set on a team (POST /teams) show up correctly on Team
+Path (gradient banner, correct name) and Standings (branded left-border +
+wash on the right row, unbranded rows untouched) — screenshots confirm the
+gradient direction/colors and squared-off left edge render as intended;
+coach Team tab preview updates live and matches. Full API suite (140
+tests) still passes.
+
+## Team logo needs the tournament logo's crop/auto-size UI (owner, 2026-08-02) — IN PROGRESS
+Owner, immediately after the above: *"The team logo needs the same image
+functions as the tournament logo. Auto size if too large, and then crop
+option."* The team logo picker shipped earlier today (`ttReadTeamLogoFile`
+in tt-common.js) already auto-shrinks an oversized upload to fit the 48KB
+cap, but has no crop step — the tournament logo's picker
+(`admin.js`: `_iconStyle`, `cleanIconStyle` server-side validation,
+`makeIconSrc`/`makeLogoIcon` baking, the drag-crop-rectangle UI) is a much
+bigger subsystem this doesn't reuse yet. Being built as a follow-up —
+see git log after this entry for what actually shipped, this note may be
+stale by the time you're reading it.
 
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
@@ -2976,7 +3179,7 @@ already; don't let it survive a second.)
 `bracketEditBtn`/`bucketEditBtn` are NOT part of this menu at all anymore —
 see "Edit lives next to the hamburger, not behind it" below.
 
-## Edit lives next to the hamburger, not behind it (owner, 2026-08-01)
+## Edit AND the theme toggle live next to the hamburger, not behind it (owner, 2026-08-01/02)
 Owner: *"move the edit button out of the hamburger menu to next to the
 hamburger menu."* `#bracketEditBtn` and `#bucketEditBtn` (public page only —
 neither `/admin` nor `/coach` has an Edit button in their header) moved out
@@ -2985,6 +3188,32 @@ now holds `#headerMenuBtn` itself. Reasoning: Edit is a PRIMARY action for
 whoever can see it — an admin actively laying out the bracket, or a
 `buckets`-role operator running the challenge — and it should be one tap,
 not one tap into a menu plus a second tap on the item.
+
+**Follow-up, same day**: owner then said *"I still don't like the light/mode
+dark mode. Move it back to the image icon and place it a touch further left
+of the hamburger menu. For admins edit should be left of that still."* This
+reverses the EARLIER same-day decision (below, in the header-menu-order
+section) to make the theme toggle text and put it last in the collapsible
+menu. `#themeToggle` moved into `.header-menu-cluster` on **all three**
+pages (index/admin/coach — admin and coach didn't have a cluster before,
+just a bare hamburger; each now wraps `themeToggle` + `headerMenuBtn` the
+same way). Order left to right: Edit (index.html only) → theme icon →
+hamburger — the cluster's own `gap: 0.5em` is what puts "a touch" of space
+between the icon and the hamburger, no extra rule needed.
+
+The icon itself is the inline SVG sun/moon from `ec3ef7d` (`.theme-icon`
+class restored in base.css), **not emoji** — ☀/🌙 previously rendered as
+empty tofu boxes on a real device (no glyph in the font stack, no emoji
+fallback) and the commit that fixed that says outright "Do not reintroduce
+emoji in UI chrome." Sized and bordered to match `.header-menu-btn`
+(`.theme-toggle-btn`, 2.75rem square) so the two read as a matched pair.
+`updateHeaderMenu()`'s "2+ visible children of `#headerControls` shows the
+hamburger" threshold still works correctly now that `themeToggle` no longer
+counts as one of those children — on `/admin` with no coach-panel grant that
+can drop `#headerControls` to a single item (`← Bracket`), which per that
+function's own documented behavior just sits inline instead of behind a
+(now single-item, pointless) hamburger. That's the existing, intentional
+rule, not a new gap.
 
 **Why a wrapper, not just `margin-left: auto` on Edit itself**: both Edit
 buttons are individually `hidden` most of the time (role-gated, and only one
@@ -3012,6 +3241,176 @@ it has to be checked at MOBILE width instead. Verified: `#bracketEditBtn`
 next to the hamburger at 1440px (7.8px gap, matching the 0.5em CSS gap);
 `#bucketEditBtn` next to the hamburger at 390px, signed in as a fresh
 `buckets`-role account (7.4px gap). Neither shows for a signed-out visitor.
+
+## A flight's championship column no longer claims the full theoretical grid height (owner, 2026-08-02)
+Owner report, with screenshots: *"The championship highlighted column in the A
+bracket extends low enough that a user can scroll on desktop even though all
+games fit in the window. It is not as tall on the open bracket."* Confirmed
+from the screenshots: the round columns' real cards ended well above where
+the gold-tinted championship column's box actually ended — the tinted
+background (which is what makes the wasted space visible; the round columns
+have the same unused space, it's just not painted) extended far past the
+last real card.
+
+Root cause, in `renderFlightBracket()` (bracket.js): the championship
+column's box height was hardcoded to `totalVh` — the SAME height as the
+round columns, which comes from `gridH = Math.max(...treeCols row counts,
+FLIGHT_MIN_ROWS)`. `gridH` is a THEORETICAL slot count for the tallest
+column; nothing ever shrank it back down to how much of that grid the tree
+actually used. Two ways the gap opens: `FLIGHT_MIN_ROWS` (4) padding a small
+flight's real row count up, or a TD hand-placing cards (bracket Edit mode)
+into only part of a taller grid — `layoutRow` positions are honored, but the
+column's own declared height never followed them down.
+
+Fix scope is deliberately narrow — **only the championship column's own
+height changed, not the round columns**. Widening the fix to shrink
+round-col height too would touch connector-line math (`totalVh` feeds
+`connLines()`'s src/dst percentages) and the hand-placement UX (a TD may
+want breathing room below a card on purpose); none of that was broken, and
+the owner's complaint was specifically about the tinted column. New height
+is `Math.min(totalVh, Math.max(contentBottomVh, champOwnVh))` — the real
+tree's lowest card position (`contentBottomVh`, computed from the same
+`pos[]` map the cards themselves render from, so it already accounts for
+hand-placement) or whatever the championship card's own block needs
+(`champOwnVh`), whichever is bigger, capped at the old `totalVh` so a tree
+that genuinely fills its grid renders byte-for-byte as before — this change
+can only ever shrink the column, never grow it.
+
+Verified by reproducing the exact shape from the screenshots: generated a
+32-team tiered schedule (the format's max), then hand-placed the A bracket's
+8 first-round entrants into the top 35% of their column via `POST
+/schedule/layout` (the same endpoint bracket Edit mode's Save uses) to
+recreate cards clustered away from the grid's full height. Before the fix,
+`champStyleHeight` matched the round columns at 84.55vh; after, 36.2vh — a
+57% reduction, landing close to where the real content (including the
+championship card itself, anchored near the semifinal row same as the Open
+tree does it) actually sits. Also checked Open/A/B all still render with no
+console errors, and a fully-populated (non-hand-placed) 32-team A bracket —
+where the grid genuinely has no slack — renders IDENTICALLY to before (the
+`Math.min(totalVh, ...)` cap is what guarantees that).
+
+## Share always captures the Bracket tab, and defaults to left-aligned (owner, 2026-08-02)
+Two owner reports, same conversation:
+
+1. *"For the share button. If that is clicked outside of the bracket tab
+   inform the user that it is for sharing the bracket and prompt them to
+   continue or exit. Don't just do nothing."* `openShareImage()` in
+   `bracket.js` now checks `activeView()` first; off the `bracket` tab it
+   shows a `ttConfirm()` ("Share makes an image of the Bracket tab, not what
+   you're currently viewing" / Continue / Exit) before doing anything, and
+   only opens the share overlay if the visitor confirms. On the bracket tab
+   it's unchanged — opens immediately, no dialog. `ttConfirm` (tt-common.js)
+   was already there for exactly this ("replace window.confirm / window.prompt
+   — native dialogs... look foreign, are hostile on mobile").
+
+2. *"By default brackets should be left justified. when sharing a centered
+   bracket if feels closer to right justified."* then, mid-thread: *"The
+   justification should appear regardless of what bracket(s) are selected.
+   Don't hide it for only printing all on one page."* There are **two**
+   layout container classes, not one — `.bcc-stack` (flights, and large
+   brackets that stack winners over losers vertically) and `.bcc-outerflex`
+   (the side-by-side desktop layout most small/medium tournaments actually
+   use — see `getDims`/`stackedDims` in bracket.js for which one a given
+   bracket picks). Both needed the same three changes, and it's easy to fix
+   only one and ship a change that looks right on whichever layout you
+   happened to test:
+   - Base CSS `justify-content` on BOTH classes is now `flex-start` (was
+     `center`) — these are the SAME classes the on-screen bracket renders
+     into, not just the share canvas, so the live page defaults to
+     left-justified too, not only the exported image.
+   - The share dialog's alignment radios default to `left` (both the HTML
+     `checked` attribute and `shareOpts()`'s JS fallback — two places, don't
+     miss one when touching this again).
+   - `#shareAlignRow` used to hide unless `shareScope === 'all-one'`
+     (comment: "only means something when several brackets share one
+     sheet") — that comment was wrong even before this: `paintFlights()`
+     applies `opts.align` to the rendered container for EVERY flight
+     painted, including a lone single-bracket share, so alignment always
+     did something, the control just wasn't reachable. Row is
+     unconditionally visible now. `paintFlights()`'s own selector was
+     `.bcc-stack` only — missed `.bcc-outerflex` on the first pass, caught
+     by testing against the demo's default format (two-sided single elim),
+     which renders through the OTHER container; fixed to
+     `querySelector('.bcc-stack, .bcc-outerflex')`.
+
+## Print: the first page was blank on a tall bracket (owner, 2026-08-02)
+Owner: *"When selecting print, the first page is always blank. I want the
+bracket to always be sized to print the whole (of whatever the user
+selects) on a single page."*
+
+Root cause in `printShareImage()` (bracket.js): the print stylesheet was
+`img{width:100%}` with no height cap. A `<img>` is an ATOMIC box a print
+engine cannot slice mid-image — if the rendered height (width:100% times
+the canvas's own aspect ratio) ran past what was left of the first
+printable page, the browser didn't split it; it moved the WHOLE image to
+page 2, leaving page 1 blank. This is exactly what "share scope: All
+brackets (one image)" produces — `stackCanvases()` stacks Open/A/B
+vertically into one TALL canvas (aspect ratio height:width of ~2.2:1 in
+testing, vs. ~0.66:1 for a single small bracket) that blows well past one
+page at full page width.
+
+Fix: each image now renders inside its own full-page `.print-page` (`height:
+100vh; display:flex; align-items:center; justify-content:center`) with
+`max-width:100%; max-height:100%; width:auto; height:auto` instead of a
+bare `width:100%` — the standard "shrink to fit both dimensions, preserve
+aspect ratio" technique (the print-CSS equivalent of `object-fit:contain`
+in a fixed box). This GUARANTEES no image can ever be taller than one page
+regardless of its own aspect ratio, so nothing can trigger the
+whole-image-bumps-to-next-page behavior — satisfying "always ... on a
+single page" for whatever the visitor selected, not just the common case.
+Also added `@page{size:landscape}` since every bracket shape this app
+produces is wider than tall at the page level even after stacking multiple
+onto one sheet; harmless even where a browser/OS ignores it, since the
+containment math doesn't depend on which orientation actually gets used.
+
+**How this was verified without a human at a printer**: Chromium's
+`page.pdf()` (Playwright) uses the SAME print engine `window.print()` does,
+so it reproduces pagination bugs faithfully — this class of bug (an atomic
+box exceeding page height) does not show up in ordinary DOM inspection,
+only in actual paginated output. Extracted the print iframe's exact HTML
+(via `shareCanvases()`, the same call `printShareImage()` makes), rendered
+it standalone with `preferCSSPageSize: true`, and counted PDF pages by
+reading `/Count` off the `/Pages` object. Old CSS against the stacked
+Open+A+B canvas: **2 pages** (reproducing the bug). New CSS, same canvas:
+**1 page**. Single-bracket share (the common case, aspect ratio already
+under 1:1) was 1 page under both old and new CSS — the bug is real but
+scope-dependent, which is exactly why "print a single small bracket looks
+fine, print 'all brackets on one image' or a deep/narrow bracket doesn't"
+went unnoticed until the owner hit a tall one.
+
+## Standings: tier beats record (owner, 2026-08-02)
+Owner: *"a team that has fallen to a consolation bracket should not be
+ranked higher than a team that is in a bracket above them. If a team loses
+two games to exit the open then wins out their record could be 7-2 which
+would rank them higher than a team that went 5-0 and is still in the
+open."*
+
+`rankStandings()` (bracket-data.js) — the ONE tiebreak function both the
+public standings tab (`allTeamStandings()` in bracket.js) and the
+`teams.csv` export (`teamRows()` in api/server.js) call, kept as one
+function specifically so the two never disagree — sorted by record first,
+with no notion of which bracket a team currently belongs to. Now sorts by
+`row.tier` FIRST (open beats A beats B, `STANDINGS_TIER_RANK`), record only
+breaks ties WITHIN a tier. A row with no `tier` field defaults to rank 0,
+so this is a complete no-op for `standingsGroups()` (the pool/round-robin
+table), which has no tiers at all and never sets one.
+
+**Tier is the LOWEST tier a team has ever been resolved into, whether or
+not that tier's own games are finished yet** — a team is "dropped" the
+moment it's slotted into an A/B game, not once it's lost one. Both
+`allTeamStandings()` and `teamRows()` got the same new pass over every
+A/B-tier game (`GAMES[sid].tier`), resolving `t1`/`t2` via `resolveSlot()`
+regardless of whether THAT game has a result — deliberately NOT reusing the
+existing played-games loop below it, which is gated on the game's own
+result and would miss a team that dropped but hasn't played its A game yet.
+`g.tier === 'B' || currentTier === 'open'` is the "only ever move a team
+DOWN a tier, never back up" rule — B always wins, A only overwrites the
+'open' default.
+
+Verified with `rankStandings()` directly (no browser needed): a 1-1 `open`
+row and a 7-2 `A` row — the 1-1 Open team ranks first, exactly the owner's
+example. Existing standings.test.js (140 tests total) still passes
+unchanged, confirming the no-tier case is untouched.
 
 ## Coach Panel visibility is a TEAM GRANT, not a role (2026-07-31)
 Owner report: **"If an admin is assigned to a team, they need the coaches

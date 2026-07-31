@@ -68,17 +68,41 @@ var _mbcScrollTop = 0;
 // prefers the short one and is used on cards, which are fixed-width boxes
 // where a long name is ellipsised into uselessness.
 var _teamLabels = {};       // canonical name -> { display, short }
+// canonical name -> { logoUrl, primaryColor, secondaryColor } — Team Path and
+// Standings (owner, 2026-08-02: "team path, and standings would be the
+// perfect place to make use of team logos and colors"). Only populated for a
+// team that actually SET something, so a plain tournament with no branding
+// costs nothing extra to render.
+var _teamBranding = {};
 
 function rebuildTeamLabels() {
   _teamLabels = {};
+  _teamBranding = {};
   var list = (_teamsData && _teamsData.teams) || [];
   list.forEach(function(t) {
     if (!t || !t.name) return;
     if (t.displayName || t.shortName) {
       _teamLabels[t.name] = { display: t.displayName || '', short: t.shortName || '' };
     }
+    if (t.logo || t.primaryColor || t.secondaryColor) {
+      _teamBranding[t.name] = {
+        logoUrl: (t.logo && t.id) ? teamLogoUrl(t.id) : null,
+        primaryColor: t.primaryColor || null,
+        secondaryColor: t.secondaryColor || null,
+      };
+    }
   });
 }
+
+// A team's own logo, served as a URL (not the raw data URI /api/teams
+// carries) so the browser caches it by address instead of re-embedding
+// megabytes of base64 into every Standings/Team Path render.
+function teamLogoUrl(teamId) {
+  var prefix = (typeof TT_SLUG !== 'undefined' && TT_SLUG) ? '/t/' + encodeURIComponent(TT_SLUG) : '';
+  return prefix + '/team-logo/' + encodeURIComponent(teamId) + '.png';
+}
+
+function teamBrandingFor(name) { return _teamBranding[name] || null; }
 
 function teamLabel(name) {
   var l = _teamLabels[name];
@@ -2496,12 +2520,33 @@ function renderFlightBracket(root, tier) {
       + '<div class="champ-bc"><div class="bc bc--static' + projCls(champGid) + '" data-gid="' + esc(champGid) + '">' + cardHTML(champGid, true) + '</div></div>'
       + champWinnerHTML(champGid, fr.winner);
 
-    // Height + top margin match a round column exactly, so the tinted column
-    // spans the bracket the way the Open tree's does instead of hugging its
-    // contents. u-relative is what .champ-anchor positions against.
+    // Height + top margin match a round column, so the tinted column spans
+    // the bracket the way the Open tree's does — UP TO whatever the tree's
+    // real content actually needs. totalVh comes from gridH, which can run
+    // well past the tree's real row count (FLIGHT_MIN_ROWS's floor, or a TD
+    // hand-placing cards into the top of a taller grid), and the tinted
+    // background used to always claim the full totalVh regardless, dragging
+    // the whole page's scroll height down with it even though nothing was
+    // drawn in the extra space (owner, 2026-08-02: "the championship
+    // highlighted column... extends low enough that a user can scroll...
+    // even though all games fit in the window"). Capped at totalVh as an
+    // upper bound, so a tree that genuinely fills its grid renders exactly
+    // as before — this only ever shrinks the column, never grows it.
+    // u-relative is what .champ-anchor positions against.
+    var contentBottomVh = 0;
+    treeCols.forEach(function(gids) {
+      gids.forEach(function(gid) {
+        if (pos[gid] !== undefined) contentBottomVh = Math.max(contentBottomVh, pos[gid] + dims.slotVh * CARD_RATIO);
+      });
+    });
+    var champOwnVh = anchored
+      ? champCardTop + dims.slotVh * CARD_RATIO * 1.3   // card + winner banner, below the anchor
+      : dims.slotVh * CARD_RATIO * 2.6;                 // trophy+title+time+card+winner, centred
+    var champBoxVh = Math.min(totalVh, Math.max(contentBottomVh, champOwnVh));
+
     champHTML = '<div class="champ-center--desktop champ-center--flight'
       + (anchored ? ' u-relative' : '') + '" data-css="width:' + (dims.champVw - 1.6) + 'vw'
-      + ';height:' + totalVh + 'vh;margin-top:' + hdrVh + 'vh">'
+      + ';height:' + champBoxVh + 'vh;margin-top:' + hdrVh + 'vh">'
       + (anchored
           ? '<div class="champ-anchor" data-css="top:' + champCardTop + 'vh">' + champBlock + '</div>'
           : champBlock)
@@ -2951,7 +2996,7 @@ function shareOpts() {
     withResults: !res || res.checked,
     theme: (sel && sel.value) || 'dark',
     scope: (sc && sc.value) || 'current',
-    align: (al && al.value) || 'center',
+    align: (al && al.value) || 'left',
   };
 }
 
@@ -2979,16 +3024,34 @@ function updateShareScopeRow() {
   updateShareAlignRow();
 }
 
-// Alignment only means something when several brackets share one sheet; with
-// separate files each bracket is alone on its own.
+// Alignment pins the bracket's own content to an edge inside its canvas
+// (paintFlights sets .bcc-stack's justify-content from this) — it matters for
+// a single bracket too, not just when stacking several onto one sheet, so the
+// row stays visible regardless of scope (owner, 2026-08-01).
 function updateShareAlignRow() {
   var row = document.getElementById('shareAlignRow');
   if (!row) return;
-  var sc = document.querySelector('input[name="shareScope"]:checked');
-  row.hidden = !(sc && sc.value === 'all-one');
+  row.hidden = false;
 }
 
+// Share always captures the Bracket tab, regardless of which tab is on
+// screen when it's tapped — a tap from Schedule/Team/Buckets would otherwise
+// silently produce an image of something the visitor wasn't looking at
+// (owner, 2026-08-01: "don't just do nothing", i.e. don't silently share the
+// wrong thing either — ask).
 function openShareImage() {
+  var ov = document.getElementById('shareOverlay');
+  if (!ov) return;
+  if (activeView() !== 'bracket') {
+    ttConfirm('Share makes an image of the Bracket tab, not what you’re currently viewing.',
+      { okLabel: 'Continue', cancelLabel: 'Exit' }).then(function(ok) {
+      if (ok) openShareImageNow();
+    });
+    return;
+  }
+  openShareImageNow();
+}
+function openShareImageNow() {
   var ov = document.getElementById('shareOverlay');
   if (!ov) return;
   ov.hidden = false;
@@ -3022,7 +3085,10 @@ function paintFlights(win, doc, opts, flights) {
     // the middle — the B bracket stayed stranded mid-page. Pin the content to
     // the chosen edge here, before it is painted.
     try {
-      var stack = doc.querySelector('.bcc-stack');
+      // .bcc-stack (flights, and large brackets that stack winners over
+      // losers) or .bcc-outerflex (the side-by-side desktop layout) —
+      // whichever this render actually used.
+      var stack = doc.querySelector('.bcc-stack, .bcc-outerflex');
       if (stack) {
         stack.style.justifyContent = opts.align === 'left' ? 'flex-start'
           : opts.align === 'right' ? 'flex-end' : 'center';
@@ -3423,11 +3489,27 @@ function printShareImage() {
   document.body.appendChild(ifr);
   var doc = ifr.contentDocument;
   doc.open();
+  // Each bracket gets its own full page, sized to CONTAIN it rather than
+  // stretched to the page's width — owner, 2026-08-02: "I want the bracket
+  // to always be sized to print the whole ... on a single page." Width:100%
+  // with no height cap (the old rule) let a tall/narrow bracket's rendered
+  // height run past one printable page; a <img> is an atomic box a print
+  // engine cannot slice mid-image, so the WHOLE image bumped to page 2 the
+  // moment it didn't fit what was left of page 1 — leaving page 1 blank,
+  // which is exactly the bug report. object-fit:contain inside a
+  // full-page-height flex box scales EITHER dimension down as needed, so
+  // the image can never be taller than one page regardless of its own
+  // aspect ratio, whatever the visitor selected (one bracket, or several
+  // stacked/side by side onto one sheet).
   doc.write('<!doctype html><html><head><title>' + esc(bracketShareText()) + '</title>'
-    + '<style>@page{margin:8mm}html,body{margin:0;padding:0;background:#fff}'
-    + 'img{display:block;width:100%;page-break-after:always}'
-    + 'img:last-child{page-break-after:auto}</style></head><body>'
-    + items.map(function(it) { return '<img src="' + it.canvas.toDataURL('image/png') + '">'; }).join('')
+    + '<style>@page{size:landscape;margin:8mm}'
+    + 'html,body{margin:0;padding:0;background:#fff;height:100%}'
+    + '.print-page{height:100vh;display:flex;align-items:center;justify-content:center;'
+    + 'page-break-after:always;box-sizing:border-box}'
+    + '.print-page:last-child{page-break-after:auto}'
+    + '.print-page img{display:block;max-width:100%;max-height:100%;width:auto;height:auto}'
+    + '</style></head><body>'
+    + items.map(function(it) { return '<div class="print-page"><img src="' + it.canvas.toDataURL('image/png') + '"></div>'; }).join('')
     + '</body></html>');
   doc.close();
   var imgs = doc.images, left = imgs.length;
@@ -5222,12 +5304,29 @@ function standingsGroups() {
 function allTeamStandings() {
   var teams = {}, h2h = {};
   function seen(nm) {
-    if (!teams[nm]) teams[nm] = { name: nm, w: 0, l: 0, rf: 0, ra: 0, gp: 0 };
+    if (!teams[nm]) teams[nm] = { name: nm, w: 0, l: 0, rf: 0, ra: 0, gp: 0, tier: 'open' };
     return teams[nm];
   }
   // Every team in the tournament appears, even before it has played — a
   // standings table that hides half the field on day one is useless.
   (typeof getScheduleTeams === 'function' ? getScheduleTeams() : []).forEach(seen);
+
+  // Which tier a team has DROPPED TO, independent of whether that tier's own
+  // games are finished — a team resolved into an A-tier slot has already
+  // fallen out of Open even before playing its A game. A separate pass over
+  // every A/B game (not just played ones, and not gated on GAMES[sid]'s own
+  // result) so this never depends on the tier game itself being complete.
+  Object.keys(GAMES).forEach(function(sid) {
+    var g = GAMES[sid];
+    if (g.bye || !g.tier) return;
+    [g.t1, g.t2].forEach(function(sd) {
+      var nm = resolveSlot(sd, results);
+      if (!nm) return;
+      // B is a drop from A is a drop from Open — always take the LOWER tier
+      // ever reached, never move a team back up.
+      if (g.tier === 'B' || seen(nm).tier === 'open') seen(nm).tier = g.tier;
+    });
+  });
 
   Object.keys(GAMES).forEach(function(sid) {
     var g = GAMES[sid], r = results[sid];
@@ -5294,10 +5393,24 @@ function renderStandingsViewInner() {
   rows.forEach(function(r, i) {
     var diff = r.rf - r.ra;
     var diffCls = diff > 0 ? ' std-diff--pos' : diff < 0 ? ' std-diff--neg' : '';
+    // A team's own colors as a bold left accent + background wash, and their
+    // logo next to the name (owner, 2026-08-02: "team path, and standings
+    // would be the perfect place to make use of team logos and colors" —
+    // bolder treatment). --std-row-accent is used for the border AND mixed
+    // into the background, so the two always agree even though only one
+    // color might be set.
+    var brand = teamBrandingFor(r.name);
+    var accent = brand && (brand.primaryColor || brand.secondaryColor);
+    var rowCss = accent
+      ? 'border-left-color: ' + accent + '; background: linear-gradient(90deg, '
+        + 'color-mix(in srgb, ' + accent + ' 24%, var(--surface)) 0%, var(--surface) 85%);'
+      : '';
     // Teams with no games yet are listed but not ranked — a "1" next to a
     // team that hasn't played reads as a standing it hasn't earned.
-    html += '<div class="std-row' + (r.gp ? '' : ' std-row--unplayed') + '">'
+    html += '<div class="std-row' + (r.gp ? '' : ' std-row--unplayed') + (accent ? ' std-row--branded' : '') + '"'
+      + (rowCss ? ' data-css="' + esc(rowCss) + '"' : '') + '>'
       + '<span class="std-rank">' + (r.gp ? (i + 1) : '—') + '</span>'
+      + (brand && brand.logoUrl ? '<img class="std-team-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
       + '<span class="std-main">'
       +   '<span class="std-team">' + seedChip(r.name) + esc(r.name) + '</span>'
       +   '<span class="std-meta">'
@@ -6098,9 +6211,19 @@ function renderTeamViewInner(realResults){
     return;
   }
 
-  // Team name label intentionally omitted — the selector bar always shows
-  // which team is being viewed, so a heading here is redundant.
+  // A plain team-name heading was intentionally omitted here (the selector
+  // bar already shows which team is being viewed) — a BRANDED banner is a
+  // different thing, not a redundant label, so it earns its place when the
+  // team has actually set a logo or colors (owner, 2026-08-02).
   var html='';
+  var brand = teamBrandingFor(team);
+  if (brand && (brand.logoUrl || brand.primaryColor || brand.secondaryColor)) {
+    html += '<div class="team-brand-banner" data-css="'
+      + esc(teamBrandBannerCss(brand.primaryColor, brand.secondaryColor)) + '">'
+      + (brand.logoUrl ? '<img class="team-brand-logo" src="' + esc(brand.logoUrl) + '" alt="">' : '')
+      + '<span class="team-brand-name">' + esc(teamLabel(team)) + '</span>'
+      + '</div>';
+  }
 
   // Record summary: wins-losses plus run totals where scores were entered.
   // REAL results only, even while projections are overlaid on the chain

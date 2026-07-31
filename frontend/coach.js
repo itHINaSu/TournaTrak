@@ -84,6 +84,10 @@ function initCoachTabs() {
           await initRosterTab();
         })();
       }
+      if (name === 'team' && !window._teamTabInitDone) {
+        window._teamTabInitDone = true;
+        initTeamTab();
+      }
       try { localStorage.setItem('ttCoachTab', name); } catch (e) {}
     });
   });
@@ -145,13 +149,20 @@ function setStatus(id, text, transient) {
 }
 
 // ── Roster ────────────────────────────────────────────────────────────
-// The squad, in no particular order. Deliberately NOT a lineup: no batting
-// order, no game, no lock once a game is final. Its payoff is in the Lineups
-// tab, where typing a number fills in the player.
+// The squad. Deliberately NOT a lineup: no batting order, no game, no lock
+// once a game is final. Its payoff is in the Lineups tab, where typing a
+// number fills in the player. Sortable by number/name/position for finding
+// someone quickly — a one-time reorder on click, not a persisted view state.
 
 var _rosterTeam = null;      // whose roster is on screen
 var _rosterRows = [];        // [{id,jerseys[],name,position}] — the editing buffer
-var ROSTER_BLANKS = 3;       // empty rows to type into
+var ROSTER_BLANKS = 3;       // empty rows to type into, on first opening a roster ONLY —
+                              // NOT re-added after every Save (owner, 2026-08-02: "when a
+                              // coach saves a roster it adds another 3 slots. Not desireable").
+
+function isBlankRosterRow(r) {
+  return !(r.name || '').trim() && !(r.jerseys && r.jerseys.length);
+}
 
 function rosterTeams() {
   // A coach edits their own team(s). Staff get every team in the schedule,
@@ -219,6 +230,44 @@ function renderRoster() {
   }
   body.innerHTML = html;
   updateRosterDupNote();
+  updateRosterCount();
+}
+
+// Left of the Save/Add Player actions (owner, 2026-08-02: "add a player
+// count to the left hand side so a coach can easily identify how many
+// players are on the roster") — counts real rows only, same rule saveRoster
+// uses to decide what actually gets saved, so this never disagrees with
+// what's about to be sent.
+function updateRosterCount() {
+  var el = document.getElementById('rosterCount');
+  if (!el) return;
+  var n = _rosterRows.filter(function (r) { return !isBlankRosterRow(r); }).length;
+  el.textContent = n + (n === 1 ? ' player' : ' players');
+}
+
+// One-time reorder on click, not a persisted sort mode — blank typing rows
+// always sink to the bottom regardless of key, so they stay reachable
+// instead of scattering wherever an empty name/number happens to sort.
+function sortRoster(key) {
+  harvestRoster();
+  var real = _rosterRows.filter(function (r) { return !isBlankRosterRow(r); });
+  var blanks = _rosterRows.filter(isBlankRosterRow);
+  function val(r) {
+    if (key === 'num') {
+      var nums = (r.jerseys || []).map(function (j) { return parseInt(j, 10); })
+        .filter(function (n) { return !isNaN(n); });
+      return nums.length ? Math.min.apply(null, nums) : Infinity;
+    }
+    return String((key === 'pos' ? r.position : r.name) || '').toLowerCase();
+  }
+  real.sort(function (a, b) {
+    var va = val(a), vb = val(b);
+    if (va < vb) return -1;
+    if (va > vb) return 1;
+    return 0;
+  });
+  _rosterRows = real.concat(blanks);
+  renderRoster();
 }
 
 // Read the inputs back into the buffer. Called before anything that
@@ -322,8 +371,12 @@ async function saveRoster() {
   if (!r.ok) { setStatus('rosterStatus', data.error || 'Could not save', true); return; }
   // Redraw from what the server actually stored — it trims and drops blanks,
   // and showing anything else would make the next save look like a change.
+  // No fresh ROSTER_BLANKS appended here \u2014 that's an initial-open courtesy
+  // only; adding three more empty rows after every single save compounded
+  // into a wall of blanks a coach never asked for. "+ Add Player" is right
+  // there if more room is actually wanted (owner, 2026-08-02: "when a coach
+  // saves a roster it adds another 3 slots. Not desireable.").
   _rosterRows = (data.players || []).slice();
-  for (var i = 0; i < ROSTER_BLANKS; i++) _rosterRows.push({ jerseys: [], name: '', position: '' });
   renderRoster();
   setStatus('rosterStatus', '\u2713 Saved', true);
   showToast('Roster saved');
@@ -345,6 +398,188 @@ async function initRosterTab() {
   document.getElementById('rosterLoading').hidden = true;
   document.getElementById('rosterContent').hidden = false;
   await loadRoster(teams[0] || null);
+}
+
+// ── Team ──────────────────────────────────────────────────────────────
+// Display name, short name, logo — the same fields Settings > Teams in
+// /admin can also set, scoped here to the signed-in coach's own team(s).
+// GET /teams is public, so this reads from there rather than a coach-only
+// endpoint; PUT /team-profile/:teamName (requireLineupAccess, same rule as
+// the roster endpoint) is what actually saves.
+var _teamTabTeam = null;
+var _teamTabLogo = null;   // data URI = has one; '' = remove on save; null = unchanged
+
+function teamTabSyncLogo() {
+  var img = document.getElementById('teamTabLogoPreview');
+  var rm  = document.getElementById('teamTabLogoRemoveBtn');
+  if (img && rm) {
+    if (_teamTabLogo) { img.src = _teamTabLogo; img.hidden = false; rm.hidden = false; }
+    else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
+  }
+  teamTabUpdatePreview();
+}
+
+// Shown on Team Path and the Standings tab (owner, 2026-08-02) once saved;
+// live-previewed here before that (see teamTabUpdatePreview below). Same
+// null/''/hex convention as _teamTabLogo: null = untouched this session
+// (omit from the save body so the server keeps whatever's stored), '' =
+// clear, hex = set. A color <input> always carries SOME value, so the
+// swatch falls back to a neutral grey when unset rather than showing a
+// color that was never actually chosen.
+var TEAM_TAB_COLOR_UNSET = '#4a4a4a';
+var _teamTabColors = { primaryColor: null, secondaryColor: null };
+
+function teamTabSyncColor(which) {
+  var inp = document.getElementById(which === 'primaryColor' ? 'teamTabPrimaryColor' : 'teamTabSecondaryColor');
+  var clear = document.getElementById(which === 'primaryColor' ? 'teamTabPrimaryColorClear' : 'teamTabSecondaryColorClear');
+  var v = _teamTabColors[which];
+  if (inp) inp.value = v || TEAM_TAB_COLOR_UNSET;
+  if (clear) clear.hidden = !v;
+  teamTabUpdatePreview();
+}
+
+function clearTeamTabColor(which) {
+  _teamTabColors[which] = '';
+  teamTabSyncColor(which);
+  showToast('Color will be removed on Save');
+}
+
+// Live preview of the banner Team Path shows once this is actually saved —
+// updates as the coach picks, so they see what they're choosing rather than
+// finding out after the fact on a different tab.
+function teamTabUpdatePreview() {
+  var banner = document.getElementById('teamTabPreview');
+  if (!banner) return;
+  var logoImg = document.getElementById('teamTabPreviewLogo');
+  var nameEl = document.getElementById('teamTabPreviewName');
+  var logo = _teamTabLogo, primary = _teamTabColors.primaryColor, secondary = _teamTabColors.secondaryColor;
+  var hasAnything = !!logo || !!primary || !!secondary;
+  banner.hidden = !hasAnything;
+  if (!hasAnything) return;
+  banner.style.cssText = teamBrandBannerCss(primary, secondary);
+  if (logoImg) {
+    if (logo) { logoImg.src = logo; logoImg.hidden = false; }
+    else { logoImg.removeAttribute('src'); logoImg.hidden = true; }
+  }
+  if (nameEl) {
+    var displayEl = document.getElementById('teamTabDisplay');
+    nameEl.textContent = (displayEl && displayEl.value.trim()) || _teamTabTeam || '';
+  }
+}
+
+async function loadTeamTab(team) {
+  setStatus('teamTabStatus', '');
+  _teamTabTeam = team;
+  _teamTabLogo = null;
+  _teamTabColors = { primaryColor: null, secondaryColor: null };
+  var lockedEl = document.getElementById('teamTabLocked');
+  var formEl   = document.getElementById('teamTabForm');
+  if (!team) { lockedEl.hidden = true; formEl.hidden = true; return; }
+  var r = await fetch(coachApiBase() + '/teams').catch(function () { return null; });
+  var data = r && r.ok ? await r.json().catch(function () { return null; }) : null;
+  var rec = (data && data.teams || []).find(function (t) { return t.name === team; });
+  document.getElementById('teamTabDisplay').value = (rec && rec.displayName) || '';
+  document.getElementById('teamTabShort').value   = (rec && rec.shortName)   || '';
+  _teamTabLogo = (rec && rec.logo) || null;
+  teamTabSyncLogo();
+  _teamTabColors.primaryColor   = (rec && rec.primaryColor)   || '';
+  _teamTabColors.secondaryColor = (rec && rec.secondaryColor) || '';
+  teamTabSyncColor('primaryColor');
+  teamTabSyncColor('secondaryColor');
+  // Staff viewing the coach panel (checking what a coach sees, or coaching
+  // themselves) are never locked out — only a genuine coach session is.
+  var staffViewing = _coachSession && (_coachSession.role === 'admin' || _coachSession.role === 'results');
+  var locked = !!(rec && rec.locked) && !staffViewing;
+  lockedEl.hidden = !locked;
+  formEl.hidden = locked;
+}
+
+function pickTeamTabLogo(el) {
+  var f = el.files && el.files[0];
+  if (!f) return;
+  ttReadTeamLogoFile(f, function (uri) {
+    _teamTabLogo = uri;
+    teamTabSyncLogo();
+    showToast('Logo ready — press Save to apply');
+  }, function (msg) { showToast(msg, true); el.value = ''; });
+}
+
+function removeTeamTabLogo() {
+  _teamTabLogo = '';
+  teamTabSyncLogo();
+  showToast('Logo will be removed on Save');
+}
+
+async function saveTeamProfile() {
+  setStatus('teamTabStatus', '');
+  if (!_teamTabTeam) return;
+  var body = {
+    displayName: document.getElementById('teamTabDisplay').value.trim(),
+    shortName:   document.getElementById('teamTabShort').value.trim(),
+  };
+  // null means "didn't touch this field this session" — leave it out so the
+  // server keeps whatever is already stored instead of clearing it.
+  if (_teamTabLogo !== null) body.logo = _teamTabLogo;
+  var primaryEl = document.getElementById('teamTabPrimaryColor');
+  var secondaryEl = document.getElementById('teamTabSecondaryColor');
+  // A color <input> only fires 'input'/'change' on an actual pick, so an
+  // untouched-but-already-set color has to be read straight from the
+  // control here rather than relying on _teamTabColors having seen an event.
+  if (_teamTabColors.primaryColor !== null) {
+    body.primaryColor = _teamTabColors.primaryColor === '' ? '' : (primaryEl ? primaryEl.value : _teamTabColors.primaryColor);
+  }
+  if (_teamTabColors.secondaryColor !== null) {
+    body.secondaryColor = _teamTabColors.secondaryColor === '' ? '' : (secondaryEl ? secondaryEl.value : _teamTabColors.secondaryColor);
+  }
+  var r = await fetch(coachApiBase() + '/team-profile/' + encodeURIComponent(_teamTabTeam), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  var data = await r.json().catch(function () { return {}; });
+  if (!r.ok) { setStatus('teamTabStatus', data.error || 'Could not save', true); return; }
+  setStatus('teamTabStatus', '✓ Saved', true);
+  showToast('Team profile saved');
+  if (data.team) {
+    document.getElementById('teamTabDisplay').value = data.team.displayName || '';
+    document.getElementById('teamTabShort').value   = data.team.shortName   || '';
+    _teamTabLogo = data.team.logo || null;
+    teamTabSyncLogo();
+    _teamTabColors.primaryColor   = data.team.primaryColor   || '';
+    _teamTabColors.secondaryColor = data.team.secondaryColor || '';
+    teamTabSyncColor('primaryColor');
+    teamTabSyncColor('secondaryColor');
+  }
+}
+
+async function initTeamTab() {
+  var teams = rosterTeams();
+  var sel = document.getElementById('teamTabTeamSel');
+  var row = document.getElementById('teamTabTeamRow');
+  if (sel && teams.length > 1) {
+    sel.innerHTML = teams.map(function (t) {
+      return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+    }).join('');
+    row.hidden = false;
+    sel.addEventListener('change', function () { loadTeamTab(sel.value); });
+  }
+  document.getElementById('teamTabLoading').hidden = true;
+  document.getElementById('teamTabContent').hidden = false;
+  var fileInput = document.getElementById('teamTabLogoInput');
+  if (fileInput) fileInput.addEventListener('change', function () { pickTeamTabLogo(fileInput); });
+  var primaryEl = document.getElementById('teamTabPrimaryColor');
+  if (primaryEl) primaryEl.addEventListener('input', function () {
+    _teamTabColors.primaryColor = primaryEl.value;
+    teamTabSyncColor('primaryColor');
+  });
+  var secondaryEl = document.getElementById('teamTabSecondaryColor');
+  if (secondaryEl) secondaryEl.addEventListener('input', function () {
+    _teamTabColors.secondaryColor = secondaryEl.value;
+    teamTabSyncColor('secondaryColor');
+  });
+  var displayEl = document.getElementById('teamTabDisplay');
+  if (displayEl) displayEl.addEventListener('input', teamTabUpdatePreview);
+  await loadTeamTab(teams[0] || null);
 }
 
 // ── Account ───────────────────────────────────────────────────────────
@@ -396,6 +631,10 @@ Object.assign(TT_ACTIONS, {
   saveRoster:        function () { saveRoster(); },
   addRosterRow:      function () { addRosterRow(); },
   deleteRosterRow:   function (arg) { deleteRosterRow(arg); },
+  sortRoster:        function (arg) { sortRoster(arg); },
+  saveTeamProfile:   function () { saveTeamProfile(); },
+  removeTeamTabLogo: function () { removeTeamTabLogo(); },
+  clearTeamTabColor: function (arg) { clearTeamTabColor(arg); },
 });
 
 initCoachPanel();

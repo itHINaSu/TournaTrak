@@ -231,6 +231,12 @@
   padding: 0.6em 1em;
 }
 .std-row--unplayed { opacity: 0.55; }
+/* Colored left edge for a team that's set its own colors — squared off
+   rather than following the card's rounded corners, which is what a flush
+   accent bar looks like everywhere else this pattern shows up. Color itself
+   comes from data-css (border-left-color), set per-row in bracket.js. */
+.std-row--branded { border-left-width: 0.35em; border-left-style: solid; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.std-team-logo { width: 2rem; height: 2rem; object-fit: contain; border-radius: var(--radius-xs); flex-shrink: 0; }
 .std-rank {
   font-family: 'Oswald', sans-serif;
   font-size: var(--text-lg);
@@ -2545,8 +2551,10 @@ body.print-palette .bc-proj-chip {
   align-items: flex-start;
   /* min-content keeps the columns at their computed width instead of letting
      flex squeeze them when the bracket is wider than the viewport; the
-     wrapper below then scrolls horizontally. */
-  justify-content: center;
+     wrapper below then scrolls horizontally. Left by default (owner,
+     2026-08-01: "by default brackets should be left justified") — same
+     reasoning as .bcc-stack below, just the other layout's container. */
+  justify-content: flex-start;
   width: 97vw;
   min-width: min-content;
   margin: 0 auto;
@@ -2582,7 +2590,10 @@ body.print-palette .bc-proj-chip {
 .bcc-stack {
   display: flex;
   align-items: center;      /* championship centred across both rows */
-  justify-content: center;
+  /* Left by default (owner, 2026-08-01: "by default brackets should be left
+     justified"). The share dialog overrides this inline per its own
+     alignment choice — see paintFlights() in bracket.js. */
+  justify-content: flex-start;
   width: 97vw;
   min-width: min-content;   /* scroll instead of squeezing the columns */
   margin: 0 auto;

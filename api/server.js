@@ -1377,7 +1377,21 @@ function teamRows(schedule, results) {
   const bd = require(FRONTEND_DIR + '/bracket-data.js');
   bd.applySchedule(schedule);
   const teams = {}, h2h = {};
-  const seen = (nm) => (teams[nm] = teams[nm] || { name: nm, w: 0, l: 0, rf: 0, ra: 0 });
+  const seen = (nm) => (teams[nm] = teams[nm] || { name: nm, w: 0, l: 0, rf: 0, ra: 0, tier: 'open' });
+  // Same tier-drop tracking allTeamStandings() does in bracket.js, and for
+  // the same reason: rankStandings ranks a team still alive in Open above
+  // one that has dropped to A/B regardless of record, so this export can't
+  // disagree with what the public standings tab shows. A separate pass over
+  // every A/B game, not gated on that game's own result — a team is already
+  // "dropped" the moment it's resolved into a lower-tier slot.
+  for (const [sid, g] of Object.entries(bd.GAMES)) {
+    if (g.bye || !g.tier) continue;
+    for (const sd of [g.t1, g.t2]) {
+      const nm = bd.resolveSlot(sd, results);
+      if (!nm) continue;
+      if (g.tier === 'B' || seen(nm).tier === 'open') seen(nm).tier = g.tier;
+    }
+  }
   for (const [sid, g] of Object.entries(bd.GAMES)) {
     // Byes are skipped. In an elimination bracket a bye is not a win — the
     // team just advances — and counting it as one would inflate the record
@@ -1507,6 +1521,9 @@ function validLogoDataUri(v, maxChars, pngOnly) {
   try { buf = Buffer.from(m[2], 'base64'); } catch (e) { return false; }
   const magic = LOGO_MAGIC[m[1]];
   return !!buf && buf.length > 8 && magic.every((b, i) => buf[i] === b);
+}
+function validHexColor(v) {
+  return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
 }
 
 api.get('/theme-colors', ah(async (req, res) => {
@@ -1937,6 +1954,20 @@ function normalizeTeam(t) {
   const sh = cleanTeamLabel(t.shortName, TEAM_SHORT_MAX);
   if (d)  out.displayName = d;
   if (sh) out.shortName = sh;
+  // Same data-URI-in-the-record shape as the tournament logo (theme_colors.logo)
+  // — see validLogoDataUri/LOGO_MAX_CHARS above. Not used on the bracket yet;
+  // stored and served (GET /team-logo/:id.png) so a coach's upload survives a
+  // save even before anything renders it.
+  if (validLogoDataUri(t.logo, LOGO_MAX_CHARS)) out.logo = t.logo;
+  // Not used anywhere yet, same as logo — owner, 2026-08-02: "For team
+  // colors a coach should be able to select primary and secondary colors.
+  // These will be used later."
+  if (validHexColor(t.primaryColor))   out.primaryColor   = t.primaryColor.toLowerCase();
+  if (validHexColor(t.secondaryColor)) out.secondaryColor = t.secondaryColor.toLowerCase();
+  // Freezes a coach out of PUT /team-profile for this team (name/short
+  // name/logo/colors) once staff have set it — an admin still edits freely
+  // via POST /teams, which never checks its own lock.
+  if (t.locked) out.locked = true;
   return out;
 }
 
@@ -2008,8 +2039,12 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
       // An explicitly-sent empty string CLEARS; an absent field keeps what was
       // stored, so a client that doesn't know about these fields cannot wipe
       // them just by saving the team list.
-      displayName: t && 'displayName' in t ? t.displayName : prior.displayName,
-      shortName:   t && 'shortName'   in t ? t.shortName   : prior.shortName,
+      displayName:    t && 'displayName'    in t ? t.displayName    : prior.displayName,
+      shortName:      t && 'shortName'      in t ? t.shortName      : prior.shortName,
+      logo:           t && 'logo'           in t ? t.logo           : prior.logo,
+      primaryColor:   t && 'primaryColor'   in t ? t.primaryColor   : prior.primaryColor,
+      secondaryColor: t && 'secondaryColor' in t ? t.secondaryColor : prior.secondaryColor,
+      locked:         t && 'locked'         in t ? !!t.locked       : !!prior.locked,
     });
     if (seenIds.has(rec.id)) rec.id = newTeamId();   // never emit a duplicate
     seenIds.add(rec.id);
@@ -2025,6 +2060,39 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
   linksDropped.forEach(name => { delete links[name]; });
   await store.put(req.tid, 'teams', { ...prev, showSeeds: !!showSeeds, teams: clean, links });
   res.json({ ok: true, linksDropped });
+}));
+
+// A team's own display name, short name and logo — the coach-facing subset
+// of what POST /teams can set, scoped to ONE team. Same access rule as the
+// roster endpoint (requireLineupAccess): staff can act on any team, a coach
+// only their own. Also honors the lock a TD can set on the team's row in
+// Settings > Teams — locked freezes a COACH out (staff still edit freely via
+// POST /teams, which never checks its own lock).
+api.put('/team-profile/:teamName', requireLineupAccess, ah(async (req, res) => {
+  await ensureTeamIds(req.tid);
+  const { data, teams } = await rosterFor(req.tid);
+  const idx = teams.findIndex(t => t.name === req.params.teamName);
+  if (idx === -1) return res.status(404).json({ error: 'Team not found' });
+  const current = teams[idx];
+  const staff = !req.teamLink && ['admin', 'results', 'superadmin'].includes(roleFor(req));
+  if (current.locked && !staff) {
+    return res.status(403).json({ error: 'This team’s info is locked by tournament staff.' });
+  }
+  const body = req.body || {};
+  const rec = normalizeTeam({
+    id: current.id,
+    name: current.name,
+    displayName:    'displayName'    in body ? body.displayName    : current.displayName,
+    shortName:      'shortName'      in body ? body.shortName      : current.shortName,
+    logo:           'logo'           in body ? body.logo           : current.logo,
+    primaryColor:   'primaryColor'   in body ? body.primaryColor   : current.primaryColor,
+    secondaryColor: 'secondaryColor' in body ? body.secondaryColor : current.secondaryColor,
+    locked: current.locked,
+  });
+  const clean = teams.slice();
+  clean[idx] = rec;
+  await store.put(req.tid, 'teams', { ...data, teams: clean });
+  res.json({ ok: true, team: rec });
 }));
 
 // ── Team lineup links ─────────────────────────────────────────────────
@@ -2695,6 +2763,22 @@ async function sendLogo(tid, res) {
 }
 app.get('/logo.png', ah(async (req, res) => sendLogo(store.tid, res)));
 app.get('/t/:slug/logo.png', resolveSlug, ah(async (req, res) => sendLogo(req.tid, res)));
+
+// A team's own logo, same shape as sendLogo above (a data URI stored on the
+// team record, decoded on request). Not linked from anywhere on the bracket
+// yet — this just makes an uploaded logo fetchable by id ahead of that.
+async function sendTeamLogo(tid, teamId, res) {
+  res.setHeader('Cache-Control', 'no-cache');
+  if (!TEAM_ID_RE.test(teamId || '')) return res.status(404).end();
+  const { teams } = await rosterFor(tid);
+  const team = teams.find(t => t.id === teamId);
+  const m = team && /^data:image\/(png|jpeg|webp);base64,(.+)$/.exec(team.logo || '');
+  if (!m) return res.status(404).end();
+  res.setHeader('Content-Type', 'image/' + m[1]);
+  res.send(Buffer.from(m[2], 'base64'));
+}
+app.get('/team-logo/:teamId.png', ah(async (req, res) => sendTeamLogo(store.tid, req.params.teamId, res)));
+app.get('/t/:slug/team-logo/:teamId.png', resolveSlug, ah(async (req, res) => sendTeamLogo(req.tid, req.params.teamId, res)));
 
 // Per-tournament branding as a stylesheet. This exists because the CSP is
 // `style-src 'self'` with no 'unsafe-inline' — an injected <style> block or a

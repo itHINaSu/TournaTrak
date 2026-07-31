@@ -112,6 +112,7 @@ function showSettingsSection(section) {
   closeSettingsSidebar();
   if (section === 'coaches') loadCoaches();
   if (section === 'users')   loadUsers();
+  if (section === 'teams')   loadTeams();
   if (section === 'tournaments') loadTournaments();
   if (section === 'pageinfo') { renderThemeSection(); renderFieldsPanel(); }
   // Reads the browser's live subscription state, so it has to run every time
@@ -3361,18 +3362,15 @@ function setSchedMode(mode) {
   var qPanel  = document.getElementById('schedQuickPanel');
   var ePanel  = document.getElementById('schedEditorPanel');
   var bPanel  = document.getElementById('schedBuilderPanel');
-  var tPanel  = document.getElementById('schedTeamsPanel');
   var dPanel  = document.getElementById('resultsDelaysPanel');
   var slot    = document.getElementById('schedDelaysSlot');
   var qBtn    = document.getElementById('modeQuickBtn');
   var eBtn    = document.getElementById('modeScheduleBtn');
   var bBtn    = document.getElementById('modeBuilderBtn');
   var dBtn    = document.getElementById('modeSchedDelaysBtn');
-  var tBtn    = document.getElementById('modeSchedTeamsBtn');
   if (qPanel)  qPanel.hidden = !(mode === 'quick');
   if (ePanel)  ePanel.hidden = !(mode === 'editor');
   if (bPanel)  bPanel.hidden = !(mode === 'builder');
-  if (tPanel)  tPanel.hidden = !(mode === 'teams');
   if (mode === 'delays' && dPanel && slot) {
     slot.appendChild(dPanel);
     dPanel.hidden = false;
@@ -3384,12 +3382,10 @@ function setSchedMode(mode) {
   if (eBtn)    eBtn.classList.toggle('active',  mode === 'editor');
   if (bBtn)    bBtn.classList.toggle('active',  mode === 'builder');
   if (dBtn)    dBtn.classList.toggle('active',  mode === 'delays');
-  if (tBtn)    tBtn.classList.toggle('active',  mode === 'teams');
   if (mode === 'builder' && !window._builderInitDone) {
     window._builderInitDone = true;
     if (typeof window.builderInit === 'function') window.builderInit();
   }
-  if (mode === 'teams') loadTeams();
   if (mode === 'quick') renderQuickEditor();
 }
 
@@ -4503,8 +4499,11 @@ function renderTeamsEditor() {
       '<button type="button" class="team-ed-up" data-idx="' + i + '" aria-label="Move up" ' + (i === 0 ? 'disabled' : '') + '">↑</button>' +
       '<button type="button" class="team-ed-down" data-idx="' + i + '" aria-label="Move down" ' + (i === teams.length - 1 ? 'disabled' : '') + '">↓</button>' +
       (open ? teamLinkPanel(t.name) : '') +
+      teamProfileRow(t, i) +
     '</div>';
   }).join('');
+
+  wireTeamProfileRow(list);
 
   // Link panel: expand/collapse, and its own buttons.
   list.querySelectorAll('.team-ed-link').forEach(function(b) {
@@ -4532,18 +4531,135 @@ function renderTeamsEditor() {
     b.addEventListener('click', function() { teamsMove(parseInt(b.dataset.idx, 10), 1); });
   });
 
-  // Inline name edit — commit on blur
+  // Inline name edit — commit on blur. Merges onto the existing record
+  // rather than replacing it outright — a bare `{ name: v }` would silently
+  // drop that team's id, display name, short name, logo and lock the moment
+  // anyone renamed it (the id loss alone meant a rename could detach a team
+  // from a coach's already-set name, since the save endpoint re-matches a
+  // dropped id by name — which just changed).
   list.querySelectorAll('.team-ed-name').forEach(function(inp) {
     inp.addEventListener('change', function() {
       var i = parseInt(inp.dataset.idx, 10);
       var v = inp.value.trim();
       if (!v) { inp.value = _teamsData.teams[i].name; return; }
-      _teamsData.teams[i] = { name: v };
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { name: v });
     });
   });
 
   // HTML5 drag-and-drop reorder
   wireTeamsDragAndDrop(list);
+}
+
+// Second line under a team's row: the same displayName/shortName/logo a
+// coach can set for themselves from the Coach Panel's Team tab, plus the
+// admin-only Lock. Kept OFF the drag-handle row itself so dragging to
+// reorder still works with one finger/click on the handle.
+function teamProfileRow(t, i) {
+  var logo = t.logo || '';
+  var pc = t.primaryColor || '', sc = t.secondaryColor || '';
+  return '<div class="team-ed-row2" data-idx="' + i + '">' +
+    '<label class="team-ed-field">' +
+      '<span>Display name</span>' +
+      '<input type="text" class="team-ed-display" data-idx="' + i + '" value="' + esc(t.displayName || '') + '" maxlength="40" placeholder="' + esc(t.name) + '">' +
+    '</label>' +
+    '<label class="team-ed-field">' +
+      '<span>Short name</span>' +
+      '<input type="text" class="team-ed-short" data-idx="' + i + '" value="' + esc(t.shortName || '') + '" maxlength="12" placeholder="Optional">' +
+    '</label>' +
+    '<div class="team-ed-logo">' +
+      '<img class="team-ed-logo-preview" data-idx="' + i + '"' + (logo ? ' src="' + esc(logo) + '"' : ' hidden') + ' alt="">' +
+      '<input type="file" class="team-ed-logo-input" data-idx="' + i + '" accept="image/png,image/jpeg,image/webp" aria-label="Logo for ' + esc(t.name) + '">' +
+      '<button type="button" class="team-ed-logo-remove" data-idx="' + i + '" ' + (logo ? '' : 'hidden ') + '>Remove</button>' +
+    '</div>' +
+    '<div class="team-ed-colors">' +
+      '<label class="team-ed-color-field">' +
+        '<span>Primary</span>' +
+        '<input type="color" class="team-ed-color-primary" data-idx="' + i + '" value="' + esc(pc || '#4a4a4a') + '" aria-label="Primary color for ' + esc(t.name) + '">' +
+        '<button type="button" class="team-ed-color-clear" data-idx="' + i + '" data-which="primaryColor" ' + (pc ? '' : 'hidden ') + '>Clear</button>' +
+      '</label>' +
+      '<label class="team-ed-color-field">' +
+        '<span>Secondary</span>' +
+        '<input type="color" class="team-ed-color-secondary" data-idx="' + i + '" value="' + esc(sc || '#4a4a4a') + '" aria-label="Secondary color for ' + esc(t.name) + '">' +
+        '<button type="button" class="team-ed-color-clear" data-idx="' + i + '" data-which="secondaryColor" ' + (sc ? '' : 'hidden ') + '>Clear</button>' +
+      '</label>' +
+    '</div>' +
+    '<label class="team-ed-lock">' +
+      '<input type="checkbox" class="team-ed-locked" data-idx="' + i + '" ' + (t.locked ? 'checked' : '') + '>' +
+      '<span>Locked</span>' +
+    '</label>' +
+  '</div>';
+}
+
+function wireTeamProfileRow(list) {
+  // Every control here sits inside the draggable row — without stopping
+  // propagation, clicking into a text field or the checkbox starts a drag
+  // instead of focusing it (same fix the lineup-link URL field already
+  // needed, above).
+  list.querySelectorAll('.team-ed-row2 input').forEach(function(el) {
+    el.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+  });
+  list.querySelectorAll('.team-ed-display').forEach(function(inp) {
+    inp.addEventListener('change', function() {
+      var i = parseInt(inp.dataset.idx, 10);
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { displayName: inp.value.trim() });
+    });
+  });
+  list.querySelectorAll('.team-ed-short').forEach(function(inp) {
+    inp.addEventListener('change', function() {
+      var i = parseInt(inp.dataset.idx, 10);
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { shortName: inp.value.trim() });
+    });
+  });
+  list.querySelectorAll('.team-ed-locked').forEach(function(chk) {
+    chk.addEventListener('change', function() {
+      var i = parseInt(chk.dataset.idx, 10);
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { locked: chk.checked });
+    });
+  });
+  list.querySelectorAll('.team-ed-logo-input').forEach(function(inp) {
+    inp.addEventListener('change', function() {
+      var i = parseInt(inp.dataset.idx, 10);
+      var f = inp.files && inp.files[0];
+      if (!f) return;
+      ttReadTeamLogoFile(f, function(uri) {
+        _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { logo: uri });
+        renderTeamsEditor();
+        showToast('Logo ready — press Save to apply');
+      }, function(msg) { showToast(msg, true); inp.value = ''; });
+    });
+  });
+  list.querySelectorAll('.team-ed-logo-remove').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var i = parseInt(btn.dataset.idx, 10);
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { logo: '' });
+      renderTeamsEditor();
+      showToast('Logo will be removed on Save');
+    });
+  });
+  list.querySelectorAll('.team-ed-color-primary').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+      var i = parseInt(inp.dataset.idx, 10);
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { primaryColor: inp.value });
+      var clear = list.querySelector('.team-ed-color-clear[data-idx="' + i + '"][data-which="primaryColor"]');
+      if (clear) clear.hidden = false;
+    });
+  });
+  list.querySelectorAll('.team-ed-color-secondary').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+      var i = parseInt(inp.dataset.idx, 10);
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { secondaryColor: inp.value });
+      var clear = list.querySelector('.team-ed-color-clear[data-idx="' + i + '"][data-which="secondaryColor"]');
+      if (clear) clear.hidden = false;
+    });
+  });
+  list.querySelectorAll('.team-ed-color-clear').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var i = parseInt(btn.dataset.idx, 10), which = btn.dataset.which;
+      var patch = {}; patch[which] = '';
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], patch);
+      renderTeamsEditor();
+    });
+  });
 }
 
 function teamLinkUrl(token) {
@@ -4663,11 +4779,21 @@ async function saveTeams() {
   var chk = document.getElementById('teams-showSeeds');
   if (btn) btn.disabled = true;
 
-  // Commit any in-progress name edits
+  // Commit any in-progress name edits — merged onto the existing record, not
+  // a replacement (see the 'change' handler above for why that matters now).
   document.querySelectorAll('.team-ed-name').forEach(function(inp) {
     var i = parseInt(inp.dataset.idx, 10);
     var v = inp.value.trim();
-    if (v && _teamsData.teams[i]) _teamsData.teams[i] = { name: v };
+    if (v && _teamsData.teams[i]) _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { name: v });
+  });
+  // Commit any in-progress display name / short name edits the same way.
+  document.querySelectorAll('.team-ed-display').forEach(function(inp) {
+    var i = parseInt(inp.dataset.idx, 10);
+    if (_teamsData.teams[i]) _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { displayName: inp.value.trim() });
+  });
+  document.querySelectorAll('.team-ed-short').forEach(function(inp) {
+    var i = parseInt(inp.dataset.idx, 10);
+    if (_teamsData.teams[i]) _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { shortName: inp.value.trim() });
   });
 
   _teamsData.showSeeds = chk ? chk.checked : false;
