@@ -4556,6 +4556,7 @@ function renderTeamsEditor() {
 // reorder still works with one finger/click on the handle.
 function teamProfileRow(t, i) {
   var logo = t.logo || '';
+  var pc = t.primaryColor || '', sc = t.secondaryColor || '';
   return '<div class="team-ed-row2" data-idx="' + i + '">' +
     '<label class="team-ed-field">' +
       '<span>Display name</span>' +
@@ -4569,6 +4570,18 @@ function teamProfileRow(t, i) {
       '<img class="team-ed-logo-preview" data-idx="' + i + '"' + (logo ? ' src="' + esc(logo) + '"' : ' hidden') + ' alt="">' +
       '<input type="file" class="team-ed-logo-input" data-idx="' + i + '" accept="image/png,image/jpeg,image/webp" aria-label="Logo for ' + esc(t.name) + '">' +
       '<button type="button" class="team-ed-logo-remove" data-idx="' + i + '" ' + (logo ? '' : 'hidden ') + '>Remove</button>' +
+    '</div>' +
+    '<div class="team-ed-colors">' +
+      '<label class="team-ed-color-field">' +
+        '<span>Primary</span>' +
+        '<input type="color" class="team-ed-color-primary" data-idx="' + i + '" value="' + esc(pc || '#4a4a4a') + '" aria-label="Primary color for ' + esc(t.name) + '">' +
+        '<button type="button" class="team-ed-color-clear" data-idx="' + i + '" data-which="primaryColor" ' + (pc ? '' : 'hidden ') + '>Clear</button>' +
+      '</label>' +
+      '<label class="team-ed-color-field">' +
+        '<span>Secondary</span>' +
+        '<input type="color" class="team-ed-color-secondary" data-idx="' + i + '" value="' + esc(sc || '#4a4a4a') + '" aria-label="Secondary color for ' + esc(t.name) + '">' +
+        '<button type="button" class="team-ed-color-clear" data-idx="' + i + '" data-which="secondaryColor" ' + (sc ? '' : 'hidden ') + '>Clear</button>' +
+      '</label>' +
     '</div>' +
     '<label class="team-ed-lock">' +
       '<input type="checkbox" class="team-ed-locked" data-idx="' + i + '" ' + (t.locked ? 'checked' : '') + '>' +
@@ -4621,6 +4634,30 @@ function wireTeamProfileRow(list) {
       _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { logo: '' });
       renderTeamsEditor();
       showToast('Logo will be removed on Save');
+    });
+  });
+  list.querySelectorAll('.team-ed-color-primary').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+      var i = parseInt(inp.dataset.idx, 10);
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { primaryColor: inp.value });
+      var clear = list.querySelector('.team-ed-color-clear[data-idx="' + i + '"][data-which="primaryColor"]');
+      if (clear) clear.hidden = false;
+    });
+  });
+  list.querySelectorAll('.team-ed-color-secondary').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+      var i = parseInt(inp.dataset.idx, 10);
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], { secondaryColor: inp.value });
+      var clear = list.querySelector('.team-ed-color-clear[data-idx="' + i + '"][data-which="secondaryColor"]');
+      if (clear) clear.hidden = false;
+    });
+  });
+  list.querySelectorAll('.team-ed-color-clear').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var i = parseInt(btn.dataset.idx, 10), which = btn.dataset.which;
+      var patch = {}; patch[which] = '';
+      _teamsData.teams[i] = Object.assign({}, _teamsData.teams[i], patch);
+      renderTeamsEditor();
     });
   });
 }

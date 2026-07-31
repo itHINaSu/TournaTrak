@@ -2965,6 +2965,56 @@ three modes (Edit/Builder/Delays/Advanced) unaffected by the Teams button's
 removal. Full API suite (140 tests) and the nginx-routes checker (35
 checks, two new for `/team-logo/...`) still pass.
 
+## Follow-up, same day: roster save no longer piles up blanks, plus sort/count/colors (owner, 2026-08-02)
+Three owner requests, all in the coach panel:
+
+1. *"In the coach panel, when a coach saves a roster it adds another 3
+   slots. Not desireable."* `saveRoster()` re-appended `ROSTER_BLANKS`
+   (3) empty rows after EVERY save — the same courtesy `loadRoster()`
+   rightly does once, on first opening a roster with nothing in it yet
+   ("a roster that opens with no visible row reads as broken"). Re-doing
+   that after every save meant three unwanted rows piled up per click
+   with nothing to stop it. Fixed by dropping the loop from `saveRoster()`
+   only — `loadRoster()`'s copy is untouched. `+ Add Player` still exists
+   for when a coach actually wants more room.
+2. *"Coaches should be able to sort players by number, name, or
+   position."* `sortRoster(key)` in coach.js — a one-time reorder on
+   click (three buttons above the table), not a persisted sort mode:
+   click again after adding players if the order matters again. Blank
+   typing rows always sink to the bottom regardless of key
+   (`isBlankRosterRow`), so they stay reachable instead of scattering
+   wherever an empty name/number happens to sort.
+3. *"add a player count to the left hand side so a coach can easily
+   identify how many players are on the roster."* `#rosterCount`, first
+   child of `.lineup-actions` with `margin-right:auto` so Save/Add
+   Player/status keep their usual spot on the right. Counts only real
+   rows (`!isBlankRosterRow`) — the same rule `saveRoster()` uses to
+   decide what actually gets sent, so the number never disagrees with
+   what Save is about to do.
+
+*"For team colors a coach should be able to select primary and secondary
+colors. These will be used later."* Same shape as the logo added earlier
+today: `primaryColor`/`secondaryColor` on the team record, validated with
+a plain `/^#[0-9a-f]{6}$/i` hex check (`validHexColor`, api/server.js),
+settable via `POST /teams` (admin) and `PUT /team-profile/:teamName`
+(coach, subject to the same lock), **not referenced by any rendering
+yet**. `<input type="color">` always carries SOME value (there's no
+empty/unset state in the DOM), so both the admin editor and the coach
+Team tab track "has this actually been set" separately from the input's
+live value — `null` = untouched this session (omit from the save body),
+`''` = explicit clear (a small "Clear" button, same idea as the logo's
+Remove), a hex string = set. Falls back to a neutral grey swatch
+(`#4a4a4a`) when nothing's set, purely cosmetic — never written unless the
+coach/admin actually picks a color.
+
+Verified: roster row count stays flat across repeated saves instead of
+growing by 3 each time; sort-by-name/num/pos checked against clean
+synthetic data directly (not the demo's roster, which had pre-existing
+duplicate names from earlier ad hoc testing this session — a red herring,
+not a bug in the sort); color set → Save → reload keeps it, in both the
+coach Team tab and the admin Teams editor. Full API suite (140 tests)
+still passes.
+
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in
 standalone mode. That was not a permission decision, it was a workaround: an

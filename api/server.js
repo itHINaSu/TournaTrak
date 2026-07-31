@@ -1522,6 +1522,9 @@ function validLogoDataUri(v, maxChars, pngOnly) {
   const magic = LOGO_MAGIC[m[1]];
   return !!buf && buf.length > 8 && magic.every((b, i) => buf[i] === b);
 }
+function validHexColor(v) {
+  return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+}
 
 api.get('/theme-colors', ah(async (req, res) => {
   // Response varies by role (heavy fields are editor-only) — no shared caches.
@@ -1956,9 +1959,14 @@ function normalizeTeam(t) {
   // stored and served (GET /team-logo/:id.png) so a coach's upload survives a
   // save even before anything renders it.
   if (validLogoDataUri(t.logo, LOGO_MAX_CHARS)) out.logo = t.logo;
+  // Not used anywhere yet, same as logo — owner, 2026-08-02: "For team
+  // colors a coach should be able to select primary and secondary colors.
+  // These will be used later."
+  if (validHexColor(t.primaryColor))   out.primaryColor   = t.primaryColor.toLowerCase();
+  if (validHexColor(t.secondaryColor)) out.secondaryColor = t.secondaryColor.toLowerCase();
   // Freezes a coach out of PUT /team-profile for this team (name/short
-  // name/logo) once staff have set it — an admin still edits freely via
-  // POST /teams, which never checks its own lock.
+  // name/logo/colors) once staff have set it — an admin still edits freely
+  // via POST /teams, which never checks its own lock.
   if (t.locked) out.locked = true;
   return out;
 }
@@ -2031,10 +2039,12 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
       // An explicitly-sent empty string CLEARS; an absent field keeps what was
       // stored, so a client that doesn't know about these fields cannot wipe
       // them just by saving the team list.
-      displayName: t && 'displayName' in t ? t.displayName : prior.displayName,
-      shortName:   t && 'shortName'   in t ? t.shortName   : prior.shortName,
-      logo:        t && 'logo'        in t ? t.logo        : prior.logo,
-      locked:      t && 'locked'      in t ? !!t.locked    : !!prior.locked,
+      displayName:    t && 'displayName'    in t ? t.displayName    : prior.displayName,
+      shortName:      t && 'shortName'      in t ? t.shortName      : prior.shortName,
+      logo:           t && 'logo'           in t ? t.logo           : prior.logo,
+      primaryColor:   t && 'primaryColor'   in t ? t.primaryColor   : prior.primaryColor,
+      secondaryColor: t && 'secondaryColor' in t ? t.secondaryColor : prior.secondaryColor,
+      locked:         t && 'locked'         in t ? !!t.locked       : !!prior.locked,
     });
     if (seenIds.has(rec.id)) rec.id = newTeamId();   // never emit a duplicate
     seenIds.add(rec.id);
@@ -2072,9 +2082,11 @@ api.put('/team-profile/:teamName', requireLineupAccess, ah(async (req, res) => {
   const rec = normalizeTeam({
     id: current.id,
     name: current.name,
-    displayName: 'displayName' in body ? body.displayName : current.displayName,
-    shortName:   'shortName'   in body ? body.shortName   : current.shortName,
-    logo:        'logo'        in body ? body.logo        : current.logo,
+    displayName:    'displayName'    in body ? body.displayName    : current.displayName,
+    shortName:      'shortName'      in body ? body.shortName      : current.shortName,
+    logo:           'logo'           in body ? body.logo           : current.logo,
+    primaryColor:   'primaryColor'   in body ? body.primaryColor   : current.primaryColor,
+    secondaryColor: 'secondaryColor' in body ? body.secondaryColor : current.secondaryColor,
     locked: current.locked,
   });
   const clean = teams.slice();

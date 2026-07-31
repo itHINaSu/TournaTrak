@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=3.90">
-<link rel="stylesheet" href="/admin.css?v=3.90">
-<link rel="stylesheet" href="/lineup.css?v=3.90">
-<script src="/app-h.js?v=3.90"></script>
+<link rel="stylesheet" href="/base.css?v=3.91">
+<link rel="stylesheet" href="/admin.css?v=3.91">
+<link rel="stylesheet" href="/lineup.css?v=3.91">
+<script src="/app-h.js?v=3.91"></script>
 </head>
 <body>
 
@@ -207,6 +207,15 @@
           </div>
         </div>
         <div class="lineup-form-wrap">
+          <!-- One-time reorder on click, not a persisted view — see
+               sortRoster() in coach.js for why blanks always sink to the
+               bottom regardless of key. -->
+          <div class="roster-sort-row">
+            <span class="roster-sort-label">Sort by</span>
+            <button type="button" class="results-mode-btn" data-action="sortRoster" data-arg="num">#</button>
+            <button type="button" class="results-mode-btn" data-action="sortRoster" data-arg="name">Name</button>
+            <button type="button" class="results-mode-btn" data-action="sortRoster" data-arg="pos">Position</button>
+          </div>
           <table class="lineup-table">
             <thead>
               <tr>
@@ -223,6 +232,11 @@
                autofill from an ambiguous number. -->
           <div class="roster-dup-note" id="rosterDupNote" hidden></div>
           <div class="lineup-actions">
+            <!-- Left side (owner, 2026-08-02: "add a player count to the left
+                 hand side so a coach can easily identify how many players are
+                 on the roster") — margin-right:auto pushes Save/Add/status
+                 to their usual spot on the right. -->
+            <span class="lineup-status roster-count" id="rosterCount"></span>
             <button class="lineup-submit-btn" id="rosterSaveBtn" data-action="saveRoster">Save Roster</button>
             <button class="lineup-sub-add-btn" id="rosterAddBtn" data-action="addRosterRow">Add Player</button>
             <span class="lineup-status" id="rosterStatus"></span>
@@ -272,6 +286,21 @@
               <button type="button" class="admin-clear-btn" id="teamTabLogoRemoveBtn" data-action="removeTeamTabLogo" hidden>Remove</button>
             </div>
             <div class="field-hint">Not shown anywhere on the bracket yet — saved for when it is.</div>
+          </div>
+          <div class="settings-field">
+            <label>Team Colors <span class="field-label-hint">(not shown anywhere yet — saved for when they are)</span></label>
+            <div class="team-tab-colors">
+              <label class="team-tab-color-field">
+                <span>Primary</span>
+                <input type="color" id="teamTabPrimaryColor" value="#4a4a4a">
+                <button type="button" class="admin-clear-btn" id="teamTabPrimaryColorClear" data-action="clearTeamTabColor" data-arg="primaryColor" hidden>Clear</button>
+              </label>
+              <label class="team-tab-color-field">
+                <span>Secondary</span>
+                <input type="color" id="teamTabSecondaryColor" value="#4a4a4a">
+                <button type="button" class="admin-clear-btn" id="teamTabSecondaryColorClear" data-action="clearTeamTabColor" data-arg="secondaryColor" hidden>Clear</button>
+              </label>
+            </div>
           </div>
           <div class="settings-save-row">
             <button class="sched-save-btn" id="teamTabSaveBtn" data-action="saveTeamProfile">Save</button>
@@ -334,11 +363,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.90"></script>
-<script src="/theme-css.js?v=3.90"></script>
-<script src="/tt-common.js?v=3.90"></script>
-<script src="/bracket-data.js?v=3.90"></script>
-<script src="/lineup.js?v=3.90"></script>
-<script src="/coach.js?v=3.90"></script>
+<script src="/settings-defaults.js?v=3.91"></script>
+<script src="/theme-css.js?v=3.91"></script>
+<script src="/tt-common.js?v=3.91"></script>
+<script src="/bracket-data.js?v=3.91"></script>
+<script src="/lineup.js?v=3.91"></script>
+<script src="/coach.js?v=3.91"></script>
 </body>
 </html>
