@@ -3,6 +3,12 @@
 var currentTeamName = null; // coach's primary team (from session)
 var myTeams         = [];   // all teams this user may edit
 var isAdmin         = false;
+// True in the admin panel, false in the coach panel — set by coach.js before
+// lineupInit() runs. Staff keep every OTHER admin privilege in the coach
+// panel (edit any unplayed game, skip the required-field check); only which
+// teams show up in the picker is scoped down, to match what a real coach
+// would see there.
+var teamListUnrestricted = false;
 var viaTeamLink     = false; // signed in by a team lineup link, not an account
 var viewedTeamName  = null;
 var currentSlotId   = null;
@@ -866,6 +872,7 @@ async function lineupInit() {
     if (session.pendingTeamClaim) await offerTeamClaim(session.pendingTeamClaim);
 
     isAdmin         = session.role === 'admin' || session.role === 'results';
+    teamListUnrestricted = isAdmin && !window._lineupCoachPanelHost;
     buildNavBar(session.role);
     // A team-link session has no account behind it, so there is no password to
     // set — offering the button would open a form with nothing to save to.
@@ -875,14 +882,14 @@ async function lineupInit() {
       maybeOfferPassword(session);
     }
     currentTeamName = session.teamName || null;
-    myTeams = isAdmin
+    myTeams = teamListUnrestricted
       ? [] // admin can edit any team — checked in isSlotEditable
       : (Array.isArray(session.teams) && session.teams.length
           ? session.teams
           : (currentTeamName ? [currentTeamName] : []));
 
     var teamHeader = document.getElementById('lineupTeamName');
-    if (teamHeader) teamHeader.textContent = isAdmin ? 'All Teams' : (currentTeamName || '');
+    if (teamHeader) teamHeader.textContent = teamListUnrestricted ? 'All Teams' : (currentTeamName || '');
     document.getElementById('lineupContent').hidden = false;
 
     var [rr, schedR, settingsR] = await Promise.all([
@@ -908,14 +915,17 @@ async function lineupInit() {
     var allTeams = getScheduleTeams();
     var teamSel  = document.getElementById('lineupTeamSel');
     if (teamSel) {
-      if (isAdmin) {
+      if (teamListUnrestricted) {
         teamSel.innerHTML = allTeams.map(function(t) {
           return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
         }).join('');
       } else {
         // Only the teams this session may actually edit. The server 403s a
         // coach reading anyone else's lineup, so listing "Other Teams" here
-        // was offering a menu of errors.
+        // was offering a menu of errors. In the coach panel this also
+        // applies to staff — an admin here sees their own team(s), same as
+        // any coach would, even though they keep full admin editing rights
+        // once a team is selected.
         teamSel.innerHTML = myTeams.map(function(t) {
           return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
         }).join('');
@@ -924,7 +934,7 @@ async function lineupInit() {
       // Nothing to switch between — the header above already names the team,
       // so drop the half and let the game selector have the whole row.
       var teamHalf = document.getElementById('lineupTeamHalf');
-      if (teamHalf) teamHalf.hidden = !isAdmin && myTeams.length < 2;
+      if (teamHalf) teamHalf.hidden = !teamListUnrestricted && myTeams.length < 2;
     }
 
     document.getElementById('lineupSelectorsRow').hidden = false;

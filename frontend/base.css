@@ -175,6 +175,17 @@ body {
 }
 .header-controls { margin-left: auto; display: flex; align-items: center; gap: 0.6em; }
 
+/* Public page only: Edit (bracket layout / bucket challenge) sits next to the
+   hamburger rather than behind it — owner, 2026-08-01, wants a primary action
+   always reachable rather than one tap further in. Wrapping it WITH the
+   hamburger, rather than giving Edit its own margin-left:auto, is what keeps
+   the two adjacent regardless of how long the tournament name runs: only ONE
+   thing in the row needs to claim the free space, and .header-menu-btn's own
+   auto margin (still in effect on every OTHER page, which has no cluster) is
+   overridden back to 0 here so it does not fight this wrapper for it. */
+.header-menu-cluster { margin-left: auto; display: flex; align-items: center; gap: 0.5em; flex-shrink: 0; }
+.header-menu-cluster .header-menu-btn { margin-left: 0; }
+
 /* Outline "cancel / dismiss" button. Lives HERE, not in admin.css, because
    index.html does not load admin.css — the Save-image dialog's Cancel, the
    Team Path stepper's Back/Done and the notification panel's Close all carried
@@ -200,21 +211,10 @@ body {
      height. --logo-h-sm is the same scale one notch down. */
   .site-logo { height: var(--logo-h-sm, 2.8em); max-width: var(--logo-maxw-sm, 6.5em); }
 }
-.theme-toggle {
-  background: none;
-  border: 0.07em solid var(--border);
-  border-radius: 2em;
-  padding: 0.35em 0.9em;
-  cursor: pointer;
-  font-size: 0.82rem;
-  color: var(--text-dim);
-  min-height: 2.5em;
-  touch-action: manipulation;
-}
-.theme-toggle:hover,
-.theme-toggle:active { color: var(--text); }
-
-/* Cross-app toggle button (admin ↔ public) — shared by all pages */
+/* Cross-app toggle button (admin ↔ public) — shared by all pages. The theme
+   toggle uses this too now (owner, 2026-07-31: match the other menu
+   buttons, text not an icon) — its own .theme-toggle rules are gone, not
+   just unused; nothing references that class anymore. */
 .admin-public-btn {
   font-family: 'Oswald', sans-serif;
   font-size: var(--btn-font-size);
@@ -291,7 +291,6 @@ select:focus-visible,
 
 /* ── Touch target sizing (coarse pointer = touchscreen) ── */
 @media (pointer: coarse) {
-  .theme-toggle    { min-height: 2.75rem; min-width: 2.75rem; }
   .admin-public-btn { min-height: 2.75rem; }
 }
 

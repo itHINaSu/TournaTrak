@@ -2243,9 +2243,16 @@ function flightColumns(tier) {
 // floor, and the grid targets ONE screen of height.
 function flightDims(nCols, gridH) {
   var vwPx = window.innerWidth / 100, vhPx = window.innerHeight / 100;
-  var hdrH = document.getElementById('siteHeader').getBoundingClientRect().height;
-  var tabsH = document.getElementById('viewTabs').getBoundingClientRect().height;
-  var availVh = (window.innerHeight - hdrH - tabsH - 16) / vhPx;
+  // Measured from the BRACKET's own top, not from header+tabs: the flight
+  // pills row sits between them and the bracket (parkFlightPills() has
+  // already moved it there by the time this runs, ahead of #bracketRoot in
+  // the panel), and sizing against header+tabs alone overshot by however
+  // tall that row was — a flight bracket sized as if the pills had no
+  // height, so it ran past the fold by exactly their height. Same bug
+  // stackedDims() was fixed for; this is the same fix.
+  var rootEl = document.getElementById('bracketRoot');
+  var topPx = rootEl ? Math.max(rootEl.getBoundingClientRect().top, 0) : 0;
+  var availVh = Math.max((window.innerHeight - topPx - 16) / vhPx, 20);
   var units = nCols + Math.max(nCols - 1, 0) * 0.15;
   var champVw = 10;
   var colVw = (97 - champVw) / units;
@@ -6583,7 +6590,13 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   if (refreshBtn)     refreshBtn.hidden = !isPwa;
   if (signInBtn)      signInBtn.hidden = !(!_sessionRole);
   if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
-  if (lineupBtn)      lineupBtn.hidden = !((_sessionRole === 'team'));
+  // Coach Panel is offered by TEAM ASSIGNMENT, not by role — coaching a team
+  // and being staff are independent facts. session.teams is populated for
+  // anyone with a team grant regardless of role ("staff may also coach — a TD
+  // whose own kid plays should not need a second login"), so an admin
+  // assigned to a team needs both panel links, not a choice between them.
+  var coachesATeam = !!(sess.teams && sess.teams.length);
+  if (lineupBtn)      lineupBtn.hidden = !coachesATeam;
   if (editBtn)        editBtn.hidden = !((_sessionRole === 'buckets'));
   if (bracketEditBtn) bracketEditBtn.hidden = !((_sessionRole === 'admin'));
   syncProjectBtn();

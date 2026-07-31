@@ -1020,7 +1020,11 @@ branch and main were both live at once this day and the graph shows it.
   height may compress further before a row stops fitting. Verified fitting
   at 1080/900/800/760 viewport heights. Column width also gained
   `MAX_COL_PX` so a few-round bracket on a wide monitor stops inflating into
-  a zoomed-in fragment.
+  a zoomed-in fragment. **This fix was NOT propagated to `flightDims()`
+  (the A/B tiered-flight renderer) at the time — see the 2026-07-31 entry
+  below.** `getDims()`'s own side-by-side path has the same latent gap
+  (still measures off header+tabs, not the bracket's own top) but hasn't
+  been reported broken; if it ever is, apply the identical fix there too.
 - ✅ **Standings can replace the Buckets tab.** New setting `fourthTab`:
   `buckets` (default, unchanged) / `standings` / `hidden`. The two share the
   fourth tab slot and only one is ever shown; both keep routable paths, and
@@ -2248,6 +2252,54 @@ one has a shape that will recur.
   list for choices that aren't yes/no) and only leaves Edit once the write
   lands. Save no longer lives in the bar below — one exit decision, one place.
 
+## A/B flight bracket must measure off its own top, not header+tabs (2026-07-31)
+Owner report: **"The A bracket doesn't size to fit the height of the screen."**
+`flightDims()` (desktop sizing for the A/B tiered flights — `renderFlightBracket`)
+computed its height budget the OLD way: `window.innerHeight - hdrH - tabsH - 16`.
+That is exactly the bug `stackedDims()` was fixed for back when the stacked
+double-elim layout shipped (see "Each stacked half fits one screen" above) —
+the fix was never carried over to the flight renderer, because nobody had
+reported it broken there yet. The flight-pills row (`#bracketFlights`, ~35px
+of buttons) sits BETWEEN the tabs and the bracket whenever you're viewing an
+A or B flight — you can't reach that view without it being on screen — so
+every flight bracket was sized as if that row took no space, and its last row
+ran off the bottom by roughly the row's own height.
+
+Same fix as `stackedDims`: measure from `document.getElementById('bracketRoot')
+.getBoundingClientRect().top` instead of summing header + tabs. This works
+because `parkFlightPills()` (called first, in `renderBracketInner()`) has
+already moved the pills row to sit as `#bracketRoot`'s previous sibling by the
+time `flightDims()` runs — so the root's own top position already reflects
+everything stacked above it, pills included, without needing to know about
+that row (or the delay banner, or the project bar) by name.
+
+**Why this was hard to catch on a whim, and how to actually test it**: the
+bug is silent right up until it isn't. `cardVh` has three competing
+constraints — a WIDTH-derived size, the (wrong or right) height ceiling, and
+a `MIN_CARD_PX` readability floor — and whichever is smallest wins. With a
+small flight (few rounds) width usually wins regardless, so the wrong
+availVh changes nothing visible. With a very tall flight the readability
+floor wins in BOTH the buggy and fixed math, so again nothing visible
+changes (the page is *supposed* to scroll there — see the "never past the
+readability floor" comment on `getDims()`). The bug only shows up in the
+middle band, where height is the actual binding constraint and the missing
+~35px tips a bracket that would have just barely fit into one that doesn't.
+Reproduced with a real 32-team `tiered` format tournament (`POST
+/schedule/generate {format:'tiered', teams:[...32]}` — A comes out to 15
+games, `gridH=8`, `nCols=3`) at a **960px-tall viewport**: old code overflowed
+the bottom row by ~15px, fixed code fit with ~11px to spare. Below ~840px or
+above ~1080px at that bracket size, both versions agree — don't "verify" this
+fix at a single arbitrary viewport height, it will pass by luck as often as
+by correctness. `docs/agent-demo/setup.sh` + the tiered-format generate call
+above is the fastest way to get a real flight bracket to test against; no
+static fixture reproduces it because the sizing depends on live layout
+measurement, not on the data.
+
+Confirmed no regression: the Open (main) tree, the B flight, and the mobile
+carousel path (`renderMobileColumns`, which `flightDims` never reaches — it
+returns early on `isMobile`) are all unaffected, since none of them call this
+function.
+
 ## Losers final is drawn ONCE (stacked layout)
 The stacked layout used to draw the losers final twice: a dashed copy beside
 the winners final, and the real game again at the end of the losers row. That
@@ -2557,6 +2609,14 @@ Three ids are standalone-only **by design** and should stay that way:
 `lineupInvalidBody` (the coach sign-in gate, unreachable when you are already
 signed in as staff). Everything else should exist in both.
 
+The three hosts also now BEHAVE differently for the same staff account, on
+purpose: `window._lineupCoachPanelHost` (set by `coach.js`, absent in the
+other two) narrows the coach panel's team picker to what that account
+actually coaches, while leaving every other admin privilege (editing power,
+skipped validation) untouched. See "Coach panel Lineups tab: staff now see
+only their OWN team(s)" below for the full reasoning — worth reading before
+adding a fourth host or a fourth admin-gated behavior to this file.
+
 ## The coach panel (`/coach`) — 2026-07-30
 
 Coaches used to have exactly one screen: `lineup.html`, reached through a magic
@@ -2697,6 +2757,43 @@ than the shared one. **Markup changes to admin.html/coach.html now need an API
 restart** to be seen, exactly like index.html and lineup.html: `docker compose
 restart api`.
 
+### `/logo.png` and `/theme.css` need their OWN nginx location — READ BEFORE ADDING A NEW SERVER-RENDERED ASSET (2026-07-31)
+Owner report: **"The tournament icon doesn't show on the public page anymore."**
+Cause: when the header moved to server-side rendering, `server.js` grew
+`GET /logo.png` and `GET /theme.css` (plus their `/t/:slug/` forms) — but
+nginx.conf was never given a matching `location` block. With no match, both
+fell through to the generic handlers already in the file: `/logo.png` hit the
+SPA fallback (`try_files … /index.html`), so the `<img src="/logo.png">` tag
+was handed a full HTML document instead of an image and silently failed to
+render; `/theme.css` hit the `\.(css|js|map)$` block, which does
+`try_files $uri =404` with **no** fallback, so every theme-color override
+404'd outright. Neither shows up in a server log as an error — nginx returns
+200 for the first and a plain 404 for the second, and the browser console
+says nothing useful about either.
+
+**The API adding a route is not enough — nginx has to be told to proxy it.**
+Every server-rendered path needs a `location` block, or it silently falls
+through to whatever generic rule matches next (SPA fallback, a static-file
+regex, or occasionally a real 404). This bit `/lineup` before (see "Shared
+links" below) and it bit `/logo.png` + `/theme.css` this time. When you add a
+new `app.get('/whatever', ...)` in server.js that RENDERS something (not a
+pure `/api/*` JSON route, which is already covered by the blanket
+`location /api/`), add its nginx location in the same commit and verify with
+the location-matcher check below — don't rely on noticing a broken image.
+
+Fixed: `logo.png` and `theme.css` each got a `location ~` regex block
+(scoped-and-unscoped, same pattern as `/tab-icon.png`), placed BEFORE the
+generic `\.(css|js|map)$` block — nginx tries `~`/`~*` regex locations in
+FILE ORDER and the first match wins, so placement matters, not just presence.
+
+No local nginx binary in a Claude Code container, so this can't be checked
+with `nginx -t`. Verified instead with a small location-matching script
+(exact match, then regex locations in file order, else longest prefix) run
+against the real `nginx/nginx.conf` for every path the app actually requests
+— confirms the fix resolves `/logo.png` and `/theme.css` to `PROXY` and
+changes nothing else. Worth re-running the same way after any future
+nginx.conf edit; there's no CI check for this today.
+
 ## Shared links: what is branded, and what nginx serves from disk (2026-07-30)
 A coach link is the most-shared URL this product has — the magic link
 redirects to `/lineup` and the coach pastes THAT into the team's group chat.
@@ -2710,12 +2807,14 @@ pointing at `/pwa-icon.png`, the scoped tab icon, and `/theme.css`. Cached per
 tid in `_lineupHtmlCache`, cleared by the same `invalidateIndexCache(tid)` —
 one invalidation point on purpose, because a second would be forgotten.
 
-**Still served from disk by nginx, and therefore unbranded:** `/admin`,
-`/score`, `/builder`. Branding them means another proxy block each. Deliberate
-for the icons — the admin PWA uses `/icons/admin-*.png` so it is
-distinguishable from the public app on a home screen, and pointing it at the
-tournament icon would break that. If someone wants OG previews on those, add
-the meta tags WITHOUT touching `rel="icon"`.
+**Still served from disk by nginx, and therefore unbranded:** `/score` and
+`/builder` (`/admin` and `/coach` are proxied now — see the section above
+this one, which is newer than this paragraph and supersedes it for those two).
+Branding `/score`/`/builder` means another proxy block each. Deliberate for
+their icons — the admin-family PWAs use `/icons/admin-*.png` so they stay
+distinguishable from the public app on a home screen, and pointing them at
+the tournament icon would break that. If someone wants OG previews on those,
+add the meta tags WITHOUT touching `rel="icon"`.
 
 Changing what nginx proxies is a deploy-config change: it needs a container
 recreate, not just an API restart.
@@ -2819,6 +2918,9 @@ of seven chips is no tidier on a laptop than on a phone — so the rules were
 un-nested and apply at all widths. Nothing in them was breakpoint-dependent;
 `updateHeaderMenu()` already decides WHETHER to show the hamburger (two or
 more visible controls), so a page with one control still renders inline.
+(That item list is history, not current — Edit moved OUT of the menu
+entirely and theme moved to dead last; see "Header menu order" below for
+what is actually in there today.)
 
 The old `@media (min-width: 1280px) { .header-menu-btn { display: none } }` is
 gone. If you are looking for the mobile/desktop split, it lives in the bracket
@@ -2830,12 +2932,236 @@ has in a better place. `hidden` in the markup, shown by the session handler
 when `isPwa`. Pull-to-refresh is the same action by gesture and stays
 available everywhere.
 
-## Header menu order (owner, 2026-07-30)
-Share, Project winners, Notifications, theme, Refresh, then Coach Panel and
-Admin Panel LAST because they leave the page. DOM order is menu order (flex
-column), so reordering means reordering the markup. The panel links stay
-role-gated; the Admin link additionally shows to a SIGNED-OUT visitor in an
-installed PWA, which is not an oversight — see the comment at that line.
+## Header menu order (owner, 2026-07-30, reordered 2026-08-01) — READ BEFORE ADDING A MENU ITEM
+Current, actual order, per page (DOM order is menu order — the panel is a
+flex column, so reordering means reordering the markup, not touching JS):
+
+- **`index.html` (public):** Share, Project winners, Notifications, Refresh,
+  then **Coach Panel / Admin Panel / Sign in** — exactly whichever of those
+  the signed-in session has access to (never more than one of the three,
+  since they're mutually exclusive states), minus a link to this page
+  (there isn't one) — then **Dark Mode last, always**.
+- **`admin.html`:** tournament switcher (a utility control, not a
+  destination — stays first), **← Bracket**, **Coach Panel** (only if this
+  account has a team grant), **Dark Mode last**. No Admin Panel link — this
+  IS admin panel.
+- **`coach.html`:** Sign Out (a context action tied to being on this page,
+  same category as Refresh above — stays first), **← Bracket**, **Admin
+  Panel** (only for admin/results roles), **Dark Mode last**. No Coach
+  Panel link — this IS coach panel.
+
+The general rule those three follow — owner: **"Bracket, Coach, Admin
+whatever a user has access to, all buttons except the page they're on"** —
+is: every page offers a way to each of the other two panels the session can
+reach, and Dark Mode is the last item on every page, full stop, because it
+is the one control that is never a destination and never role-gated, so it
+anchors the bottom regardless of which of the others happen to be visible
+above it. `score.html` and `lineup.html` were deliberately NOT brought into
+this — they are not one of the three named panels, `score.html`'s existing
+"Admin" link is unconditional rather than role-gated the way the others are,
+and extending the pattern there was judged scope creep beyond what was
+asked. If that's wanted later, it is a small, mechanical follow-up: give
+each an `admin-public-btn` styled `← Bracket`, gate an "Admin"/"Coach" link
+the same way the other three pages already do, and Dark Mode already sits
+last on both.
+
+The panel links stay strictly role/grant-gated on `session.role` /
+`session.teams` — nothing here is conditioned on `isPwa`. (An earlier
+version of this note claimed the Admin link also showed to a signed-out PWA
+visitor; that predates the "One Sign in" rework and is no longer true —
+`signInBtn`/`adminBtn`/`lineupBtn` visibility all come from `_sessionRole`
+alone. Said here explicitly because the stale claim survived one rewrite
+already; don't let it survive a second.)
+
+`bracketEditBtn`/`bucketEditBtn` are NOT part of this menu at all anymore —
+see "Edit lives next to the hamburger, not behind it" below.
+
+## Edit lives next to the hamburger, not behind it (owner, 2026-08-01)
+Owner: *"move the edit button out of the hamburger menu to next to the
+hamburger menu."* `#bracketEditBtn` and `#bucketEditBtn` (public page only —
+neither `/admin` nor `/coach` has an Edit button in their header) moved out
+of `#headerControls` into a new sibling, `.header-menu-cluster`, which also
+now holds `#headerMenuBtn` itself. Reasoning: Edit is a PRIMARY action for
+whoever can see it — an admin actively laying out the bracket, or a
+`buckets`-role operator running the challenge — and it should be one tap,
+not one tap into a menu plus a second tap on the item.
+
+**Why a wrapper, not just `margin-left: auto` on Edit itself**: both Edit
+buttons are individually `hidden` most of the time (role-gated, and only one
+of the two is ever unhidden at once), and `hidden` is `display:none` — an
+element with no box does not carry its own margin into the layout. Giving
+EITHER Edit button its own auto-margin would only self-right when THAT
+specific button happened to be the visible one, leaving a gap whenever
+neither was (a plain spectator) or however the OTHER one was. The wrapper
+is always present regardless of which children inside it are hidden, so it
+is the one thing that reliably owns "push me and my hamburger to the far
+right" — `.header-menu-cluster { margin-left: auto; }`, and
+`.header-menu-btn`'s own `margin-left: auto` (still in effect, unchanged,
+on every other page) is overridden back to `0` **inside this wrapper only**
+so the two rules don't fight each other for the same free space.
+
+**Test this at the RIGHT viewport for each button, not just one width for
+both** — this cost real debugging time here. `#bracketEditBtn` has a
+pre-existing, unrelated `@media (max-width: 1279px) { display: none
+!important; }` in `bracket.css` ("drag-and-drop is desktop only"), so
+checking its position on a phone viewport measures a zero-size, unrendered
+element and produces a nonsense "331px gap" that looks like a placement bug
+but is actually just the wrong element to be testing there. `#bucketEditBtn`
+carries no such restriction — bucket-challenge editing is touch-friendly, so
+it has to be checked at MOBILE width instead. Verified: `#bracketEditBtn`
+next to the hamburger at 1440px (7.8px gap, matching the 0.5em CSS gap);
+`#bucketEditBtn` next to the hamburger at 390px, signed in as a fresh
+`buckets`-role account (7.4px gap). Neither shows for a signed-out visitor.
+
+## Coach Panel visibility is a TEAM GRANT, not a role (2026-07-31)
+Owner report: **"If an admin is assigned to a team, they need the coaches
+panel in addition to the admin panel, currently that is not in the hamburger
+menu."** Coaching a team and holding a staff role are independent facts —
+`POST /users/:username/teams` has let staff pick up a team grant for a while
+("a TD whose own kid is on a team should not need a second account", and
+`/coach`'s own access gate already lets any staff in) — but the public
+page's header menu still decided the Coach Panel link's visibility from
+`session.role === 'team'` alone, so an admin who also coaches never saw it.
+Fixed on the public page (`bracket.js`, the init block that sets
+`adminBtn`/`lineupBtn`/`signInBtn` hidden state): the link now shows on
+`session.teams.length > 0`, independent of role. A pure coach (`role:
+'team'`) still always has `teams.length > 0`, so this is a strict widening,
+not a behaviour change for the existing case.
+
+**`/admin` had no Coach Panel link AT ALL**, in its own hamburger — the only
+way there was back out to the public page first. Added `#coachPanelLink` to
+`admin.html`'s `#headerControls` (last, same "destination leaves the page"
+convention as the public menu), scoped by `?t=<slug>` — NOT a `/t/:slug/`
+path segment, because `/coach` isn't proxied per-slug like the public bracket
+pages are; it reads the tournament from a query param the same way `/lineup`
+magic links and `coach.js`'s own `coachApiBase()` already do.
+
+**The trap, if you touch this again**: `POST /api/login`'s response does
+**not** include `teamName` (only `role`, which is all `doLogin()` needs to
+decide staff-panel vs. `showCoachBlock()` redirect) — so setting the link's
+visibility once, synchronously, inside `showAdmin()` from whatever
+`currentTeamName` happens to hold at that instant is CORRECT after a page
+reload (`checkSession()` already populated it from a fresh `/api/session`)
+but WRONG immediately after a fresh login through the form (`currentTeamName`
+is still `null` at that point, one call behind). The fix mirrors how
+`currentRole` already handles exactly this staleness: `showAdmin()` sets an
+initial guess, and `loadTournamentContext()` — which unconditionally fetches
+a fresh `/api/session` on every path into the panel, login included — issues
+the authoritative correction once real data lands. Do not "simplify" this
+back down to a single synchronous check in `showAdmin()`; that is the bug.
+
+Verified with a real account switch, not just the two role checks in
+isolation: `demo` (role `admin`) granted `Northside Eagles` via `POST
+/users/demo/teams` — link appears in both hamburgers, `href` on the admin
+panel's copy resolves to `/coach?t=main`, and clicking it actually lands on
+`/coach` showing "Northside Eagles". `scorer` (results, no team) — link
+stays hidden. `coach_lopez` (pure `team` role) — still bounced straight to
+`/coach` from the admin login form exactly as before, and still sees the
+link on the public page (regression check on the role→teams.length change).
+API-level coverage in `routes.test.js`, describe `'/session reports team
+assignment independently of role'` — deliberately checks the STAFF ACCOUNT'S
+OWN `/session` response, not the admin's view of it via `/users`, since
+that's the literal contract the header menu is built on. Watch for shared
+test-fixture pollution here: `loginAdmin()`'s account picks up a real team
+grant from the team-link-claim tests earlier in the file, so "an admin with
+no team" needs a freshly created account, not the shared one.
+
+### Follow-up, same day: the reverse link, team-scoped lineups, and a plain-text theme toggle (2026-07-31)
+Three more owner requests landed on top of the above in the same session.
+
+**The reverse link.** *"If in admin panel with coach access coach panel
+should appear in that menu too"* — already true by the time it was asked
+(the section above covers it); re-verified after the other two changes below
+in case anything nearby broke it. It didn't.
+
+**`#adminPanelLink` — the coach panel's own hamburger had no way back to
+`/admin`.** Owner: *"the admin panel should appear in the hamburger menu if
+an admin/coach combo is in the coach panel tab."* Added to `coach.html`'s
+`#headerControls`, last position, same convention as everywhere else. Shown
+in `coach.js`'s `showCoachPanel(session)` for `session.role === 'admin' ||
+'results'` — that function already runs with a fresh, authoritative session
+object every time the panel opens (it's the direct response from
+`initCoachPanel()`'s own `/session` fetch, not a cached field), so this one
+does NOT have the login-response staleness trap the admin-panel-side link
+has. Unscoped (`href="/admin"`, no `?t=`) — `admin.js` resolves its active
+tournament from `localStorage` (`getAdminSlug()`), not a URL param, so a
+query string here would do nothing; matches how the coach panel's existing
+"← Bracket" link is *also* unscoped.
+
+**Coach panel Lineups tab: staff now see only their OWN team(s), not every
+team.** Owner: *"If an admin with lineup permissions enters the coaches
+panel, that lineup tab should only have access to the assigned team(s)
+lineups in the coaches panel."* Before this, `lineup.js` decided the team
+picker's contents from `isAdmin` alone (`session.role === 'admin' ||
+'results'`) — true regardless of which of its three hosts it was running in
+(see "lineup.js has THREE hosts"), so a staff member landed on `/admin`'s
+Lineups tab and `/coach`'s Lineups tab and got the SAME "every team in the
+schedule" dropdown both times. `coach.js` now sets `window
+._lineupCoachPanelHost = true` (a top-level statement, so it's set before
+ANY of the three `lineupInit()` call sites in `coach.js` can run); `lineup.js`
+reads it into a NEW, narrower flag — `teamListUnrestricted = isAdmin &&
+!window._lineupCoachPanelHost` — and uses THAT (not `isAdmin`) for exactly
+three things: which teams populate `#lineupTeamSel`, the "All Teams" header
+text, and whether the team-picker half of the row is worth showing.
+
+**`isAdmin` itself is UNCHANGED**, deliberately — staff keep every other
+admin privilege inside the coach panel: `isSlotEditable()` still lets them
+edit ANY unplayed game for whichever team they select, not just the next one
+in order, and `submitLineup()` still skips the required-field check that
+applies to a real coach. Only the TEAM LIST is scoped down; editing power
+once a team is picked is not. Do not "simplify" this by just flipping
+`isAdmin` itself based on host — that was tried first here and it silently
+started enforcing the required-field check and the next-game-only rule on
+staff too, which nobody asked for and which broke the "TD fills in what a
+coach phoned through" workflow this whole area exists for.
+
+**This is a FRONTEND-ONLY restriction — nothing changed server-side.**
+`requireLineupAccess` in server.js still lets any admin/results account read
+or write ANY team's lineup; that was true before this change and is still
+true after it. The coach panel simply doesn't OFFER the other teams in its
+own dropdown. If someone ever needs this enforced as an actual access
+boundary (not just what the coach panel's UI offers), that's server-side
+work this change does not do.
+
+Verified with `demo` (admin) granted only Northside Eagles: `/coach`'s
+Lineups tab shows exactly `["Northside Eagles"]` in the picker and the team
+header reads "Northside Eagles", not "All Teams"; the SAME account's
+`/admin` Lineups tab, same login, still lists all 8 scheduled teams and
+still says "All Teams" — confirms the scoping is genuinely host-keyed, not
+account-keyed. `coach_lopez` (pure coach, no staff role) unaffected — still
+sees just their own team, exactly as before this change (nothing here alters
+behavior for role `team`, since `teamListUnrestricted` was already `false`
+for that role regardless of host).
+
+**The theme toggle is text now, not an icon**, and uses the same
+`.admin-public-btn` class as every other header button — CSS class swapped
+in all five HTML files' `#themeToggle`, the now-empty `.theme-toggle` rule
+deleted from `base.css` (including its own `pointer: coarse` touch-target
+override, now redundant with `.admin-public-btn`'s). Owner: *"modify the
+dark/light mode button so it matches the theme and style of the other
+buttons in the menu. Use text and not an image. I know previously I said one
+thing, but things change."* The "previously" is real and still in the repo's
+own history: a comment right above this code explicitly justified icon-only
+(`☀`/`🌙`) because *"a text label reading 'Light'/'Dark' was ambiguous
+(current state vs switch-to target)."* That ambiguity is still real — don't
+just slap "Light"/"Dark" back on and call it done. The label now names the
+mode TAPPING GETS YOU, not the current one (`'Dark Mode'` while light,
+`'Light Mode'` while dark), which resolves the same ambiguity the icon used
+to resolve, in text, and reads the same way the other destination-style
+menu items already do (`'Coach Panel →'`, `'Sign in'`). Toggle logic itself
+(the `applyLight()` IIFE in `tt-common.js`) is otherwise unchanged.
+
+Testing note for whoever touches any of these three next: **the browser
+harness's `/`, `/admin` and `/coach` HTML is API-rendered and cached**
+(`_indexHtmlCache` / `_panelHtmlCache` — see "`/admin` and `/coach` are
+PROXIED"). Editing the HTML/CSS files on disk while `docs/agent-demo/setup.sh`'s
+API process is already running changes NOTHING until it restarts — this cost
+real time here: the JS-driven half of the theme-toggle change (its text)
+updated live because `.js` files are served fresh off disk by the harness's
+proxy, while the HTML-driven half (its CSS class) silently kept serving the
+OLD markup until the API was killed and restarted against the same
+database. If a change to any `.html` file "isn't showing up" in the demo,
+restart the API before you start doubting the edit.
 
 ## First password set can also claim a username (2026-07-30)
 Owner: "far too many people create a password and never know their username."
@@ -3166,6 +3492,18 @@ could not work out a user name: start the cluster and run with
   Needs PG* env vars pointing at a cluster to actually run.
 - `standings.test.js` — the documented tiebreak order.
 - `schedule-health.test.js` — the pre-publish checks behind the health notice.
+
+**`node scripts/check-nginx-routes.js`** — a separate, non-`node --test`
+check: does `nginx/nginx.conf` actually proxy every path the API
+server-renders? No Postgres, no Docker, no real nginx needed — it's a
+location-matching simulation, not a live parse. Written after `/logo.png`
+and `/theme.css` sat unproxied for a whole session with nothing failing
+loudly (see "`/logo.png` and `/theme.css` need their OWN nginx location"
+below). **Run it after any nginx.conf edit, and add the path to
+`EXPECT_PROXY` in the same commit as any new non-`/api/` `app.get(...)` in
+server.js that renders a document/image/stylesheet.** It will not tell you
+your nginx config is valid — only that these specific paths resolve the way
+they're supposed to.
 
 ### Building a demo / browser harness — USE THE SCRIPT (2026-07-31)
 ```

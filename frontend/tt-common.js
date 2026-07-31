@@ -230,15 +230,18 @@ document.addEventListener('DOMContentLoaded', updateHeaderMenu);
   var btn = document.getElementById('themeToggle');
   function applyLight(light) {
     document.body.classList.toggle('light', light);
-    // Icon-only: the sun/moon shows the CURRENT theme; the action lives in
-    // the accessible name. A text label reading "Light"/"Dark" was ambiguous
-    // (current state vs switch-to target).
+    // Text, styled like every other header button (.admin-public-btn), not
+    // the pill-shaped icon-only sun/moon this used to be — owner, 2026-07-31:
+    // "modify the dark/light mode button so it matches the theme and style
+    // of the other buttons in the menu. Use text and not an image." The
+    // label names the MODE TAPPING GETS YOU, not the current one: the prior
+    // icon-only design existed specifically because "Light"/"Dark" text read
+    // as ambiguous between current-state and switch-to-target. Phrasing it
+    // as a destination ("Dark Mode" = tap to go dark) reads the same way the
+    // other destination buttons in this menu do (Coach Panel →, Sign in) and
+    // keeps that ambiguity resolved without needing an icon to do it.
     if (btn) {
-      // ☀/🌙 by owner preference. These render fine on real devices — an
-      // earlier session replaced them with SVG after mistaking Chrome's
-      // device-emulation view (which shows tofu boxes) for a missing glyph on
-      // the phone itself. They were never broken; don't "fix" them again.
-      btn.textContent = light ? '☀' : '🌙';
+      btn.textContent = light ? 'Dark Mode' : 'Light Mode';
       btn.setAttribute('aria-label', light ? 'Switch to dark theme' : 'Switch to light theme');
       btn.title = light ? 'Switch to dark theme' : 'Switch to light theme';
     }
