@@ -3685,18 +3685,28 @@ accent 24%, var(--surface))` in `renderStandingsViewInner()`'s `rowCss`
 against the demo — visibly more present without reading as a different
 design.
 
-## IN PROGRESS, NOT YET VERIFIED: Coach panel Share (roster/lineup → image/txt/csv) (owner, 2026-08-02)
+## Coach panel Share (roster/lineup → image/txt/csv) (owner, 2026-08-02)
 Owner: *"Build in an option for coaches to 'share' their roster or lineups
 via the share button if clicked while in the coaches panel in either tab."*
 Follow-up on format: *"Reuse the current share selector, share, download,
 print. Add .txt and .csv to the download options alongside png, jpeg, and
-pdf."* Code is WRITTEN but this landed mid-session on an interrupt (owner
-had a separate urgent question) — **has not been visually tested in the
-demo yet.** Next session/turn: restart the demo API (coach.html markup
-changed), sign in as `coach_lopez`, open Lineups or Roster, confirm
-`#coachShareBtn` shows in the header, click it, confirm the preview canvas
-renders real rows (not blank/garbled), and exercise all five download
-formats + the Share button + Print before calling this done.
+pdf."*
+
+**Verified against the demo** (this landed mid-session in two passes — code
+written first during an interrupt, tested and fixed one real bug afterward):
+Share button shows only on Lineups/Roster, hidden on Team/Account; opening it
+on Roster rendered all 9 real players correctly; PNG/JPEG/PDF/TXT/CSV all
+downloaded with sane filenames and no console errors. **Found and fixed one
+real bug in testing:** the Lineup tab's position `<select>` shows `—` as its
+UNSELECTED option's display TEXT (not empty — see `posOptions()` in
+`lineup.js`), so reading `.text` for the blank-row check treated every empty
+lineup row as "has content" — a completely unfilled lineup rendered as 11
+rows of solid `—` instead of the correct empty/near-empty table. Fixed by
+reading the `<select>`'s `.value` (empty when nothing's chosen) for the
+blank check, only falling back to `.text` for the human-readable label once
+something IS selected. Re-verified: filled 2 lineup rows via jersey-number
+autofill, share correctly showed exactly those 2 (names/positions matching
+the roster), and the game subtitle line matched what's on screen.
 
 **What's built, for whoever picks this up:**
 - Moved four zero-dependency helpers from `bracket.js` to `tt-common.js`

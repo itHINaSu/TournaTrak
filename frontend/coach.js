@@ -819,8 +819,13 @@ function buildCoachShareData() {
       var vals = cells.map(function(td) {
         var inp = td.querySelector('input');
         if (inp) return inp.value.trim();
+        // The unselected position option displays '—' as a placeholder, not
+        // empty text (see posOptions() in lineup.js) — read .value for
+        // blank-checking, or every lineup row would look "filled" from its
+        // position cell alone and the whole no-rows-yet game would render
+        // as a table of dashes instead of an empty state.
         var sel = td.querySelector('select');
-        if (sel && sel.selectedIndex >= 0) return sel.options[sel.selectedIndex].text.trim();
+        if (sel) return sel.value ? sel.options[sel.selectedIndex].text.trim() : '';
         var sub = td.querySelector('.lineup-sub-tag');
         if (sub) return sub.textContent.trim();
         return td.textContent.trim();
