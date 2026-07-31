@@ -337,11 +337,16 @@ section { padding: 5rem 0; }
   background: var(--gold-border);
 }
 
+/* Modeled on the real card: frontend/bracket.css .round-game-card /
+   .round-game-header / .round-team-row — a shaded header bar (game id +
+   live/final status) sits above the team rows, not between them, and a
+   live score is blue, not green (green/red only apply once a game is
+   final and one side has won). */
 .mock-game {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1rem 1.25rem;
+  overflow: hidden;
 }
 
 .mock-game.live {
@@ -351,18 +356,67 @@ section { padding: 5rem 0; }
 
 .mock-game.done { opacity: 0.65; }
 
+.mock-game-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  background: var(--bg-card-h);
+  border-bottom: 1px solid var(--border);
+}
+
+.mock-game-id {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--blue);
+}
+
+.mock-live-wrap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.mock-live-dot, .mock-live-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--red-live);
+  letter-spacing: 0.02em;
+}
+
+.mock-live-period {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+
+.mock-final-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 .mock-team {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.25rem 0;
+  padding: 0.6rem 1.25rem;
+  border-bottom: 1px solid var(--border);
 }
+.mock-team:last-child { border-bottom: none; }
 
 .mock-team-name {
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text);
 }
+.mock-team-name.won { color: var(--green); }
+.mock-team-name.lost { color: var(--text-muted); }
 
 .mock-score {
   font-size: 1.1rem;
@@ -371,24 +425,9 @@ section { padding: 5rem 0; }
   min-width: 1.5rem;
   text-align: right;
 }
+.mock-score.live { color: var(--blue); }
 .mock-score.win { color: var(--green); }
-
-.mock-status {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--red-live);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  margin: 0.3rem 0;
-}
-
-.mock-status.done {
-  color: var(--text-muted);
-  font-size: 0.72rem;
-}
+.mock-score.lose { color: var(--text-muted); }
 
 /* ══════════════════════════════════════════
    PROBLEM → SOLUTION
@@ -668,6 +707,14 @@ section { padding: 5rem 0; }
   aspect-ratio: 16 / 9;
   overflow: hidden;
   background: var(--bg-card);
+}
+
+/* Mobile screenshots are 390×844 (portrait) — forcing them into the same
+   16:9 landscape box as desktop shots crops away everything but the top
+   sliver. 9:16 isn't a perfect match either, but it shows most of the real
+   screenshot instead of just its header. */
+.gallery-shot-img--mobile {
+  aspect-ratio: 9 / 16;
 }
 
 .gallery-shot-img picture { display: block; width: 100%; height: 100%; }

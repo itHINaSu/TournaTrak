@@ -74,28 +74,35 @@
           <div class="mock-connector"></div>
         </div>
         <div class="mock-game live">
+          <div class="mock-game-header">
+            <span class="mock-game-id">Game 7</span>
+            <span class="mock-live-wrap">
+              <span class="mock-live-dot">●</span>
+              <span class="mock-live-badge">LIVE</span>
+              <span class="mock-live-period">Inning 6</span>
+            </span>
+          </div>
           <div class="mock-team">
             <span class="mock-team-name">Northside Thunder</span>
-            <span class="mock-score win">4</span>
-          </div>
-          <div class="mock-status">
-            <span class="live-dot">●</span>
-            <span>LIVE &middot; 6th Inning</span>
+            <span class="mock-score live">4</span>
           </div>
           <div class="mock-team">
             <span class="mock-team-name">Riverside Hawks</span>
-            <span class="mock-score">2</span>
+            <span class="mock-score live">2</span>
           </div>
         </div>
         <div class="mock-game done">
+          <div class="mock-game-header">
+            <span class="mock-game-id">Game 6</span>
+            <span class="mock-final-badge">Final</span>
+          </div>
           <div class="mock-team">
-            <span class="mock-team-name">Lake City Storm</span>
+            <span class="mock-team-name won">Lake City Storm</span>
             <span class="mock-score win">7</span>
           </div>
-          <div class="mock-status done">Final</div>
           <div class="mock-team">
-            <span class="mock-team-name">East End Eagles</span>
-            <span class="mock-score">3</span>
+            <span class="mock-team-name lost">East End Eagles</span>
+            <span class="mock-score lose">3</span>
           </div>
         </div>
       </div>
@@ -336,7 +343,7 @@
       <div class="gallery-grid">
 
         <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
+          <div class="gallery-shot-img gallery-shot-img--mobile">
             <picture>
               <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-bracket-dark.png">
               <img src="screenshots/mobile-bracket-light.png" alt="Mobile bracket view showing live tournament games" loading="lazy">
@@ -346,7 +353,7 @@
         </figure>
 
         <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
+          <div class="gallery-shot-img gallery-shot-img--mobile">
             <picture>
               <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-score-dark.png">
               <img src="screenshots/mobile-score-light.png" alt="Field-side scorekeeper mode with large tap targets" loading="lazy">
@@ -356,7 +363,7 @@
         </figure>
 
         <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
+          <div class="gallery-shot-img gallery-shot-img--mobile">
             <picture>
               <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-schedule-dark.png">
               <img src="screenshots/mobile-schedule-light.png" alt="By-round schedule view showing all games by time" loading="lazy">
@@ -366,7 +373,7 @@
         </figure>
 
         <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
+          <div class="gallery-shot-img gallery-shot-img--mobile">
             <picture>
               <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-teampath-dark.png">
               <img src="screenshots/mobile-teampath-light.png" alt="Team Path feature on mobile showing a team's complete tournament journey" loading="lazy">
@@ -376,7 +383,7 @@
         </figure>
 
         <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
+          <div class="gallery-shot-img gallery-shot-img--mobile">
             <picture>
               <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-buckets-dark.png">
               <img src="screenshots/mobile-buckets-light.png" alt="Challenge leaderboard showing team standings" loading="lazy">
@@ -386,7 +393,7 @@
         </figure>
 
         <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
+          <div class="gallery-shot-img gallery-shot-img--mobile">
             <picture>
               <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-lineup-dark.png">
               <img src="screenshots/mobile-lineup-light.png" alt="Coach lineup entry tool on mobile" loading="lazy">
@@ -396,7 +403,7 @@
         </figure>
 
         <figure class="gallery-shot reveal">
-          <div class="gallery-shot-img">
+          <div class="gallery-shot-img gallery-shot-img--mobile">
             <picture>
               <source media="(prefers-color-scheme: dark)" srcset="screenshots/mobile-admin-dark.png">
               <img src="screenshots/mobile-admin-light.png" alt="Admin panel on mobile showing results and settings" loading="lazy">
