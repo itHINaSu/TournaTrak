@@ -2887,21 +2887,25 @@ body.print-palette .bc-proj-chip {
    to the last one. */
 #view-install.view-panel.active { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
+/* Sized up from --text-sm (owner, 2026-08-02: "a bit small on mobile"). This
+   page is read once, standing up, by someone following steps on the device
+   they are reading it on — it is instructions, not chrome, so it gets body
+   copy sizing rather than the panel's default small text. */
 .install-intro {
-  font-size: var(--text-sm);
-  line-height: 1.55;
+  font-size: var(--text-md);
+  line-height: 1.6;
   color: var(--text-dim);
-  margin-bottom: 0.6em;
+  margin-bottom: 0.8em;
 }
 
 .install-steps {
-  margin: 0.5em 0 1.1em;
-  padding-left: 1.4em;
-  font-size: var(--text-sm);
-  line-height: 1.65;
+  margin: 0.5em 0 1.3em;
+  padding-left: 1.5em;
+  font-size: var(--text-md);
+  line-height: 1.7;
   color: var(--text);
 }
-.install-steps li { margin-bottom: 0.45em; }
+.install-steps li { margin-bottom: 0.6em; }
 .install-steps li::marker { color: var(--text-dim); }
 .install-steps strong { color: var(--text); }
 
@@ -2910,13 +2914,22 @@ body.print-palette .bc-proj-chip {
    all, and will reasonably conclude the app is broken rather than that their
    browser cannot do it. */
 .install-note {
-  margin: 0.2em 0 0.9em;
-  padding: 0.65em 0.8em;
-  font-size: var(--text-xs);
-  line-height: 1.5;
+  margin: 0.2em 0 1em;
+  padding: 0.75em 0.9em;
+  font-size: var(--text-sm);
+  line-height: 1.6;
   color: var(--text-dim);
   background: var(--surface2);
   border-left: 0.2em solid var(--gold);
   border-radius: var(--radius-xs);
 }
 .install-note strong { color: var(--text); }
+
+/* The install page borrows .notify-section-hdr / .notify-note from the
+   notifications page, which sizes them for a dense settings form. Here they
+   are headings and a closing note in a page of instructions, so they scale up
+   with the rest of it — scoped to #view-install so the settings page is
+   untouched (owner asked about this page only). */
+#view-install .notify-section-hdr { font-size: 0.82rem; margin-top: 1.2em; }
+#view-install .notify-note { font-size: var(--text-sm); line-height: 1.6; padding: 0.75em 0.9em; }
+#view-install .share-title { font-size: 1.05rem; }

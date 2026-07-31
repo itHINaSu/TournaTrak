@@ -796,6 +796,15 @@ async function publicPushAll(tid) {
   return r.rows;
 }
 
+// One subscription row by endpoint, for the self-test send. Any browser that
+// holds the endpoint already holds the subscription, so this leaks nothing it
+// did not already have.
+async function pushSubscriptionByEndpoint(endpoint) {
+  const r = await pool.query(
+    `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE endpoint = $1`, [endpoint]);
+  return r.rows[0] || null;
+}
+
 async function pushSubscriptionCount(username) {
   const r = await pool.query(
     `SELECT COUNT(*)::int AS n FROM push_subscriptions p
@@ -808,7 +817,7 @@ module.exports = {
   allUsers, findUser, effectiveRole, teamsFor, canEditSchedule, setScheduleCap,
   getMeta, setMeta,
   addPushSubscription, deletePushSubscription, detachStaffPushSubscription,
-  pushSubscriptionsFor, pushSubscriptionCount,
+  pushSubscriptionsFor, pushSubscriptionCount, pushSubscriptionByEndpoint,
   savePublicPushSubscription, publicPushTargets, publicPushAll,
   createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
   grantRole, revokeRole,

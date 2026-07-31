@@ -266,6 +266,18 @@ const app = express();
 // and cookie.secure works correctly when HAProxy terminates TLS.
 app.set('trust proxy', 1);
 
+// Remember this instance's public origin the first time a request carries one.
+// It becomes the VAPID `sub` when the operator has not set VAPID_SUBJECT — an
+// https origin is a valid subject, and unlike a guessed mailto it is certainly
+// correct for this deployment. trust proxy is already on above, so req.protocol
+// honours X-Forwarded-Proto from nginx/haproxy.
+app.use((req, _res, next) => {
+  if (!PUBLIC_ORIGIN && req.headers.host && req.protocol === 'https') {
+    PUBLIC_ORIGIN = 'https://' + req.headers.host;
+  }
+  next();
+});
+
 // Disable Express's default weak-ETag generation so our explicit ETags
 // on /api/results and /api/buckets are the sole source of truth.
 app.set('etag', false);
@@ -3214,7 +3226,27 @@ async function initPush() {
     }
     // The contact is required by the spec and is what a push service uses to
     // reach the operator; it never leaves the push request.
-    webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:admin@localhost', pub, priv);
+    //
+    // APPLE VALIDATES THIS AND THE OLD DEFAULT FAILED. `mailto:admin@localhost`
+    // is not a routable address, and Apple's push service rejects a VAPID JWT
+    // whose `sub` is not a real mailto: or https: URI — 403 BadJwtToken, per
+    // send, silently. FCM accepts almost anything, so the same build delivers
+    // fine to Android and never to an iPhone, which is exactly the report.
+    // `.env.example` documents VAPID_SUBJECT but ships it COMMENTED OUT, so an
+    // instance that never set it hit the broken default.
+    //
+    // Resolution order: an explicitly configured subject, else the site's own
+    // https origin (a valid `sub` and always correct for this deployment),
+    // else the mailto of last resort — which now at least warns.
+    PUSH_VAPID_SUBJECT = validVapidSubject(process.env.VAPID_SUBJECT) || '';
+    if (!PUSH_VAPID_SUBJECT) {
+      console.warn('[push] VAPID_SUBJECT is not set or is not a valid mailto:/https: URI. '
+        + 'Falling back to this instance\'s own origin once a request arrives. '
+        + 'Set VAPID_SUBJECT=mailto:you@yourdomain in .env to pin it — '
+        + 'Apple REJECTS an invalid subject and iOS gets nothing.');
+    }
+    webpush.setVapidDetails(PUSH_VAPID_SUBJECT || 'mailto:admin@localhost', pub, priv);
+    PUSH_VAPID_PUB = pub; PUSH_VAPID_PRIV = priv;
     PUSH_VAPID_PUBLIC = pub;
     PUSH_READY = true;
   } catch (err) {
@@ -3223,6 +3255,27 @@ async function initPush() {
   }
 }
 let PUSH_VAPID_PUBLIC = '';
+let PUSH_VAPID_PUB = '', PUSH_VAPID_PRIV = '', PUSH_VAPID_SUBJECT = '';
+// Remembered from the first request that carries a usable host, so a push sent
+// minutes later still has a valid `sub` even though it has no request of its
+// own. Behind haproxy/nginx the forwarded headers are the only truth.
+let PUBLIC_ORIGIN = '';
+
+// Apple accepts a mailto: or https: URI and nothing else. Rejects the
+// hostname-less cases that look fine locally and fail in production.
+function validVapidSubject(v) {
+  if (typeof v !== 'string') return '';
+  const s = v.trim();
+  if (/^mailto:[^@\s]+@[^@\s.]+\.[^@\s.]+/.test(s)) return s;
+  if (/^https:\/\/[^/\s]+\.[^/\s]+/.test(s)) return s;
+  return '';
+}
+
+// The subject actually used for a send: configured, else this instance's own
+// https origin, else the legacy default (which Apple will refuse — logged).
+function effectiveVapidSubject() {
+  return PUSH_VAPID_SUBJECT || validVapidSubject(PUBLIC_ORIGIN) || 'mailto:admin@localhost';
+}
 
 // Staff who should hear about a lineup in THIS tournament: its admins and
 // scorekeepers, plus every superadmin (who have no per-tournament grant).
@@ -3251,18 +3304,43 @@ async function sendPush(usernames, payload) {
 
 // The delivery loop itself, shared by the staff and public senders — one place
 // that knows how to prune a dead endpoint, rather than two that must remember.
+// One send, with the VAPID subject resolved at call time rather than baked in
+// at boot: the origin it falls back to is not known until a request has been
+// seen.
+function sendOnePush(row, body) {
+  return webpush.sendNotification(
+    { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
+    body,
+    { vapidDetails: {
+        subject: effectiveVapidSubject(),
+        publicKey: PUSH_VAPID_PUB, privateKey: PUSH_VAPID_PRIV } });
+}
+
+function pushErrText(err) {
+  if (!err) return 'unknown';
+  const code = err.statusCode ? 'HTTP ' + err.statusCode : '';
+  const detail = (err.body && String(err.body).trim().slice(0, 300)) || err.message || '';
+  return [code, detail].filter(Boolean).join(' ');
+}
+
+function pushHost(endpoint) {
+  try { return new URL(endpoint).host; } catch (e) { return '?'; }
+}
+
 async function deliverPush(subs, payload) {
   if (!PUSH_READY || !subs || !subs.length) return;
   const body = JSON.stringify(payload);
   await Promise.all(subs.map(async row => {
     try {
-      await webpush.sendNotification(
-        { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } }, body);
+      await sendOnePush(row, body);
     } catch (err) {
       if (err && (err.statusCode === 404 || err.statusCode === 410)) {
         await store.deletePushSubscription(row.endpoint).catch(() => {});
       } else {
-        console.error('push send failed:', err && err.message);
+        // statusCode and body are the whole diagnosis — Apple says WHY in the
+        // body (BadJwtToken, etc.) and `err.message` alone throws that away.
+        console.error('[push] send failed:', pushErrText(err),
+          '| endpoint host:', pushHost(row.endpoint));
       }
     }
   }));
@@ -3358,6 +3436,39 @@ api.post('/push/public-unsubscribe', ah(async (req, res) => {
   if (typeof endpoint !== 'string') return res.status(400).json({ error: 'endpoint required' });
   await store.deletePushSubscription(endpoint);
   res.json({ ok: true });
+}));
+
+// Send a test push to the caller's OWN device and report what actually
+// happened. This exists because every other sender is fire-and-forget: a push
+// that Apple refuses fails silently on the server and looks, from the phone,
+// exactly like a push that was never sent. With permissions granted and a
+// subscription stored there was previously nothing a user could do but wait.
+// Rate-limited, and it can only ever target an endpoint already in the table.
+api.post('/push/public-test', loginRateLimit, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (!PUSH_READY) return res.status(503).json({ error: 'Push is not configured on this server.' });
+  const { endpoint } = req.body || {};
+  if (typeof endpoint !== 'string' || !endpoint) {
+    return res.status(400).json({ error: 'endpoint required' });
+  }
+  const row = await store.pushSubscriptionByEndpoint(endpoint);
+  if (!row) return res.status(404).json({ error: 'This device is not subscribed on this server.' });
+  try {
+    await sendOnePush(row, JSON.stringify({
+      title: 'TournaTrak test',
+      body: 'Notifications are working on this device.',
+      tag: 'tt-test',
+      url: await publicPathFor(req.tid),
+    }));
+    res.json({ ok: true, subject: effectiveVapidSubject() });
+  } catch (err) {
+    if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+      await store.deletePushSubscription(endpoint).catch(() => {});
+      return res.status(410).json({ error: 'This device\'s subscription has expired. Turn notifications off and on again.' });
+    }
+    console.error('[push] test send failed:', pushErrText(err), '| endpoint host:', pushHost(endpoint));
+    res.status(502).json({ error: pushErrText(err), subject: effectiveVapidSubject() });
+  }
 }));
 
 // Public page for a tournament, for the notification's click target.

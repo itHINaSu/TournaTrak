@@ -7058,6 +7058,7 @@ Object.assign(TT_ACTIONS, {
   notifyDirty:       function() { notifyDirty(); },
   notifySave:        function() { notifySave(); },
   notifyTurnOff:     function() { notifyTurnOff(); },
+  notifyTest:        function() { notifyTest(); },
 });
 
 // The mobile header menu lives in tt-common.js — every page carries the same
@@ -7154,6 +7155,8 @@ function openNotifyPanel() {
   document.getElementById('notifyForm').hidden = !!reason;
   document.getElementById('notifySaveBtn').hidden = !!reason;
   document.getElementById('notifyOffBtn').hidden = !(p.on);
+  // Same visibility as Turn off: only meaningful once this device is on.
+  document.getElementById('notifyTestBtn').hidden = !(p.on);
   document.getElementById('notifyHint').textContent = p.on
     ? 'Notifications are on for this device.' : '';
 
@@ -7226,6 +7229,39 @@ function closeNotifyPanel() {
   if (dest) dest.classList.add('active');
   _notifyReturnTab = null;
 }
+// Ask the server to push to THIS device and say what happened. The error text
+// is shown verbatim: it is the push service's own words (Apple names the
+// reason), and paraphrasing it would throw away the only diagnosis available
+// to someone standing there with a phone that is not buzzing.
+async function notifyTest() {
+  var h = document.getElementById('notifyHint');
+  var sub = null;
+  try {
+    var reg = await navigator.serviceWorker.ready;
+    sub = await reg.pushManager.getSubscription();
+  } catch (e) { /* handled below */ }
+  var endpoint = (sub && sub.endpoint) || notifyPrefs().endpoint || '';
+  if (!endpoint) {
+    if (h) h.textContent = 'This device is not subscribed yet — turn notifications on first.';
+    return;
+  }
+  if (h) h.textContent = 'Sending…';
+  try {
+    var r = await fetch(apiBase() + '/push/public-test', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: endpoint }),
+    });
+    var d = await r.json().catch(function() { return {}; });
+    if (r.ok) {
+      if (h) h.textContent = 'Sent. If nothing arrives within a few seconds, the notification was accepted by the push service but not shown by the device.';
+    } else {
+      if (h) h.textContent = 'The push service rejected it: ' + (d.error || r.status);
+    }
+  } catch (e) {
+    if (h) h.textContent = 'Could not reach the server.';
+  }
+}
+
 function notifyDirty() {
   var h = document.getElementById('notifyHint');
   if (h && notifyPrefs().on) h.textContent = 'Press Save to apply.';
@@ -7342,6 +7378,7 @@ async function notifySave() {
     if (btn) btn.textContent = 'Notifications on';
     hint.textContent = 'Notifications are on for this device.';
     document.getElementById('notifyOffBtn').hidden = false;
+    document.getElementById('notifyTestBtn').hidden = false;
     showToast('Notifications on');
   } catch (e) {
     hint.textContent = 'Could not turn notifications on. ' + (e && e.message ? e.message : '');
@@ -7373,6 +7410,7 @@ async function notifyTurnOff() {
     var btn = document.getElementById('notifyBtn');
     if (btn) btn.textContent = 'Notifications';
     document.getElementById('notifyOffBtn').hidden = true;
+    document.getElementById('notifyTestBtn').hidden = true;
     hint.textContent = 'Notifications are off.';
     showToast('Notifications off');
   } catch (e) {

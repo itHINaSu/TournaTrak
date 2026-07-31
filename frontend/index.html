@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.040">
-<link rel="stylesheet" href="/bracket.css?v=4.08.040">
-<script src="/app-h.js?v=4.08.040"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.041">
+<link rel="stylesheet" href="/bracket.css?v=4.08.041">
+<script src="/app-h.js?v=4.08.041"></script>
 </head>
 <body>
 
@@ -294,6 +294,11 @@
       </div>
     <div class="notify-page-actions">
       <button class="admin-clear-btn" id="notifyOffBtn" hidden data-action="notifyTurnOff">Turn off notifications</button>
+      <!-- Sends to THIS device and reports what the push service actually
+           said. Every other sender is fire-and-forget, so a push the service
+           refuses fails silently on the server and is indistinguishable, from
+           the phone, from one that was never sent. -->
+      <button class="admin-clear-btn" id="notifyTestBtn" hidden data-action="notifyTest">Send a test</button>
       <button class="flight-pill share-dl" id="notifySaveBtn" data-action="notifySave">Turn on notifications</button>
     </div>
     <div class="share-hint" id="notifyHint"></div>
@@ -442,11 +447,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.040"></script>
-<script src="/theme-css.js?v=4.08.040"></script>
-<script src="/tt-common.js?v=4.08.040"></script>
-<script src="/bracket-data.js?v=4.08.040"></script>
-<script src="/bracket.js?v=4.08.040"></script>
-<script src="/sw-register.js?v=4.08.040" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.041"></script>
+<script src="/theme-css.js?v=4.08.041"></script>
+<script src="/tt-common.js?v=4.08.041"></script>
+<script src="/bracket-data.js?v=4.08.041"></script>
+<script src="/bracket.js?v=4.08.041"></script>
+<script src="/sw-register.js?v=4.08.041" data-sw="/sw.js"></script>
 </body>
 </html>

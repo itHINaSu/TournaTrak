@@ -199,6 +199,8 @@ side.
 
 | commit | what |
 |--------|------|
+| (this) | **iOS push delivered nothing: the VAPID subject was `mailto:admin@localhost`** (owner, 2026-08-02, permissions confirmed granted in iOS Settings). Apple validates the VAPID JWT's `sub` claim and rejects a non-routable one — 403, per send, silently, because every sender is fire-and-forget. FCM accepts almost anything, which is why the same build would deliver to Android and never to an iPhone. `.env.example` documents `VAPID_SUBJECT` but ships it COMMENTED OUT, so any instance that never set it hit the broken default. Now: `validVapidSubject()` accepts only a real `mailto:`/`https:` URI, the subject resolves per send (configured → this instance's own https origin, captured from the first forwarded request → the old default, which now logs a loud warning at boot), and failures log `statusCode` + the service's own body instead of just `err.message`. **`POST /api/push/public-test` + a "Send a test" button** on the notify page send to the caller's own device and show the push service's verbatim rejection — previously there was no way to tell a refused push from one never sent. |
+| (this) | **Install page type scaled up** (owner: "a bit small on mobile") — intro and steps to `--text-md`, note to `--text-sm`, with `#view-install`-scoped overrides for the `.notify-section-hdr` / `.notify-note` it borrows so the notifications settings page is untouched. |
 | (this) | **Share was "locked to the bracket page"** (owner, 2026-08-02) — `#shareOverlay` lived INSIDE `#view-bracket`, so opening it from Schedule/Standings/Team Path set `hidden=false` on a dialog nested in a panel that is only displayable while `.active`. Nothing appeared, and it then popped into view the moment the visitor next opened the Bracket tab, which reads exactly like a queued click. **HANDOFF had already flagged this exposure** when the notifications panel was moved for the same reason ("The Save-image overlay is still inside `#view-bracket` and has the same exposure"). Moved to a direct child of `<body>`; the capture code was fine all along. Verified all four targets render at 390px and 1400px. |
 | (this) | **Refresh buttons removed from all three panels; pull-to-refresh is the only entry point** (owner, 2026-08-02), and **a successful pull now finishes with one 360° turn** rather than an indefinite spin — the loop says "working", the single turn says "done", which is what a viewer needs when a refresh that changed nothing is otherwise indistinguishable from one that never ran. `ptrFinishSpin()` swaps `.ptr-spin` for `.ptr-done`, forcing a reflow between the two or the browser coalesces them into no change; `animationend` settles it, with a 700ms fallback because that event never fires under `prefers-reduced-motion`. PTR verified in simulated standalone on public, admin and coach. |
 | (this) | **The public wordmark goes home at EVERY width** (owner, 2026-08-02), superseding the desktop-only rule recorded below. That rule dated from a mobile header that wrapped into a cramped two-row block, where a stray tap on the name read as a misfire; the header has since been rebuilt around the persistent cluster + hamburger and no longer wraps, and the same corner now goes home from the admin and coach panels — a wordmark that works in two panels and silently does nothing on the third is worse. The `innerWidth < 1280` guard is gone from `goHome`, and the cursor/hover affordance in base.css is no longer inside its `@media (min-width: 1280px)`. **The hit area still hugs the text** (`#siteName, .site-subtitle { width: fit-content }`, which was never breakpoint-scoped) — verified at 390px that a tap in the empty space beside a short tournament name still does nothing. |
@@ -2511,6 +2513,17 @@ Things that will bite you here:
   with a `Score ⚡` jump. `updateLive()` was deleted with that editor.
 
 ## Push notifications (Web Push, lineup submissions)
+
+**iOS delivers nothing if the VAPID subject is invalid (fixed 2026-08-02).**
+Apple checks the JWT `sub` and refuses anything that is not a real `mailto:` or
+`https:` URI; the old fallback was `mailto:admin@localhost`. It fails per send,
+silently, because senders are never awaited — so a phone with permission
+granted and a subscription stored simply never buzzes, and nothing anywhere
+says why. **Set `VAPID_SUBJECT` in `.env`.** Unset, the server now falls back
+to its own https origin (valid, and certainly correct for the deployment) and
+warns at boot. When a device gets nothing, use **Send a test** on the
+notification settings page: it returns the push service's own words.
+
 Staff get a real push — phone, app closed — when a team submits a lineup.
 
 - **VAPID keypair must be stable.** Generated on first boot and stored in the
