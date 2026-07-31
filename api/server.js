@@ -2913,7 +2913,11 @@ const resolveSlug = ah(async (req, res, next) => {
   req.tid = t.id;
   next();
 });
-app.use('/api/t/:slug', resolveSlug, api);
+// req.viaSlug marks a request that named a SPECIFIC tournament rather than
+// resolving to whichever is currently Live — /push/public-subscribe reads it
+// to decide whether the subscription should track the Live flag going
+// forward (tracks_live) or stay pinned to this one tournament forever.
+app.use('/api/t/:slug', (req, res, next) => { req.viaSlug = true; next(); }, resolveSlug, api);
 app.use('/api', (req, res, next) => { req.tid = store.tid; next(); }, api);
 
 // ── Root HTML — inject dynamic title + Open Graph tags ───────────────
@@ -3532,7 +3536,7 @@ api.post('/push/public-subscribe', ah(async (req, res) => {
     : [];
   await store.savePublicPushSubscription(sub, req.tid, {
     live: !!b.live, final: !!b.final, schedule: !!b.schedule, allEvents: !!b.allEvents,
-  }, teams);
+  }, teams, !req.viaSlug);
   res.json({ ok: true, subscribed: true, teams: teams.length });
 }));
 
