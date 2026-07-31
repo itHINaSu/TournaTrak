@@ -500,3 +500,45 @@ function ttSetThemeOverrideCss(cssText) {
     el.textContent = cssText;
   }
 }
+
+// ── Team logo picker ──────────────────────────────────────────────────────
+// Shared by admin.js (Settings > Teams) and coach.js (the coach's own Team
+// tab) — the only two places a team logo is set. Reads a File, downscales it
+// client-side if needed to fit the server's cap (validLogoDataUri /
+// LOGO_MAX_CHARS in api/server.js), and hands back a data URI. A team badge
+// is small and roughly square, unlike the wide header wordmark the admin
+// logo picker (admin.js) is tuned for, so this is its own small pipeline
+// rather than a shared one with different target dimensions.
+var TT_TEAM_LOGO_MAX_URI = 48 * 1024;  // matches the server's LOGO_MAX_CHARS
+var TT_TEAM_LOGO_MAX_PX  = 240;        // a badge, not a header wordmark
+function ttReadTeamLogoFile(file, onReady, onError) {
+  if (!file) return;
+  if (['image/png', 'image/jpeg', 'image/webp'].indexOf(file.type) === -1) {
+    onError('Logo must be PNG, JPEG, or WebP');
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function () {
+    var uri = reader.result;
+    if (uri.length <= TT_TEAM_LOGO_MAX_URI) return onReady(uri);
+    var img = new Image();
+    img.onload = function () {
+      var scale = Math.min(1, TT_TEAM_LOGO_MAX_PX / Math.max(img.width, img.height));
+      for (var attempt = 0; attempt < 5; attempt++) {
+        var w = Math.max(1, Math.round(img.width * scale));
+        var h = Math.max(1, Math.round(img.height * scale));
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        var out = canvas.toDataURL('image/webp', 0.85);
+        if (out.indexOf('data:image/webp') !== 0) out = canvas.toDataURL('image/png');
+        if (out.length <= TT_TEAM_LOGO_MAX_URI) return onReady(out);
+        scale *= 0.65;
+      }
+      onError('Could not shrink that image enough — try a simpler or smaller logo');
+    };
+    img.onerror = function () { onError('Could not read that image'); };
+    img.src = uri;
+  };
+  reader.readAsDataURL(file);
+}

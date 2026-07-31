@@ -84,6 +84,10 @@ function initCoachTabs() {
           await initRosterTab();
         })();
       }
+      if (name === 'team' && !window._teamTabInitDone) {
+        window._teamTabInitDone = true;
+        initTeamTab();
+      }
       try { localStorage.setItem('ttCoachTab', name); } catch (e) {}
     });
   });
@@ -347,6 +351,106 @@ async function initRosterTab() {
   await loadRoster(teams[0] || null);
 }
 
+// ── Team ──────────────────────────────────────────────────────────────
+// Display name, short name, logo — the same fields Settings > Teams in
+// /admin can also set, scoped here to the signed-in coach's own team(s).
+// GET /teams is public, so this reads from there rather than a coach-only
+// endpoint; PUT /team-profile/:teamName (requireLineupAccess, same rule as
+// the roster endpoint) is what actually saves.
+var _teamTabTeam = null;
+var _teamTabLogo = null;   // data URI = has one; '' = remove on save; null = unchanged
+
+function teamTabSyncLogo() {
+  var img = document.getElementById('teamTabLogoPreview');
+  var rm  = document.getElementById('teamTabLogoRemoveBtn');
+  if (!img || !rm) return;
+  if (_teamTabLogo) { img.src = _teamTabLogo; img.hidden = false; rm.hidden = false; }
+  else { img.removeAttribute('src'); img.hidden = true; rm.hidden = true; }
+}
+
+async function loadTeamTab(team) {
+  setStatus('teamTabStatus', '');
+  _teamTabTeam = team;
+  _teamTabLogo = null;
+  var lockedEl = document.getElementById('teamTabLocked');
+  var formEl   = document.getElementById('teamTabForm');
+  if (!team) { lockedEl.hidden = true; formEl.hidden = true; return; }
+  var r = await fetch(coachApiBase() + '/teams').catch(function () { return null; });
+  var data = r && r.ok ? await r.json().catch(function () { return null; }) : null;
+  var rec = (data && data.teams || []).find(function (t) { return t.name === team; });
+  document.getElementById('teamTabDisplay').value = (rec && rec.displayName) || '';
+  document.getElementById('teamTabShort').value   = (rec && rec.shortName)   || '';
+  _teamTabLogo = (rec && rec.logo) || null;
+  teamTabSyncLogo();
+  // Staff viewing the coach panel (checking what a coach sees, or coaching
+  // themselves) are never locked out — only a genuine coach session is.
+  var staffViewing = _coachSession && (_coachSession.role === 'admin' || _coachSession.role === 'results');
+  var locked = !!(rec && rec.locked) && !staffViewing;
+  lockedEl.hidden = !locked;
+  formEl.hidden = locked;
+}
+
+function pickTeamTabLogo(el) {
+  var f = el.files && el.files[0];
+  if (!f) return;
+  ttReadTeamLogoFile(f, function (uri) {
+    _teamTabLogo = uri;
+    teamTabSyncLogo();
+    showToast('Logo ready — press Save to apply');
+  }, function (msg) { showToast(msg, true); el.value = ''; });
+}
+
+function removeTeamTabLogo() {
+  _teamTabLogo = '';
+  teamTabSyncLogo();
+  showToast('Logo will be removed on Save');
+}
+
+async function saveTeamProfile() {
+  setStatus('teamTabStatus', '');
+  if (!_teamTabTeam) return;
+  var body = {
+    displayName: document.getElementById('teamTabDisplay').value.trim(),
+    shortName:   document.getElementById('teamTabShort').value.trim(),
+  };
+  // null means "didn't touch the logo this session" — leave it out so the
+  // server keeps whatever is already stored instead of clearing it.
+  if (_teamTabLogo !== null) body.logo = _teamTabLogo;
+  var r = await fetch(coachApiBase() + '/team-profile/' + encodeURIComponent(_teamTabTeam), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  var data = await r.json().catch(function () { return {}; });
+  if (!r.ok) { setStatus('teamTabStatus', data.error || 'Could not save', true); return; }
+  setStatus('teamTabStatus', '✓ Saved', true);
+  showToast('Team profile saved');
+  if (data.team) {
+    document.getElementById('teamTabDisplay').value = data.team.displayName || '';
+    document.getElementById('teamTabShort').value   = data.team.shortName   || '';
+    _teamTabLogo = data.team.logo || null;
+    teamTabSyncLogo();
+  }
+}
+
+async function initTeamTab() {
+  var teams = rosterTeams();
+  var sel = document.getElementById('teamTabTeamSel');
+  var row = document.getElementById('teamTabTeamRow');
+  if (sel && teams.length > 1) {
+    sel.innerHTML = teams.map(function (t) {
+      return '<option value="' + esc(t) + '">' + esc(t) + '</option>';
+    }).join('');
+    row.hidden = false;
+    sel.addEventListener('change', function () { loadTeamTab(sel.value); });
+  }
+  document.getElementById('teamTabLoading').hidden = true;
+  document.getElementById('teamTabContent').hidden = false;
+  var fileInput = document.getElementById('teamTabLogoInput');
+  if (fileInput) fileInput.addEventListener('change', function () { pickTeamTabLogo(fileInput); });
+  await loadTeamTab(teams[0] || null);
+}
+
 // ── Account ───────────────────────────────────────────────────────────
 async function saveCoachUsername() {
   var el = document.getElementById('coachSetUsername');
@@ -396,6 +500,8 @@ Object.assign(TT_ACTIONS, {
   saveRoster:        function () { saveRoster(); },
   addRosterRow:      function () { addRosterRow(); },
   deleteRosterRow:   function (arg) { deleteRosterRow(arg); },
+  saveTeamProfile:   function () { saveTeamProfile(); },
+  removeTeamTabLogo: function () { removeTeamTabLogo(); },
 });
 
 initCoachPanel();

@@ -1937,6 +1937,15 @@ function normalizeTeam(t) {
   const sh = cleanTeamLabel(t.shortName, TEAM_SHORT_MAX);
   if (d)  out.displayName = d;
   if (sh) out.shortName = sh;
+  // Same data-URI-in-the-record shape as the tournament logo (theme_colors.logo)
+  // — see validLogoDataUri/LOGO_MAX_CHARS above. Not used on the bracket yet;
+  // stored and served (GET /team-logo/:id.png) so a coach's upload survives a
+  // save even before anything renders it.
+  if (validLogoDataUri(t.logo, LOGO_MAX_CHARS)) out.logo = t.logo;
+  // Freezes a coach out of PUT /team-profile for this team (name/short
+  // name/logo) once staff have set it — an admin still edits freely via
+  // POST /teams, which never checks its own lock.
+  if (t.locked) out.locked = true;
   return out;
 }
 
@@ -2010,6 +2019,8 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
       // them just by saving the team list.
       displayName: t && 'displayName' in t ? t.displayName : prior.displayName,
       shortName:   t && 'shortName'   in t ? t.shortName   : prior.shortName,
+      logo:        t && 'logo'        in t ? t.logo        : prior.logo,
+      locked:      t && 'locked'      in t ? !!t.locked    : !!prior.locked,
     });
     if (seenIds.has(rec.id)) rec.id = newTeamId();   // never emit a duplicate
     seenIds.add(rec.id);
@@ -2025,6 +2036,37 @@ api.post('/teams', requireAdmin, ah(async (req, res) => {
   linksDropped.forEach(name => { delete links[name]; });
   await store.put(req.tid, 'teams', { ...prev, showSeeds: !!showSeeds, teams: clean, links });
   res.json({ ok: true, linksDropped });
+}));
+
+// A team's own display name, short name and logo — the coach-facing subset
+// of what POST /teams can set, scoped to ONE team. Same access rule as the
+// roster endpoint (requireLineupAccess): staff can act on any team, a coach
+// only their own. Also honors the lock a TD can set on the team's row in
+// Settings > Teams — locked freezes a COACH out (staff still edit freely via
+// POST /teams, which never checks its own lock).
+api.put('/team-profile/:teamName', requireLineupAccess, ah(async (req, res) => {
+  await ensureTeamIds(req.tid);
+  const { data, teams } = await rosterFor(req.tid);
+  const idx = teams.findIndex(t => t.name === req.params.teamName);
+  if (idx === -1) return res.status(404).json({ error: 'Team not found' });
+  const current = teams[idx];
+  const staff = !req.teamLink && ['admin', 'results', 'superadmin'].includes(roleFor(req));
+  if (current.locked && !staff) {
+    return res.status(403).json({ error: 'This team’s info is locked by tournament staff.' });
+  }
+  const body = req.body || {};
+  const rec = normalizeTeam({
+    id: current.id,
+    name: current.name,
+    displayName: 'displayName' in body ? body.displayName : current.displayName,
+    shortName:   'shortName'   in body ? body.shortName   : current.shortName,
+    logo:        'logo'        in body ? body.logo        : current.logo,
+    locked: current.locked,
+  });
+  const clean = teams.slice();
+  clean[idx] = rec;
+  await store.put(req.tid, 'teams', { ...data, teams: clean });
+  res.json({ ok: true, team: rec });
 }));
 
 // ── Team lineup links ─────────────────────────────────────────────────
@@ -2695,6 +2737,22 @@ async function sendLogo(tid, res) {
 }
 app.get('/logo.png', ah(async (req, res) => sendLogo(store.tid, res)));
 app.get('/t/:slug/logo.png', resolveSlug, ah(async (req, res) => sendLogo(req.tid, res)));
+
+// A team's own logo, same shape as sendLogo above (a data URI stored on the
+// team record, decoded on request). Not linked from anywhere on the bracket
+// yet — this just makes an uploaded logo fetchable by id ahead of that.
+async function sendTeamLogo(tid, teamId, res) {
+  res.setHeader('Cache-Control', 'no-cache');
+  if (!TEAM_ID_RE.test(teamId || '')) return res.status(404).end();
+  const { teams } = await rosterFor(tid);
+  const team = teams.find(t => t.id === teamId);
+  const m = team && /^data:image\/(png|jpeg|webp);base64,(.+)$/.exec(team.logo || '');
+  if (!m) return res.status(404).end();
+  res.setHeader('Content-Type', 'image/' + m[1]);
+  res.send(Buffer.from(m[2], 'base64'));
+}
+app.get('/team-logo/:teamId.png', ah(async (req, res) => sendTeamLogo(store.tid, req.params.teamId, res)));
+app.get('/t/:slug/team-logo/:teamId.png', resolveSlug, ah(async (req, res) => sendTeamLogo(req.tid, req.params.teamId, res)));
 
 // Per-tournament branding as a stylesheet. This exists because the CSP is
 // `style-src 'self'` with no 'unsafe-inline' — an injected <style> block or a

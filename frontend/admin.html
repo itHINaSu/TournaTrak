@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.87">
-<link rel="stylesheet" href="/admin.css?v=3.87">
-<link rel="stylesheet" href="/lineup.css?v=3.87">
-<link rel="stylesheet" href="/builder.css?v=3.87">
-<link rel="stylesheet" href="/score.css?v=3.87">
-<script src="/app-h.js?v=3.87"></script>
+<link rel="stylesheet" href="/base.css?v=3.88">
+<link rel="stylesheet" href="/admin.css?v=3.88">
+<link rel="stylesheet" href="/lineup.css?v=3.88">
+<link rel="stylesheet" href="/builder.css?v=3.88">
+<link rel="stylesheet" href="/score.css?v=3.88">
+<script src="/app-h.js?v=3.88"></script>
 </head>
 <body>
 
@@ -268,7 +268,6 @@
       <button class="results-mode-btn active" id="modeQuickBtn" data-action="setSchedMode" data-arg="quick">Edit</button>
       <button class="results-mode-btn" id="modeBuilderBtn" data-action="setSchedMode" data-arg="builder">Builder</button>
       <button class="results-mode-btn" id="modeSchedDelaysBtn" data-action="setSchedMode" data-arg="delays">Delays</button>
-      <button class="results-mode-btn" id="modeSchedTeamsBtn" data-action="setSchedMode" data-arg="teams">Teams</button>
       <button class="results-mode-btn" id="modeScheduleBtn" data-action="setSchedMode" data-arg="editor">Advanced</button>
       <!-- One-step undo for the last destructive write (regenerate / save-all).
            Was a full-width banner above the editor; it is the only way back
@@ -311,22 +310,6 @@
     </div>
     <!-- Slot where the shared delays panel is moved when delays mode is active -->
     <div id="schedDelaysSlot"></div>
-    <!-- Teams panel -->
-    <div id="schedTeamsPanel" hidden>
-      <div class="admin-subtitle">All teams from the current schedule. Drag to reorder (the list order is the seed order when seeding is on). Edit a name to rename it everywhere.</div>
-      <div class="settings-field settings-field--toggle" class="u-mb-1">
-        <label>Show seed numbers on the bracket</label>
-        <input type="checkbox" id="teams-showSeeds">
-        <div class="field-hint">Displays <span class="u-dim-70">(1)</span> before team names on bracket cards. Only meaningful when teams are ordered intentionally.</div>
-      </div>
-      <div id="teamsEditorWrap">
-        <div id="teamsEditorList" class="teams-editor-list"></div>
-      </div>
-      <div class="settings-save-row">
-        <button class="sched-save-btn" id="teamsSaveBtn" data-action="saveTeams">Save</button>
-        <span class="sched-status" id="teamsSaveStatus"></span>
-      </div>
-    </div>
   </div>
 
   <!-- ── LINEUPS TAB ── -->
@@ -414,6 +397,7 @@
         <div class="settings-nav-item" data-section="account" data-action="showSettingsSection" data-arg="account">Account</div>
         <div class="settings-nav-item" data-section="users" data-action="showSettingsSection" data-arg="users">Users</div>
         <div class="settings-nav-item" data-section="coaches" data-action="showSettingsSection" data-arg="coaches">Coaches</div>
+        <div class="settings-nav-item" data-section="teams" data-action="showSettingsSection" data-arg="teams">Teams</div>
         <div class="settings-nav-item" data-section="tournaments" data-action="showSettingsSection" data-arg="tournaments" id="navTournaments" hidden>Tournaments</div>
       </nav>
 
@@ -886,6 +870,23 @@
           </div>
         </div>
 
+        <!-- ── Teams panel (moved here from Schedule > Teams, owner 2026-08-02) ── -->
+        <div class="settings-panel" id="sp-teams">
+          <div class="admin-subtitle">All teams from the current schedule. Drag to reorder (the list order is the seed order when seeding is on). Edit a name to rename it everywhere. Display name, short name and logo are the same fields a coach can set for their own team from the Coach Panel's Team tab — lock a team to freeze those out.</div>
+          <div class="settings-field settings-field--toggle">
+            <label>Show seed numbers on the bracket</label>
+            <input type="checkbox" id="teams-showSeeds">
+            <div class="field-hint">Displays <span class="u-dim-70">(1)</span> before team names on bracket cards. Only meaningful when teams are ordered intentionally.</div>
+          </div>
+          <div id="teamsEditorWrap">
+            <div id="teamsEditorList" class="teams-editor-list"></div>
+          </div>
+          <div class="settings-save-row">
+            <button class="sched-save-btn" id="teamsSaveBtn" data-action="saveTeams">Save</button>
+            <span class="sched-status" id="teamsSaveStatus"></span>
+          </div>
+        </div>
+
         <!-- ── Tournaments panel (superadmin only) ── -->
         <div class="settings-panel" id="sp-tournaments">
           <div class="admin-subtitle">Create and manage tournaments. Each has its own bracket, schedule, results, settings, and users. Public tournaments appear at <code>/t/&lt;slug&gt;</code>.
@@ -967,15 +968,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=3.87"></script>
-<script src="/theme-css.js?v=3.87"></script>
-<script src="/tt-common.js?v=3.87"></script>
-<script src="/bracket-data.js?v=3.87"></script>
-<script src="/admin.js?v=3.87"></script>
-<script src="/lineup.js?v=3.87"></script>
-<script src="/score.js?v=3.87"></script>
-<script src="/builder-form.js?v=3.87"></script>
-<script src="/builder.js?v=3.87"></script>
-<script src="/sw-register.js?v=3.87" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=3.88"></script>
+<script src="/theme-css.js?v=3.88"></script>
+<script src="/tt-common.js?v=3.88"></script>
+<script src="/bracket-data.js?v=3.88"></script>
+<script src="/admin.js?v=3.88"></script>
+<script src="/lineup.js?v=3.88"></script>
+<script src="/score.js?v=3.88"></script>
+<script src="/builder-form.js?v=3.88"></script>
+<script src="/builder.js?v=3.88"></script>
+<script src="/sw-register.js?v=3.88" data-sw="/admin-sw.js"></script>
 </body>
 </html>

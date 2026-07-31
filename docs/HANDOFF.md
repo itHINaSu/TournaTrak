@@ -2883,8 +2883,87 @@ Two label forms in bracket.js: `teamLabel()` (full display name) and
 a long name is ellipsised into uselessness. Both fall back to the canonical
 name, so an unbranded tournament renders exactly as before.
 
-Still to come: coach editing of these names (with the TD override and the
-tournament-wide off switch the owner chose), and the coach panel itself.
+Coach editing of these names, a logo, and the admin-side Lock landed
+2026-08-02 — see the next section.
+
+## Coach team profile, admin Teams settings, and a team logo (owner, 2026-08-02)
+Owner: *"We need the coaches team name section built out. build the
+appropriate overrides in admin settings > teams (move teams from settings >
+schedule > teams). Also allow teams to upload a team logo/icon (not used
+yet) — you will need to be able to store and reference it per team."*
+Follow-up on admin overrides, asked directly: lock a team's fields, plus
+keep the existing seed/display-order controls; nothing else admin-only.
+
+**Where things moved**: the Teams editor used to live under Schedule > Teams
+(`#modeSchedTeamsBtn`/`#schedTeamsPanel`) — both are gone. It's now
+`Settings > Teams` (`#sp-teams`, sidebar item between Coaches and
+Tournaments), same `renderTeamsEditor()`/`saveTeams()`/`loadTeams()` in
+admin.js, called from `showSettingsSection()`'s `if (section === 'teams')`
+instead of `setSchedMode()`'s old `'teams'` branch.
+
+**Schema**: `teams.teams[]` records gained two fields, both added in
+`normalizeTeam()` (api/server.js) so every write path — `POST /teams`, the
+new coach endpoint below, the id-backfill — produces them consistently:
+- `logo`: a data URI, validated with the SAME `validLogoDataUri()`/
+  `LOGO_MAX_CHARS` (48KB) the tournament header logo already uses. **Not
+  referenced from the bracket anywhere yet** — this is storage +
+  serving only, ahead of whatever renders it later. Served at
+  `GET /team-logo/:teamId.png` (and `/t/:slug/team-logo/:teamId.png`),
+  same shape as `sendLogo()`. Needed its own nginx location (mirroring the
+  `/logo.png` fix from earlier this session) — a new dynamic path with no
+  matching `location` falls through to the SPA fallback and 200s with
+  index.html instead of an image, the exact bug that motivated that earlier
+  fix. `scripts/check-nginx-routes.js` covers it.
+- `locked`: freezes a COACH out of the three coach-facing fields (see
+  below) — an admin edits them freely via `POST /teams` regardless, since
+  that route never checks its own lock. A TD sets it from the new checkbox
+  in Settings > Teams.
+
+**New endpoint**: `PUT /api/team-profile/:teamName` — `requireLineupAccess`,
+the SAME access rule the roster endpoint already uses (staff/any team, a
+`team`-role session/its own team only), plus a lock check inside the
+handler the middleware can't know about. Body is `{ displayName, shortName,
+logo }`; an absent field keeps what's stored, matching `POST /teams`'
+existing "explicit empty string clears, absent field keeps" contract so a
+client that doesn't send `logo` can't accidentally wipe it.
+
+**Coach panel**: `/coach`'s Team tab (`#tab-team` in coach.html, previously
+a stub reading "Coming next…") is now a real form — display name, short
+name, logo — following the exact lazy-init-on-first-click pattern the
+Roster tab uses (`initTeamTab()`, gated on `window._teamTabInitDone`), and
+the same "team picker only shown when there's more than one" rule
+(`rosterTeams()` reused directly). Locked teams show a one-line message
+instead of the form — **but only for a genuine coach session**; staff
+viewing the coach panel (checking what a coach sees, or coaching
+themselves) are never locked out, checked via `_coachSession.role`.
+
+**Shared logo picker** (`ttReadTeamLogoFile` in tt-common.js, loaded by
+both admin.html and coach.html): reads a File, downscales client-side via
+canvas/WebP if it doesn't fit the 48KB cap, hands back a data URI. Written
+as ITS OWN small pipeline rather than reusing admin.js's tournament-logo
+picker (`downscaleLogo`/`LOGO_MAX_W`/`LOGO_MAX_H`) — that one is tuned for
+a wide header wordmark (288×144) and also bakes PWA/favicon variants a team
+badge (square, 240px, no baking) has no use for; admin.js doesn't load on
+`/coach` anyway, so sharing it would have meant moving admin-specific
+constants into a common file for one caller.
+
+**A bug the new fields would have inherited, fixed in passing**: the Teams
+editor's inline rename handler and `saveTeams()`'s commit-in-progress loop
+both did `_teamsData.teams[i] = { name: v }` — a bare replace, not a merge.
+That silently dropped the row's `id` on every rename (recoverable, by name,
+in `POST /teams` — usually) and would have dropped `displayName`/
+`shortName`/`logo`/`locked` right along with it, meaning "rename a team"
+and "wipe its logo" would have been the same click. Changed to
+`Object.assign({}, _teamsData.teams[i], { name: v })` in both places.
+
+Verified: coach edits own team (persists across reload) and gets 403 on
+someone else's; admin lock blocks the coach both through the UI and a
+direct API call, admin still edits the locked team via `POST /teams`,
+unlock restores coach access; logo upload → preview → Save → reload keeps
+it, in both the admin editor and the coach Team tab; Schedule tab's other
+three modes (Edit/Builder/Delays/Advanced) unaffected by the Teams button's
+removal. Full API suite (140 tests) and the nginx-routes checker (35
+checks, two new for `/team-logo/...`) still pass.
 
 ## One "Sign in", and why the PWA inference is gone (2026-07-30)
 The public header used to show **Admin** to any signed-out visitor in

@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=3.87">
-<link rel="stylesheet" href="/admin.css?v=3.87">
-<link rel="stylesheet" href="/lineup.css?v=3.87">
-<script src="/app-h.js?v=3.87"></script>
+<link rel="stylesheet" href="/base.css?v=3.88">
+<link rel="stylesheet" href="/admin.css?v=3.88">
+<link rel="stylesheet" href="/lineup.css?v=3.88">
+<script src="/app-h.js?v=3.88"></script>
 </head>
 <body>
 
@@ -233,15 +233,50 @@
   </div>
 
   <!-- ── TEAM ─────────────────────────────────────────────────────────
-       Team-facing settings. The display/short names land here, gated on the
-       tournament's coachTeamNames setting (owner: public, TD can override). -->
+       Team-facing settings: display name, short name, and a logo (not shown
+       anywhere on the bracket yet — stored and servable ahead of that). A TD
+       can lock these from Settings > Teams in /admin; locked freezes a COACH
+       out but not staff viewing this same panel. -->
   <div class="admin-tab-panel" id="tab-team">
     <div class="admin-subtitle">How your team appears to everyone following the tournament.</div>
-    <div class="settings-section">
-      <div class="settings-section-hdr">Team Name</div>
-      <div class="collapsible-body">
-        <div class="lineup-state">
-          <div class="lineup-state-body" id="teamTabPlaceholder">Coming next: set the name shown on the bracket, and a short version for narrow cards.</div>
+    <div id="teamTabWrap">
+      <div class="lineup-state" id="teamTabLoading">
+        <div class="lineup-state-body">Loading…</div>
+      </div>
+      <div id="teamTabContent" hidden>
+        <!-- Team picker, shown only to staff with more than one team here
+             (a coach has one team, and a selector with a single option is
+             furniture) — same rule roster's picker follows. -->
+        <div id="teamTabTeamRow" class="lineup-selectors-row" hidden>
+          <div class="lineup-game-info" id="teamTabTeamHalf">
+            <select id="teamTabTeamSel" class="lineup-game-sel"></select>
+          </div>
+        </div>
+        <div class="lineup-state" id="teamTabLocked" hidden>
+          <div class="lineup-state-body">This team’s info is locked by tournament staff — reach out to them for changes.</div>
+        </div>
+        <div id="teamTabForm">
+          <div class="settings-field">
+            <label>Display Name <span class="field-label-hint">(shown on the bracket)</span></label>
+            <input type="text" id="teamTabDisplay" maxlength="40" placeholder="Same as team name">
+          </div>
+          <div class="settings-field">
+            <label>Short Name <span class="field-label-hint">(narrow cards, 12 characters)</span></label>
+            <input type="text" id="teamTabShort" maxlength="12" placeholder="Optional">
+          </div>
+          <div class="settings-field">
+            <label>Team Logo <span class="field-label-hint">(PNG/JPEG/WebP, max 48 KB)</span></label>
+            <div class="logo-picker-row">
+              <img id="teamTabLogoPreview" class="team-tab-logo-preview" alt="" hidden>
+              <input type="file" id="teamTabLogoInput" accept="image/png,image/jpeg,image/webp">
+              <button type="button" class="admin-clear-btn" id="teamTabLogoRemoveBtn" data-action="removeTeamTabLogo" hidden>Remove</button>
+            </div>
+            <div class="field-hint">Not shown anywhere on the bracket yet — saved for when it is.</div>
+          </div>
+          <div class="settings-save-row">
+            <button class="sched-save-btn" id="teamTabSaveBtn" data-action="saveTeamProfile">Save</button>
+            <span class="sched-status" id="teamTabStatus"></span>
+          </div>
         </div>
       </div>
     </div>
@@ -299,11 +334,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.87"></script>
-<script src="/theme-css.js?v=3.87"></script>
-<script src="/tt-common.js?v=3.87"></script>
-<script src="/bracket-data.js?v=3.87"></script>
-<script src="/lineup.js?v=3.87"></script>
-<script src="/coach.js?v=3.87"></script>
+<script src="/settings-defaults.js?v=3.88"></script>
+<script src="/theme-css.js?v=3.88"></script>
+<script src="/tt-common.js?v=3.88"></script>
+<script src="/bracket-data.js?v=3.88"></script>
+<script src="/lineup.js?v=3.88"></script>
+<script src="/coach.js?v=3.88"></script>
 </body>
 </html>

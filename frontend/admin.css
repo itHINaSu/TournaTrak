@@ -1210,6 +1210,80 @@ input[type="time"]:focus {
 .team-ed-linkbtns { display: flex; flex-wrap: wrap; gap: 0.4em; }
 .team-ed-linknote { margin: 0; font-size: 0.72rem; color: var(--text-mute); line-height: 1.4; }
 
+/* Second line under a team's row: display name / short name / logo / lock —
+   the same fields a coach can set for themselves, plus the admin-only lock.
+   Full-width child, same trick .team-ed-linkpanel uses above; always open
+   (not a toggled panel) since these are common enough to want visible by
+   default rather than a click away. */
+.team-ed-row2 {
+  flex: 0 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6em;
+  margin-top: 0.2em;
+  padding-top: 0.4em;
+  border-top: 0.07em solid var(--border);
+  cursor: default;
+}
+.team-ed-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  font-size: 0.68rem;
+  color: var(--text-mute);
+}
+.team-ed-field span { text-transform: uppercase; letter-spacing: 0.05em; }
+.team-ed-field input {
+  font-size: 0.82rem;
+  padding: 0.3em 0.4em;
+  color: var(--text);
+  background: var(--bg);
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-xs);
+  width: 9em;
+}
+.team-ed-field input:focus { outline: 1px solid var(--blue); }
+.team-ed-logo { display: flex; align-items: center; gap: 0.4em; }
+.team-ed-logo-preview {
+  width: 2rem;
+  height: 2rem;
+  object-fit: contain;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+}
+/* Coach panel's own Team tab — same picker, a bigger preview since it's the
+   only thing on that row instead of one of several in a table. */
+.team-tab-logo-preview {
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: contain;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-xs);
+  background: var(--bg);
+}
+.team-ed-logo-input { font-size: 0.72rem; max-width: 11em; color: var(--text-mute); }
+.team-ed-logo-remove {
+  font-size: 0.72rem;
+  padding: 0.25em 0.5em;
+  color: var(--text-dim);
+  background: transparent;
+  border: 0.07em solid var(--border);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+}
+.team-ed-logo-remove:hover { color: var(--text); border-color: var(--text-dim); }
+.team-ed-lock {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  margin-left: auto;
+}
+
 
 /* Builder embedded in schedule tab — fill the full panel width */
 #schedBuilderPanel .bld-main {
