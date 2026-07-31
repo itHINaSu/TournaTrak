@@ -1661,10 +1661,14 @@ function renderTournamentSwitcher() {
 
 // Point the "← Bracket" link at the active tournament's public page.
 function updateViewPublicLink() {
-  var link = document.getElementById('viewPublicLink');
-  if (!link) return;
   var slug = getAdminSlug();
-  link.href = slug ? '/t/' + encodeURIComponent(slug) : '/';
+  var href = slug ? '/t/' + encodeURIComponent(slug) : '/';
+  // The header corner is the same destination (owner, 2026-08-02) — set both
+  // here so they can never point at different tournaments.
+  ['viewPublicLink', 'adminHomeLink'].forEach(function (id) {
+    var link = document.getElementById(id);
+    if (link) link.href = href;
+  });
 }
 
 // Coach Panel is scoped by query param (?t=<slug>), not a path segment like

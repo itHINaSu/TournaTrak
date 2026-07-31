@@ -1009,9 +1009,190 @@ api.get('/setup-password/:token', ah(async (req, res) => {
   const hashed = store.hashToken(token);
   const user = (await store.allUsers()).find(u => u.setupToken === hashed && u.mustChangePassword);
   if (!user) return res.redirect('/admin?setup=invalid');
+  // A coach invited by another coach has no business on the admin login page —
+  // send them where their account can actually do something.
+  const home = user.role === 'team' ? '/coach' : '/admin';
   startSession(req, { username: user.username },
-    () => res.redirect('/admin?setup=1'),
-    () => res.redirect('/admin?setup=invalid'));
+    () => res.redirect(home + '?setup=1'),
+    () => res.redirect(home + '?setup=invalid'));
+}));
+
+// The team link's default username: the team's SHORT name with spaces
+// stripped, falling back to the full name, then made unique. A coach opening
+// this link is usually on a phone at a field, so the one field they must fill
+// in should already be filled in.
+async function suggestCoachUsername(tid, teamName) {
+  let base = teamName || 'coach';
+  try {
+    const t = await store.get(tid, 'teams');
+    const row = t && Array.isArray(t.teams)
+      ? t.teams.find(x => x && x.name === teamName) : null;
+    if (row && row.shortName) base = row.shortName;
+  } catch (e) { /* no teams doc yet — the full name is a fine default */ }
+  let cleaned = String(base).replace(/\s+/g, '').replace(/[^a-zA-Z0-9_-]/g, '');
+  if (cleaned.length < 2) cleaned = 'coach';
+  cleaned = cleaned.slice(0, 32);
+  // USERNAME_RE caps at 32, so a suffix has to eat into the base rather than
+  // extend past it.
+  if (!(await store.findUser(cleaned))) return cleaned;
+  for (let n = 2; n < 100; n++) {
+    const suffix = String(n);
+    const candidate = cleaned.slice(0, 32 - suffix.length) + suffix;
+    if (!(await store.findUser(candidate))) return candidate;
+  }
+  return cleaned.slice(0, 26) + Date.now().toString(36).slice(-5);
+}
+
+// Resolves a raw team-link token to its team account, or null. Shared by the
+// three routes below so the token rules live in exactly one place.
+async function resolveTeamToken(token) {
+  if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
+  const hashed = store.hashToken(token);
+  return (await store.allUsers())
+    .find(u => u.role === 'team' && u.accessToken === hashed) || null;
+}
+
+// Which tournament a team link belongs to: prefer the current mount if the
+// account is granted there, else its first grant.
+function teamTokenTid(user, reqTid) {
+  const grantTids = Object.keys(user.roles)
+    .filter(t => user.roles[t] === 'team').map(Number);
+  return grantTids.includes(reqTid) ? reqTid : (grantTids[0] ?? store.tid);
+}
+
+async function teamTokenSlugQuery(destTid) {
+  if (destTid === store.tid) return '';
+  const t = (await store.listTournaments()).find(x => x.id === destTid);
+  return t ? '&t=' + encodeURIComponent(t.slug) : '';
+}
+
+// What the join page needs to render itself. Token-gated and deliberately
+// thin: the team name the visitor is about to coach, and a username they can
+// accept as-is. Nothing about the team account behind the link.
+api.get('/team-join/:token', ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const user = await resolveTeamToken(req.params.token);
+  if (!user) return res.status(404).json({ error: 'This link is not valid.' });
+  const destTid = teamTokenTid(user, req.tid);
+  const teamName = coachTeamsOf(user, destTid)[0] || user.teamName || '';
+  res.json({
+    teamName,
+    suggestedUsername: await suggestCoachUsername(destTid, teamName),
+  });
+}));
+
+// Self-registration. The LINK is the credential — whoever holds it can already
+// act for this team today, so letting them create their own named account is
+// not a widening of access, it is the same access with an audit trail and a
+// password of their own. The new account is a peer coach, never the team
+// account itself: that one keeps its token so the TD can re-share or
+// regenerate it.
+api.post('/team-join/:token', loginRateLimit, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const user = await resolveTeamToken(req.params.token);
+  if (!user) return res.status(404).json({ error: 'This link is not valid.' });
+
+  const { username, password } = req.body || {};
+  if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
+    return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
+  }
+  if (typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  }
+  if (Buffer.byteLength(password, 'utf8') > 72) {
+    return res.status(400).json({ error: 'Password too long (max 72 characters)' });
+  }
+  if (await store.findUser(username)) {
+    return res.status(409).json({ error: 'That username is taken — pick another.' });
+  }
+
+  const destTid = teamTokenTid(user, req.tid);
+  const teamName = coachTeamsOf(user, destTid)[0] || user.teamName || '';
+  if (!teamName) return res.status(400).json({ error: 'This link has no team.' });
+
+  try {
+    const hash = await bcrypt.hash(password, 12);
+    await store.createUser({
+      username, role: 'team', teamName, teams: [teamName],
+      passwordHash: hash, mustChangePassword: false,
+    }, destTid);
+  } catch (err) {
+    console.error('team-join error:', err);
+    return res.status(500).json({ error: 'Could not create the account' });
+  }
+  startSession(req, { username },
+    () => res.json({ ok: true, username }),
+    () => res.status(500).json({ error: 'Account created — please sign in.' }));
+}));
+
+// ── Coaches inviting coaches ──────────────────────────────────────────
+// A coach may add another coach to a team THEY coach, and only to that team.
+// The invitee gets the same setup-token magic link the admin panel issues, so
+// there is one account-creation flow in the product rather than two.
+// Teams are stored per tournament (user_teams), not as a flat array on the
+// user — store.teamsFor(user, tid) is the only correct way to read them.
+function coachTeamsOf(user, tid) {
+  return store.teamsFor(user, tid).filter(Boolean);
+}
+
+// A coach acting for their OWN team. Not requireRole('team'): staff who also
+// coach have role admin/results, and the whole point of the "staff may also
+// coach" work is that they should not need a second account. The team list on
+// the account is what authorises, and each route checks the specific team
+// against it.
+function requireCoachSelf(req, res, next) {
+  if (!req.user)                   return res.status(401).json({ error: 'Authentication required' });
+  if (req.user.mustChangePassword) return res.status(403).json({ error: 'Password change required', mustChangePassword: true });
+  if (!coachTeamsOf(req.user, req.tid).length) {
+    return res.status(403).json({ error: 'You do not coach a team here.' });
+  }
+  next();
+}
+
+
+api.get('/coach/coaches', requireCoachSelf, ah(async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const mine = coachTeamsOf(req.user, req.tid);
+  if (!mine.length) return res.status(403).json({ error: 'You do not coach a team here.' });
+  const list = (await store.allUsers())
+    .filter(u => u.role === 'team' && coachTeamsOf(u, req.tid).some(t => mine.includes(t)))
+    .map(u => ({
+      username: u.username,
+      teams: coachTeamsOf(u, req.tid).filter(t => mine.includes(t)),
+      pending: !u.passwordHash,
+      isSelf: u.username === req.user.username,
+    }));
+  res.json(list);
+}));
+
+api.post('/coach/coaches', requireCoachSelf, ah(async (req, res) => {
+  const mine = coachTeamsOf(req.user, req.tid);
+  if (!mine.length) return res.status(403).json({ error: 'You do not coach a team here.' });
+
+  const { username, teamName } = req.body || {};
+  if (typeof username !== 'string' || !USERNAME_RE.test(username)) {
+    return res.status(400).json({ error: 'Username must be 2–32 characters (letters, digits, _ -)' });
+  }
+  // Default to the coach's own team; an explicit team must still be one of
+  // theirs, so this can never be used to reach another team's roster.
+  const team = (typeof teamName === 'string' && teamName) ? teamName : mine[0];
+  if (!mine.includes(team)) {
+    return res.status(403).json({ error: 'You do not coach that team.' });
+  }
+  if (await store.findUser(username)) {
+    return res.status(409).json({ error: 'Username already exists' });
+  }
+  try {
+    const setupToken = crypto.randomBytes(32).toString('hex');
+    await store.createUser({
+      username, role: 'team', teamName: team, teams: [team],
+      mustChangePassword: true, setupToken: store.hashToken(setupToken),
+    }, req.tid);
+    res.json({ ok: true, setupToken });
+  } catch (err) {
+    console.error('coach-invite error:', err);
+    res.status(500).json({ error: 'Failed to create coach' });
+  }
 }));
 
 api.get('/team-access/:token', ah(async (req, res) => {
@@ -1025,22 +1206,19 @@ api.get('/team-access/:token', ah(async (req, res) => {
   if (!user) {
     return res.redirect('/lineup?invalid=1');
   }
-  // Land the coach in the tournament where they hold a team grant. Prefer
-  // the current mount's tournament if granted there; otherwise their first
-  // grant. Default tournament needs no ?t= (legacy links keep working).
-  const grantTids = Object.keys(user.roles).filter(t => user.roles[t] === 'team').map(Number);
-  let destTid = grantTids.includes(req.tid) ? req.tid : (grantTids[0] ?? store.tid);
-  let dest = '/lineup';
-  if (destTid !== store.tid) {
-    const t = (await store.listTournaments()).find(x => x.id === destTid);
-    if (t) dest = '/lineup?t=' + encodeURIComponent(t.slug);
-  }
-  // A coach who has never set a password can only ever get back in through
-  // this link. Flag the arrival so the lineup page offers to turn it into a
-  // real account — the offer has to ride the URL because by the time the page
-  // asks /api/session it can no longer tell a magic-link arrival from a
-  // returning session.
-  if (!user.passwordHash) dest += (dest.includes('?') ? '&' : '?') + 'setpw=1';
+  // The link now lands on the COACH PANEL rather than the lineup page, and
+  // offers self-registration on arrival (owner, 2026-08-02). The token rides
+  // one hop further in the URL, which reveals nothing new — it is the same
+  // secret the coach was already sent.
+  //
+  // It STILL signs the holder in as the team account. That is deliberate and
+  // must not be "tidied up": this link is how every existing coach gets in,
+  // and turning it into a registration wall would lock all of them out until
+  // they made an account — during an event, from a phone, at a field.
+  // Registration is an OFFER on top of access, not a gate in front of it.
+  const destTid = teamTokenTid(user, req.tid);
+  const dest = '/coach?join=' + encodeURIComponent(token)
+    + (await teamTokenSlugQuery(destTid));
   startSession(req, { username: user.username },
     () => res.redirect(dest),
     () => res.redirect('/lineup?invalid=1'));

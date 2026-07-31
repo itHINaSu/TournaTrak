@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=4.08.035">
-<link rel="stylesheet" href="/admin.css?v=4.08.035">
-<link rel="stylesheet" href="/lineup.css?v=4.08.035">
-<script src="/app-h.js?v=4.08.035"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.036">
+<link rel="stylesheet" href="/admin.css?v=4.08.036">
+<link rel="stylesheet" href="/lineup.css?v=4.08.036">
+<script src="/app-h.js?v=4.08.036"></script>
 </head>
 <body>
 
@@ -42,6 +42,24 @@
       <a class="sched-save-btn login-btn" id="coachGateSignIn" href="/admin">Sign In</a>
       <a class="login-public-link" href="/">← Back to the bracket</a>
     </div>
+    <!-- Self-registration, shown only when the page was reached through a team
+         link (?join=TOKEN). The username is pre-filled with the team's short
+         name so a coach standing at a field has one field to fill in. -->
+    <form id="coachJoinForm" hidden autocomplete="on">
+      <div class="settings-field">
+        <label for="joinUser">Username</label>
+        <input type="text" id="joinUser" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="32">
+      </div>
+      <div class="settings-field">
+        <label for="joinPass">Password <span class="field-label-hint">(at least 8 characters)</span></label>
+        <input type="password" id="joinPass" autocomplete="new-password">
+      </div>
+      <div class="login-error" id="joinError" hidden></div>
+      <button type="submit" class="sched-save-btn login-btn" id="joinBtn">Create my coach account</button>
+      <!-- The link already signed them in, so this must never be a dead end:
+           anyone who does not want their own account carries on as before. -->
+      <button type="button" class="admin-clear-btn login-btn" id="joinSkipBtn">Continue without an account</button>
+    </form>
   </div>
 </div>
 
@@ -109,11 +127,15 @@
 </div>
 
 <header class="site-header" id="siteHeader">
-  <img id="coachSiteLogo" class="site-logo" alt="" hidden>
-  <div class="header-name-block">
-    <h1 id="coachSiteName">Coach Panel</h1>
-    <div id="coachTeamLine" class="site-subtitle"></div>
-  </div>
+  <!-- Same as the admin panel: the corner is a way back to the public page.
+       href is set by updateCoachHomeLink() so it follows ?t=<slug>. -->
+  <a class="header-home-link" id="coachHomeLink" href="/" title="Back to the tournament page">
+    <img id="coachSiteLogo" class="site-logo" alt="" hidden>
+    <div class="header-name-block">
+      <h1 id="coachSiteName">Coach Panel</h1>
+      <div id="coachTeamLine" class="site-subtitle"></div>
+    </div>
+  </a>
   <!-- Persistent cluster beside the hamburger, same pattern as the public
        header (owner, 2026-08-01) — the theme toggle icon sits a touch left of
        the hamburger rather than as text buried at the bottom of the
@@ -493,6 +515,30 @@
         </div>
       </div>
     </div>
+
+    <!-- Coaches may add coaches to their OWN team. Same setup-token magic link
+         the admin panel issues, so there is one account-creation flow in the
+         product rather than two. -->
+    <div class="settings-section">
+      <div class="settings-section-hdr">Coaches</div>
+      <div class="collapsible-body">
+        <div class="admin-subtitle admin-subtitle--flush">Anyone you add here can manage this team's roster and lineups. Send them the link you get back — it works once, and lets them set their own password.</div>
+        <div id="coachListWrap"></div>
+        <div class="settings-field">
+          <label for="newCoachUser">Add a coach <span class="field-label-hint">(their username)</span></label>
+          <input type="text" id="newCoachUser" autocapitalize="none" spellcheck="false" maxlength="32" placeholder="e.g. jsmith">
+        </div>
+        <div class="settings-save-row">
+          <button class="sched-save-btn" data-action="addTeamCoach">Create coach link</button>
+          <span class="sched-status" id="addCoachStatus"></span>
+        </div>
+        <div class="resched-preview" id="newCoachLinkWrap" hidden>
+          <div class="resched-preview-hdr">Send this link to <span id="newCoachName"></span></div>
+          <input type="text" id="newCoachLink" readonly data-selectall>
+          <div class="resched-note">This is the only time the link is shown. If it is lost, delete the coach and add them again.</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ── ACCOUNT ──────────────────────────────────────────────────────-->
@@ -547,11 +593,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.035"></script>
-<script src="/theme-css.js?v=4.08.035"></script>
-<script src="/tt-common.js?v=4.08.035"></script>
-<script src="/bracket-data.js?v=4.08.035"></script>
-<script src="/lineup.js?v=4.08.035"></script>
-<script src="/coach.js?v=4.08.035"></script>
+<script src="/settings-defaults.js?v=4.08.036"></script>
+<script src="/theme-css.js?v=4.08.036"></script>
+<script src="/tt-common.js?v=4.08.036"></script>
+<script src="/bracket-data.js?v=4.08.036"></script>
+<script src="/lineup.js?v=4.08.036"></script>
+<script src="/coach.js?v=4.08.036"></script>
 </body>
 </html>

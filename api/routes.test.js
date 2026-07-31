@@ -1889,3 +1889,132 @@ describe('push notifications', () => {
     await c.post('/api/push/public-unsubscribe', { endpoint: PUB('anon4').endpoint });
   });
 });
+
+// ── Coach self-registration + coaches inviting coaches (2026-08-02) ────
+describe('coach self-registration from a team link', () => {
+  rtest('the team link still signs the holder in, and lands on the coach panel', async () => {
+    // Both halves matter. The redirect target changed; the sign-in did NOT,
+    // because that link is how every existing coach gets in and a
+    // registration wall in front of it would lock them all out.
+    const a = await loginAdmin();
+    const mk = await a.post('/api/users',
+      { username: 'team_join_a', role: 'team', teamName: 'Joiners' });
+    assert.equal(mk.status, 200);
+    const c = agent();
+    const hit = await c.req('GET', '/api/team-access/' + mk.json.accessToken,
+      undefined, { manual: true });
+    assert.equal(hit.status, 302);
+    assert.match(hit.headers.get('location'), /^\/coach\?join=/, 'lands on the coach panel, got ' + hit.headers.get('location'));
+    assert.equal((await c.get('/api/session')).json.authenticated, true,
+      'the link must still sign the coach in');
+  });
+
+  rtest('the join page suggests the short team name with no spaces', async () => {
+    const a = await loginAdmin();
+    assert.equal((await a.post('/api/teams',
+      { showSeeds: false, teams: [{ name: 'River Bandits', shortName: 'Bandits' }] })).status, 200);
+    const mk = await a.post('/api/users',
+      { username: 'team_short', role: 'team', teamName: 'River Bandits' });
+    assert.equal(mk.status, 200);
+    const u = agent();
+    const info = await u.get('/api/team-join/' + mk.json.accessToken);
+    assert.equal(info.status, 200);
+    assert.equal(info.json.teamName, 'River Bandits');
+    assert.equal(info.json.suggestedUsername, 'Bandits');
+  });
+
+  rtest('a bad token gets nothing back', async () => {
+    const u = agent();
+    assert.equal((await u.get('/api/team-join/' + 'f'.repeat(64))).status, 404);
+    assert.equal((await u.get('/api/team-join/not-a-token')).status, 404);
+    assert.equal((await u.post('/api/team-join/' + 'f'.repeat(64),
+      { username: 'nobody', password: 'password123' })).status, 404);
+  });
+
+  rtest('registering creates a real account signed in as itself', async () => {
+    const a = await loginAdmin();
+    const mk = await a.post('/api/users',
+      { username: 'team_join_b', role: 'team', teamName: 'Selfies' });
+    const u = agent();
+    const r = await u.post('/api/team-join/' + mk.json.accessToken,
+      { username: 'coach_self', password: 'mypassword123' });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    const who = await u.get('/api/session');
+    assert.equal(who.json.username, 'coach_self');
+    assert.equal(who.json.role, 'team');
+    // The team account it was created from must survive — the TD still needs
+    // to re-share or regenerate that link.
+    assert.ok((await a.get('/api/users')).json.some(x => x.username === 'team_join_b'),
+      'the team account must not be consumed by a join');
+  });
+
+  rtest('registration refuses a weak password or a taken name', async () => {
+    const a = await loginAdmin();
+    const mk = await a.post('/api/users',
+      { username: 'team_join_c', role: 'team', teamName: 'Guards' });
+    const u = agent();
+    assert.equal((await u.post('/api/team-join/' + mk.json.accessToken,
+      { username: 'ok_name', password: 'short' })).status, 400);
+    assert.equal((await u.post('/api/team-join/' + mk.json.accessToken,
+      { username: 'bad name!', password: 'password123' })).status, 400);
+    assert.equal((await u.post('/api/team-join/' + mk.json.accessToken,
+      { username: 'team_join_c', password: 'password123' })).status, 409);
+  });
+});
+
+describe('coaches inviting coaches', () => {
+  rtest('a coach can add a coach to their own team, and gets a working link', async () => {
+    const a = await loginAdmin();
+    const mk = await a.post('/api/users',
+      { username: 'team_inviter', role: 'team', teamName: 'Invites' });
+    const c = agent();
+    await c.req('GET', '/api/team-access/' + mk.json.accessToken, undefined, { manual: true });
+
+    const r = await c.post('/api/coach/coaches', { username: 'assistant_1' });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    assert.ok(r.json.setupToken, 'the inviter gets a magic link token');
+
+    // The invitee's link works and drops them on the COACH panel, not admin.
+    const inv = agent();
+    const hit = await inv.req('GET', '/api/setup-password/' + r.json.setupToken,
+      undefined, { manual: true });
+    assert.equal(hit.status, 302);
+    assert.match(hit.headers.get('location'), /^\/coach\?setup=/,
+      'a coach invite must not land on the admin login, got ' + hit.headers.get('location'));
+    const who = await inv.get('/api/session');
+    assert.equal(who.json.authenticated, true);
+    assert.equal(who.json.role, 'team');
+  });
+
+  rtest('a coach cannot add a coach to a team they do not coach', async () => {
+    const a = await loginAdmin();
+    const mine = await a.post('/api/users',
+      { username: 'team_own', role: 'team', teamName: 'Mine' });
+    await a.post('/api/users', { username: 'team_other', role: 'team', teamName: 'Theirs' });
+    const c = agent();
+    await c.req('GET', '/api/team-access/' + mine.json.accessToken, undefined, { manual: true });
+
+    assert.equal((await c.post('/api/coach/coaches',
+      { username: 'intruder', teamName: 'Theirs' })).status, 403,
+      'a coach must not be able to reach another team');
+    // And the listing only ever shows their own team's coaches.
+    const list = await c.get('/api/coach/coaches');
+    assert.equal(list.status, 200);
+    assert.ok(list.json.every(x => x.teams.every(t => t === 'Mine')),
+      'the coach list must not leak another team');
+  });
+
+  rtest('a signed-out visitor cannot invite anyone', async () => {
+    const u = agent();
+    assert.equal((await u.post('/api/coach/coaches', { username: 'ghost' })).status, 401);
+    assert.equal((await u.get('/api/coach/coaches')).status, 401);
+  });
+
+  rtest('staff with no team of their own cannot use the coach routes', async () => {
+    // requireCoachSelf authorises on the TEAM LIST, not the role — staff who
+    // coach are allowed, staff who do not are not.
+    const a = await loginAdmin();
+    assert.equal((await a.get('/api/coach/coaches')).status, 403);
+    assert.equal((await a.post('/api/coach/coaches', { username: 'nope' })).status, 403);
+  });
+});

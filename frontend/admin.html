@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.035">
-<link rel="stylesheet" href="/admin.css?v=4.08.035">
-<link rel="stylesheet" href="/lineup.css?v=4.08.035">
-<link rel="stylesheet" href="/builder.css?v=4.08.035">
-<link rel="stylesheet" href="/score.css?v=4.08.035">
-<script src="/app-h.js?v=4.08.035"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.036">
+<link rel="stylesheet" href="/admin.css?v=4.08.036">
+<link rel="stylesheet" href="/lineup.css?v=4.08.036">
+<link rel="stylesheet" href="/builder.css?v=4.08.036">
+<link rel="stylesheet" href="/score.css?v=4.08.036">
+<script src="/app-h.js?v=4.08.036"></script>
 </head>
 <body>
 
@@ -172,10 +172,15 @@
        validated data URI in applyThemeColors(). Staff switching between
        tournaments get the same at-a-glance confirmation of which one they
        are looking at that the public page gives. -->
-  <img id="adminSiteLogo" class="site-logo" alt="" hidden>
-  <div class="header-name-block">
-    <h1 id="adminSiteName">Tournament Admin</h1>
-  </div>
+  <!-- Logo and name are a link back to the public page from any panel
+       (owner, 2026-08-02). href is kept pointing at the ACTIVE tournament by
+       updateViewPublicLink(), the same place the "← Bracket" button is set. -->
+  <a class="header-home-link" id="adminHomeLink" href="/" title="Back to the tournament page">
+    <img id="adminSiteLogo" class="site-logo" alt="" hidden>
+    <div class="header-name-block">
+      <h1 id="adminSiteName">Tournament Admin</h1>
+    </div>
+  </a>
   <!-- Persistent cluster beside the hamburger, same pattern as the public
        header (owner, 2026-08-01) — the theme toggle icon sits a touch left of
        the hamburger rather than as text buried at the bottom of the
@@ -1217,15 +1222,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.08.035"></script>
-<script src="/theme-css.js?v=4.08.035"></script>
-<script src="/tt-common.js?v=4.08.035"></script>
-<script src="/bracket-data.js?v=4.08.035"></script>
-<script src="/admin.js?v=4.08.035"></script>
-<script src="/lineup.js?v=4.08.035"></script>
-<script src="/score.js?v=4.08.035"></script>
-<script src="/builder-form.js?v=4.08.035"></script>
-<script src="/builder.js?v=4.08.035"></script>
-<script src="/sw-register.js?v=4.08.035" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.036"></script>
+<script src="/theme-css.js?v=4.08.036"></script>
+<script src="/tt-common.js?v=4.08.036"></script>
+<script src="/bracket-data.js?v=4.08.036"></script>
+<script src="/admin.js?v=4.08.036"></script>
+<script src="/lineup.js?v=4.08.036"></script>
+<script src="/score.js?v=4.08.036"></script>
+<script src="/builder-form.js?v=4.08.036"></script>
+<script src="/builder.js?v=4.08.036"></script>
+<script src="/sw-register.js?v=4.08.036" data-sw="/admin-sw.js"></script>
 </body>
 </html>

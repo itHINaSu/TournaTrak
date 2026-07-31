@@ -857,3 +857,23 @@ body.print-palette .flight-col--champ {
   color: var(--text-mute);
   text-align: right;
 }
+
+/* Header corner as a link back to the public page, on the admin and coach
+   panels (owner, 2026-08-02). Wrapping the logo + name in an <a> must not
+   change how the header looks or lays out, so this only removes the anchor's
+   own styling and re-establishes the flex row it replaced. */
+.header-home-link {
+  display: flex;
+  align-items: center;
+  gap: inherit;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  /* Hugs its text and pushes the rest of the header right, rather than
+     stretching. The public header learned this the hard way: a name-block set
+     to flex:1 reaches the header controls, so at 1920px a click 1100px away
+     from the tournament name still navigated. */
+  margin-right: auto;
+}
+.header-home-link:hover #adminSiteName,
+.header-home-link:hover #coachSiteName { color: var(--gold-lt); }

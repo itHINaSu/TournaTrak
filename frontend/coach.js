@@ -36,9 +36,19 @@ function showCoachGate(title, text, offerSignIn) {
   gate.hidden = false;
 }
 
+// The header corner returns to the public page for whichever tournament this
+// panel is scoped to. Coach scoping is ?t=<slug>, not a path segment.
+function updateCoachHomeLink() {
+  var link = document.getElementById('coachHomeLink');
+  if (!link) return;
+  var slug = new URLSearchParams(window.location.search).get('t');
+  link.href = slug ? '/t/' + encodeURIComponent(slug) : '/';
+}
+
 function showCoachPanel(session) {
   document.getElementById('coachGate').hidden = true;
   document.getElementById('adminWrap').hidden = false;
+  updateCoachHomeLink();
   ttApplyPanelOffsets();
   var teams = session.teams || [];
   var line = document.getElementById('coachTeamLine');
@@ -112,6 +122,7 @@ function initCoachTabs() {
       if (name === 'team' && !window._teamTabInitDone) {
         window._teamTabInitDone = true;
         initTeamTab();
+        renderCoachList();
       }
       try { localStorage.setItem('ttCoachTab', name); } catch (e) {}
       updateCoachShareBtn();
@@ -131,7 +142,80 @@ function restoreCoachTab() {
   updateCoachShareBtn();
 }
 
+// ── Self-registration from a team link ────────────────────────────────
+// The team link used to sign its holder straight into a shared team account.
+// It now lands here (?join=TOKEN) so each coach ends up with their own named
+// account and password. The token in the URL is the same secret the coach was
+// already sent, and it is exchanged for an account exactly once — after that
+// they sign in normally.
+function coachJoinToken() {
+  return new URLSearchParams(window.location.search).get('join') || '';
+}
+
+async function showCoachJoin(token) {
+  var form = document.getElementById('coachJoinForm');
+  var r = await fetch(coachApiBase() + '/team-join/' + encodeURIComponent(token))
+    .catch(function () { return null; });
+  if (!r || !r.ok) {
+    showCoachGate('Link not valid',
+      'This team link has expired or been replaced. Ask your organiser for a new one.', true);
+    return;
+  }
+  var info = await r.json();
+  showCoachGate('Coach sign-up',
+    'Create your own coach account for ' + (info.teamName || 'this team')
+    + '. You will use this to manage the roster and lineups.', false);
+  document.getElementById('joinUser').value = info.suggestedUsername || '';
+  if (form) form.hidden = false;
+
+  // The team link already signed them in, so declining must simply carry on
+  // into the panel rather than leave them staring at a form.
+  document.getElementById('joinSkipBtn').onclick = function () {
+    window.location.replace('/coach' + coachSlugQuery());
+  };
+
+  form.onsubmit = async function (e) {
+    e.preventDefault();
+    var errEl = document.getElementById('joinError');
+    var btn   = document.getElementById('joinBtn');
+    errEl.hidden = true;
+    btn.disabled = true;
+    try {
+      var resp = await fetch(coachApiBase() + '/team-join/' + encodeURIComponent(token), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('joinUser').value.trim(),
+          password: document.getElementById('joinPass').value,
+        }),
+      });
+      var data = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) {
+        errEl.textContent = data.error || 'Could not create the account.';
+        errEl.hidden = false;
+        btn.disabled = false;
+        return;
+      }
+      // Drop the token from the URL before reloading — it is spent, and it has
+      // no business sitting in history or being re-shared from the address bar.
+      window.location.replace('/coach' + coachSlugQuery());
+    } catch (err) {
+      errEl.textContent = 'Could not reach the server.';
+      errEl.hidden = false;
+      btn.disabled = false;
+    }
+  };
+}
+
+// Preserve ?t=<slug> across the join redirect so a non-default tournament
+// does not silently bounce the new coach to the live one.
+function coachSlugQuery() {
+  var t = new URLSearchParams(window.location.search).get('t');
+  return t ? '?t=' + encodeURIComponent(t) : '';
+}
+
 async function initCoachPanel() {
+  var joinToken = coachJoinToken();
+  if (joinToken) { await showCoachJoin(joinToken); return; }
   var r = await fetch(coachApiBase() + '/session').catch(function () { return null; });
   var session = r && r.ok ? await r.json().catch(function () { return null; }) : null;
   _coachSession = session;
@@ -1310,6 +1394,49 @@ function printCoachShare() {
   else { img.onload = go; img.onerror = go; }
 }
 
+// ── Coaches inviting coaches ──────────────────────────────────────────
+async function renderCoachList() {
+  var wrap = document.getElementById('coachListWrap');
+  if (!wrap) return;
+  var r = await fetch(coachApiBase() + '/coach/coaches').catch(function () { return null; });
+  if (!r || !r.ok) { wrap.innerHTML = ''; return; }
+  var list = await r.json().catch(function () { return []; });
+  if (!list.length) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = list.map(function (c) {
+    return '<div class="resched-move">'
+      + '<span class="resched-when">' + esc(c.username) + (c.isSelf ? ' (you)' : '') + '</span>'
+      + '<span class="resched-lbl">' + esc(c.teams.join(', ')) + '</span>'
+      + (c.pending ? '<span class="resched-fld">link not used yet</span>' : '')
+      + '</div>';
+  }).join('');
+}
+
+async function addTeamCoach() {
+  var inp = document.getElementById('newCoachUser');
+  var username = (inp.value || '').trim();
+  if (!username) { setStatus('addCoachStatus', 'Enter a username', true); return; }
+  setStatus('addCoachStatus', 'Creating…');
+  try {
+    var r = await fetch(coachApiBase() + '/coach/coaches', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username }),
+    });
+    var d = await r.json().catch(function () { return {}; });
+    if (!r.ok) { setStatus('addCoachStatus', d.error || 'Failed', true); return; }
+    // Shown once, like every other token in this app — only the hash is kept.
+    var link = window.location.origin + '/api/setup-password/' + d.setupToken;
+    document.getElementById('newCoachName').textContent = username;
+    document.getElementById('newCoachLink').value = link;
+    document.getElementById('newCoachLinkWrap').hidden = false;
+    if (navigator.clipboard) navigator.clipboard.writeText(link).catch(function () {});
+    inp.value = '';
+    setStatus('addCoachStatus', '✓ Link copied', true);
+    renderCoachList();
+  } catch (e) {
+    setStatus('addCoachStatus', 'Failed', true);
+  }
+}
+
 Object.assign(TT_ACTIONS, {
   saveCoachUsername: function () { saveCoachUsername(); },
   saveCoachPassword: function () { saveCoachPassword(); },
@@ -1319,6 +1446,7 @@ Object.assign(TT_ACTIONS, {
   deleteRosterRow:   function (arg) { deleteRosterRow(arg); },
   sortRoster:        function (arg) { sortRoster(arg); },
   saveTeamProfile:   function () { saveTeamProfile(); },
+  addTeamCoach:      function () { addTeamCoach(); },
   removeTeamTabLogo: function () { removeTeamTabLogo(); },
   recropTeamTabLogo: function () { recropTeamTabLogo(); },
   clearTeamTabColor: function (arg) { clearTeamTabColor(arg); },
