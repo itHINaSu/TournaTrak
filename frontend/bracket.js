@@ -6991,13 +6991,19 @@ Object.assign(TT_ACTIONS, {
     updateProjectBar();
   },
   // Logo / tournament name / subtitle act as the wordmark link back to the
-  // landing tab. DESKTOP ONLY: on mobile the header wraps into a cramped two
-  // row block, a stray tap on the name would read as a misfire, and the tab
-  // bar is pinned on screen there anyway. Delegating to the tab's own click
-  // handler keeps one code path for the cookie, the pushed path, the edit
-  // mode teardown and the refetch.
+  // landing tab. Delegating to the tab's own click handler keeps one code path
+  // for the cookie, the pushed path, the edit mode teardown and the refetch.
+  //
+  // ON EVERY WIDTH since 2026-08-02 (owner), superseding the desktop-only rule
+  // that used to live here. That rule was written when the mobile header
+  // wrapped into a cramped two-row block, where a stray tap on the name read
+  // as a misfire. The header has since been rebuilt around the persistent
+  // cluster + hamburger and no longer wraps, and the same corner now goes home
+  // from the admin and coach panels — a wordmark that works in two panels and
+  // silently does nothing on the third is the more confusing outcome. The hit
+  // area still hugs the text (`width: fit-content`), which is what kept a
+  // click far from the name from navigating.
   goHome: function() {
-    if (window.innerWidth < 1280) return;
     var want = landingTab();
     var tab = document.querySelector('.view-tab[data-view="' + want + '"]');
     // The fourth slot is shared by Buckets and Standings, so the configured

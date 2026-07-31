@@ -135,12 +135,12 @@ body {
    a short tournament name would navigate. fit-content shrinks the h1 and
    subtitle boxes to their content without touching the header's layout. */
 #siteName, .site-subtitle { width: fit-content; max-width: 100%; }
-/* Affordance only where goHome actually fires (it no-ops under 1280px). */
-@media (min-width: 1280px) {
-  .site-logo[data-action], #siteName[data-action], .site-subtitle[data-action] { cursor: pointer; }
-  #siteName[data-action]:hover, .site-logo[data-action]:hover { opacity: 0.82; }
-  .site-subtitle[data-action]:hover { opacity: 0.82; }
-}
+/* goHome fires at every width since 2026-08-02 (owner), so the affordance is
+   no longer gated on the desktop breakpoint. The hover half stays harmless on
+   touch, where :hover simply never matches. */
+.site-logo[data-action], #siteName[data-action], .site-subtitle[data-action] { cursor: pointer; }
+#siteName[data-action]:hover, .site-logo[data-action]:hover { opacity: 0.82; }
+.site-subtitle[data-action]:hover { opacity: 0.82; }
 .site-subtitle {
   display: block;
   visibility: hidden;
