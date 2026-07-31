@@ -3657,6 +3657,26 @@ also correctly showed at `.elim` opacity, unaffected by branding), then
 cleared both back to unset afterward — the demo seed itself has no team
 colors set, so this was a temporary check, not a data change worth keeping.
 
+## Username fields no longer open the mobile keyboard shifted (owner, 2026-08-02)
+Owner: *"The login screen on mobile. Every time the keyboard opens with the
+shift button on. Is it possible to make that not happen?"* Mobile browsers
+auto-capitalize the first letter of any text `<input>` by default unless told
+otherwise — fine for a name field, wrong for a username, which is case-
+sensitive-looking even when the backend folds case, and just visually
+surprising to have to backspace past a capital every time.
+
+Added `autocapitalize="off" autocorrect="off" spellcheck="false"` to every
+actual username field: `admin.html` (`#loginUser`, `#setupUser`,
+`#cpUsername`, `#setNewUsername`, `#newUserUsername`, `#newCoachUsername`),
+`coach.html` (`#coachSetUsername`), `lineup.html` (`#coachLoginUser`,
+`#coachPwUsername`). Left team/tournament name fields (`#newTeamName`,
+`#newTournamentName`, `#newTournamentSlug`, `#newBucketTeam`) alone —
+those are proper nouns where auto-capitalization is the wanted behavior, not
+the bug being reported. Password fields weren't touched either; mobile
+keyboards already treat `type="password"` specially. Attribute-only change,
+nothing to run against the demo to confirm — the on-screen keyboard itself
+is native OS chrome outside what a headless browser renders.
+
 ## Unset team colors get a red X through the swatch (owner, 2026-08-02)
 Owner: *"If a team hasn't selected a color (primary, secondary, text,
 outline) place a small red x through the box to indicate a selection hasn't
