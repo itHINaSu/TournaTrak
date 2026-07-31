@@ -7,12 +7,13 @@ files/*
 !files/schedule.example.json
 
 # Demo sandbox runtime data (recreated from demo-seed/ on every reset).
+# Lives under sales-site/demo/ — see sales-site/demo/compose.demo.yml.
 # demo-seed/ itself IS tracked — it's the canonical demo snapshot.
 # Track the directory placeholder so git clones create demo-files/ with
 # user-owned permissions; Docker bind mounts then re-use the existing dir
 # instead of creating a new root:root one that the node user can't write to.
-demo-files/*
-!demo-files/.gitkeep
+sales-site/demo/demo-files/*
+!sales-site/demo/demo-files/.gitkeep
 
 # Rolling database backups written by the `backup` compose service. These are
 # full dumps: they contain bcrypt password hashes and hashed team tokens, so

@@ -2499,6 +2499,28 @@ disabled.** Three asks, one still blocked:
   register a service worker), and re-ran the full HTML/JS/CSS sweep from
   the original `/demo/` work to confirm nothing regressed.
 
+**2026-07-31: demo files physically relocated to `sales-site/demo/`.**
+Completes S1/S2 from `PENDING.md` for real: `compose.demo.yml`,
+`demo-seed/`, and `demo-files/` moved from the repo root to
+`sales-site/demo/` (git mv, history preserved) since the sales site is the
+demo's only real consumer. `compose.demo.yml`'s paths to the shared
+production code it runs (`../../api`, `../../frontend`,
+`../../nginx/nginx.conf`) now point two levels up at the repo root — it is
+NOT a fork of that code, still the same `api`/`frontend` as the real
+deployment. `./demo-files` and `./demo-seed` stayed relative and needed no
+change, since they moved along with the file. `sales-site/docker-compose.yml`'s
+`include:` path is now `./demo/compose.demo.yml`. Also updated: `.gitignore`
+(the `demo-files/*` allowlist pattern is now `sales-site/demo/demo-files/*`),
+`README.md` (directory tree + the standalone-run command, now
+`docker compose -f sales-site/demo/compose.demo.yml -p tournatrak-demo up`),
+and `docs/PENDING.md` (S1/S2 moved from "Agreed, not started" to "In
+progress" — built on this branch, not yet on `main`, so not marked Done per
+this file's own rule). Verified with `docker compose config` (both the
+sales-site-included form and the standalone `-f sales-site/demo/compose.demo.yml`
+form) resolving every bind mount and build context to the right absolute
+path — `docker compose config` needs no daemon, so this worked even with
+this sandbox's Docker registry block.
+
 ## Current state
 `main` at the top of the 2026-07-30 list in "Outstanding work" holds everything
 below. Nothing is unmerged;

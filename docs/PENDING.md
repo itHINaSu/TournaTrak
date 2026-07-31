@@ -34,8 +34,6 @@ Last updated 2026-07-30.
 | R3 | **Role / tournament assignment UI** | `ROLES.md` §4 step 3. Server side is DONE and tested — `POST /users/:u/grant`, `DELETE /users/:u/grants/:tid`, `DELETE /users/:u/coach`, `POST /users/:u/schedule-cap`. Only the panel is missing. |
 | R4 | **Standings replaces Bucket Challenge** | `ROLES.md` §4 step 4. Owner spec: rename to **Standings** in settings; default **W/L with runs for/against**; option for custom standings with custom naming and custom SVG, and the other custom options alongside. **Do not delete the stored role value `buckets`** — existing grants would fail the role check and lock those people out. Rename the label, repoint the guard. |
 | M1 | **Mobile double-elim round combining** | Parked since 2026-07-28; owner: "I'll have to look again, this needs addressed soon." Needs the desired behaviour confirmed before building — see the TODO section at the foot of `HANDOFF.md`. |
-| S1 | **Demo stack served from the sales site at `/demo`** | Fold `compose.demo.yml` into the sales-site compose. ⚠️ The demo uses a NAMED volume (`demo-pgdata`) **on purpose** — it is a sandbox reset from `demo-seed/`, so `down -v` wiping it is a feature. Preserve that, and keep it isolated from the real instance's `./pgdata`. |
-| S2 | **Sales site placeholders** | Real demo URL (see S1) and contact email in `sales-site/index.html`. |
 | D1 | **ROADMAP.md entries** | Owner asked for the above to be reflected in `ROADMAP.md` with appropriate notes. |
 
 ---
@@ -44,7 +42,8 @@ Last updated 2026-07-30.
 
 | # | Item | State |
 |---|---|---|
-*(nothing in progress — see Tabled below)*
+| S1 | **Demo stack served from the sales site at `/demo`** | Built on `claude/sales-page-updates-x1cehz`, not yet on `main`. `compose.demo.yml` folded into `sales-site/docker-compose.yml` via `include:`, then physically relocated to `sales-site/demo/compose.demo.yml` (with `demo-seed/`, `demo-files/` alongside it) since the sales site is its only real consumer. `/demo/` reverse-proxied by `sales-site/nginx.conf` with the path-rewriting a subpath-unaware app needs. The named `demo-pgdata` volume and its `down -v`-is-a-feature property are preserved unchanged; still isolated from the real instance's `./pgdata`. Verified via a locally-installed nginx against the real `frontend/` files (this sandbox's Docker can't pull `nginx:alpine`/`postgres:16-alpine` to test the containers themselves) — NOT yet verified against the live app end-to-end. See `HANDOFF.md` "Sales site" for the full detail. |
+| S2 | **Sales site placeholders** | Done on the same branch as S1: contact is `sales@tournatrak.com`, demo CTAs point at `/demo/`. Same not-on-main caveat as S1. |
 
 ---
 

@@ -105,12 +105,15 @@ if you need to pin it.
 │   └── nginx.conf         # reverse proxy: serves frontend, proxies /api, CSP headers
 ├── sales-site/            # static marketing site (separate nginx container, port 8081)
 │   ├── index.html / style.css / script.js
-│   └── nginx.conf
+│   ├── nginx.conf         # also reverse-proxies /demo/ to the demo stack below
+│   └── demo/              # public demo sandbox stack (included by sales-site's own compose)
+│       ├── compose.demo.yml
+│       ├── demo-seed/     # canonical demo snapshot (tracked)
+│       └── demo-files/    # legacy import source — gitignored, placeholder tracked
 ├── files/                 # legacy v2 JSON data — gitignored; now only the one-time
 │   │                      # import source, mounted read-only at /data
 │   └── schedule.example.json   # documents the schedule format (tracked)
-├── compose.yml            # nginx + api + postgres (internal-only) + backup
-└── compose.demo.yml       # public demo sandbox stack
+└── compose.yml            # nginx + api + postgres (internal-only) + backup
 ```
 
 ### Key design choices
@@ -344,20 +347,29 @@ The sales site runs as a separate service on port 8081.
 
 ### Public demo sandbox
 
-`compose.demo.yml` runs a second, throwaway stack on port **3024** for a "try it
-live" link. It has its own internal postgres service and volume and runs in
-`DEMO_MODE`, so the API restores the `./demo-seed` snapshot on boot and every
-`DEMO_RESET_MINUTES` (default 30) — anything a visitor changes is wiped back to
-the seed. Public credentials: **demo / demo**.
+`sales-site/demo/compose.demo.yml` runs a second, throwaway stack on port
+**3024** for a "try it live" link — same `api`/`frontend` code as the real
+deployment, pointed at its own internal postgres service and volume, in
+`DEMO_MODE` so the API restores the `./demo-seed` snapshot on boot and every
+`DEMO_RESET_MINUTES` (default 30). Anything a visitor changes is wiped back to
+the seed. Public credentials: **demo / demo**. It lives under `sales-site/`
+because the sales site is its only real consumer: `sales-site/docker-compose.yml`
+pulls it in via `include:` so bringing up the sales site brings up the demo
+too, reverse-proxied at `/demo/` by `sales-site/nginx.conf` (see the comments
+there for why a subpath-unaware app needs more than a bare `proxy_pass`, and
+`sales-site/SALES_SITE_BRIEF.md` for why the demo deliberately doesn't offer
+a PWA install).
 
 ```bash
-docker compose -f compose.demo.yml -p tournatrak-demo up -d --build
+# From the repo root, standalone (same host port either way — don't run
+# this at the same time as `docker compose up` in sales-site/):
+docker compose -f sales-site/demo/compose.demo.yml -p tournatrak-demo up -d --build
 ```
 
 The demo shares one dataset (v2 is single-tenant), so simultaneous visitors see
 each other's edits until the next reset. Per-visitor isolation is a v3 concern.
-To change the demo's starting state, edit the files in `demo-seed/` (e.g.
-regenerate `schedule.json` via the Bracket Builder or `generate-schedule.js`).
+To change the demo's starting state, edit the files in `sales-site/demo/demo-seed/`
+(e.g. regenerate `schedule.json` via the Bracket Builder or `generate-schedule.js`).
 
 ---
 
