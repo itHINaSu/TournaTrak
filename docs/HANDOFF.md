@@ -2918,6 +2918,9 @@ of seven chips is no tidier on a laptop than on a phone — so the rules were
 un-nested and apply at all widths. Nothing in them was breakpoint-dependent;
 `updateHeaderMenu()` already decides WHETHER to show the hamburger (two or
 more visible controls), so a page with one control still renders inline.
+(That item list is history, not current — Edit moved OUT of the menu
+entirely and theme moved to dead last; see "Header menu order" below for
+what is actually in there today.)
 
 The old `@media (min-width: 1280px) { .header-menu-btn { display: none } }` is
 gone. If you are looking for the mobile/desktop split, it lives in the bracket
@@ -2929,12 +2932,86 @@ has in a better place. `hidden` in the markup, shown by the session handler
 when `isPwa`. Pull-to-refresh is the same action by gesture and stays
 available everywhere.
 
-## Header menu order (owner, 2026-07-30)
-Share, Project winners, Notifications, theme, Refresh, then Coach Panel and
-Admin Panel LAST because they leave the page. DOM order is menu order (flex
-column), so reordering means reordering the markup. The panel links stay
-role-gated; the Admin link additionally shows to a SIGNED-OUT visitor in an
-installed PWA, which is not an oversight — see the comment at that line.
+## Header menu order (owner, 2026-07-30, reordered 2026-08-01) — READ BEFORE ADDING A MENU ITEM
+Current, actual order, per page (DOM order is menu order — the panel is a
+flex column, so reordering means reordering the markup, not touching JS):
+
+- **`index.html` (public):** Share, Project winners, Notifications, Refresh,
+  then **Coach Panel / Admin Panel / Sign in** — exactly whichever of those
+  the signed-in session has access to (never more than one of the three,
+  since they're mutually exclusive states), minus a link to this page
+  (there isn't one) — then **Dark Mode last, always**.
+- **`admin.html`:** tournament switcher (a utility control, not a
+  destination — stays first), **← Bracket**, **Coach Panel** (only if this
+  account has a team grant), **Dark Mode last**. No Admin Panel link — this
+  IS admin panel.
+- **`coach.html`:** Sign Out (a context action tied to being on this page,
+  same category as Refresh above — stays first), **← Bracket**, **Admin
+  Panel** (only for admin/results roles), **Dark Mode last**. No Coach
+  Panel link — this IS coach panel.
+
+The general rule those three follow — owner: **"Bracket, Coach, Admin
+whatever a user has access to, all buttons except the page they're on"** —
+is: every page offers a way to each of the other two panels the session can
+reach, and Dark Mode is the last item on every page, full stop, because it
+is the one control that is never a destination and never role-gated, so it
+anchors the bottom regardless of which of the others happen to be visible
+above it. `score.html` and `lineup.html` were deliberately NOT brought into
+this — they are not one of the three named panels, `score.html`'s existing
+"Admin" link is unconditional rather than role-gated the way the others are,
+and extending the pattern there was judged scope creep beyond what was
+asked. If that's wanted later, it is a small, mechanical follow-up: give
+each an `admin-public-btn` styled `← Bracket`, gate an "Admin"/"Coach" link
+the same way the other three pages already do, and Dark Mode already sits
+last on both.
+
+The panel links stay strictly role/grant-gated on `session.role` /
+`session.teams` — nothing here is conditioned on `isPwa`. (An earlier
+version of this note claimed the Admin link also showed to a signed-out PWA
+visitor; that predates the "One Sign in" rework and is no longer true —
+`signInBtn`/`adminBtn`/`lineupBtn` visibility all come from `_sessionRole`
+alone. Said here explicitly because the stale claim survived one rewrite
+already; don't let it survive a second.)
+
+`bracketEditBtn`/`bucketEditBtn` are NOT part of this menu at all anymore —
+see "Edit lives next to the hamburger, not behind it" below.
+
+## Edit lives next to the hamburger, not behind it (owner, 2026-08-01)
+Owner: *"move the edit button out of the hamburger menu to next to the
+hamburger menu."* `#bracketEditBtn` and `#bucketEditBtn` (public page only —
+neither `/admin` nor `/coach` has an Edit button in their header) moved out
+of `#headerControls` into a new sibling, `.header-menu-cluster`, which also
+now holds `#headerMenuBtn` itself. Reasoning: Edit is a PRIMARY action for
+whoever can see it — an admin actively laying out the bracket, or a
+`buckets`-role operator running the challenge — and it should be one tap,
+not one tap into a menu plus a second tap on the item.
+
+**Why a wrapper, not just `margin-left: auto` on Edit itself**: both Edit
+buttons are individually `hidden` most of the time (role-gated, and only one
+of the two is ever unhidden at once), and `hidden` is `display:none` — an
+element with no box does not carry its own margin into the layout. Giving
+EITHER Edit button its own auto-margin would only self-right when THAT
+specific button happened to be the visible one, leaving a gap whenever
+neither was (a plain spectator) or however the OTHER one was. The wrapper
+is always present regardless of which children inside it are hidden, so it
+is the one thing that reliably owns "push me and my hamburger to the far
+right" — `.header-menu-cluster { margin-left: auto; }`, and
+`.header-menu-btn`'s own `margin-left: auto` (still in effect, unchanged,
+on every other page) is overridden back to `0` **inside this wrapper only**
+so the two rules don't fight each other for the same free space.
+
+**Test this at the RIGHT viewport for each button, not just one width for
+both** — this cost real debugging time here. `#bracketEditBtn` has a
+pre-existing, unrelated `@media (max-width: 1279px) { display: none
+!important; }` in `bracket.css` ("drag-and-drop is desktop only"), so
+checking its position on a phone viewport measures a zero-size, unrendered
+element and produces a nonsense "331px gap" that looks like a placement bug
+but is actually just the wrong element to be testing there. `#bucketEditBtn`
+carries no such restriction — bucket-challenge editing is touch-friendly, so
+it has to be checked at MOBILE width instead. Verified: `#bracketEditBtn`
+next to the hamburger at 1440px (7.8px gap, matching the 0.5em CSS gap);
+`#bucketEditBtn` next to the hamburger at 390px, signed in as a fresh
+`buckets`-role account (7.4px gap). Neither shows for a signed-out visitor.
 
 ## Coach Panel visibility is a TEAM GRANT, not a role (2026-07-31)
 Owner report: **"If an admin is assigned to a team, they need the coaches

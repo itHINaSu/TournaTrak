@@ -23,10 +23,10 @@
      perspective", and the honest way to get that is to use its stylesheet
      rather than re-describe it: .admin-tab-bar, .admin-tab-panel and the
      lineup table all come from here already. -->
-<link rel="stylesheet" href="/base.css?v=3.84">
-<link rel="stylesheet" href="/admin.css?v=3.84">
-<link rel="stylesheet" href="/lineup.css?v=3.84">
-<script src="/app-h.js?v=3.84"></script>
+<link rel="stylesheet" href="/base.css?v=3.85">
+<link rel="stylesheet" href="/admin.css?v=3.85">
+<link rel="stylesheet" href="/lineup.css?v=3.85">
+<script src="/app-h.js?v=3.85"></script>
 </head>
 <body>
 
@@ -57,16 +57,19 @@
       <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
     </svg>
   </button>
+  <!-- ORDER (owner, 2026-08-01): Sign Out first (a context action, not a
+       destination), then Bracket and Admin Panel — Bracket, Coach, Admin,
+       whichever of the three this session has access to, minus a link to
+       THIS page — then Dark Mode last, always. -->
   <div class="header-controls" id="headerControls">
-    <a href="/" class="admin-public-btn">← Bracket</a>
     <button class="admin-public-btn" id="coachLogoutBtn" data-action="coachLogout">Sign Out</button>
-    <button class="admin-public-btn" id="themeToggle">Dark Mode</button>
+    <a href="/" class="admin-public-btn">← Bracket</a>
     <!-- Staff (admin/results) who are ALSO viewing the coach panel — either
          because they coach a team themselves, or because they're checking
          what a coach sees — need a way back to their own panel. Hidden by
-         default; shown in showCoachPanel() for staff roles only. Last, like
-         every other link that leaves this page. -->
+         default; shown in showCoachPanel() for staff roles only. -->
     <a href="/admin" class="admin-public-btn" id="adminPanelLink" hidden>Admin Panel →</a>
+    <button class="admin-public-btn" id="themeToggle">Dark Mode</button>
   </div>
 </header>
 
@@ -289,11 +292,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.84"></script>
-<script src="/theme-css.js?v=3.84"></script>
-<script src="/tt-common.js?v=3.84"></script>
-<script src="/bracket-data.js?v=3.84"></script>
-<script src="/lineup.js?v=3.84"></script>
-<script src="/coach.js?v=3.84"></script>
+<script src="/settings-defaults.js?v=3.85"></script>
+<script src="/theme-css.js?v=3.85"></script>
+<script src="/tt-common.js?v=3.85"></script>
+<script src="/bracket-data.js?v=3.85"></script>
+<script src="/lineup.js?v=3.85"></script>
+<script src="/coach.js?v=3.85"></script>
 </body>
 </html>

@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=3.84">
-<link rel="stylesheet" href="/bracket.css?v=3.84">
-<script src="/app-h.js?v=3.84"></script>
+<link rel="stylesheet" href="/base.css?v=3.85">
+<link rel="stylesheet" href="/bracket.css?v=3.85">
+<script src="/app-h.js?v=3.85"></script>
 </head>
 <body>
 
@@ -24,35 +24,47 @@
     <h1 id="siteName" data-action="goHome" title="Back to the main view">Tournament Bracket</h1>
     <div id="siteSubtitle" class="site-subtitle" data-action="goHome" title="Back to the main view"></div>
   </div>
-  <!-- Below the desktop breakpoint the controls collapse behind this. An admin
-       signed in on a phone can have six of them, which took two rows off the
-       top of the bracket. Shown by CSS only on mobile; the panel holds
-       whatever buttons that visitor's role actually leaves visible. -->
-  <button class="header-menu-btn" id="headerMenuBtn" data-action="toggleHeaderMenu"
-          aria-label="Menu" aria-expanded="false" aria-controls="headerControls" hidden>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-      <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
-    </svg>
-  </button>
-  <!-- ORDER IS DELIBERATE (owner, 2026-07-30): Share, Project winners,
-       Notifications, theme, Refresh, then the two panel links LAST because
-       they leave this page — a destination belongs at the end of a menu of
-       actions. Edit sits after Refresh: it is role-gated and invisible to the
-       people this order was chosen for. The panel is a flex column on mobile,
-       so DOM order is menu order. -->
+  <!-- Edit is a PRIMARY action for whoever can see it (an admin actively
+       laying out the bracket, or a buckets-role operator running the
+       challenge) — owner, 2026-08-01: it lives next to the hamburger, always
+       reachable, not one tap further in behind a menu of secondary actions.
+       Wrapped with the hamburger itself so the pair stays right-aligned as a
+       unit regardless of how long the tournament name runs (see
+       .header-menu-cluster in base.css) — only one of the two Edit buttons is
+       ever visible at once (bracket tab vs. buckets tab). -->
+  <div class="header-menu-cluster">
+    <button class="admin-public-btn" id="bracketEditBtn" hidden data-action="toggleBracketEdit">Edit</button>
+    <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
+    <!-- Below the desktop breakpoint the controls collapse behind this. An admin
+         signed in on a phone can have six of them, which took two rows off the
+         top of the bracket. Shown by CSS only on mobile; the panel holds
+         whatever buttons that visitor's role actually leaves visible. -->
+    <button class="header-menu-btn" id="headerMenuBtn" data-action="toggleHeaderMenu"
+            aria-label="Menu" aria-expanded="false" aria-controls="headerControls" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>
+      </svg>
+    </button>
+  </div>
+  <!-- ORDER IS DELIBERATE (owner, 2026-07-30, reordered 2026-08-01): Share,
+       Project winners, Notifications, Refresh, then Coach Panel / Admin Panel
+       / Sign in — exactly whichever of those three this session has access
+       to, minus a link to THIS page (there isn't one) — because a destination
+       that leaves the page belongs at the end of a menu of actions. Dark Mode
+       is now the LAST item of all: it is the one control that is never a
+       destination and never role-gated, so it anchors the bottom regardless
+       of which of the others above it happen to be visible. The panel is a
+       flex column on mobile, so DOM order is menu order. -->
   <div class="header-controls" id="headerControls">
     <button class="admin-public-btn" id="shareImageBtn" hidden data-action="openShareImage" title="Share, download or print this bracket">Share</button>
     <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
     <button class="admin-public-btn" id="notifyBtn" hidden data-action="openNotifyPanel" title="Get notified about games">Notifications</button>
-    <button class="admin-public-btn" id="themeToggle">Dark Mode</button>
     <!-- INSTALLED APP ONLY (hidden by default, shown by the session handler
          when isPwa). A PWA has no browser reload button, so this is the only
          way to force a refresh there; in a browser it duplicates a control the
          user already has. pull-to-refresh (bracket.js) is the same action by
          gesture and stays available everywhere. -->
     <button class="admin-public-btn" id="refreshBtn" hidden data-action="refreshNow" title="Reload the latest scores and schedule">Refresh</button>
-    <button class="admin-public-btn" id="bracketEditBtn" hidden data-action="toggleBracketEdit">Edit</button>
-    <button class="admin-public-btn" id="bucketEditBtn" hidden data-action="enterBucketEdit">Edit</button>
     <a href="/coach" class="admin-public-btn" id="lineupPortalBtn" hidden>Coach Panel →</a>
     <a href="/admin" class="admin-public-btn" id="adminPortalBtn" hidden>Admin Panel →</a>
     <!-- Shown ONLY when signed out, and it replaces the guesswork that used to
@@ -62,6 +74,7 @@
          serves everyone, in a browser or either installed app, and the login
          page itself explains that spectators need no account. -->
     <a href="/admin" class="admin-public-btn" id="signInBtn" hidden>Sign in</a>
+    <button class="admin-public-btn" id="themeToggle">Dark Mode</button>
   </div>
 </header>
 
@@ -347,11 +360,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=3.84"></script>
-<script src="/theme-css.js?v=3.84"></script>
-<script src="/tt-common.js?v=3.84"></script>
-<script src="/bracket-data.js?v=3.84"></script>
-<script src="/bracket.js?v=3.84"></script>
-<script src="/sw-register.js?v=3.84" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=3.85"></script>
+<script src="/theme-css.js?v=3.85"></script>
+<script src="/tt-common.js?v=3.85"></script>
+<script src="/bracket-data.js?v=3.85"></script>
+<script src="/bracket.js?v=3.85"></script>
+<script src="/sw-register.js?v=3.85" data-sw="/sw.js"></script>
 </body>
 </html>
