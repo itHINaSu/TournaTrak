@@ -2394,6 +2394,30 @@ function flightDims(nCols, gridH) {
 // below it — the same rule computeLBPositions uses for a losers-bracket
 // drop-in, and for the same reason: the phantom feeder must not drag the card
 // somewhere the connector can't reach.
+// The height a flight's tree card ACTUALLY renders at, in vh.
+//
+// flightDims() computes its own cardVh and uses it for slot spacing, but the
+// CARDS are sized by the --card-h CSS variable like every other card in the
+// app (see the championship note in renderFlightBracket for why that override
+// was deliberately removed) — and renderBracketInner RETURNS after
+// renderFlightBracket, before its applyCSSVars() call, so --card-h still holds
+// whatever the OPEN tree last set. The two disagree whenever a flight's own
+// sizing differs from the Open tree's, which is most of the time.
+//
+// That mismatch is invisible in the card layout (cards are positioned by
+// pos[gid], which is self-consistent) and shows up only in the CONNECTORS,
+// whose "centre of the card" term used the flight's cardVh: on a 32-team
+// tiered bracket that made half a card 39.8px instead of 27px, so every line
+// met its card 12.8px below centre (owner, 2026-08-02: "the lines coming into
+// the card aren't centered on the card"). Reading the variable the cards
+// actually obey keeps the two in step whatever either one decides.
+function flightRenderedCardVh(fallbackVh) {
+  var v = '';
+  try { v = getComputedStyle(document.documentElement).getPropertyValue('--card-h').trim(); } catch (e) {}
+  var m = /^([0-9.]+)vh$/.exec(v);
+  return m ? parseFloat(m[1]) : fallbackVh;
+}
+
 function flightPositions(cols, slotVh, gridH, tier) {
   var pos = {};
   function evenTop(idx, n) {
@@ -2494,6 +2518,8 @@ function renderFlightBracket(root, tier) {
   var dims = flightDims(treeCols.length, gridH);
   var pos = flightPositions(treeCols, dims.slotVh, gridH, tier);
   var totalVh = dims.totalVh, hdrVh = 1.8;
+  // Half of the card as RENDERED, not as flightDims imagined it.
+  var halfCardVh = flightRenderedCardVh(dims.cardVh) / 2;
 
   var html = '';
   var flightTops = treeCols.map(function(gids) {
@@ -2524,8 +2550,8 @@ function renderFlightBracket(root, tier) {
           if (!sd || sd.type !== 'winner' || !sd.slot) return;
           if (gids.indexOf(sd.slot) === -1) return;
           conns.push({
-            srcPct: (pos[sd.slot] + dims.slotVh * CARD_RATIO / 2) / totalVh * 100,
-            dstPct: (pos[dst] + dims.slotVh * CARD_RATIO / 2) / totalVh * 100,
+            srcPct: (pos[sd.slot] + halfCardVh) / totalVh * 100,
+            dstPct: (pos[dst] + halfCardVh) / totalVh * 100,
           });
         });
       });
@@ -2566,7 +2592,7 @@ function renderFlightBracket(root, tier) {
         if (!sd || sd.type !== 'winner' || !sd.slot) return;
         if (lastCol.indexOf(sd.slot) === -1) return;
         champConns.push({
-          srcPct: (pos[sd.slot] + dims.slotVh * CARD_RATIO / 2) / totalVh * 100,
+          srcPct: (pos[sd.slot] + halfCardVh) / totalVh * 100,
           dstPct: champPct,
         });
       });
