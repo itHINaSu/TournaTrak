@@ -2095,6 +2095,24 @@ body.bc-drag-active .bc-drop-row--covered.bc-drop-row--live.bc-drop-target { opa
     padding-right: 0.75em;
     box-sizing: border-box;
   }
+  /* Team Path's .team-panel needs the SAME explicit width as Standings'
+     above, for a reason that only shows up with a long, unbranded-into-
+     wrapping team name: it is a block child of a column flex container
+     (#view-teampath.active), and `align-items: stretch` does not reliably
+     clamp its width to the viewport once `.team-brand-banner` inside it
+     holds `white-space: nowrap` text — the panel's own box grows to fit
+     that text's full unwrapped width instead, and the banner's ellipsis
+     CSS (already correct: min-width:0, overflow:hidden, text-overflow)
+     never gets a chance to fire because its container was never actually
+     narrow (owner, 2026-08-02, screenshot: a long team name running off
+     the right edge of the screen on Team Path, uncropped, on mobile).
+     max-width:none overrides the desktop 65em cap, which would otherwise
+     win against a 100% that is itself wider than 65em on a big phone. */
+  #view-teampath.active .team-panel {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+  }
   /* A/B flights now use the same mobile column carousel as the tree (its
      own fixed scroll overlay) — the panel just needs the flex column so the
      bracket root fills the space between pills and tab bar. */
