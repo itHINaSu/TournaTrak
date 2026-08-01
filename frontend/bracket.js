@@ -188,7 +188,7 @@ function shortNameAttr(name) {
 // share/print render frame: each is its own `document`, so this only ever
 // touches whichever one is calling it.
 function fitTeamCardNames(root) {
-  (root || document).querySelectorAll('.bc-name[data-short], .mbc-champ-name[data-short], .mbc-team-name[data-short], .std-team[data-short]')
+  (root || document).querySelectorAll('.bc-name[data-short], .mbc-champ-name[data-short], .mbc-team-name[data-short], .std-team[data-short], .team-brand-name[data-short]')
     .forEach(function(el) {
       if (el.scrollWidth > el.clientWidth + 1) el.textContent = el.dataset.short;
     });
@@ -6574,7 +6574,7 @@ function renderTeamViewInner(realResults){
           brand.brandStyle, brand.brandAngle, brand.brandTextColor, brand.brandNameOutlineColor,
           { stripeWidth: brand.brandStripeWidth, stripeGap: brand.brandStripeGap, patternScale: brand.brandPatternScale,
             gradientBalance: brand.brandGradientBalance, outlineWidth: brand.brandOutlineWidth })) + '">'
-      + '<span class="team-brand-name">' + esc(teamLabel(team)) + '</span>'
+      + '<span class="team-brand-name"' + shortNameAttr(team) + '>' + esc(teamLabel(team)) + '</span>'
       + (brand.logoUrl ? '<span class="team-brand-logo-slot"><img class="team-brand-logo" src="' + esc(brand.logoUrl) + '" alt=""></span>' : '')
       + '</div>';
   }
@@ -6764,6 +6764,7 @@ function renderTeamViewInner(realResults){
   }
 
   out.innerHTML=html;
+  fitTeamCardNames(out);
   syncLoseSideWidths();
   applyStickyOffsets();
 

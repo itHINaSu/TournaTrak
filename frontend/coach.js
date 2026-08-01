@@ -651,6 +651,18 @@ function coachShareBrandFor(teamName) {
   if (!t || !(t.logo || t.primaryColor || t.secondaryColor)) return null;
   return t;
 }
+// Swaps a .team-brand-name span to the team's short form, but ONLY once the
+// full name is actually measured to be clipped by the banner's fixed width —
+// same "don't abbreviate a name that already fits" rule bracket.js's
+// fitTeamCardNames() applies on the public pages. coach.js has no access to
+// that function (it doesn't load bracket.js), so this is the same check
+// reimplemented against shortName() (bracket-data.js, loaded here too).
+function fitBrandName(el) {
+  if (!el || !el.textContent) return;
+  if (el.scrollWidth <= el.clientWidth + 1) return;
+  var s = shortName(el.textContent);
+  if (s && s !== el.textContent) el.textContent = s;
+}
 // prefix + 'Banner'/'BannerName'/'BannerLogoSlot'/'BannerLogo' — same
 // element-naming shape as the Team tab's own live preview (teamTabPreview*).
 // Always shown once a team name is known (unlike Team Path's banner, which
@@ -669,7 +681,7 @@ function syncTeamBrandBannerFor(prefix, teamName) {
     return;
   }
   banner.hidden = false;
-  if (nameEl) nameEl.textContent = teamName;   // shows immediately; refined below once branding loads
+  if (nameEl) { nameEl.textContent = teamName; fitBrandName(nameEl); }   // shows immediately; refined below once branding loads
   if (logoSlot) logoSlot.hidden = true;
   coachTeamsCache().then(function (data) {
     // A stale response for a team the selector has since moved on from.
@@ -679,7 +691,7 @@ function syncTeamBrandBannerFor(prefix, teamName) {
       t.brandTextColor, t.brandNameOutlineColor,
       { stripeWidth: t.brandStripeWidth, stripeGap: t.brandStripeGap, patternScale: t.brandPatternScale,
         gradientBalance: t.brandGradientBalance, outlineWidth: t.brandOutlineWidth });
-    if (nameEl) nameEl.textContent = t.displayName || teamName;
+    if (nameEl) { nameEl.textContent = t.displayName || teamName; fitBrandName(nameEl); }
     if (logoImg && logoSlot) {
       if (t.logo) { logoImg.src = t.logo; logoSlot.hidden = false; }
       else { logoImg.removeAttribute('src'); logoSlot.hidden = true; }
