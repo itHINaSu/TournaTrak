@@ -71,6 +71,17 @@ const SETTINGS_DEFAULTS = {
   // render time in bracket.js (rebuildTeamLabels/renderStandingsViewInner) —
   // off doesn't erase what a team saved, it just stops it from being shown,
   // so nothing is lost if a TD flips it back on mid-tournament.
+  // Temporary mute for spectator "schedule change" pushes (owner, 2026-08-02,
+  // mid-event after nine cancellations: "I need an option to temporarily
+  // disable notifications for schedule changes"). Reworking a day's schedule
+  // is many small saves, and each one that moves 12 or fewer games notifies
+  // every spectator following those teams — a rebuild would buzz people
+  // repeatedly with times that are still changing. Enforced SERVER-side
+  // (POST /schedule), because that is where the push is sent from; the admin
+  // toggle only writes the setting. Deliberately does NOT mute the
+  // weather/delay notice, which is the one message that must always get
+  // through, and is how a TD says "the day has moved" once the dust settles.
+  pauseScheduleNotifications: 'false',
   allowTeamSecondaryColor: 'true',
   allowTeamLogos:          'true',
   allowTeamLogosStandings: 'true',

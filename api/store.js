@@ -532,6 +532,15 @@ async function setDefaultTournament(slug) {
     id = r.rows[0].id;
     await client.query('UPDATE tournaments SET is_default = FALSE WHERE is_default');
     await client.query('UPDATE tournaments SET is_default = TRUE WHERE id = $1', [id]);
+    // Root-subscribed spectators follow Live, not a fixed tournament_id —
+    // move the flag, move them with it, in the SAME transaction, so a
+    // subscription is never left pointing at the tournament Live just left
+    // (owner, 2026-08-02: this is what silently broke push for issa-state-2026
+    // spectators who subscribed before the flag was last pointed here).
+    await client.query(
+      `UPDATE push_subscriptions SET tournament_id = $1
+        WHERE user_id IS NULL AND tracks_live IS TRUE AND tournament_id IS DISTINCT FROM $1`,
+      [id]);
   });
   if (id != null) defaultTid = id;
   _invalidateTournaments();
@@ -647,6 +656,16 @@ async function init() {
   // Lazy require breaks the store ↔ migrate cycle (migrate uses _saveDomain).
   const { migrate } = require('./migrate');
   defaultTid = await migrate(pool);
+  // One-time catch-up for rows that went stale BEFORE tracks_live existed —
+  // setDefaultTournament() keeps them in sync on every future Live-flag move,
+  // but a row that drifted before this deploy needs its own resync once, or
+  // it stays orphaned until Live happens to change again (owner, 2026-08-02).
+  // Idempotent (a no-op once every row already matches), so safe on every boot.
+  const synced = await pool.query(
+    `UPDATE push_subscriptions SET tournament_id = $1
+      WHERE user_id IS NULL AND tracks_live IS TRUE AND tournament_id IS DISTINCT FROM $1`,
+    [defaultTid]);
+  if (synced.rowCount) console.log(`Resynced ${synced.rowCount} push subscription(s) to the Live tournament`);
   console.log(`Store ready (tournament id ${defaultTid})`);
 }
 
@@ -726,21 +745,28 @@ async function pushSubscriptionsFor(usernames) {
 // (endpoint is UNIQUE), so a staff member subscribing on the public page must
 // not have their account quietly detached from their own device — the row ends
 // up serving both, which is the behaviour you want anyway.
-async function savePublicPushSubscription(sub, tid, prefs, teams) {
+// tracksLive: true when this subscribe request came through the DEFAULT
+// mount (root, no slug) rather than a specific /t/<slug> URL — see the
+// schema.sql comment on the tracks_live column for why that distinction
+// matters. Defaults true so an older caller (there is only one right now)
+// keeps today's behavior.
+async function savePublicPushSubscription(sub, tid, prefs, teams, tracksLive) {
   let id;
+  const tracks = tracksLive !== false;
   await _withTransaction(async client => {
     const r = await client.query(
       `INSERT INTO push_subscriptions
-         (user_id, tournament_id, endpoint, p256dh, auth, notify_live, notify_final, notify_schedule, all_events)
-       VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8)
+         (user_id, tournament_id, endpoint, p256dh, auth, notify_live, notify_final, notify_schedule, all_events, tracks_live)
+       VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9)
        ON CONFLICT (endpoint) DO UPDATE SET
          tournament_id = EXCLUDED.tournament_id,
          p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
          notify_live = EXCLUDED.notify_live, notify_final = EXCLUDED.notify_final,
-         notify_schedule = EXCLUDED.notify_schedule, all_events = EXCLUDED.all_events
+         notify_schedule = EXCLUDED.notify_schedule, all_events = EXCLUDED.all_events,
+         tracks_live = EXCLUDED.tracks_live
        RETURNING id`,
       [tid, sub.endpoint, sub.p256dh, sub.auth,
-       !!prefs.live, !!prefs.final, !!prefs.schedule, !!prefs.allEvents]);
+       !!prefs.live, !!prefs.final, !!prefs.schedule, !!prefs.allEvents, tracks]);
     id = r.rows[0].id;
     await client.query('DELETE FROM push_subscription_teams WHERE subscription_id = $1', [id]);
     for (const name of teams || []) {
@@ -796,6 +822,22 @@ async function publicPushAll(tid) {
   return r.rows;
 }
 
+// Diagnostic only, called when a real trigger matches zero subscribers — a
+// tournament_id mismatch (a subscription filed under a DIFFERENT tournament
+// than the one that just fired) is otherwise invisible: the route already
+// responded, and nothing on the sending or receiving end knows why (owner,
+// 2026-08-02, on a fresh Start Live and a changed delay notice both
+// delivering nothing despite a working test push, which does not filter by
+// tournament_id at all). Returns every public row's tournament_id and
+// notify_* flags so the log line can show whether the row exists at all, and
+// under which tid, rather than just "0 matched".
+async function publicPushDebugRows() {
+  const r = await pool.query(
+    `SELECT tournament_id, notify_live, notify_final, notify_schedule
+       FROM push_subscriptions WHERE user_id IS NULL`);
+  return r.rows;
+}
+
 // One subscription row by endpoint, for the self-test send. Any browser that
 // holds the endpoint already holds the subscription, so this leaks nothing it
 // did not already have.
@@ -818,7 +860,7 @@ module.exports = {
   getMeta, setMeta,
   addPushSubscription, deletePushSubscription, detachStaffPushSubscription,
   pushSubscriptionsFor, pushSubscriptionCount, pushSubscriptionByEndpoint,
-  savePublicPushSubscription, publicPushTargets, publicPushAll,
+  savePublicPushSubscription, publicPushTargets, publicPushAll, publicPushDebugRows,
   createUser, deleteUser, updateUser, setUserTeams, replaceUsers,
   grantRole, revokeRole,
   hashToken, hashTokenIfRaw,

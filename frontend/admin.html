@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.044">
-<link rel="stylesheet" href="/admin.css?v=4.08.044">
-<link rel="stylesheet" href="/lineup.css?v=4.08.044">
-<link rel="stylesheet" href="/builder.css?v=4.08.044">
-<link rel="stylesheet" href="/score.css?v=4.08.044">
-<script src="/app-h.js?v=4.08.044"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.056">
+<link rel="stylesheet" href="/admin.css?v=4.08.056">
+<link rel="stylesheet" href="/lineup.css?v=4.08.056">
+<link rel="stylesheet" href="/builder.css?v=4.08.056">
+<link rel="stylesheet" href="/score.css?v=4.08.056">
+<script src="/app-h.js?v=4.08.056"></script>
 </head>
 <body>
 
@@ -229,12 +229,17 @@
       </svg>
       <span class="tab-label">Results</span>
     </div>
-    <div class="admin-tab" data-tab="lineups">
+    <!-- Was "Lineups" until 2026-08-02. Lineups did not go away — they moved
+         INSIDE a team, alongside that team's roster and branding, because
+         "which team?" is the first question every one of those three answers
+         (owner: "Replace the lineup tab in settings with the teams tab... make
+         sure that admins can view teams, lineups, and rosters from that tab"). -->
+    <div class="admin-tab" data-tab="teams">
       <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/>
-        <circle cx="5" cy="6" r="1" fill="currentColor"/><circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="5" cy="18" r="1" fill="currentColor"/>
+        <circle cx="9" cy="7" r="3"/><circle cx="17" cy="8" r="2.5"/>
+        <path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M17 14c2.2.5 4 2.5 4 5"/>
       </svg>
-      <span class="tab-label">Lineups</span>
+      <span class="tab-label">Teams</span>
     </div>
     <div class="admin-tab" data-tab="schedule">
       <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -361,77 +366,39 @@
   </div>
 
   <!-- ── LINEUPS TAB ── -->
-  <div class="admin-tab-panel" id="tab-lineups">
-    <div id="lineupLoading" class="lineup-state">
-      <div class="lineup-state-body">Loading…</div>
+  <!-- ── TEAMS TAB ──
+       Replaced the standalone Lineups tab (owner, 2026-08-02). The LIST is
+       native because it holds admin-only concerns a coach never sees: seed
+       order (drag to reorder), the per-team lock, and lineup links. Clicking
+       a team opens the REAL coach panel in an iframe rather than a second
+       copy of its editors — roster, lineups and branding then have exactly
+       one implementation, and a TD sees precisely what the coach sees. -->
+  <div class="admin-tab-panel" id="tab-teams">
+    <div id="teamsListView">
+      <div class="admin-subtitle">All teams from the current schedule. Drag to reorder (the list order is the seed order when seeding is on). Click a team to edit its branding — display name, short name, logo, colors and banner style, the same fields a coach can set for their own team from the Coach Panel's Team tab. Lock a team to freeze those out.</div>
+      <div class="settings-field settings-field--toggle">
+        <label>Show seed numbers on the bracket</label>
+        <input type="checkbox" id="teams-showSeeds">
+        <div class="field-hint">Displays <span class="u-dim-70">(1)</span> before team names on bracket cards. Only meaningful when teams are ordered intentionally.</div>
+      </div>
+      <div id="teamsEditorWrap">
+        <div id="teamsEditorList" class="teams-editor-list"></div>
+      </div>
+      <div class="settings-save-row">
+        <button class="sched-save-btn" id="teamsSaveBtn" data-action="saveTeams">Save</button>
+        <span class="sched-status" id="teamsSaveStatus"></span>
+      </div>
     </div>
-    <div id="lineupInvalid" hidden class="lineup-state">
-      <div class="lineup-state-icon">🔗</div>
-      <div class="lineup-state-title">Access Error</div>
-      <div class="lineup-state-body">Could not load lineup data.</div>
-    </div>
-    <div id="lineupContent" hidden class="lineup-wrap">
-      <div class="lineup-team-header">
-        <div class="lineup-team-label">Team</div>
-        <div id="lineupTeamName" class="lineup-team-name"></div>
+
+    <!-- Detail host: the embedded coach panel for the team clicked into.
+         src is set by openTeamDetail() in admin.js, not here, so the iframe
+         does not load a panel for nobody on every page view. -->
+    <div id="teamsDetailView" hidden>
+      <div class="teams-detail-bar">
+        <button class="admin-clear-btn" data-action="closeTeamDetail">← Teams</button>
+        <span class="teams-detail-name" id="teamsDetailHeading"></span>
       </div>
-      <div id="lineupSelectorsRow" class="lineup-selectors-row" hidden>
-        <div class="lineup-game-info lineup-sel-half" id="lineupTeamHalf">
-          <select id="lineupTeamSel" class="lineup-game-sel"></select>
-        </div>
-        <div class="lineup-game-info lineup-sel-half" id="lineupGameInfo">
-          <span class="lineup-game-sel-placeholder" id="lineupGamePlaceholder">Select a team first</span>
-          <select id="lineupGameSelect" class="lineup-game-sel" hidden></select>
-        </div>
-      </div>
-      <div id="lineupReadOnlyBadge" hidden class="lineup-readonly-badge">
-        View Only — Game Complete
-      </div>
-      <div id="lineupNoGame" hidden class="lineup-no-game">
-        No upcoming games scheduled for your team.
-      </div>
-      <!-- Import overlay, tools and sub buttons must match lineup.html: the
-           SAME lineup.js drives both hosts and finds these by id. When they
-           were missing here, updateSubButtons() and the tools row simply got
-           null back and did nothing, so staff editing a lineup from the admin
-           panel had no Add Subs, no Delete Sub, no Reorder and no Import —
-           while a coach on the standalone page had all four. -->
-      <div id="lineupImportOverlay" class="lineup-modal-overlay" hidden data-action="closeImport">
-        <div class="lineup-modal">
-          <div class="lineup-modal-title">Import Lineup</div>
-          <div class="lineup-modal-body">
-            <div class="lineup-modal-label">Copy lineup from:</div>
-            <select id="lineupImportSel" class="lineup-modal-sel"></select>
-          </div>
-          <div class="lineup-modal-footer">
-            <button class="lineup-tool-btn" data-action="confirmImport">Import</button>
-            <button class="lineup-tool-btn lineup-tool-btn--cancel" data-action="closeImport">Cancel</button>
-          </div>
-        </div>
-      </div>
-      <div class="lineup-form-wrap">
-        <div class="lineup-tools" id="lineupTools" hidden>
-          <button class="lineup-tool-btn lineup-tool-btn--import" id="lineupImportBtn" data-action="openImport">Import Lineup</button>
-          <button class="lineup-tool-btn lineup-tool-btn--right lineup-tool-btn--reorder" id="lineupReorderBtn" data-action="toggleReorder">Reorder</button>
-        </div>
-        <table class="lineup-table">
-          <thead>
-            <tr id="lineupHead">
-              <th class="lineup-th lineup-th--order"></th>
-              <th class="lineup-th lineup-th--num">#</th>
-              <th class="lineup-th lineup-th--name">Player Name</th>
-              <th class="lineup-th lineup-th--pos">Position</th>
-            </tr>
-          </thead>
-          <tbody id="lineupBody"></tbody>
-        </table>
-        <div class="lineup-actions">
-          <button class="lineup-submit-btn" id="lineupSubmitBtn" data-action="submitLineup">Save Lineup</button>
-          <button class="lineup-sub-add-btn" id="lineupAddSubBtn" data-action="addSubRow" hidden>Add Subs</button>
-          <button class="lineup-sub-del-btn" id="lineupDelSubBtn" data-action="deleteSubRow" hidden>Delete Sub</button>
-          <span class="lineup-status" id="lineupStatus"></span>
-        </div>
-      </div>
+      <iframe class="teams-detail-frame" id="teamsDetailFrame" title="Team roster, lineups and branding"></iframe>
     </div>
   </div>
 
@@ -445,7 +412,6 @@
         <div class="settings-nav-item" data-section="account" data-action="showSettingsSection" data-arg="account">Account</div>
         <div class="settings-nav-item" data-section="users" data-action="showSettingsSection" data-arg="users">Users</div>
         <div class="settings-nav-item" data-section="coaches" data-action="showSettingsSection" data-arg="coaches">Coaches</div>
-        <div class="settings-nav-item" data-section="teams" data-action="showSettingsSection" data-arg="teams">Teams</div>
         <div class="settings-nav-item" data-section="tournaments" data-action="showSettingsSection" data-arg="tournaments" id="navTournaments" hidden>Tournaments</div>
       </nav>
 
@@ -938,142 +904,6 @@
              split into a list + per-team detail view, owner 2026-08-02: "allow
              TDs to click into a team and get a 'coach panel' in settings > teams
              for the selected team") ── -->
-        <div class="settings-panel" id="sp-teams">
-          <div id="teamsListView">
-            <div class="admin-subtitle">All teams from the current schedule. Drag to reorder (the list order is the seed order when seeding is on). Click a team to edit its branding — display name, short name, logo, colors and banner style, the same fields a coach can set for their own team from the Coach Panel's Team tab. Lock a team to freeze those out.</div>
-            <div class="settings-field settings-field--toggle">
-              <label>Show seed numbers on the bracket</label>
-              <input type="checkbox" id="teams-showSeeds">
-              <div class="field-hint">Displays <span class="u-dim-70">(1)</span> before team names on bracket cards. Only meaningful when teams are ordered intentionally.</div>
-            </div>
-            <div id="teamsEditorWrap">
-              <div id="teamsEditorList" class="teams-editor-list"></div>
-            </div>
-            <div class="settings-save-row">
-              <button class="sched-save-btn" id="teamsSaveBtn" data-action="saveTeams">Save</button>
-              <span class="sched-status" id="teamsSaveStatus"></span>
-            </div>
-          </div>
-
-          <!-- Per-team detail — same markup/CSS classes as the coach panel's
-               own Team tab (frontend/coach.html), so it looks and behaves
-               identically; teamsDetail* ids in admin.js drive it against
-               whichever team was clicked into rather than "the signed-in
-               coach's own team". -->
-          <div id="teamsDetailView" hidden>
-            <button type="button" class="admin-clear-btn teams-detail-back" data-action="closeTeamDetail">← Teams</button>
-            <div class="admin-subtitle" id="teamsDetailHeading"></div>
-            <div class="team-brand-banner" id="teamsDetailPreview" hidden>
-              <span class="team-brand-name" id="teamsDetailPreviewName"></span>
-              <span class="team-brand-logo-slot" id="teamsDetailPreviewLogoSlot" hidden><img class="team-brand-logo" id="teamsDetailPreviewLogo" alt=""></span>
-            </div>
-            <div class="settings-field" id="teamsDetailLockedNote" hidden>
-              <div class="field-hint">Locked — a coach can't change these until you unlock the team in the list view.</div>
-            </div>
-            <div class="settings-field">
-              <label>Display Name <span class="field-label-hint">(shown on the bracket)</span></label>
-              <input type="text" id="teamsDetailDisplay" maxlength="40" placeholder="Same as team name">
-            </div>
-            <div class="settings-field">
-              <label>Short Name <span class="field-label-hint">(narrow cards, 12 characters)</span></label>
-              <input type="text" id="teamsDetailShort" maxlength="12" placeholder="Optional">
-            </div>
-            <div class="settings-field">
-              <label>Team Logo <span class="field-label-hint">(PNG/JPEG/WebP, max 48 KB)</span></label>
-              <div class="logo-picker-row">
-                <img id="teamsDetailLogoPreview" class="team-tab-logo-preview" alt="" hidden>
-                <input type="file" id="teamsDetailLogoInput" accept="image/png,image/jpeg,image/webp">
-                <button type="button" class="admin-edit-btn" id="teamsDetailLogoRecropBtn" data-action="recropTeamsDetailLogo" hidden>Recrop</button>
-                <button type="button" class="admin-clear-btn" id="teamsDetailLogoRemoveBtn" data-action="removeTeamsDetailLogo" hidden>Remove</button>
-              </div>
-              <div class="field-hint">Shown on Team Path and Standings.</div>
-            </div>
-            <div class="settings-field">
-              <label>Team Colors <span class="field-label-hint">(shown on Team Path and Standings)</span></label>
-              <div class="team-tab-colors">
-                <label class="team-tab-color-field">
-                  <span>Primary</span>
-                  <span class="color-swatch"><input type="color" id="teamsDetailPrimaryColor" value="#4a4a4a"></span>
-                  <button type="button" class="admin-clear-btn" id="teamsDetailPrimaryColorClear" data-action="clearTeamsDetailColor" data-arg="primaryColor" hidden>Clear</button>
-                </label>
-                <button type="button" class="team-tab-swap-btn" data-action="swapTeamsDetailColors" data-arg="primarySecondary" title="Swap primary and secondary">⇄</button>
-                <label class="team-tab-color-field">
-                  <span>Secondary</span>
-                  <span class="color-swatch"><input type="color" id="teamsDetailSecondaryColor" value="#4a4a4a"></span>
-                  <button type="button" class="admin-clear-btn" id="teamsDetailSecondaryColorClear" data-action="clearTeamsDetailColor" data-arg="secondaryColor" hidden>Clear</button>
-                </label>
-              </div>
-            </div>
-            <div class="settings-field">
-              <label>Banner Style</label>
-              <div class="team-tab-style-row" id="teamsDetailStyleRow">
-                <label class="team-tab-style-opt">
-                  <input type="radio" name="teamsDetailBrandStyle" value="gradient" id="teamsDetailStyleGradient">
-                  <span>Gradient</span>
-                </label>
-                <label class="team-tab-style-opt">
-                  <input type="radio" name="teamsDetailBrandStyle" value="solid" id="teamsDetailStyleSolid">
-                  <span>Solid</span>
-                </label>
-                <!-- Hidden for now, not removed — see the matching comment
-                     in coach.html's Team tab (owner, 2026-08-02). -->
-                <label class="team-tab-style-opt" hidden>
-                  <input type="radio" name="teamsDetailBrandStyle" value="stripes" id="teamsDetailStyleStripes">
-                  <span>Stripes</span>
-                </label>
-                <label class="team-tab-style-opt" hidden>
-                  <input type="radio" name="teamsDetailBrandStyle" value="honeycomb" id="teamsDetailStyleHoneycomb">
-                  <span>Honeycomb</span>
-                </label>
-              </div>
-              <div class="team-tab-angle-row" id="teamsDetailAngleRow">
-                <label for="teamsDetailAngle">Angle</label>
-                <input type="range" id="teamsDetailAngle" min="0" max="359" step="15" value="135">
-              </div>
-              <div class="team-tab-angle-row" id="teamsDetailGradientBalanceRow" hidden>
-                <label for="teamsDetailGradientBalance">Color balance</label>
-                <input type="range" id="teamsDetailGradientBalance" min="0" max="100" step="5" value="50">
-              </div>
-              <div class="team-tab-angle-row" id="teamsDetailStripeWidthRow" hidden>
-                <label for="teamsDetailStripeWidth" id="teamsDetailStripeWidthLabel">Stripe width</label>
-                <input type="range" id="teamsDetailStripeWidth" min="2" max="80" step="1" value="14">
-              </div>
-              <div class="team-tab-angle-row" id="teamsDetailStripeGapRow" hidden>
-                <label for="teamsDetailStripeGap">Stripe spacing</label>
-                <input type="range" id="teamsDetailStripeGap" min="2" max="80" step="1" value="14">
-              </div>
-              <div class="team-tab-angle-row" id="teamsDetailPatternScaleRow" hidden>
-                <label for="teamsDetailPatternScale" id="teamsDetailPatternScaleLabel">Pattern size</label>
-                <input type="range" id="teamsDetailPatternScale" min="8" max="120" step="2" value="28">
-              </div>
-            </div>
-            <div class="settings-field">
-              <label>Team Name Color <span class="field-label-hint">(against the banner)</span></label>
-              <div class="team-tab-colors">
-                <label class="team-tab-color-field">
-                  <span>Text</span>
-                  <span class="color-swatch"><input type="color" id="teamsDetailTextColor" value="#ffffff"></span>
-                  <button type="button" class="admin-clear-btn" id="teamsDetailTextColorClear" data-action="clearTeamsDetailColor" data-arg="brandTextColor" hidden>Auto</button>
-                </label>
-                <button type="button" class="team-tab-swap-btn" data-action="swapTeamsDetailColors" data-arg="textOutline" title="Swap text and outline">⇄</button>
-                <label class="team-tab-color-field">
-                  <span>Outline</span>
-                  <span class="color-swatch"><input type="color" id="teamsDetailOutlineColor" value="#000000"></span>
-                  <button type="button" class="admin-clear-btn" id="teamsDetailOutlineColorClear" data-action="clearTeamsDetailColor" data-arg="brandNameOutlineColor" hidden>None</button>
-                </label>
-              </div>
-              <div class="team-tab-angle-row" id="teamsDetailOutlineWidthRow" hidden>
-                <label for="teamsDetailOutlineWidth">Outline weight</label>
-                <input type="range" id="teamsDetailOutlineWidth" min="15" max="70" step="5" value="35">
-              </div>
-            </div>
-            <div class="settings-save-row">
-              <button class="sched-save-btn" id="teamsDetailSaveBtn" data-action="saveTeamsDetail">Save</button>
-              <span class="sched-status" id="teamsDetailStatus"></span>
-            </div>
-          </div>
-        </div>
-
         <!-- ── Tournaments panel (superadmin only) ── -->
         <div class="settings-panel" id="sp-tournaments">
           <div class="admin-subtitle">Create and manage tournaments. Each has its own bracket, schedule, results, settings, and users. Public tournaments appear at <code>/t/&lt;slug&gt;</code>.
@@ -1151,6 +981,20 @@
        "+180 min" on every Saturday game is not a schedule anyone can read.
        Both exist on purpose; the offset is for "running late", this is for
        "the day has moved". -->
+  <!-- Sits with the tools that TRIGGER these notifications, not in Settings:
+       it is a mute you flip on before reworking a day and off again after,
+       and saves instantly so there is no Save button between the TD and a
+       schedule rebuild. -->
+  <div class="settings-section">
+    <div class="settings-section-hdr">Spectator Notifications</div>
+    <div class="settings-field settings-field--toggle">
+      <label>Pause "schedule change" notifications</label>
+      <input type="checkbox" id="pauseSchedNotif" data-action-change="togglePauseSchedNotif">
+      <div class="field-hint">While this is on, moving games sends nothing to spectators — use it when a day is being rebuilt and times are still changing, then turn it off. The weather/delay notice above is <strong>never</strong> muted: that is how you tell everyone the day has moved. Saves immediately.</div>
+      <span class="sched-status" id="pauseSchedNotifStatus"></span>
+    </div>
+  </div>
+
   <div class="settings-section">
     <div class="settings-section-hdr">Move Game Times</div>
     <div class="admin-subtitle admin-subtitle--flush">Rewrites the real start times on the cards. Pick the games, choose how they move, then preview before applying. Undo restores the previous schedule.</div>
@@ -1179,6 +1023,13 @@
       <div class="resched-mode-row">
         <label class="share-opt"><input type="radio" name="reschedMode" value="shift" checked data-action-change="reschedModeChange"> Shift by an amount</label>
         <label class="share-opt"><input type="radio" name="reschedMode" value="restart" data-action-change="reschedModeChange"> Restart at a set time</label>
+        <!-- Owner, 2026-08-02, mid-tournament with nine games cancelled: "We
+             need to move all games to a TBD time." Clears the stored time so
+             the cards read TBD instead of advertising a time nobody is going
+             to play at. Times are restored by picking the games again and
+             using "Restart at a set time" — TBD games stay listed here for
+             exactly that reason. -->
+        <label class="share-opt"><input type="radio" name="reschedMode" value="tbd" data-action-change="reschedModeChange"> Clear the time (TBD)</label>
       </div>
     </div>
 
@@ -1216,15 +1067,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.08.044"></script>
-<script src="/theme-css.js?v=4.08.044"></script>
-<script src="/tt-common.js?v=4.08.044"></script>
-<script src="/bracket-data.js?v=4.08.044"></script>
-<script src="/admin.js?v=4.08.044"></script>
-<script src="/lineup.js?v=4.08.044"></script>
-<script src="/score.js?v=4.08.044"></script>
-<script src="/builder-form.js?v=4.08.044"></script>
-<script src="/builder.js?v=4.08.044"></script>
-<script src="/sw-register.js?v=4.08.044" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.056"></script>
+<script src="/theme-css.js?v=4.08.056"></script>
+<script src="/tt-common.js?v=4.08.056"></script>
+<script src="/bracket-data.js?v=4.08.056"></script>
+<script src="/admin.js?v=4.08.056"></script>
+<script src="/lineup.js?v=4.08.056"></script>
+<script src="/score.js?v=4.08.056"></script>
+<script src="/builder-form.js?v=4.08.056"></script>
+<script src="/builder.js?v=4.08.056"></script>
+<script src="/sw-register.js?v=4.08.056" data-sw="/admin-sw.js"></script>
 </body>
 </html>

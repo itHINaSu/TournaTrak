@@ -30,17 +30,55 @@
 }
 
 /* ── Weather / delay notice banner ── */
+/* Deliberately the loudest thing on the page (owner, 2026-08-02: "needs to be
+   more prominent. It shouldn't be incidentally overlooked. This is for TDs to
+   communicate to everyone that a significant schedule change has happened").
+   It was a 14%-opacity tint at --text-sm, which read as decoration next to the
+   real content. Now a SOLID fill with dark text — the one element on the page
+   that inverts the usual tinted-banner treatment, on purpose, because it is
+   the only one that means "what you were about to do has changed". A TD clears
+   it when the delay is over, so it costs nothing when nothing is wrong. */
 .delay-notice {
-  background: color-mix(in srgb, var(--gold) 14%, transparent);
-  border-bottom: 0.08em solid color-mix(in srgb, var(--gold) 45%, transparent);
-  color: var(--gold-lt);
-  text-align: center;
-  padding: 0.55em 1em;
+  /* FIXED colour, deliberately outside the theme palette — do not swap this
+     for --gold or any other token (owner, 2026-08-02: "I would possibly make
+     it not the tournament style yellow either"). Two reasons, and the second
+     is a correctness one: (1) --gold IS the tournament's brand colour, so an
+     alert wearing it reads as more branding rather than as an exception;
+     (2) a TD's accent colour is mapped straight onto --gold/--gold-lt by
+     theme-css.js, so a brand-coloured alert restyles itself per tournament —
+     and a TD who picks a dark accent would get this banner's dark text on a
+     dark fill, i.e. an invisible emergency notice. Orange is the warning
+     convention, and is distinct from both the brand gold and the --lose-color
+     red used for eliminations and the offline notice. 6.47:1 against the text
+     colour below, comfortably past AA. */
+  --tt-alert: #f4761a;
+  background: var(--tt-alert);
+  color: #14160f;
+  border-bottom: 0.14em solid color-mix(in srgb, var(--tt-alert) 60%, #000);
+  text-align: left;
+  padding: 0.8em 1.1em;
   font-family: 'Barlow', sans-serif;
-  font-size: var(--text-sm);
-  font-weight: 600;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  box-shadow: 0 0.15em 0.5em rgba(0, 0, 0, 0.28);
 }
+.delay-notice-icon { width: 1.3em; height: 1.3em; flex-shrink: 0; }
+/* Fires when the notice APPEARS or its wording changes — never on a re-poll of
+   a standing notice, which would strobe at the fetch interval (see
+   updateDelayNotice). Three pulses, then it sits still and stays loud. */
+@keyframes tt-delay-attn {
+  0%, 100% { box-shadow: 0 0.15em 0.5em rgba(0, 0, 0, 0.28); }
+  50%      { box-shadow: 0 0 0 0.4em color-mix(in srgb, var(--tt-alert) 55%, transparent); }
+}
+.delay-notice--new { animation: tt-delay-attn 1.1s ease-in-out 3; }
+@media (prefers-reduced-motion: reduce) { .delay-notice--new { animation: none; } }
 
 /* ── Tabs ── */
 .view-tabs {

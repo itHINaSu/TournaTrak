@@ -169,6 +169,24 @@ ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS notify_schedule BOOLEAN 
 -- team NAME for now; it becomes a real team id once teams are unified across
 -- tournaments, and the column does not have to change for that.
 ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS all_events      BOOLEAN NOT NULL DEFAULT FALSE;
+-- A subscription made through the DEFAULT mount (root `/`, no slug) follows
+-- whichever tournament is currently flagged Live, not a fixed one — that is
+-- what "subscribe from the PWA at root" means to the person doing it. Without
+-- this, tournament_id is set once at subscribe time and never revisited, so
+-- moving the Live flag to a different tournament (setDefaultTournament)
+-- silently orphans every root subscription: it still matches its OLD
+-- tournament_id, which nothing fires for any more (owner, 2026-08-02, live on
+-- issa-state-2026: subscribed and tested Start Live from the root PWA, got
+-- nothing, and toggling notifications off/on — which re-writes tournament_id
+-- fresh — fixed it). A subscription made via a specific /t/<slug> URL is
+-- pinned to THAT tournament forever regardless of the Live flag, since that
+-- is a deliberate choice of event, not "whatever's live". Defaults TRUE so
+-- every row that predates this column (there is no way to know which mount
+-- they came through) is treated as tracking Live too — store.js resyncs
+-- their tournament_id to whatever is currently Live once, at boot, right
+-- after this migration runs, rather than leaving them to self-heal only the
+-- next time the flag happens to move again.
+ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS tracks_live     BOOLEAN NOT NULL DEFAULT TRUE;
 CREATE INDEX IF NOT EXISTS push_subscriptions_tid_idx ON push_subscriptions (tournament_id);
 
 -- Which teams a public subscription follows. NO rows for a subscription means

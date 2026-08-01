@@ -75,13 +75,23 @@ var _teamLabels = {};       // canonical name -> { display, short }
 // team that actually SET something, so a plain tournament with no branding
 // costs nothing extra to render.
 var _teamBranding = {};
+// canonical name -> true, for EVERY rostered team (branded or not). Used to
+// tell a real team name from an unresolved slot's placeholder label.
+var _teamNames = {};
 
 function rebuildTeamLabels() {
   _teamLabels = {};
   _teamBranding = {};
+  _teamNames = {};
   var list = (_teamsData && _teamsData.teams) || [];
   list.forEach(function(t) {
     if (!t || !t.name) return;
+    // Every rostered team, branded or not. _teamLabels only holds teams that
+    // set a display/short name, so it cannot answer "is this string a real
+    // team?" — and shortNameAttr()'s auto-abbreviation MUST NOT fire on an
+    // unresolved slot's placeholder text ("Loser of Game 11" would abbreviate
+    // to a meaningless "Loser of").
+    _teamNames[t.name] = true;
     if (t.displayName || t.shortName) {
       _teamLabels[t.name] = { display: t.displayName || '', short: t.shortName || '' };
     }
@@ -147,6 +157,27 @@ function teamAttr(t) {
 function shortNameAttr(name) {
   var l = _teamLabels[name];
   var s = l && l.short;
+  // Guarded to REAL teams. Card slots that haven't resolved yet are rendered
+  // from placeholder text ("Loser of Game 11", "Winner of Team 4 / Team 13"),
+  // and running the abbreviation rule over those produces a confidently wrong
+  // "Loser of" / "Winner of" — measured on a live 22-team bracket, 62 of 82
+  // mobile cards, before this guard existed.
+  if (!s && _teamNames[name]) {
+    // No custom short name saved — fall back to the default abbreviation
+    // rule (owner, 2026-08-02: "If a team hasn't defined their own short
+    // name follow the default short name rule"), so a clipped name always
+    // has SOMETHING to swap to rather than only teams that thought to set
+    // one. Abbreviates the DISPLAYED label, not the canonical name: a team
+    // whose display name is "Southside Slowpitch Sluggers" should shorten
+    // that, not the "Team 1" it is keyed by.
+    //
+    // Only emitted when it actually differs — shortName() returns names of
+    // 14 characters or fewer unchanged, and a data-short identical to the
+    // text already rendered is a no-op attribute on every card in the tree.
+    var full = teamLabel(name);
+    var auto = shortName(full);
+    if (auto && auto !== full) s = auto;
+  }
   return s ? ' data-short="' + esc(s) + '"' : '';
 }
 
@@ -235,12 +266,31 @@ function setOffline(on) {
 }
 
 // ── Results notification bar ──────────────────────────────────────────
+// Last banner text this page rendered, so a notice that is merely STANDING
+// can be told from one that just arrived or was reworded. null until the
+// first run, which makes a notice already in place when the page loads count
+// as new — that is wanted: someone opening the page mid-delay should get the
+// same attention pull as someone who had it appear under them.
+var _lastDelayMsg = null;
 function updateDelayNotice() {
   var el   = document.getElementById('delayNotice');
   var text = document.getElementById('delayNoticeText');
   var msg  = (_offsets && _offsets.banner) ? _offsets.banner.trim() : '';
-  if (el) el.hidden = !(msg);
-  if (text) text.textContent = msg;
+  // Only write when it actually changed: the element is role="alert", and
+  // rewriting identical text on every poll makes some screen readers
+  // re-announce a delay that has been standing all morning.
+  if (text && text.textContent !== msg) text.textContent = msg;
+  if (el) {
+    el.hidden = !(msg);
+    if (msg && msg !== _lastDelayMsg) {
+      el.classList.remove('delay-notice--new');
+      void el.offsetWidth;                    // reflow, so the animation restarts
+      el.classList.add('delay-notice--new');
+    } else if (!msg) {
+      el.classList.remove('delay-notice--new');
+    }
+  }
+  _lastDelayMsg = msg;
 }
 
 function updateTimestamp() {
@@ -4263,11 +4313,29 @@ function renderMobileBracket(root, dims) {
     // round is the one both sides' games converge on.
     var round = bucket.rounds[0];
 
-    // A column with no winners-side games is a losers-only tail (the losers
-    // bracket runs more rounds than the winners side). Fold it into the
-    // previous column so the winners games in adjacent columns stay adjacent
-    // and the convergence animation still has feeders to converge on.
-    if (!bucket.L.length && cols.length > 0) {
+    // A round in which NOTHING is fed by two winners does not begin a new
+    // column — it folds into the column holding the round that feeds it.
+    //
+    // Owner rule, 2026-08-02 (established earlier for the tiered A/B
+    // three-game-guarantee format, restated here as general): "if a round has
+    // no game that is fed by two winners, it gets stacked under a round that
+    // feeds it." The test used to be `!bucket.L.length` — "this round has no
+    // winners-bracket games" — which is only a PROXY for that rule and
+    // disagrees with it exactly where it matters. A losers round pairing two
+    // LB winners (a real bracket junction, deserving its own column) folded in
+    // anyway just because the WB had finished, while a losers round taking a
+    // WB drop (winner+loser — not a junction, should fold) got its own column
+    // whenever the WB still had a game left in the same round index. Testing
+    // the FEEDS directly makes the layout follow the bracket's actual shape
+    // rather than how far along the winners side happens to be, so it lands
+    // correctly on a hand-transcribed bracket whose topology doesn't match a
+    // generated one of the same size.
+    var anyTwoWinnerFed = bucket.L.concat(bucket.R).some(function(gid) {
+      var gm = GAMES[gid];
+      return !!(gm && gm.t1 && gm.t1.type === 'winner' && gm.t1.slot
+                   && gm.t2 && gm.t2.type === 'winner' && gm.t2.slot);
+    });
+    if (!anyTwoWinnerFed && cols.length > 0) {
       var prev = cols[cols.length - 1];
       // roundNum marks this as a GENUINELY later round folded in — distinct
       // from the same-round WB/LB divider below, which shares its column's
@@ -4279,7 +4347,10 @@ function renderMobileBracket(root, dims) {
       // LB Final, promoted into the CHAMP column), and concatenating the
       // string eagerly here would leave a stale "· Round N" in the header
       // for a round that column no longer contains anything from.
-      bucket.R.forEach(function(gid) { prev.gids.push(gid); });
+      // Both sides, not just R: the condition above is now about FEEDS, so a
+      // round can qualify to fold while still holding a winners-side game
+      // (the old !bucket.L.length test made that impossible by construction).
+      bucket.L.concat(bucket.R).forEach(function(gid) { prev.gids.push(gid); });
       return;
     }
 
@@ -4301,7 +4372,8 @@ function renderMobileBracket(root, dims) {
         flat = flat.concat(wave);
       });
     }
-    cols.push({ round: round, label: 'Round ' + bucket.idx, baseLabel: 'Round ' + bucket.idx, gids: flat, divs: divs });
+    cols.push({ round: round, label: 'Round ' + bucket.idx, baseLabel: 'Round ' + bucket.idx,
+                baseIdx: bucket.idx, gids: flat, divs: divs });
   });
 
   // Championship columns keep their own round keys and labels.
@@ -4313,12 +4385,25 @@ function renderMobileBracket(root, dims) {
 
   // ── Championship-row parity with desktop ─────────────────────────────
   // Owner rule: the losers-bracket final must ALWAYS sit in line with the
-  // winners final and the championship card. On desktop the three share the
-  // championship row; here the equivalent is one column reading WB final →
-  // title card → LB final. When CHAMP is fed by one WB game and one LB game
-  // (any double-elim shape), pull both finals out of their round columns
-  // into the championship column. Single-elim (two WB feeders) is left
-  // alone. titleGid marks which card keeps the big champ treatment.
+  // winners final, immediately before the championship card. When CHAMP is
+  // fed by one WB game and one LB game (any double-elim shape), pull both
+  // finals out of their round columns into a DEDICATED "Finals" column,
+  // inserted immediately before the Championship column — not merged into
+  // it. Single-elim (two WB feeders) is left alone.
+  //
+  // Owner, 2026-08-02, correcting an earlier version of this that merged all
+  // three cards into ONE column (WB final → title card → LB final stacked
+  // vertically): "The WB final and LB final should be positioned in the
+  // column to indicate which games feed them... WB Final and LB Final feed
+  // championship, those games should be in the same 'round' and immediately
+  // left of the championship card indicating they feed that card." A
+  // stacked single column can't read as "immediately left of" anything —
+  // that phrase names an adjacent COLUMN on the swipe axis, which a shared
+  // column can't represent. A normal (non-champCol) column also means the
+  // Finals cards pick up the same converge-from-feeders animation every
+  // other round already has swiping in from its own left neighbour —
+  // previously suppressed for these two specifically because champCol()
+  // excludes the whole merged column from that logic.
   (function() {
     var champIdx = -1;
     cols.forEach(function(c, i) { if (c.round === 'CHAMP') champIdx = i; });
@@ -4334,6 +4419,40 @@ function renderMobileBracket(root, dims) {
     var lb = feeds.filter(function(s) { return !isWBGame(s.slot); });
     if (wb.length !== 1 || lb.length !== 1) return;   // not a WB+LB pair
     var pulled = [wb[0].slot, lb[0].slot];
+    var finalsDivs = [
+      { idx: 0, label: (getSetting('leftLabel') || 'Winners') + ' Final' },
+      { idx: 1, label: (getSetting('rightLabel') || 'Losers') + ' Final' },
+    ];
+    // The LB SEMIFINAL joins the finals column too, below both finals, behind
+    // the TD-configurable play-in divider (owner, 2026-08-02: "Merge into
+    // finals. The heading for that game is that play[-in] game label that we
+    // built out in the admin settings panel so that it separates that round
+    // from the finals round"). This is a deliberate EXCEPTION to the
+    // two-winner rule that governs every other column: the LB semifinal
+    // pairs two LB winners, so the rule on its own would give it a column —
+    // the owner wants the whole endgame on one page instead, which the rule
+    // cannot derive and must therefore be stated here.
+    //
+    // Guarded to a single game: "in a true double elimination there will
+    // never be two games in the losers bracket semifinal" (the winner goes
+    // on to play the WB final's loser), so a round that somehow holds more
+    // than one is not the game this exception is about and is left where the
+    // rule put it, rather than dragging a whole round into the finals page.
+    var lbFinalGame = GAMES[lb[0].slot];
+    var semiFeed = lbFinalGame && [lbFinalGame.t1, lbFinalGame.t2].filter(function(s) {
+      return s && s.type === 'winner' && s.slot && GAMES[s.slot];
+    })[0];
+    if (semiFeed) {
+      var semiGame = GAMES[semiFeed.slot];
+      var sameRound = Object.keys(GAMES).filter(function(gid) {
+        var gm = GAMES[gid];
+        return gm.round === semiGame.round && gm.side === semiGame.side && !gm.tier;
+      });
+      if (sameRound.length === 1) {
+        pulled.push(semiFeed.slot);
+        finalsDivs.push({ idx: 2, label: getSetting('playInLabel') });
+      }
+    }
     pulled.forEach(function(gid) {
       cols.forEach(function(col) {
         var idx = col.gids.indexOf(gid);
@@ -4347,16 +4466,59 @@ function renderMobileBracket(root, dims) {
     cols = cols.filter(function(col) { return col.gids.length; });
     champIdx = -1;
     cols.forEach(function(c, i) { if (c.round === 'CHAMP') champIdx = i; });
-    cols[champIdx].gids = [pulled[0], champGid, pulled[1]];
-    cols[champIdx].titleGid = champGid;
-    // Name both finals. Three unlabelled cards in one column don't say which
-    // bracket each came from, which is the whole point of pulling them here:
-    // the winners final and the losers final feed the title game.
-    cols[champIdx].divs = [
-      { idx: 0, label: (getSetting('leftLabel') || 'Winners') + ' Final' },
-      { idx: 2, label: (getSetting('rightLabel') || 'Losers') + ' Final' },
-    ];
+    // Champ column keeps its original single gid untouched (champGid was
+    // never in `pulled`, so nothing above ever removed it) — just insert the
+    // new Finals column right before it.
+    cols.splice(champIdx, 0, {
+      round: 'FINALS', label: 'Finals', gids: pulled, divs: finalsDivs,
+    });
   })();
+
+  // ── Re-check the fold rule AFTER the Finals extraction ───────────────
+  // A round is bucketed across BOTH sides (losers round N sits with winners
+  // round N), so a losers round that is purely winner+loser can be carried
+  // into its own column by the winners game sharing its round number — and
+  // then that winners game is the WB Final, which the pass above just pulled
+  // out into the Finals column. What is left behind is a column of games
+  // that never earned one.
+  //
+  // This is exactly the live 22-team case (owner, 2026-08-02): LB Round 5
+  // (`SF3.R`, winner+loser) shares bucket 5 with WB Round 5 — the WB Final,
+  // winner+winner — so the initial fold test passes on the bucket, and after
+  // the WB Final is promoted the two LB games sit alone under a "Round 5"
+  // header. Note this is shape-specific, not universal: at 16 and 32 teams
+  // that same LB Round 5 IS winner+winner and genuinely does earn its column,
+  // which is why the generated demo brackets disagreed with the report until
+  // a 22-team bracket was built to match. Re-running the rule here, against
+  // each column's FINAL contents, settles all three shapes with one test.
+  for (var ci = cols.length - 1; ci >= 1; ci--) {
+    var fcol = cols[ci], fprev = cols[ci - 1];
+    var special = function(c) { return c.round === 'CHAMP' || c.round === 'CHAMP2' || c.round === 'FINALS'; };
+    if (special(fcol) || special(fprev) || !fcol.gids.length) continue;
+    var earnsColumn = fcol.gids.some(function(gid) {
+      var gm = GAMES[gid];
+      return !!(gm && gm.t1 && gm.t1.type === 'winner' && gm.t1.slot
+                   && gm.t2 && gm.t2.type === 'winner' && gm.t2.slot);
+    });
+    if (earnsColumn) continue;
+    var base = fprev.gids.length;
+    // Carry this column's own dividers across, re-based. The one at idx 0 (if
+    // any) becomes the fold marker and gains roundNum so the header rebuild
+    // below names the round; if there wasn't one, add it.
+    var ownDivs = (fcol.divs || []).slice();
+    if (!ownDivs.some(function(d) { return d.idx === 0; })) {
+      ownDivs.unshift({ idx: 0, label: fcol.baseLabel || fcol.label, type: 'absorbed' });
+    }
+    ownDivs.forEach(function(d) {
+      fprev.divs.push(Object.assign({}, d, {
+        idx: d.idx + base,
+        type: d.idx === 0 ? 'absorbed' : d.type,
+        roundNum: d.idx === 0 ? (fcol.baseIdx != null ? fcol.baseIdx : true) : d.roundNum,
+      }));
+    });
+    fcol.gids.forEach(function(gid) { fprev.gids.push(gid); });
+    cols.splice(ci, 1);
+  }
 
   // Rebuild every non-championship column's header label from what's
   // ACTUALLY left in it now that the parity pass above may have pulled a

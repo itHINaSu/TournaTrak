@@ -1906,7 +1906,17 @@ api.post('/schedule', requireScheduleEdit, ah(async (req, res) => {
     const a = before[sid], b = req.body[sid];
     return a && b && b.time && a.time !== b.time;
   });
-  if (moved.length && moved.length <= 12) {
+  // A TD reworking the day can mute these while times are still in flux
+  // (settings.pauseScheduleNotifications). Checked HERE, not in the admin UI,
+  // because this is where the push is actually sent — and read per request
+  // rather than cached, so unpausing takes effect on the very next save.
+  const _st = Object.assign({}, SETTINGS_DEFAULTS, await store.get(req.tid, 'settings'));
+  const _muted = String(_st.pauseScheduleNotifications) === 'true';
+  if (_muted && moved.length) {
+    console.log('[push] schedule notifications paused — suppressed '
+      + moved.length + ' change notification(s) for tid=' + req.tid);
+  }
+  if (!_muted && moved.length && moved.length <= 12) {
     publicPathFor(req.tid).then(async url => {
       for (const sid of moved) {
         const { teams, label } = await slotTeams(req.tid, sid);
@@ -1925,6 +1935,14 @@ api.post('/schedule', requireScheduleEdit, ah(async (req, res) => {
 // a lock screen, and the tournament's own date-format settings are a display
 // concern for the page, not for this.
 function fmtWhen(iso) {
+  // Date-only means the day is known and the clock time is not — say that,
+  // rather than letting Date() read it as UTC midnight and announce a time
+  // (and possibly a day) nobody scheduled.
+  const d0 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (d0) {
+    return new Date(+d0[1], +d0[2] - 1, +d0[3])
+      .toLocaleString('en-US', { weekday: 'short' }) + ' — time TBD';
+  }
   const d = new Date(iso);
   if (isNaN(d)) return String(iso || '');
   return d.toLocaleString('en-US',
@@ -2913,7 +2931,11 @@ const resolveSlug = ah(async (req, res, next) => {
   req.tid = t.id;
   next();
 });
-app.use('/api/t/:slug', resolveSlug, api);
+// req.viaSlug marks a request that named a SPECIFIC tournament rather than
+// resolving to whichever is currently Live — /push/public-subscribe reads it
+// to decide whether the subscription should track the Live flag going
+// forward (tracks_live) or stay pinned to this one tournament forever.
+app.use('/api/t/:slug', (req, res, next) => { req.viaSlug = true; next(); }, resolveSlug, api);
 app.use('/api', (req, res, next) => { req.tid = store.tid; next(); }, api);
 
 // ── Root HTML — inject dynamic title + Open Graph tags ───────────────
@@ -3532,7 +3554,7 @@ api.post('/push/public-subscribe', ah(async (req, res) => {
     : [];
   await store.savePublicPushSubscription(sub, req.tid, {
     live: !!b.live, final: !!b.final, schedule: !!b.schedule, allEvents: !!b.allEvents,
-  }, teams);
+  }, teams, !req.viaSlug);
   res.json({ ok: true, subscribed: true, teams: teams.length });
 }));
 
@@ -3608,10 +3630,34 @@ async function slotTeams(tid, slot) {
 
 // Fire-and-forget notification to spectators. Never awaited by a route: a push
 // service having a bad day must not slow down or fail a scorekeeper's save.
+// Logs, on a zero-match trigger, what tournament_id(s) public rows actually
+// exist under — the one piece of information that turns "nothing happened"
+// into "the subscription is filed under tid=3 but this fired for tid=7".
+function logZeroPushTargets(label, tid) {
+  store.publicPushDebugRows().then(rows => {
+    if (!rows.length) { console.log('[push] ' + label + ' tid=' + tid + ' — 0 public subscriptions exist at all'); return; }
+    const byTid = {};
+    rows.forEach(r => { byTid[r.tournament_id] = (byTid[r.tournament_id] || 0) + 1; });
+    console.log('[push] ' + label + ' tid=' + tid + ' matched 0 — existing public rows by tournament_id:', byTid);
+  }).catch(() => {});
+}
+
+// Fire-and-forget notification to spectators. Never awaited by a route: a push
+// service having a bad day must not slow down or fail a scorekeeper's save.
 function notifyPublic(tid, kind, teams, payload) {
   if (!PUSH_READY) return;
   store.publicPushTargets(tid, kind, teams)
-    .then(rows => deliverPush(rows, payload))
+    .then(rows => {
+      // A trigger that finds no one is invisible everywhere else — the route
+      // that fired it already responded, and a scorekeeper watching their own
+      // phone has no way to tell "no one wants this" from "the tournament_id
+      // this row is filed under doesn't match the one this event fired for"
+      // (owner, 2026-08-02: subscribed and tested Start Live on a fresh game,
+      // got nothing). Only fires on a real transition (live) or a changed
+      // notice (schedule/final), never per-tap, so this is cheap to always run.
+      if (!rows.length) logZeroPushTargets('public "' + kind + '" for', tid);
+      return deliverPush(rows, payload);
+    })
     .catch(err => console.error('public push (' + kind + ') failed:', err && err.message));
 }
 
@@ -3621,7 +3667,10 @@ function notifyPublic(tid, kind, teams, payload) {
 function notifyPublicAll(tid, payload) {
   if (!PUSH_READY) return;
   store.publicPushAll(tid)
-    .then(rows => deliverPush(rows, payload))
+    .then(rows => {
+      if (!rows.length) logZeroPushTargets('public notice for', tid);
+      return deliverPush(rows, payload);
+    })
     .catch(err => console.error('public push (notice) failed:', err && err.message));
 }
 
