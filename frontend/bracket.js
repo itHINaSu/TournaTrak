@@ -3300,19 +3300,26 @@ function paintFlights(win, doc, opts, flights) {
     // sleeping and hoping.
     try { win.ttApplyDataCss(doc.body); } catch (e) { /* older frame */ }
     // The bracket shell centres itself in the viewport, so a narrow flight
-    // paints with wide margins INSIDE its own canvas. Aligning the finished
-    // canvases then lines up the canvases while their contents still float in
-    // the middle — the B bracket stayed stranded mid-page. Pin the content to
-    // the chosen edge here, before it is painted.
+    // paints with wide margins INSIDE its own canvas — paintBracketCanvas
+    // measures THIS element's own box, which fills the shared virtual
+    // viewport rather than shrink-wrapping the rounds actually drawn inside
+    // it. Always pin flush-left here, regardless of the chosen align: the
+    // title band is drawn at a fixed x on every canvas, so any OTHER
+    // justify-content leaves real bracket content sitting far from it with
+    // nothing but background between them — and trimCanvas can't remove
+    // that gap, because it crops the canvas's outer edges, not a gap between
+    // two pieces of real content in the middle (owner, 2026-08-02: "if it's
+    // centered there's a massive gap under the top left header"). Each
+    // flight's canvas now always crops tight; stackCanvases()'s xOf() below
+    // applies the requested left/center/right positioning to the ALREADY-
+    // TIGHT canvases when it composites more than one onto one sheet, which
+    // is the only place that positioning can be applied correctly.
     try {
       // .bcc-stack (flights, and large brackets that stack winners over
       // losers) or .bcc-outerflex (the side-by-side desktop layout) —
       // whichever this render actually used.
       var stack = doc.querySelector('.bcc-stack, .bcc-outerflex');
-      if (stack) {
-        stack.style.justifyContent = opts.align === 'left' ? 'flex-start'
-          : opts.align === 'right' ? 'flex-end' : 'center';
-      }
+      if (stack) stack.style.justifyContent = 'flex-start';
     } catch (e) { /* older frame markup */ }
     var c = paintBracketCanvas(win, doc, Object.assign({}, opts, { flight: fl }));
     if (c) out.push({ flight: fl, canvas: c });
