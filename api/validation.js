@@ -55,9 +55,16 @@ function validateSchedule(updates) {
         if (entry[f].length > 200)        return `${f} for ${sid} too long (max 200)`;
       }
     }
+    // Three legal shapes, and the middle one carries real meaning:
+    //   ''                  — nothing known at all
+    //   'YYYY-MM-DD'        — the DAY is known, the clock time is TBD
+    //   'YYYY-MM-DDTHH:MM'  — fully scheduled
+    // The date-only form exists because "we know it's Sunday, we don't know
+    // when yet" is the normal state after cancellations (owner, 2026-08-02),
+    // and blanking the whole field threw the day away with the time.
     if (entry.time !== undefined && entry.time !== '' &&
-        !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(entry.time))
-      return `invalid time format for ${sid}: expected YYYY-MM-DDTHH:MM`;
+        !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(entry.time))
+      return `invalid time format for ${sid}: expected YYYY-MM-DD or YYYY-MM-DDTHH:MM`;
     if (entry.t1slot && !isValidSlotId(entry.t1slot)) return `invalid t1slot for ${sid}`;
     if (entry.t2slot && !isValidSlotId(entry.t2slot)) return `invalid t2slot for ${sid}`;
     // A game feeding from its own result can never resolve.

@@ -3,7 +3,9 @@
 // Primary key: slot ID e.g. 'R1.L.1', 'R2.R.3', 'QF.L.1', 'SF.R.1', 'CHAMP.C.1'
 // Slot ID format: {ROUND}.{SIDE}.{NUM}  SIDE = L|R|C, NUM = 1-based
 // Team source: { type:'winner'|'loser', slot:'R1.L.1' } or { type:'fixed', team:'...' }
-// Time format: ISO local datetime 'YYYY-MM-DDTHH:MM' — set via admin panel
+// Time format: ISO local datetime 'YYYY-MM-DDTHH:MM' — set via admin panel.
+// A DATE-ONLY 'YYYY-MM-DD' is legal and means "this day, clock time TBD";
+// '' means nothing is known. See parseTimeVal/formatTime.
 
 // IMPORTANT: Keep in sync with api/slot-defs.js (API container cannot import this file).
 const SLOT_DEFS = {
@@ -100,10 +102,19 @@ const GAMES = {};
 let gamesGeneration = 0;
 
 // ── Time helpers ──────────────────────────────────────────────────────
-// t: 'YYYY-MM-DDTHH:MM' (ISO local, no timezone)
+// t: 'YYYY-MM-DDTHH:MM' (ISO local, no timezone), or 'YYYY-MM-DD' for a
+// known day with a TBD clock time.
 // Returns ms for sorting; empty/unparseable times sort to end.
 function parseTimeVal(t) {
   if (!t) return Infinity;
+  // Date-only ('YYYY-MM-DD') means the day is known and the clock time is TBD.
+  // Sorted to the END of its own day, so a day's scheduled games list in order
+  // and the not-yet-timed ones follow them — which is the order a TD reads a
+  // day in. Built from parts rather than `new Date('2026-08-02')`, which the
+  // spec parses as UTC midnight and would slide the game onto the wrong day
+  // for anyone west of Greenwich.
+  var d0 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  if (d0) return new Date(+d0[1], +d0[2] - 1, +d0[3], 23, 59, 0, 0).getTime();
   var d = new Date(t);
   return isNaN(d.getTime()) ? Infinity : d.getTime();
 }
@@ -113,6 +124,13 @@ function parseTimeVal(t) {
 // Returns empty string for empty input; raw string as fallback if unparseable.
 function formatTime(t) {
   if (!t) return '';
+  // Day known, time not: '8/2 Sunday TBD' rather than inventing a clock time.
+  var d0 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  if (d0) {
+    var dd = new Date(+d0[1], +d0[2] - 1, +d0[3]);
+    var dys = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    return (dd.getMonth() + 1) + '/' + dd.getDate() + ' ' + dys[dd.getDay()] + ' TBD';
+  }
   var d = new Date(t);
   if (isNaN(d.getTime())) return t;
   var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];

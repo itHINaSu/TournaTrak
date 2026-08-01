@@ -3640,6 +3640,9 @@ function renderReschedList() {
 // 'YYYY-MM-DDTHH:MM' → '6:00 PM'. The admin cards have their own formatter
 // but it is bound up with live/offset state; this only ever needs the clock.
 function fmtClock(iso) {
+  // Date-only = the day is known, the clock time is not. Say so, rather than
+  // returning '' and leaving a blank where a time belongs.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso || '')) return 'TBD';
   var m = /T(\d{2}):(\d{2})$/.exec(iso || '');
   if (!m) return '';
   var h = +m[1], ap = h >= 12 ? 'PM' : 'AM';
@@ -3669,12 +3672,23 @@ function reschedComputeMoves() {
   var delta;
 
   if (mode === 'tbd') {
-    // Nothing to compute — the target is "no time". Games already TBD are
-    // dropped rather than reported as moving from nothing to nothing.
-    var clearing = picked.filter(function(p) { return !!p.time; });
+    // Keep the DAY, drop only the clock time (owner, 2026-08-02: "I know the
+    // day, the time is TBD. I don't want a blank time I want TBD"). The
+    // date-only form is what carries that: the card still files under its day
+    // and reads '8/2 Sunday TBD'. Games already date-only are dropped rather
+    // than reported as moving from TBD to TBD.
+    var clearing = picked.filter(function(p) { return p.time && p.time.length > 10; });
     if (!clearing.length) return { error: 'Every game selected is already TBD.' };
-    return { moves: clearing.map(function(p) { return { sid: p.sid, from: p.time, to: '' }; }) };
+    return { moves: clearing.map(function(p) {
+      return { sid: p.sid, from: p.time, to: p.time.slice(0, 10) };
+    }) };
   }
+
+  // A date-only game has a day but no clock time, so the arithmetic modes have
+  // nothing to shift FROM — same treatment as a fully blank time below.
+  picked = picked.map(function(p) {
+    return (p.time && p.time.length === 10) ? { sid: p.sid, time: '', field: p.field } : p;
+  });
 
   // Both remaining modes do arithmetic on an existing time, so a TBD game
   // cannot take part — say which, instead of failing on a blank string.
@@ -3741,7 +3755,9 @@ function reschedPreview() {
     : 'Too many games for per-game notifications (' + r.moves.length + ' > 12), so NO push will be sent. Set the delay notice above so spectators know.';
 
   out.hidden = false;
-  var clearing = r.moves.length && !r.moves[0].to;
+  // A "clear" now targets the date-only form (day kept, clock time dropped),
+  // so it is length 10 rather than empty.
+  var clearing = r.moves.length && r.moves[0].to.length === 10;
   out.innerHTML = '<div class="resched-preview-hdr">' + r.moves.length + ' game' + (r.moves.length === 1 ? '' : 's')
       + (clearing ? ' will be set to TBD' : ' will move') + '</div>'
     + r.moves.map(function(m) {
@@ -3768,7 +3784,7 @@ async function reschedApply() {
   var r = reschedComputeMoves();
   if (r.error) { showToast(r.error, true); return; }
 
-  var clearingAll = r.moves.length && !r.moves[0].to;
+  var clearingAll = r.moves.length && r.moves[0].to.length === 10;
   var ok = await ttConfirm(
     (clearingAll ? 'Clear the time on ' : 'Move ') + r.moves.length
     + ' game' + (r.moves.length === 1 ? '' : 's')
