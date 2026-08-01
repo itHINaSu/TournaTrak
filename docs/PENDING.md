@@ -23,6 +23,7 @@ Last updated 2026-07-30.
 | # | Item | Blocked on |
 |---|---|---|
 | B1 | **Guest self-registration** (`GUEST_ACCOUNTS.md`) | The cross-tournament team database (T1). Owner decided guests register to a TEAM, and a team is a per-tournament name string until T1 lands — so accounts would be built on a foundation about to move. **Designed, deliberately not started.** |
+| B2 | **2026 ISSA State revised (rain-out) schedule import** — `scripts/build-issa-state-2026-updated.js` | One real field/time conflict in the owner's own sheet (`State_2026_1.xlsx`): Game 1 (Blueprint vs High Point Roofing/A&W Transport) and Game 3 (Legends vs WP Trucking) are both printed for Sat 8:00 AM, East field. Neither depends on the other, so nothing in the bracket topology can resolve it — needs the owner's call (two diamonds at East? a typo on one game?). The script is written, self-validating, and passes every other check (chronology, connector-line ordering, double-booking) — it refuses to write `issa-state-2026-live.json` until this one conflict is resolved. Once answered: re-run the script, then `node scripts/import-schedule.js scripts/issa-state-2026-live.json --url https://issa.tournatrak.com --replace` (owner's own `TT_ADMIN_PASS`, not run by an agent against the live site). |
 
 ---
 
