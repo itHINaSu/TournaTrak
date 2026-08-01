@@ -23,7 +23,6 @@ Last updated 2026-07-30.
 | # | Item | Blocked on |
 |---|---|---|
 | B1 | **Guest self-registration** (`GUEST_ACCOUNTS.md`) | The cross-tournament team database (T1). Owner decided guests register to a TEAM, and a team is a per-tournament name string until T1 lands — so accounts would be built on a foundation about to move. **Designed, deliberately not started.** |
-
 ---
 
 ## Agreed, not started
