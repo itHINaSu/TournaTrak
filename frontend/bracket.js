@@ -7047,6 +7047,7 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   _sessionRole = sess.role || null;
   var isPwa    = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
   var adminBtn       = document.getElementById('adminPortalBtn');
+  var quickResBtn    = document.getElementById('quickResultsBtn');
   var lineupBtn      = document.getElementById('lineupPortalBtn');
   var signInBtn      = document.getElementById('signInBtn');
   var editBtn        = document.getElementById('bucketEditBtn');
@@ -7072,6 +7073,10 @@ fetch(apiBase() + '/session').then(function(r){ return r.ok ? r.json() : {}; }).
   syncInstallBtn();
   if (signInBtn)      signInBtn.hidden = !(!_sessionRole);
   if (adminBtn)       adminBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
+  // Same gate as Admin Panel — "anyone with access" to results (owner,
+  // 2026-08-02) is exactly the admin/results role pair, same as the Results
+  // tab's own visibility inside /admin.
+  if (quickResBtn)    quickResBtn.hidden = !((_sessionRole === 'admin' || _sessionRole === 'results'));
   // Coach Panel is offered by TEAM ASSIGNMENT, not by role — coaching a team
   // and being staff are independent facts. session.teams is populated for
   // anyone with a team grant regardless of role ("staff may also coach — a TD
@@ -7248,6 +7253,8 @@ Object.assign(TT_ACTIONS, {
   // toggleHeaderMenu is registered in tt-common.js, with the menu itself.
   openNotifyPanel:   function() { closeHeaderMenu(); openNotifyPanel(); },
   closeNotifyPanel:  function() { closeNotifyPanel(); },
+  openQuickResults:  function() { closeHeaderMenu(); openQuickResults(); },
+  closeQuickResults: function() { closeQuickResults(); },
   openInstallPanel:  function() { closeHeaderMenu(); openInstallPanel(); },
   closeInstallPanel: function() { closeInstallPanel(); },
   notifyScopeChange: function() { renderNotifyTeams(); notifyDirty(); },
@@ -7424,6 +7431,80 @@ function closeNotifyPanel() {
   if (tab) tab.classList.add('active');
   if (dest) dest.classList.add('active');
   _notifyReturnTab = null;
+}
+
+// ── Quick results (admin/results staff only) ────────────────────────────
+// A "Results" entry in the header menu that opens the REAL admin Results
+// tab in an embedded same-origin frame — the exact pattern the admin
+// Teams tab already uses to embed the coach panel (openTeamDetail /
+// sizeTeamsDetailFrame in admin.js) — rather than a second, parallel
+// results-entry UI to keep in sync (owner, 2026-08-02: "Put a results
+// button in the hamburger menu for anyone with access... keep the public
+// nav bar on the bottom"). It is a .view-panel like Bracket/Schedule, not
+// a navigation to /admin, so #viewTabs (a sibling of every .view-panel,
+// never itself swapped) stays exactly where it is the whole time.
+var _resultsReturnTab = null;
+function openQuickResults() {
+  var panel = document.getElementById('view-results');
+  if (!panel) return;
+  var cur = document.querySelector('.view-tab.active');
+  _resultsReturnTab = cur ? cur.dataset.view : null;
+  document.querySelectorAll('.view-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.view-panel').forEach(function(x) { x.classList.remove('active'); });
+  panel.classList.add('active');
+  window.scrollTo(0, 0);
+  var frame = document.getElementById('resultsEmbedFrame');
+  // Only set src once — a slug switch on THIS page reloads the document
+  // entirely, so there is no stale-slug case to guard against on reopen,
+  // and re-pointing an already-loaded frame would just restart it on every
+  // visit to the tab.
+  if (frame && !frame.getAttribute('src')) {
+    var s = (typeof TT_SLUG !== 'undefined' && TT_SLUG) ? '&t=' + encodeURIComponent(TT_SLUG) : '';
+    frame.style.height = '32rem';   // until the real content is measured
+    frame.src = '/admin?embed=1' + s;
+    frame.onload = function() { sizeResultsEmbedFrame(); };
+  }
+}
+function closeQuickResults() {
+  var panel = document.getElementById('view-results');
+  if (panel) panel.classList.remove('active');
+  var want = _resultsReturnTab || 'bracket';
+  var tab = document.querySelector('.view-tab[data-view="' + want + '"]');
+  var dest = document.getElementById('view-' + want);
+  if (tab) tab.classList.add('active');
+  if (dest) dest.classList.add('active');
+  _resultsReturnTab = null;
+}
+// Same-origin, so the frame can simply be measured and grown to fit — no
+// postMessage handshake. Mirrors admin.js's sizeTeamsDetailFrame() exactly,
+// including its two anti-feedback-loop guards: setting height reflows the
+// frame's own body, which would re-fire the observer forever without them.
+var _resultsFrameRO = null, _resultsFrameH = 0, _resultsFrameRAF = 0;
+function sizeResultsEmbedFrame() {
+  var frame = document.getElementById('resultsEmbedFrame');
+  if (!frame) return;
+  var doc;
+  try { doc = frame.contentDocument; } catch (e) { return; }
+  if (!doc || !doc.body) return;
+  var apply = function() {
+    _resultsFrameRAF = 0;
+    var h = Math.max(doc.body.scrollHeight, doc.documentElement.scrollHeight || 0);
+    if (h <= 0) return;
+    if (Math.abs(h - _resultsFrameH) <= 4) return;   // settled — leave it alone
+    _resultsFrameH = h;
+    frame.style.height = h + 'px';   // NO padding added — see admin.js's note
+  };
+  var schedule = function() {
+    if (_resultsFrameRAF) return;
+    _resultsFrameRAF = requestAnimationFrame(apply);
+  };
+  _resultsFrameH = 0;
+  apply();
+  if (_resultsFrameRO) { _resultsFrameRO.disconnect(); _resultsFrameRO = null; }
+  if (typeof ResizeObserver === 'function') {
+    _resultsFrameRO = new ResizeObserver(schedule);
+    _resultsFrameRO.observe(doc.body);
+  }
 }
 // Ask the server to push to THIS device and say what happened. The error text
 // is shown verbatim: it is the push service's own words (Apple names the

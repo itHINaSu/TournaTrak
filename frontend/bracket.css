@@ -2931,6 +2931,21 @@ body.print-palette .bc-proj-chip {
    notification page scrolls itself. */
 #view-notify.view-panel.active { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
+/* ── Quick results (embedded admin Results tab) ───────────────────────────
+   Same containing rule as #view-notify above, same reason. Wider than
+   .notify-page (65em, matching .team-panel — the width Schedule/Team Path
+   already use) since this holds the admin panel's game-card grid, not a
+   settings form. */
+.results-embed-page { max-width: 65em; margin: 0 auto; padding: 1em; }
+.results-embed-frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+#view-results.view-panel.active { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
 /* Pull-to-refresh / #refreshBtn CSS moved to base.css (owner, 2026-08-02:
    "the refresh button should be available in coach and admin panel also") —
    those pages don't load bracket.css, and the indicator/spinner are shared

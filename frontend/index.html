@@ -10,9 +10,9 @@
 <link rel="apple-touch-icon" href="/icons/trophy-180.png">
 <link rel="icon" href="/icons/trophy-tab-192.png" type="image/png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.061">
-<link rel="stylesheet" href="/bracket.css?v=4.08.061">
-<script src="/app-h.js?v=4.08.061"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.062">
+<link rel="stylesheet" href="/bracket.css?v=4.08.062">
+<script src="/app-h.js?v=4.08.062"></script>
 </head>
 <body>
 
@@ -59,6 +59,14 @@
     <button class="admin-public-btn" id="shareImageBtn" hidden data-action="openShareImage" title="Share, download or print this bracket">Share</button>
     <button class="admin-public-btn" id="projectToggleBtn" hidden data-action="toggleProject">Project winners</button>
     <button class="admin-public-btn" id="notifyBtn" hidden data-action="openNotifyPanel" title="Get notified about games">Notifications</button>
+    <!-- Staff (admin or scorekeeper/results role) only. Stays ON this page —
+         unlike Coach Panel/Admin Panel below, which are destinations that
+         leave it — so a scorekeeper standing at a field can post a result
+         without losing the bracket, schedule and bottom nav around it
+         (owner, 2026-08-02: "keep the public nav bar on the bottom"). Opens
+         the real admin Results tab in an embedded frame (openQuickResults,
+         bracket.js) rather than a second results-entry implementation. -->
+    <button class="admin-public-btn" id="quickResultsBtn" hidden data-action="openQuickResults" title="Enter results without leaving the bracket">Results</button>
     <a href="/coach" class="admin-public-btn" id="lineupPortalBtn" hidden>Coach Panel →</a>
     <a href="/admin" class="admin-public-btn" id="adminPortalBtn" hidden>Admin Panel →</a>
     <!-- MOBILE ONLY, and never in the installed app — the inverse of Refresh
@@ -314,6 +322,24 @@
   </div>
 </div>
 
+<!-- Quick results — an embedded frame of the REAL admin Results tab
+     (/admin?embed=1), not a second results-entry implementation, same
+     reasoning as the Teams tab embedding the coach panel. Same-origin, so
+     the signed-in session cookie already covers it; no separate login.
+     A PAGE not a modal, for the same fixed-height-flex-child reason as
+     Notify/Install above; the frame's own height is measured and grown to
+     fit (sizeResultsEmbedFrame, bracket.js), so there is no scroll-inside-
+     a-scroll — the outer .view-panel scrolls, the frame just gets taller. -->
+<div class="view-panel" id="view-results">
+  <div class="results-embed-page">
+    <div class="notify-page-hdr">
+      <button class="admin-clear-btn" data-action="closeQuickResults">&larr; Back</button>
+      <div class="share-title">Results</div>
+    </div>
+    <iframe class="results-embed-frame" id="resultsEmbedFrame" title="Quick results"></iframe>
+  </div>
+</div>
+
 <!-- Install instructions. A PAGE, not a modal, for the same reason the
      notification settings are one (see HANDOFF): on mobile an active
      .view-panel is a fixed-height flex child, and a dialog taller than the
@@ -456,11 +482,11 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/settings-defaults.js?v=4.08.061"></script>
-<script src="/theme-css.js?v=4.08.061"></script>
-<script src="/tt-common.js?v=4.08.061"></script>
-<script src="/bracket-data.js?v=4.08.061"></script>
-<script src="/bracket.js?v=4.08.061"></script>
-<script src="/sw-register.js?v=4.08.061" data-sw="/sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.062"></script>
+<script src="/theme-css.js?v=4.08.062"></script>
+<script src="/tt-common.js?v=4.08.062"></script>
+<script src="/bracket-data.js?v=4.08.062"></script>
+<script src="/bracket.js?v=4.08.062"></script>
+<script src="/sw-register.js?v=4.08.062" data-sw="/sw.js"></script>
 </body>
 </html>

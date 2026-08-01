@@ -1521,6 +1521,28 @@ body.coach-embed #lineupNav.admin-tab-bar {
 body.coach-embed .admin-tab-panel { overflow: visible; }
 body.coach-embed .admin-container { padding-top: 0; }
 
+/* Embedded admin panel (Results, via the public page's header-menu button —
+   openQuickResults/sizeResultsEmbedFrame in bracket.js): same app-shell
+   problem as body.coach-embed directly above, same fix. The tab bar is
+   hidden outright here (applyAdminEmbedMode, admin.js) rather than
+   repositioned, since this embed is scoped to Results only — so there is no
+   .admin-tab-bar override to carry over from the coach-embed block. */
+body.admin-embed {
+  padding: 0;
+  overflow: visible;
+  min-height: 0;
+  height: auto;
+  display: block;
+}
+body.admin-embed #adminWrap {
+  flex: none;
+  min-height: 0;
+  overflow: visible;
+  display: block;
+}
+body.admin-embed .admin-tab-panel { overflow: visible; }
+body.admin-embed .admin-container { padding-top: 0; }
+
 
 /* Builder embedded in schedule tab — fill the full panel width */
 #schedBuilderPanel .bld-main {

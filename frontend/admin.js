@@ -1573,8 +1573,37 @@ function resetIOSZoom() {
 // The name is kept because this file calls it from a dozen places.
 function applyStickyOffsets() { ttApplyPanelOffsets(); }
 
+// ── Embedded mode (?embed=1) ──────────────────────────────────────────
+// The public page's header-menu "Results" button hosts THIS page in an
+// iframe (openQuickResults, bracket.js) so a scorekeeper gets the real
+// Results tab rather than a second, parallel results-entry UI to keep in
+// sync — same reasoning, same pattern, as this panel's own Teams tab
+// embedding the coach panel (owner, 2026-08-02: "Put a results button in
+// the hamburger menu... keep the public nav bar on the bottom"). Strips
+// this page's own header (the public page already has one, above the
+// iframe) and the top-level tab bar, so the embed stays scoped to Results
+// — a scorekeeper opening it from the bracket should not land somewhere
+// they can wander off into Teams/Schedule/Settings from a small frame.
+// Results itself, and its own Games/Buckets/Delays/Live sub-nav, are left
+// exactly as they render standalone.
+function adminIsEmbedded() {
+  return new URLSearchParams(window.location.search).get('embed') === '1';
+}
+function applyAdminEmbedMode() {
+  if (!adminIsEmbedded()) return;
+  document.body.classList.add('admin-embed');
+  var hdr = document.getElementById('siteHeader');
+  if (hdr) hdr.hidden = true;
+  var tabBar = document.querySelector('.admin-tab-bar');
+  if (tabBar) tabBar.hidden = true;
+  // adminQuickBar (the mobile-only Games/Buckets/Delays/Live switcher) is
+  // left alone — it's the Results tab's OWN sub-nav, not a way out of it,
+  // and updateQuickBar() already shows it only while Results is active.
+}
+
 function showAdmin(username, role, teamName) {
   resetIOSZoom();
+  applyAdminEmbedMode();
   if (username) currentUsername = username;
   if (role !== undefined) currentRole = role;
   if (teamName !== undefined) currentTeamName = teamName;
