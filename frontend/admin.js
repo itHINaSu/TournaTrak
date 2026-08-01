@@ -3581,7 +3581,34 @@ function reschedCandidates() {
   return out;
 }
 
+// Instant-save mute for spectator schedule-change pushes. Writes the one key;
+// POST /settings merges, so this cannot clobber anything else.
+async function togglePauseSchedNotif() {
+  var chk = document.getElementById('pauseSchedNotif');
+  var st  = document.getElementById('pauseSchedNotifStatus');
+  if (!chk) return;
+  var on = chk.checked;
+  if (st) st.textContent = 'Saving…';
+  try {
+    var r = await apiFetch('/api/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pauseScheduleNotifications: String(on) })
+    });
+    if (!r || !r.ok) throw new Error();
+    settings.pauseScheduleNotifications = String(on);
+    if (st) st.textContent = on ? '✓ Paused' : '✓ Notifications on';
+    showToast(on ? 'Schedule-change notifications paused' : 'Schedule-change notifications resumed');
+  } catch (e) {
+    chk.checked = !on;                     // put the switch back; nothing saved
+    if (st) st.textContent = '✗ Could not save';
+    showToast('Could not change the notification setting', true);
+  }
+  if (st) setTimeout(function() { st.textContent = ''; }, 3000);
+}
+
 function renderReschedule() {
+  var pause = document.getElementById('pauseSchedNotif');
+  if (pause) pause.checked = getSetting('pauseScheduleNotifications') === 'true';
   var days   = getScheduleDays();
   var fields = getScheduleFields();
 
@@ -5213,6 +5240,7 @@ Object.assign(TT_ACTIONS, {
     if (s) s.hidden = v !== 'shift';
     if (r) r.hidden = v !== 'restart';
   },
+  togglePauseSchedNotif: function() { togglePauseSchedNotif(); },
   reschedPreview:      function() { reschedPreview(); },
   reschedApply:        function() { reschedApply(); },
   // settings

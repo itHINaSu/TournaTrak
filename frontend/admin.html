@@ -10,12 +10,12 @@
 <link rel="icon" href="/icons/admin-192.png" type="image/png">
 <link rel="apple-touch-icon" href="/icons/admin-180.png">
 <link rel="stylesheet" href="/fonts.css">
-<link rel="stylesheet" href="/base.css?v=4.08.054">
-<link rel="stylesheet" href="/admin.css?v=4.08.054">
-<link rel="stylesheet" href="/lineup.css?v=4.08.054">
-<link rel="stylesheet" href="/builder.css?v=4.08.054">
-<link rel="stylesheet" href="/score.css?v=4.08.054">
-<script src="/app-h.js?v=4.08.054"></script>
+<link rel="stylesheet" href="/base.css?v=4.08.055">
+<link rel="stylesheet" href="/admin.css?v=4.08.055">
+<link rel="stylesheet" href="/lineup.css?v=4.08.055">
+<link rel="stylesheet" href="/builder.css?v=4.08.055">
+<link rel="stylesheet" href="/score.css?v=4.08.055">
+<script src="/app-h.js?v=4.08.055"></script>
 </head>
 <body>
 
@@ -981,6 +981,20 @@
        "+180 min" on every Saturday game is not a schedule anyone can read.
        Both exist on purpose; the offset is for "running late", this is for
        "the day has moved". -->
+  <!-- Sits with the tools that TRIGGER these notifications, not in Settings:
+       it is a mute you flip on before reworking a day and off again after,
+       and saves instantly so there is no Save button between the TD and a
+       schedule rebuild. -->
+  <div class="settings-section">
+    <div class="settings-section-hdr">Spectator Notifications</div>
+    <div class="settings-field settings-field--toggle">
+      <label>Pause "schedule change" notifications</label>
+      <input type="checkbox" id="pauseSchedNotif" data-action-change="togglePauseSchedNotif">
+      <div class="field-hint">While this is on, moving games sends nothing to spectators — use it when a day is being rebuilt and times are still changing, then turn it off. The weather/delay notice above is <strong>never</strong> muted: that is how you tell everyone the day has moved. Saves immediately.</div>
+      <span class="sched-status" id="pauseSchedNotifStatus"></span>
+    </div>
+  </div>
+
   <div class="settings-section">
     <div class="settings-section-hdr">Move Game Times</div>
     <div class="admin-subtitle admin-subtitle--flush">Rewrites the real start times on the cards. Pick the games, choose how they move, then preview before applying. Undo restores the previous schedule.</div>
@@ -1053,15 +1067,15 @@
   </div>
 </div>
 
-<script src="/settings-defaults.js?v=4.08.054"></script>
-<script src="/theme-css.js?v=4.08.054"></script>
-<script src="/tt-common.js?v=4.08.054"></script>
-<script src="/bracket-data.js?v=4.08.054"></script>
-<script src="/admin.js?v=4.08.054"></script>
-<script src="/lineup.js?v=4.08.054"></script>
-<script src="/score.js?v=4.08.054"></script>
-<script src="/builder-form.js?v=4.08.054"></script>
-<script src="/builder.js?v=4.08.054"></script>
-<script src="/sw-register.js?v=4.08.054" data-sw="/admin-sw.js"></script>
+<script src="/settings-defaults.js?v=4.08.055"></script>
+<script src="/theme-css.js?v=4.08.055"></script>
+<script src="/tt-common.js?v=4.08.055"></script>
+<script src="/bracket-data.js?v=4.08.055"></script>
+<script src="/admin.js?v=4.08.055"></script>
+<script src="/lineup.js?v=4.08.055"></script>
+<script src="/score.js?v=4.08.055"></script>
+<script src="/builder-form.js?v=4.08.055"></script>
+<script src="/builder.js?v=4.08.055"></script>
+<script src="/sw-register.js?v=4.08.055" data-sw="/admin-sw.js"></script>
 </body>
 </html>

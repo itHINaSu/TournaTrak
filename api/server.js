@@ -1906,7 +1906,17 @@ api.post('/schedule', requireScheduleEdit, ah(async (req, res) => {
     const a = before[sid], b = req.body[sid];
     return a && b && b.time && a.time !== b.time;
   });
-  if (moved.length && moved.length <= 12) {
+  // A TD reworking the day can mute these while times are still in flux
+  // (settings.pauseScheduleNotifications). Checked HERE, not in the admin UI,
+  // because this is where the push is actually sent — and read per request
+  // rather than cached, so unpausing takes effect on the very next save.
+  const _st = Object.assign({}, SETTINGS_DEFAULTS, await store.get(req.tid, 'settings'));
+  const _muted = String(_st.pauseScheduleNotifications) === 'true';
+  if (_muted && moved.length) {
+    console.log('[push] schedule notifications paused — suppressed '
+      + moved.length + ' change notification(s) for tid=' + req.tid);
+  }
+  if (!_muted && moved.length && moved.length <= 12) {
     publicPathFor(req.tid).then(async url => {
       for (const sid of moved) {
         const { teams, label } = await slotTeams(req.tid, sid);
@@ -1925,6 +1935,14 @@ api.post('/schedule', requireScheduleEdit, ah(async (req, res) => {
 // a lock screen, and the tournament's own date-format settings are a display
 // concern for the page, not for this.
 function fmtWhen(iso) {
+  // Date-only means the day is known and the clock time is not — say that,
+  // rather than letting Date() read it as UTC midnight and announce a time
+  // (and possibly a day) nobody scheduled.
+  const d0 = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (d0) {
+    return new Date(+d0[1], +d0[2] - 1, +d0[3])
+      .toLocaleString('en-US', { weekday: 'short' }) + ' — time TBD';
+  }
   const d = new Date(iso);
   if (isNaN(d)) return String(iso || '');
   return d.toLocaleString('en-US',
