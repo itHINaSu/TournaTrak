@@ -1420,6 +1420,22 @@ input[type="time"]:focus {
 .team-ed-edit { flex: none; }
 .teams-detail-back { margin-bottom: 0.6em; }
 
+/* Date set, clock time blank = "this day, time TBD" (see joinTime). Shown
+   only in that state, so a row reads as deliberate rather than half-filled. */
+.dt-tbd { display: none; }
+.datetime-pair--tbd .dt-tbd {
+  display: inline-block;
+  font-family: 'Oswald', sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--gold-lt);
+  border: 0.07em solid color-mix(in srgb, var(--gold) 45%, transparent);
+  border-radius: var(--radius-xs);
+  padding: 0.05em 0.4em;
+  margin-left: 0.35em;
+}
+
 /* ── Teams tab: embedded coach panel ──────────────────────────────────
    The team detail view hosts /coach?embed=1 in an iframe (see the comment on
    #tab-teams in admin.html for why it is the real panel rather than a second

@@ -394,6 +394,10 @@ function splitTime(iso) {
   if (!iso) return { date:'', time:'' };
   var m = iso.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/);
   if (m) return { date: m[1], time: m[2] };
+  // Date-only: the day is known, the clock time is TBD. Fills the date box and
+  // leaves the time box empty, which is exactly how it is entered too.
+  var d0 = iso.match(/^(\d{4}-\d{2}-\d{2})$/);
+  if (d0) return { date: d0[1], time: '' };
   var d = new Date(iso);
   if (!isNaN(d.getTime())) {
     var pad = function(n){ return n < 10 ? '0'+n : ''+n; };
@@ -405,17 +409,29 @@ function splitTime(iso) {
   return { date:'', time:'' };
 }
 
+// A date with no time is NOT nothing — it is "this day, time TBD", and is the
+// only way to say that in the editors (owner, 2026-08-02: "I know the time of
+// 9 games but I can't save them because the rest of the games have an assigned
+// time"). Returning '' here used to throw the DAY away along with the blank
+// time, so a TD could not set some games and leave the rest dated-but-untimed.
+// No date at all still means nothing is known.
 function joinTime(dateVal, timeVal) {
-  if (!dateVal || !timeVal) return '';
-  return dateVal + 'T' + timeVal;
+  if (!dateVal) return '';
+  return timeVal ? dateVal + 'T' + timeVal : dateVal;
 }
 
 function datetimePairHTML(idBase, existing) {
   var parts = splitTime(existing);
-  return '<div class="datetime-pair">'
+  // A date with an empty time is a real, savable state — "this day, time TBD"
+  // — so it gets a visible marker rather than looking like a half-filled row
+  // somebody forgot about.
+  var tbd = !!parts.date && !parts.time;
+  return '<div class="datetime-pair' + (tbd ? ' datetime-pair--tbd' : '') + '">'
     + '<input type="date" id="' + idBase + '-date" value="' + esc(parts.date) + '" placeholder="mm/dd/yy">'
     + '<span class="dt-sep">@</span>'
-    + '<input type="time" id="' + idBase + '-time" value="' + esc(parts.time) + '">'
+    + '<input type="time" id="' + idBase + '-time" value="' + esc(parts.time) + '"'
+    + ' title="Leave blank for TBD — the day is kept">'
+    + '<span class="dt-tbd">TBD</span>'
     + '</div>';
 }
 
@@ -3737,6 +3753,9 @@ function reschedComputeMoves() {
   } else {
     var at = readDatetime('reschedRestart');
     if (!at) return { error: 'Pick the date and time to restart at.' };
+    // joinTime now yields a date-only value when the time box is blank, which
+    // is meaningful in the editors but not here — restarting needs a clock.
+    if (at.length === 10) return { error: 'Pick a time of day to restart at, not just a date.' };
     // picked is already earliest-first, so [0] is the anchor.
     delta = reschedMinutesBetween(picked[0].time, at);
     if (delta === null) return { error: 'That restart time is not valid.' };
