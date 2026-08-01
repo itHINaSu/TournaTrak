@@ -97,7 +97,7 @@ function game(num, day, clock, field, t1, t2, tier) {
 // 22 teams; 10 get a first-round bye straight into round 2 (games 7-14).
 game(1, 'Sat', '08:00', 'East',   T('Blueprint'), T('High Point Roofing/A&W Transport'));
 game(2, 'Sat', '08:00', 'Center', T('Moodys/Bullys'), T("Michael's Shoes"));
-game(3, 'Sat', '08:00', 'East',   T('Legends'), T('WP Trucking'));
+game(3, 'Sat', '08:00', 'West',   T('Legends'), T('WP Trucking'));
 game(4, 'Sat', '09:00', 'West',   T('Coors Light/Grit'), T('Kerps/Budweiser'));
 game(5, 'Sat', '09:00', 'Center', T('Ricks'), T('Tropics'));
 game(6, 'Sat', '09:00', 'East',   T('Nukez'), T('Brew Crew'));
