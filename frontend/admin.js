@@ -492,6 +492,7 @@ function renderAdmin() {
 
     var hdr = '<div class="admin-res-hdr">'
       + '<span class="admin-game-id">' + esc(lbl) + '</span>'
+      + (g.field ? '<span class="score-field-tag">' + esc(g.field) + '</span>' : '')
       + '<div class="admin-res-dt">'
       + (dayStr  ? '<span class="admin-res-day">'  + esc(dayStr)  + '</span>' : '')
       + (timeStr ? '<span class="admin-res-time">' + esc(timeStr) + '</span>' : '')
